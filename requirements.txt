@@ -1,0 +1,7 @@
+yfinance
+pandas
+numpy
+openpyxl
+gspread
+gspread-dataframe
+google-auth
