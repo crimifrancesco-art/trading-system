@@ -1,0 +1,40 @@
+name: Trading Scanner Daily
+
+on:
+  schedule:
+    - cron: '0 7 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+    
+    - name: Setup credentials
+      env:
+        GSHEETS_CREDS: ${{ secrets.GSHEETS_CREDENTIALS }}
+      run: echo "$GSHEETS_CREDS" > gsheets_credentials.json
+    
+    - name: Run scanner
+      env:
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      run: python trading_scanner.py
+    
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: trading-results-${{ github.run_number }}
+        path: |
+          *.xlsx
+          *.csv
+        retention-days: 30
