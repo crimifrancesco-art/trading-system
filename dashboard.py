@@ -112,7 +112,6 @@ def load(markets):
     if "Emerging" in markets:
         t += ["EEM", "EWZ", "INDA", "FXI"]
 
-    # Rimuove duplicati mantenendo l'ordine
     return list(dict.fromkeys(t))
 
 # -----------------------------------------------------------------------------
@@ -193,7 +192,7 @@ def scan(ticker, e_h, p_rmin, p_rmax, r_poc):
             "Prezzo": round(p, 2),
             "Rea_Score": rea_score,
             "POC": round(poc, 2),
-            "Dist_POC": round(dpoc * 100, 1),  # in percento
+            "Dist_POC": round(dpoc * 100, 1),
             "Vol": round(vr, 2),
             "Stato": stato_rea,
         }
@@ -201,7 +200,6 @@ def scan(ticker, e_h, p_rmin, p_rmax, r_poc):
         return result_ep, result_rea
 
     except Exception:
-        # In produzione potresti loggare l'errore qui
         return None, None
 
 # -----------------------------------------------------------------------------
@@ -247,65 +245,39 @@ if st.session_state.get("done"):
 
     st.success(f"✅ Analizzati {len(df_ep)} titoli")
 
-    # -------------------------------------------------------------------------
-    # SEZIONE METRICHE SCANNER
-    # -------------------------------------------------------------------------
+    # METRICHE
     st.header("📊 Risultati Scanner")
-
     col1, col2, col3 = st.columns(3)
 
-    # -------------------------
-    # METRICA 1: EARLY Scanner
-    # -------------------------
     with col1:
         try:
-            if df_ep is None or df_ep.empty:
+            if df_ep.empty:
                 st.metric("Titoli EARLY", 0)
                 st.caption("ℹ️ Nessun titolo EARLY")
-            elif "Stato" not in df_ep.columns:
-                st.metric("Titoli EARLY", 0)
-                st.caption("❌ Colonna 'Stato' mancante")
-                with st.expander("🔍 Debug Info"):
-                    st.write(f"Colonne disponibili: {df_ep.columns.tolist()}")
             else:
                 n_early = len(df_ep[df_ep["Stato"] == "EARLY"])
                 st.metric("Titoli EARLY", n_early)
-                if n_early > 0:
-                    st.caption(f"✅ {n_early} opportunità trovate")
-                else:
-                    st.caption("ℹ️ Nessun segnale al momento")
+                st.caption(f"{n_early} opportunità trovate" if n_early > 0 else "Nessun segnale")
         except Exception as e:
             st.metric("Titoli EARLY", 0)
-            st.caption(f"❌ Errore: {str(e)}")
+            st.caption(f"Errore: {e}")
 
-    # -------------------------
-    # METRICA 2: PRO Scanner
-    # -------------------------
     with col2:
         try:
-            if df_ep is None or df_ep.empty:
+            if df_ep.empty:
                 st.metric("Titoli PRO", 0)
                 st.caption("ℹ️ Nessun titolo PRO")
-            elif "Stato" not in df_ep.columns:
-                st.metric("Titoli PRO", 0)
-                st.caption("❌ Colonna 'Stato' mancante")
             else:
                 n_pro = len(df_ep[df_ep["Stato"] == "PRO"])
                 st.metric("Titoli PRO", n_pro)
-                if n_pro > 0:
-                    st.caption(f"✅ {n_pro} opportunità trovate")
-                else:
-                    st.caption("ℹ️ Nessun segnale al momento")
+                st.caption(f"{n_pro} opportunità trovate" if n_pro > 0 else "Nessun segnale")
         except Exception as e:
             st.metric("Titoli PRO", 0)
-            st.caption(f"❌ Errore: {str(e)}")
+            st.caption(f"Errore: {e}")
 
-    # -------------------------
-    # METRICA 3: REA-QUANT Scanner
-    # -------------------------
     with col3:
         try:
-            if df_rea is None or df_rea.empty:
+            if df_rea.empty:
                 st.metric("Titoli REA-QUANT", 0)
                 st.caption("ℹ️ Nessun titolo REA-QUANT")
             else:
@@ -319,33 +291,99 @@ if st.session_state.get("done"):
                     )
                 else:
                     n_rea = len(df_rea)
-
                 st.metric("Titoli REA-QUANT", n_rea)
-                if n_rea > 0:
-                    st.caption(f"✅ {n_rea} opportunità trovate")
-                else:
-                    st.caption("ℹ️ Nessun segnale al momento")
+                st.caption(f"{n_rea} opportunità trovate" if n_rea > 0 else "Nessun segnale")
         except Exception as e:
             st.metric("Titoli REA-QUANT", 0)
-            st.caption(f"❌ Errore: {str(e)}")
+            st.caption(f"Errore: {e}")
 
-    # -------------------------------------------------------------------------
-    # TABELLE DETTAGLIO
-    # -------------------------------------------------------------------------
-    st.subheader("📋 Dettaglio EARLY + PRO")
-    if not df_ep.empty:
-        st.dataframe(
-            df_ep.sort_values(["Pro_Score", "Early_Score"], ascending=False).head(top),
-            use_container_width=True,
-        )
-    else:
-        st.caption("Nessun risultato EARLY/PRO disponibile.")
+    # -----------------------------------------------------------------------------
+    # 3 TABS: EARLY, PRO, REA-QUANT + DOWNLOAD CSV
+    # -----------------------------------------------------------------------------
+    tab_early, tab_pro, tab_rea = st.tabs(
+        ["🟢 EARLY", "🟣 PRO", "🟠 REA-QUANT"]
+    )
 
-    st.subheader("📋 Dettaglio REA-QUANT")
-    if not df_rea.empty:
-        st.dataframe(
-            df_rea.sort_values("Rea_Score", ascending=False).head(top),
-            use_container_width=True,
-        )
-    else:
-        st.caption("Nessun risultato REA-QUANT disponibile.")
+    # TAB EARLY
+    with tab_early:
+        st.subheader("🟢 Dettaglio EARLY")
+        if not df_ep.empty:
+            df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
+            df_early = df_early.sort_values("Early_Score", ascending=False).head(top)
+            st.dataframe(df_early, use_container_width=True)
+
+            df_early_tv = df_early.rename(
+                columns={
+                    "Ticker": "symbol",
+                    "Prezzo": "price",
+                    "RSI": "rsi",
+                    "Vol": "volume_ratio",
+                }
+            )[["symbol", "price", "rsi", "volume_ratio"]]
+
+            csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Scarica CSV EARLY per TradingView",
+                data=csv_early,
+                file_name=f"scanner_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.caption("Nessun risultato EARLY disponibile.")
+
+    # TAB PRO
+    with tab_pro:
+        st.subheader("🟣 Dettaglio PRO")
+        if not df_ep.empty:
+            df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
+            df_pro = df_pro.sort_values("Pro_Score", ascending=False).head(top)
+            st.dataframe(df_pro, use_container_width=True)
+
+            df_pro_tv = df_pro.rename(
+                columns={
+                    "Ticker": "symbol",
+                    "Prezzo": "price",
+                    "RSI": "rsi",
+                    "Vol": "volume_ratio",
+                }
+            )[["symbol", "price", "rsi", "volume_ratio"]]
+
+            csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Scarica CSV PRO per TradingView",
+                data=csv_pro,
+                file_name=f"scanner_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.caption("Nessun risultato PRO disponibile.")
+
+    # TAB REA-QUANT
+    with tab_rea:
+        st.subheader("🟠 Dettaglio REA-QUANT")
+        if not df_rea.empty:
+            df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
+            st.dataframe(df_rea_view, use_container_width=True)
+
+            df_rea_tv = df_rea_view.rename(
+                columns={
+                    "Ticker": "symbol",
+                    "Prezzo": "price",
+                    "POC": "poc",
+                    "Dist_POC": "dist_poc_percent",
+                    "Vol": "volume_ratio",
+                }
+            )[["symbol", "price", "poc", "dist_poc_percent", "volume_ratio"]]
+
+            csv_rea = df_rea_tv.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Scarica CSV REA-QUANT per TradingView",
+                data=csv_rea,
+                file_name=f"scanner_rea_quant_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        else:
+            st.caption("Nessun risultato REA-QUANT disponibile.")
