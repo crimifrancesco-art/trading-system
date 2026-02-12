@@ -245,7 +245,7 @@ df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================
-# RISULTATI SCANNER – METRICHE BASATE SUI DF DEI TAB
+# RISULTATI SCANNER – METRICHE
 # =============================================================================
 if "Stato" in df_ep.columns:
     df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
@@ -282,6 +282,10 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime = st.tabs(
 # EARLY
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
+    st.markdown(
+        f"Filtro EARLY: titoli con **Stato = EARLY** (distanza prezzo–EMA20 < {e_h*100:.1f}%), "
+        "punteggio Early_Score ≥ 8."
+    )
     if df_early_all.empty:
         st.caption("Nessun segnale EARLY.")
     else:
@@ -307,23 +311,13 @@ with tab_e:
             use_container_width=True,
         )
 
-        # XLSX EARLY completo
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_early.to_excel(writer, index=False, sheet_name="EARLY")
-        xlsx_data = output.getvalue()
-
-        st.download_button(
-            "⬇️ XLSX EARLY (tutte le colonne)",
-            data=xlsx_data,
-            file_name=f"early_full_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-        )
-
 # PRO
 with tab_p:
     st.subheader("🟣 Segnali PRO")
+    st.markdown(
+        f"Filtro PRO: titoli con **Stato = PRO** (prezzo sopra EMA20, RSI tra {p_rmin} e {p_rmax}, "
+        "Vol_Ratio > 1.2, Pro_Score elevato)."
+    )
     if df_pro_all.empty:
         st.caption("Nessun segnale PRO.")
     else:
@@ -350,9 +344,13 @@ with tab_p:
             use_container_width=True,
         )
 
-# REA‑QUANT
+# REA‑QUANT (segnali)
 with tab_r:
     st.subheader("🟠 Segnali REA‑QUANT")
+    st.markdown(
+        f"Filtro REA‑QUANT: titoli con **Stato = HOT** "
+        f"(distanza dal POC < {r_poc*100:.1f}%, Vol_Ratio > 1.5)."
+    )
     if df_rea_all.empty:
         st.caption("Nessun segnale REA‑QUANT.")
     else:
@@ -381,9 +379,14 @@ with tab_r:
 # MASSIMO REA – ANALISI QUANT
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
+    st.markdown(
+        "Analisi per mercato sui soli titoli con **Stato = HOT**: "
+        "conteggio segnali, Vol_Ratio medio, Rea_Score medio e top 10 per pressione volumetrica."
+    )
 
     if df_rea_all.empty:
         st.caption("Nessun dato REA‑QUANT disponibile.")
+        df_rea_q = pd.DataFrame()
     else:
         df_rea_q = df_rea_all.copy()
 
@@ -420,9 +423,14 @@ with tab_rea_q:
 # STEFANO SERAFINI – SYSTEMS
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
+    st.markdown(
+        "Sistema Donchian‑style su 20 giorni: breakout su massimi/minimi 20‑giorni "
+        "calcolato su tutti i ticker scansionati."
+    )
 
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile.")
+        df_break_view = pd.DataFrame()
     else:
         universe = df_ep["Ticker"].unique().tolist()
         records = []
@@ -453,6 +461,7 @@ with tab_serafini:
         df_break = pd.DataFrame(records)
         if df_break.empty:
             st.caption("Nessun breakout rilevato (20 giorni).")
+            df_break_view = pd.DataFrame()
         else:
             df_break = df_break.merge(
                 df_ep[["Ticker", "Nome", "Pro_Score", "RSI", "Vol_Ratio"]],
@@ -470,9 +479,14 @@ with tab_serafini:
 # REGIME & MOMENTUM
 with tab_regime:
     st.subheader("🧊 Regime & Momentum multi‑mercato")
+    st.markdown(
+        "Regime: % PRO vs EARLY sul totale segnali. "
+        "Momentum: ranking per Pro_Score × 10 + RSI su tutti i titoli scansionati."
+    )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
         st.caption("Nessun dato scanner disponibile.")
+        sheet_regime = pd.DataFrame()
     else:
         df_all = df_ep.copy()
         n_tot_signals = len(df_all)
@@ -502,3 +516,44 @@ with tab_regime:
             mime="text/csv",
             use_container_width=True,
         )
+
+        sheet_regime = df_all.sort_values("Momentum", ascending=False)
+
+# =============================================================================
+# EXPORT XLSX COMPLETO (TUTTI I TAB)
+# =============================================================================
+st.subheader("⬇️ Esportazione completa in Excel")
+
+sheet_early   = df_early_all.copy()
+sheet_pro     = df_pro_all.copy()
+sheet_rea_sig = df_rea_all.copy()
+sheet_rea_quant = df_rea_q if 'df_rea_q' in locals() else pd.DataFrame()
+sheet_serafini = df_break_view if 'df_break_view' in locals() else pd.DataFrame()
+
+if 'sheet_regime' not in locals():
+    sheet_regime = pd.DataFrame()
+
+output_all = io.BytesIO()
+with pd.ExcelWriter(output_all, engine="xlsxwriter") as writer:
+    if not sheet_early.empty:
+        sheet_early.to_excel(writer, index=False, sheet_name="EARLY")
+    if not sheet_pro.empty:
+        sheet_pro.to_excel(writer, index=False, sheet_name="PRO")
+    if not sheet_rea_sig.empty:
+        sheet_rea_sig.to_excel(writer, index=False, sheet_name="REA_SIGNALS")
+    if not sheet_rea_quant.empty:
+        sheet_rea_quant.to_excel(writer, index=False, sheet_name="REA_QUANT")
+    if not sheet_serafini.empty:
+        sheet_serafini.to_excel(writer, index=False, sheet_name="SERAFINI")
+    if not sheet_regime.empty:
+        sheet_regime.to_excel(writer, index=False, sheet_name="REGIME_MOMENTUM")
+
+xlsx_all_tabs = output_all.getvalue()
+
+st.download_button(
+    "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime)",
+    data=xlsx_all_tabs,
+    file_name=f"scanner_full_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True,
+)
