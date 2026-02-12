@@ -7,6 +7,14 @@ import time
 from io import BytesIO
 
 # -----------------------------------------------------------------------------
+# RESET SESSIONE SE DF VECCHI (senza colonna 'Stato')
+# -----------------------------------------------------------------------------
+if "df_ep_pro" in st.session_state:
+    df_tmp = st.session_state["df_ep_pro"]
+    if isinstance(df_tmp, pd.DataFrame) and "Stato" not in df_tmp.columns:
+        st.session_state.clear()
+
+# -----------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
@@ -35,7 +43,6 @@ h1 {
 h2, h3 {
     font-weight: 600;
 }
-/* Tabs stile pill blu */
 .stTabs [data-baseweb="tab-list"] {
     gap: 0.35rem;
     padding-bottom: 0.25rem;
@@ -54,14 +61,12 @@ h2, h3 {
     color: #F9FAFB;
     border-color: #1D4ED8;
 }
-/* metric card */
 [data-testid="stMetric"] {
     background-color: #020617;
     padding: 0.75rem 1rem;
     border-radius: 0.75rem;
     border: 1px solid #111827;
 }
-/* bottoni primary */
 .stButton > button {
     border-radius: 999px;
     background: linear-gradient(135deg, #2563EB, #4F46E5);
@@ -268,8 +273,8 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     except Exception:
         return None, None
 
-def all_tabs_to_xlsx(df_early, df_pro, df_rea, cols_early, cols_pro, cols_rea) -> bytes:
-    """Un unico XLSX con tre sheet: EARLY, PRO, REA."""
+def all_tabs_to_xlsx(df_early, df_pro, df_rea,
+                     cols_early, cols_pro, cols_rea) -> bytes:
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         if not df_early.empty:
@@ -322,17 +327,29 @@ df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================
-# HEADER METRICHE
+# METRICHE (SAFE SU COLONNE)
 # =============================================================================
 st.header("Risultati Scanner")
 
+if "Stato" in df_ep.columns:
+    n_early = (df_ep["Stato"] == "EARLY").sum()
+    n_pro   = (df_ep["Stato"] == "PRO").sum()
+else:
+    n_early = 0
+    n_pro   = 0
+
+if "Stato" in df_rea.columns:
+    n_rea = (df_rea["Stato"] == "HOT").sum()
+else:
+    n_rea = 0
+
 col1, col2, col3 = st.columns(3)
-col1.metric("Segnali EARLY", (df_ep["Stato"] == "EARLY").sum())
-col2.metric("Segnali PRO", (df_ep["Stato"] == "PRO").sum())
-col3.metric("Segnali REA‑QUANT", (df_rea["Stato"] == "HOT").sum() if not df_rea.empty else 0)
+col1.metric("Segnali EARLY", n_early)
+col2.metric("Segnali PRO", n_pro)
+col3.metric("Segnali REA‑QUANT", n_rea)
 
 # =============================================================================
-# TABS PRINCIPALI (con Rea Quant + Serafini)
+# TABS PRINCIPALI
 # =============================================================================
 tab_e, tab_p, tab_r, tab_rea_quant, tab_serafini = st.tabs(
     ["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "🧮 Rea Quant", "📈 Serafini Systems"]
@@ -345,54 +362,60 @@ cols_early = [
     "OBV_Trend", "ATR", "ATR_Exp", "Stato"
 ]
 cols_pro = cols_early
-cols_rea = ["Nome", "Ticker", "Prezzo", "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"]
+cols_rea = ["Nome", "Ticker", "Prezzo",
+            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"]
 
 # -----------------------------------------------------------------------------
 # TAB EARLY
 # -----------------------------------------------------------------------------
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
-    df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
-    if df_early.empty:
-        st.caption("Nessun segnale EARLY.")
+    if "Stato" not in df_ep.columns:
+        st.caption("Nessun dato EARLY disponibile (colonna 'Stato' assente).")
     else:
-        df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
-        st.dataframe(df_early_view[cols_early], use_container_width=True)
+        df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
+        if df_early.empty:
+            st.caption("Nessun segnale EARLY.")
+        else:
+            df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
+            st.dataframe(df_early_view[cols_early], use_container_width=True)
 
-        # CSV TradingView: solo ticker, senza header
-        df_early_tv = df_early_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
-        csv_early = df_early_tv.to_csv(index=False, header=False).encode("utf-8")
+            df_early_tv = df_early_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+            csv_early = df_early_tv.to_csv(index=False, header=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV EARLY (watchlist TradingView)",
-            data=csv_early,
-            file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            st.download_button(
+                "⬇️ CSV EARLY (watchlist TradingView)",
+                data=csv_early,
+                file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 # -----------------------------------------------------------------------------
 # TAB PRO
 # -----------------------------------------------------------------------------
 with tab_p:
     st.subheader("🟣 Segnali PRO")
-    df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
-    if df_pro.empty:
-        st.caption("Nessun segnale PRO.")
+    if "Stato" not in df_ep.columns:
+        st.caption("Nessun dato PRO disponibile (colonna 'Stato' assente).")
     else:
-        df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
-        st.dataframe(df_pro_view[cols_pro], use_container_width=True)
+        df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
+        if df_pro.empty:
+            st.caption("Nessun segnale PRO.")
+        else:
+            df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
+            st.dataframe(df_pro_view[cols_pro], use_container_width=True)
 
-        df_pro_tv = df_pro_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
-        csv_pro = df_pro_tv.to_csv(index=False, header=False).encode("utf-8")
+            df_pro_tv = df_pro_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+            csv_pro = df_pro_tv.to_csv(index=False, header=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV PRO (watchlist TradingView)",
-            data=csv_pro,
-            file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            st.download_button(
+                "⬇️ CSV PRO (watchlist TradingView)",
+                data=csv_pro,
+                file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 # -----------------------------------------------------------------------------
 # TAB REA‑QUANT
@@ -402,10 +425,11 @@ with tab_r:
     if df_rea.empty:
         st.caption("Nessun segnale REA‑QUANT.")
     else:
-        df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
-        st.dataframe(df_rea_view[cols_rea], use_container_width=True)
+        st.dataframe(df_rea[cols_rea].sort_values("Rea_Score", ascending=False).head(top),
+                     use_container_width=True)
 
-        df_rea_tv = df_rea_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+        df_rea_tv = df_rea.sort_values("Rea_Score", ascending=False).head(top)[["Ticker"]]
+        df_rea_tv = df_rea_tv.rename(columns={"Ticker": "symbol"})
         csv_rea = df_rea_tv.to_csv(index=False, header=False).encode("utf-8")
 
         st.download_button(
@@ -452,7 +476,8 @@ with tab_rea_quant:
         st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         st.dataframe(
             df_rea_q.sort_values("Vol_Ratio", ascending=False)
-                    .head(10)[["Nome", "Ticker", "Prezzo", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"]],
+                    .head(10)[["Nome", "Ticker", "Prezzo", "POC",
+                               "Dist_POC_%", "Vol_Ratio", "Stato"]],
             use_container_width=True,
         )
 
@@ -511,8 +536,8 @@ with tab_serafini:
 # -----------------------------------------------------------------------------
 # XLSX COMPLETO (3 FOGLI)
 # -----------------------------------------------------------------------------
-df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
-df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
+df_early_all = df_ep[df_ep.get("Stato", "") == "EARLY"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
+df_pro_all   = df_ep[df_ep.get("Stato", "") == "PRO"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
 df_rea_all   = df_rea.copy()
 
 xlsx_all = all_tabs_to_xlsx(df_early_all, df_pro_all, df_rea_all,
