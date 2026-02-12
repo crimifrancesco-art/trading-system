@@ -5,8 +5,10 @@ import numpy as np
 from datetime import datetime
 import time
 from io import BytesIO
-from yfinance.utils import YFRateLimitError
 
+# -----------------------------------------------------------------------------#
+# CONFIGURAZIONE BASE PAGINA
+# -----------------------------------------------------------------------------#
 st.set_page_config(
     page_title="Trading Dashboard PRO (Lite)",
     layout="wide",
@@ -15,11 +17,11 @@ st.set_page_config(
 
 st.markdown("#### Quantitative Trading Dashboard")
 st.title("SCAN • FILTER • EXECUTE – LITE")
-st.caption("Versione PRO ottimizzata per Streamlit Cloud (no rate limit)")
+st.caption("Versione PRO ottimizzata per Streamlit Cloud (universo ridotto)")
 
-# -----------------------------------------------------------------------------
-# SIDEBAR
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
+# SIDEBAR – MERCATI E PARAMETRI
+# -----------------------------------------------------------------------------#
 st.sidebar.title("⚙️ Configurazione")
 
 st.sidebar.subheader("📈 Selezione Mercati")
@@ -43,9 +45,9 @@ if not sel:
     st.warning("Seleziona almeno un mercato.")
     st.stop()
 
-# -----------------------------------------------------------------------------
-# SUPPORTO
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
+# FUNZIONI DI SUPPORTO
+# -----------------------------------------------------------------------------#
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
@@ -63,11 +65,9 @@ def calc_obv(close, volume):
     return (direction * volume).cumsum()
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
+    # gestione rate limit generica
     try:
         data = yf.Ticker(ticker).history(period="6mo")
-    except YFRateLimitError:
-        # salta il ticker se Yahoo blocca la richiesta
-        return None, None
     except Exception:
         return None, None
 
@@ -82,9 +82,11 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     price = float(c.iloc[-1])
     ema20 = float(c.ewm(20).mean().iloc[-1])
 
+    # EARLY
     dist_ema = abs(price - ema20) / ema20
     early_score = 8 if dist_ema < e_h else 0
 
+    # PRO
     pro_score = 3 if price > ema20 else 0
 
     delta = c.diff()
@@ -113,6 +115,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
     stato_ep = "PRO" if pro_score >= 6 else ("EARLY" if early_score >= 8 else "-")
 
+    # REA‑QUANT
     tp = (h + l + c) / 3
     bins = np.linspace(float(l.min()), float(h.max()), 40)
     price_bins = pd.cut(tp, bins, labels=bins[:-1])
@@ -160,9 +163,9 @@ def all_tabs_to_xlsx(df_early, df_pro, df_rea,
             df_rea[cols_rea].to_excel(writer, index=False, sheet_name="REA_QUANT")
     return output.getvalue()
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # SCAN
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli…")
@@ -180,7 +183,7 @@ if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True)
         if rea:
             r_rea.append(rea)
         pb.progress((i + 1) / len(universe))
-        time.sleep(0.05)  # piccolo delay per non saturare Yahoo
+        time.sleep(0.05)  # piccolo delay per ridurre rate limit
 
     status.text("✅ Scansione completata.")
     pb.empty()
@@ -193,9 +196,9 @@ if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True)
 df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # METRICHE
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 st.header("Risultati Scanner")
 
 if "Stato" in df_ep.columns:
@@ -215,9 +218,9 @@ col1.metric("Segnali EARLY", n_early)
 col2.metric("Segnali PRO", n_pro)
 col3.metric("Segnali REA‑QUANT", n_rea)
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TABS
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 tab_e, tab_p, tab_r = st.tabs(["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT"])
 
 cols_early = [
@@ -261,9 +264,9 @@ with tab_r:
         st.dataframe(df_rea[cols_rea].sort_values("Rea_Score", ascending=False).head(top),
                      use_container_width=True)
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # XLSX COMPLETO
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 df_early_all = df_ep[df_ep.get("Stato", "") == "EARLY"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
 df_pro_all   = df_ep[df_ep.get("Stato", "") == "PRO"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
 df_rea_all   = df_rea.copy()
