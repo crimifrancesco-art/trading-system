@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import time
+from io import BytesIO
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
@@ -58,7 +59,6 @@ st.info(f"Mercati selezionati: **{', '.join(sel)}**")
 # =============================================================================
 @st.cache_data(ttl=3600)
 def load_universe(markets):
-    """Costruisce la lista di ticker per i mercati selezionati."""
     t = []
 
     if "SP500" in markets:
@@ -159,6 +159,9 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         atr = tr.rolling(14).mean()
         atr_val = float(atr.iloc[-1])
 
+        atr_ratio = float(atr.iloc[-1] / atr.rolling(50).mean().iloc[-1])
+        atr_expansion = atr_ratio > 1.2  # [web:21]
+
         stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
 
         # REA‑QUANT
@@ -182,6 +185,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             "Vol_Ratio": round(vol_ratio, 2),
             "OBV_Trend": obv_trend,
             "ATR": round(atr_val, 2),
+            "ATR_Exp": atr_expansion,
             "Stato": stato_ep,
         }
 
@@ -200,6 +204,13 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
     except Exception:
         return None, None
+
+def df_to_xlsx_bytes(df: pd.DataFrame) -> bytes:
+    """Converte un DataFrame in bytes XLSX per il download."""
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sheet1")
+    return output.getvalue()
 
 # =============================================================================
 # SCAN
@@ -243,7 +254,7 @@ df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================
-# DASHBOARD UNICO – TAB EARLY / PRO / REA‑QUANT
+# DASHBOARD – TAB EARLY / PRO / REA‑QUANT
 # =============================================================================
 st.header("Risultati Scanner")
 
@@ -262,8 +273,15 @@ with tab_e:
         st.caption("Nessun segnale EARLY.")
     else:
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
-        st.dataframe(df_early_view, use_container_width=True)
+        cols_early = [
+            "Nome", "Ticker", "Prezzo",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio",
+            "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+        ]
+        st.dataframe(df_early_view[cols_early], use_container_width=True)
 
+        # CSV per TradingView
         df_early_tv = df_early_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -274,13 +292,26 @@ with tab_e:
         )[["symbol", "price", "rsi", "volume_ratio"]]
         csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV EARLY per TradingView",
-            data=csv_early,
-            file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        # XLSX completo
+        xlsx_early = df_to_xlsx_bytes(df_early_view[cols_early])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "⬇️ CSV EARLY per TradingView",
+                data=csv_early,
+                file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with c2:
+            st.download_button(
+                "⬇️ XLSX EARLY (tutte le colonne)",
+                data=xlsx_early,
+                file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
 # PRO
 with tab_p:
@@ -290,7 +321,13 @@ with tab_p:
         st.caption("Nessun segnale PRO.")
     else:
         df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
-        st.dataframe(df_pro_view, use_container_width=True)
+        cols_pro = [
+            "Nome", "Ticker", "Prezzo",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio",
+            "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+        ]
+        st.dataframe(df_pro_view[cols_pro], use_container_width=True)
 
         df_pro_tv = df_pro_view.rename(
             columns={
@@ -303,13 +340,25 @@ with tab_p:
         )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
         csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV PRO per TradingView",
-            data=csv_pro,
-            file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        xlsx_pro = df_to_xlsx_bytes(df_pro_view[cols_pro])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "⬇️ CSV PRO per TradingView",
+                data=csv_pro,
+                file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with c2:
+            st.download_button(
+                "⬇️ XLSX PRO (tutte le colonne)",
+                data=xlsx_pro,
+                file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
 # REA‑QUANT
 with tab_r:
@@ -318,7 +367,12 @@ with tab_r:
         st.caption("Nessun segnale REA‑QUANT.")
     else:
         df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
-        st.dataframe(df_rea_view, use_container_width=True)
+        cols_rea = [
+            "Nome", "Ticker", "Prezzo",
+            "Rea_Score", "POC", "Dist_POC_%",
+            "Vol_Ratio", "Stato"
+        ]
+        st.dataframe(df_rea_view[cols_rea], use_container_width=True)
 
         df_rea_tv = df_rea_view.rename(
             columns={
@@ -331,10 +385,22 @@ with tab_r:
         )[["symbol", "price", "poc", "dist_poc_percent", "volume_ratio"]]
         csv_rea = df_rea_tv.to_csv(index=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV REA‑QUANT per TradingView",
-            data=csv_rea,
-            file_name=f"signals_rea_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        xlsx_rea = df_to_xlsx_bytes(df_rea_view[cols_rea])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            st.download_button(
+                "⬇️ CSV REA‑QUANT per TradingView",
+                data=csv_rea,
+                file_name=f"signals_rea_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with c2:
+            st.download_button(
+                "⬇️ XLSX REA‑QUANT (tutte le colonne)",
+                data=xlsx_rea,
+                file_name=f"signals_rea_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
