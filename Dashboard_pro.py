@@ -353,7 +353,6 @@ with tab_signals:
                 df_early = df_early.sort_values("Early_Score", ascending=False).head(top)
                 st.dataframe(df_early, use_container_width=True)
 
-                # Grafico interattivo base: RSI (asse x) vs Prezzo
                 chart_early = df_early.set_index("RSI")[["Prezzo"]]
                 st.line_chart(chart_early, use_container_width=True)  # [web:43]
 
