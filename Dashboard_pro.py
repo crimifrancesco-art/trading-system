@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import time
-import plotly.express as px  # grafici interattivi
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
@@ -321,7 +320,7 @@ with tab_context:
         )
 
 # -----------------------------------------------------------------------------
-# LAYER 3 – TECHNICAL SIGNALS (DOPPIO SET TAB + GRAFICI PLOTLY)
+# LAYER 3 – TECHNICAL SIGNALS (DOPPIO SET TAB + GRAFICI STREAMLIT)
 # -----------------------------------------------------------------------------
 with tab_signals:
     st.subheader("📊 Scanner EARLY + PRO + REA-QUANT")
@@ -354,14 +353,9 @@ with tab_signals:
                 df_early = df_early.sort_values("Early_Score", ascending=False).head(top)
                 st.dataframe(df_early, use_container_width=True)
 
-                fig_early = px.scatter(
-                    df_early,
-                    x="RSI",
-                    y="Prezzo",
-                    hover_data=["Nome", "Ticker"],
-                    title="EARLY – RSI vs Prezzo",
-                )
-                st.plotly_chart(fig_early, use_container_width=True)  # [web:46][web:51]
+                # Grafico interattivo base: RSI (asse x) vs Prezzo
+                chart_early = df_early.set_index("RSI")[["Prezzo"]]
+                st.line_chart(chart_early, use_container_width=True)  # [web:43]
 
                 df_early_tv = df_early.rename(
                     columns={
@@ -390,15 +384,8 @@ with tab_signals:
                 df_pro = df_pro.sort_values("Pro_Score", ascending=False).head(top)
                 st.dataframe(df_pro, use_container_width=True)
 
-                fig_pro = px.scatter(
-                    df_pro,
-                    x="RSI",
-                    y="Prezzo",
-                    color="OBV_Trend",
-                    hover_data=["Nome", "Ticker"],
-                    title="PRO – Prezzo vs RSI (colorato per OBV)",
-                )
-                st.plotly_chart(fig_pro, use_container_width=True)
+                chart_pro = df_pro.set_index("RSI")[["Prezzo"]]
+                st.line_chart(chart_pro, use_container_width=True)
 
                 df_pro_tv = df_pro.rename(
                     columns={
@@ -427,14 +414,8 @@ with tab_signals:
                 df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
                 st.dataframe(df_rea_view, use_container_width=True)
 
-                fig_rea = px.scatter(
-                    df_rea_view,
-                    x="Dist_POC_%",
-                    y="Prezzo",
-                    hover_data=["Nome", "Ticker"],
-                    title="REA-QUANT – Distanza POC vs Prezzo",
-                )
-                st.plotly_chart(fig_rea, use_container_width=True)
+                chart_rea = df_rea_view.set_index("Dist_POC_%")[["Prezzo"]]
+                st.line_chart(chart_rea, use_container_width=True)
 
                 df_rea_tv = df_rea_view.rename(
                     columns={
