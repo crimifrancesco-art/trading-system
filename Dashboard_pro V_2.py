@@ -6,26 +6,26 @@ from datetime import datetime
 import time
 from io import BytesIO
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # RESET SESSIONE SE DF VECCHI (senza colonna 'Stato')
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 if "df_ep_pro" in st.session_state:
     df_tmp = st.session_state["df_ep_pro"]
     if isinstance(df_tmp, pd.DataFrame) and "Stato" not in df_tmp.columns:
         st.session_state.clear()
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # CONFIGURAZIONE BASE PAGINA
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 st.set_page_config(
     page_title="Trading Dashboard PRO",
     layout="wide",
     page_icon="📊"
 )
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # STILE EXIFA-LIKE (CSS)
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 st.markdown("""
 <style>
 .main {
@@ -86,9 +86,9 @@ st.markdown("#### Quantitative Trading Dashboard")
 st.title("SCAN • FILTER • EXECUTE")
 st.caption("Versione PRO – EARLY • PRO • REA‑QUANT")
 
-# =============================================================================
+# =============================================================================#
 # SIDEBAR – MERCATI E PARAMETRI
-# =============================================================================
+# =============================================================================#
 st.sidebar.title("⚙️ Configurazione")
 
 st.sidebar.subheader("📈 Selezione Mercati")
@@ -122,9 +122,9 @@ if not sel:
 
 st.info(f"Mercati selezionati: **{', '.join(sel)}**")
 
-# =============================================================================
+# =============================================================================#
 # FUNZIONI DI SUPPORTO
-# =============================================================================
+# =============================================================================#
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
@@ -177,12 +177,10 @@ def load_universe(markets):
     return list(dict.fromkeys(t))
 
 def calc_obv(close, volume):
-    """On-Balance Volume cumulato semplice."""  # [web:29]
     direction = np.sign(close.diff().fillna(0))
-    return (direction * volume).cumsum()
+    return (direction * volume).cumsum()  # [web:29]
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
-    """Scanner EARLY + PRO + REA + OBV + ATR expansion."""
     try:
         data = yf.Ticker(ticker).history(period="6mo")
         if len(data) < 40:
@@ -285,12 +283,9 @@ def all_tabs_to_xlsx(df_early, df_pro, df_rea,
             df_rea[cols_rea].to_excel(writer, index=False, sheet_name="REA_QUANT")
     return output.getvalue()
 
-# =============================================================================
+# =============================================================================#
 # SCAN
-# =============================================================================
-if "done_pro" not in st.session_state:
-    st.session_state["done_pro"] = False
-
+# =============================================================================#
 if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli...")
@@ -316,19 +311,20 @@ if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True)
 
     st.session_state["df_ep_pro"] = pd.DataFrame(r_ep)
     st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
-    st.session_state["done_pro"] = True
 
-    st.rerun()
+    st.experimental_rerun()
 
-if not st.session_state.get("done_pro"):
+# se non ci sono risultati, fermati
+if "df_ep_pro" not in st.session_state or "df_rea_pro" not in st.session_state:
+    st.warning("Nessun risultato in memoria: esegui lo scanner PRO.")
     st.stop()
 
-df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
-df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
+df_ep = st.session_state["df_ep_pro"]
+df_rea = st.session_state["df_rea_pro"]
 
-# =============================================================================
-# METRICHE (SAFE SU COLONNE)
-# =============================================================================
+# =============================================================================#
+# METRICHE
+# =============================================================================#
 st.header("Risultati Scanner")
 
 if "Stato" in df_ep.columns:
@@ -348,9 +344,9 @@ col1.metric("Segnali EARLY", n_early)
 col2.metric("Segnali PRO", n_pro)
 col3.metric("Segnali REA‑QUANT", n_rea)
 
-# =============================================================================
+# =============================================================================#
 # TABS PRINCIPALI
-# =============================================================================
+# =============================================================================#
 tab_e, tab_p, tab_r, tab_rea_quant, tab_serafini = st.tabs(
     ["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "🧮 Rea Quant", "📈 Serafini Systems"]
 )
@@ -365,9 +361,9 @@ cols_pro = cols_early
 cols_rea = ["Nome", "Ticker", "Prezzo",
             "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"]
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TAB EARLY
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
     if "Stato" not in df_ep.columns:
@@ -391,9 +387,9 @@ with tab_e:
                 use_container_width=True,
             )
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TAB PRO
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 with tab_p:
     st.subheader("🟣 Segnali PRO")
     if "Stato" not in df_ep.columns:
@@ -417,9 +413,9 @@ with tab_p:
                 use_container_width=True,
             )
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TAB REA‑QUANT
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 with tab_r:
     st.subheader("🟠 Segnali REA‑QUANT")
     if df_rea.empty:
@@ -440,9 +436,9 @@ with tab_r:
             use_container_width=True,
         )
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TAB MASSIMO REA – ANALISI QUANT
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 with tab_rea_quant:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
 
@@ -481,9 +477,9 @@ with tab_rea_quant:
             use_container_width=True,
         )
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # TAB STEFANO SERAFINI – SYSTEMS
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
 
@@ -533,9 +529,9 @@ with tab_serafini:
 
             st.dataframe(df_break_view, use_container_width=True)
 
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 # XLSX COMPLETO (3 FOGLI)
-# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------#
 df_early_all = df_ep[df_ep.get("Stato", "") == "EARLY"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
 df_pro_all   = df_ep[df_ep.get("Stato", "") == "PRO"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
 df_rea_all   = df_rea.copy()
