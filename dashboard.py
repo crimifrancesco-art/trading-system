@@ -201,4 +201,151 @@ def scan(ticker, e_h, p_rmin, p_rmax, r_poc):
         return result_ep, result_rea
 
     except Exception:
-        # In produzione potresti loggare l'er
+        # In produzione potresti loggare l'errore qui
+        return None, None
+
+# -----------------------------------------------------------------------------
+# BOTTONE AVVIO SCANNER
+# -----------------------------------------------------------------------------
+if st.button("🚀 AVVIA SCANNER", type="primary", use_container_width=True):
+    tickers = load(sel)
+    st.info(f"⏳ Scansione di **{len(tickers)} titoli** in corso...")
+
+    pb = st.progress(0)
+    status = st.empty()
+
+    r1, r2 = [], []
+
+    for i, ticker in enumerate(tickers):
+        status.text(f"Analisi: {ticker} ({i + 1}/{len(tickers)})")
+        pb.progress((i + 1) / len(tickers))
+
+        ep, rea = scan(ticker, e_h, p_rmin, p_rmax, r_poc)
+        if ep:
+            r1.append(ep)
+        if rea:
+            r2.append(rea)
+
+        if (i + 1) % 10 == 0:
+            time.sleep(0.2)
+
+    status.text("✅ Scansione completata!")
+    pb.empty()
+
+    st.session_state["df_ep"] = pd.DataFrame(r1)
+    st.session_state["df_rea"] = pd.DataFrame(r2)
+    st.session_state["done"] = True
+
+    st.rerun()
+
+# -----------------------------------------------------------------------------
+# SEZIONE RISULTATI
+# -----------------------------------------------------------------------------
+if st.session_state.get("done"):
+    df_ep = st.session_state.get("df_ep", pd.DataFrame())
+    df_rea = st.session_state.get("df_rea", pd.DataFrame())
+
+    st.success(f"✅ Analizzati {len(df_ep)} titoli")
+
+    # -------------------------------------------------------------------------
+    # SEZIONE METRICHE SCANNER
+    # -------------------------------------------------------------------------
+    st.header("📊 Risultati Scanner")
+
+    col1, col2, col3 = st.columns(3)
+
+    # -------------------------
+    # METRICA 1: EARLY Scanner
+    # -------------------------
+    with col1:
+        try:
+            if df_ep is None or df_ep.empty:
+                st.metric("Titoli EARLY", 0)
+                st.caption("ℹ️ Nessun titolo EARLY")
+            elif "Stato" not in df_ep.columns:
+                st.metric("Titoli EARLY", 0)
+                st.caption("❌ Colonna 'Stato' mancante")
+                with st.expander("🔍 Debug Info"):
+                    st.write(f"Colonne disponibili: {df_ep.columns.tolist()}")
+            else:
+                n_early = len(df_ep[df_ep["Stato"] == "EARLY"])
+                st.metric("Titoli EARLY", n_early)
+                if n_early > 0:
+                    st.caption(f"✅ {n_early} opportunità trovate")
+                else:
+                    st.caption("ℹ️ Nessun segnale al momento")
+        except Exception as e:
+            st.metric("Titoli EARLY", 0)
+            st.caption(f"❌ Errore: {str(e)}")
+
+    # -------------------------
+    # METRICA 2: PRO Scanner
+    # -------------------------
+    with col2:
+        try:
+            if df_ep is None or df_ep.empty:
+                st.metric("Titoli PRO", 0)
+                st.caption("ℹ️ Nessun titolo PRO")
+            elif "Stato" not in df_ep.columns:
+                st.metric("Titoli PRO", 0)
+                st.caption("❌ Colonna 'Stato' mancante")
+            else:
+                n_pro = len(df_ep[df_ep["Stato"] == "PRO"])
+                st.metric("Titoli PRO", n_pro)
+                if n_pro > 0:
+                    st.caption(f"✅ {n_pro} opportunità trovate")
+                else:
+                    st.caption("ℹ️ Nessun segnale al momento")
+        except Exception as e:
+            st.metric("Titoli PRO", 0)
+            st.caption(f"❌ Errore: {str(e)}")
+
+    # -------------------------
+    # METRICA 3: REA-QUANT Scanner
+    # -------------------------
+    with col3:
+        try:
+            if df_rea is None or df_rea.empty:
+                st.metric("Titoli REA-QUANT", 0)
+                st.caption("ℹ️ Nessun titolo REA-QUANT")
+            else:
+                if "Dist_POC" in df_rea.columns:
+                    df_rea_valid = df_rea[df_rea["Dist_POC"].notna()]
+                    n_rea = len(
+                        df_rea_valid[
+                            (df_rea_valid["Dist_POC"] <= r_poc * 100)
+                            | (df_rea_valid["Stato"] == "HOT")
+                        ]
+                    )
+                else:
+                    n_rea = len(df_rea)
+
+                st.metric("Titoli REA-QUANT", n_rea)
+                if n_rea > 0:
+                    st.caption(f"✅ {n_rea} opportunità trovate")
+                else:
+                    st.caption("ℹ️ Nessun segnale al momento")
+        except Exception as e:
+            st.metric("Titoli REA-QUANT", 0)
+            st.caption(f"❌ Errore: {str(e)}")
+
+    # -------------------------------------------------------------------------
+    # TABELLE DETTAGLIO
+    # -------------------------------------------------------------------------
+    st.subheader("📋 Dettaglio EARLY + PRO")
+    if not df_ep.empty:
+        st.dataframe(
+            df_ep.sort_values(["Pro_Score", "Early_Score"], ascending=False).head(top),
+            use_container_width=True,
+        )
+    else:
+        st.caption("Nessun risultato EARLY/PRO disponibile.")
+
+    st.subheader("📋 Dettaglio REA-QUANT")
+    if not df_rea.empty:
+        st.dataframe(
+            df_rea.sort_values("Rea_Score", ascending=False).head(top),
+            use_container_width=True,
+        )
+    else:
+        st.caption("Nessun risultato REA-QUANT disponibile.")
