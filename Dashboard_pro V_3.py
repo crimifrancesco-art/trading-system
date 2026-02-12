@@ -5,19 +5,18 @@ import numpy as np
 from datetime import datetime
 import time
 import io
-import plotly.express as px  # Heatmap grafica
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 3.1",
+    page_title="Trading Scanner – Versione PRO 4.0",
     layout="wide",
     page_icon="📊"
 )
 
-st.title("📊 Trading Scanner – Versione PRO 3.1")
-st.caption("Scanner EARLY • PRO • REA‑QUANT + Rea Quant • Serafini • Regime & Momentum – Heatmap & Export TradingView")
+st.title("📊 Trading Scanner – Versione PRO 4.0")
+st.caption("EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • Multi‑Timeframe • Export TradingView")
 
 # =============================================================================
 # SIDEBAR – MERCATI E PARAMETRI
@@ -210,7 +209,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 if "done_pro" not in st.session_state:
     st.session_state["done_pro"] = False
 
-if st.button("🚀 AVVIA SCANNER PRO 3.1", type="primary", use_container_width=True):
+if st.button("🚀 AVVIA SCANNER PRO 4.0", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli...")
 
@@ -281,8 +280,8 @@ st.caption(
 # =============================================================================
 # TABS
 # =============================================================================
-tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime = st.tabs(
-    ["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "🧮 Rea Quant", "📈 Serafini Systems", "🧊 Regime & Momentum"]
+tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf = st.tabs(
+    ["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "🧮 Rea Quant", "📈 Serafini Systems", "🧊 Regime & Momentum", "🕒 Multi‑Timeframe"]
 )
 
 # EARLY
@@ -429,7 +428,7 @@ with tab_rea_q:
             "- **N**: numero di titoli HOT per mercato.\n"
             "- **Vol_Ratio_med**: media Vol_Ratio dei titoli HOT.\n"
             "- **Rea_Score_med**: intensità media del segnale REA per mercato.\n"
-            "- Top 10: titoli ordinati per Vol_Ratio, i primi sono i più \"spinti\" dai volumi."
+            "- Top 10: titoli ordinati per Vol_Ratio."
         )
 
     if df_rea_all.empty:
@@ -438,7 +437,7 @@ with tab_rea_q:
     else:
         df_rea_q = df_rea_all.copy()
 
-        def detect_market(t):
+        def detect_market_rea(t):
             if t.endswith(".MI"):
                 return "FTSE"
             if t.endswith(".PA") or t.endswith(".AS") or t.endswith(".SW"):
@@ -449,7 +448,7 @@ with tab_rea_q:
                 return "Crypto"
             return "Altro"
 
-        df_rea_q["Mercato"] = df_rea_q["Ticker"].apply(detect_market)
+        df_rea_q["Mercato"] = df_rea_q["Ticker"].apply(detect_market_rea)
 
         agg = df_rea_q.groupby("Mercato").agg(
             N=("Ticker", "count"),
@@ -481,7 +480,7 @@ with tab_serafini:
             "- **Hi20 / Lo20**: massimo/minimo a 20 giorni sul close.\n"
             "- **Breakout_Up**: True se l'ultimo close rompe i massimi a 20 giorni.\n"
             "- **Breakout_Down**: True se l'ultimo close rompe i minimi a 20 giorni.\n"
-            "- L'ordinamento per Pro_Score privilegia i breakout in trend già forti."
+            "- Ordinamento per Pro_Score per privilegiare i breakout in trend forti."
         )
 
     if df_ep.empty:
@@ -543,8 +542,8 @@ with tab_regime:
     with st.expander("📘 Legenda Regime & Momentum"):
         st.markdown(
             "- **Regime**: quota di segnali PRO rispetto agli EARLY.\n"
-            "- **Momentum**: metrica sintetica Pro_Score×10 + RSI; più è alta, più il titolo è forte.\n"
-            "- Heatmap: media del Momentum per mercato, verde = forte, rosso = debole."
+            "- **Momentum**: metrica Pro_Score×10 + RSI; più è alta, più il titolo è forte.\n"
+            "- Tabella di sintesi per capire se il mercato è in costruzione o in trend."
         )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
@@ -580,9 +579,7 @@ with tab_regime:
             use_container_width=True,
         )
 
-        # -------------------------------------------------------------
-        # HEATMAP GRAFICA PLOTLY PER REGIME/MOMENTUM
-        # -------------------------------------------------------------
+        # Sintesi per mercato (solo tabellare: no Plotly, nessuna dipendenza extra)
         def detect_market_simple(t):
             if t.endswith(".MI"):
                 return "FTSE"
@@ -601,29 +598,106 @@ with tab_regime:
             N=("Ticker", "count")
         ).reset_index()
 
-        st.markdown("**Heatmap Regime & Momentum per mercato**")
+        st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
         if not heat.empty:
-            fig = px.imshow(
-                heat[["Momentum_med"]].T,
-                labels=dict(x="Mercato", y="Metrica", color="Momentum medio"),
-                x=heat["Mercato"],
-                y=["Momentum_med"],
-                color_continuous_scale="RdYlGn"
-            )
-            fig.update_layout(
-                coloraxis_colorbar=dict(
-                    title="Momentum",
-                    ticks="outside",
-                    tickformat=".0f"
-                ),
-                xaxis_title="Mercato",
-                yaxis_title="",
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(heat.sort_values("Momentum_med", ascending=False), use_container_width=True)
         else:
-            st.caption("Nessun dato sufficiente per la heatmap.")
+            st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
         sheet_regime = df_all.sort_values("Momentum", ascending=False)
+
+# =============================================================================
+# MULTI‑TIMEFRAME – RSI Daily / Weekly / Monthly
+# =============================================================================
+with tab_mtf:
+    st.subheader("🕒 Analisi Multi‑Timeframe (RSI 1D / 1W / 1M)")
+    st.markdown(
+        "Analisi RSI su tre timeframe (daily, weekly, monthly) per tutti i titoli scansionati. "
+        "Utile per allineare ingresso operativo con il quadro di fondo."
+    )
+
+    with st.expander("📘 Legenda Multi‑Timeframe"):
+        st.markdown(
+            "- **RSI_1D / RSI_1W / RSI_1M**: RSI(14) su timeframe giornaliero, settimanale e mensile.\n"
+            "- **MTF_Score**: media dei tre RSI (più è alto, più i timeframe sono allineati verso forza).\n"
+            "- Tipico uso: cerca titoli con RSI_1D in miglioramento e RSI_1W/1M non in ipercomprato estremo."
+        )
+
+    if df_ep.empty:
+        st.caption("Nessun dato base disponibile per costruire il Multi‑Timeframe.")
+        df_mtf = pd.DataFrame()
+    else:
+        tickers_all = df_ep["Ticker"].unique().tolist()
+
+        @st.cache_data(ttl=1800)
+        def fetch_mtf_data(tickers):
+            records = []
+            for tkr in tickers:
+                try:
+                    d_daily = yf.Ticker(tkr).history(period="6mo", interval="1d")
+                    d_week = yf.Ticker(tkr).history(period="2y", interval="1wk")
+                    d_month = yf.Ticker(tkr).history(period="5y", interval="1mo")
+
+                    def rsi_from_close(close, period=14):
+                        if len(close) < period + 1:
+                            return np.nan
+                        delta = close.diff()
+                        gain = delta.where(delta > 0, 0).rolling(period).mean()
+                        loss = -delta.where(delta < 0, 0).rolling(period).mean()
+                        rs = gain / loss
+                        rsi = 100 - (100 / (1 + rs))
+                        return float(rsi.iloc[-1])
+
+                    rsi_1d = rsi_from_close(d_daily["Close"]) if not d_daily.empty else np.nan
+                    rsi_1w = rsi_from_close(d_week["Close"]) if not d_week.empty else np.nan
+                    rsi_1m = rsi_from_close(d_month["Close"]) if not d_month.empty else np.nan
+
+                    if np.isnan(rsi_1d) and np.isnan(rsi_1w) and np.isnan(rsi_1m):
+                        continue
+
+                    mtf_score = np.nanmean([rsi_1d, rsi_1w, rsi_1m])
+
+                    records.append({
+                        "Ticker": tkr,
+                        "RSI_1D": round(rsi_1d, 1) if not np.isnan(rsi_1d) else np.nan,
+                        "RSI_1W": round(rsi_1w, 1) if not np.isnan(rsi_1w) else np.nan,
+                        "RSI_1M": round(rsi_1m, 1) if not np.isnan(rsi_1m) else np.nan,
+                        "MTF_Score": round(mtf_score, 1) if not np.isnan(mtf_score) else np.nan,
+                    })
+                except Exception:
+                    continue
+
+            return pd.DataFrame(records)
+
+        with st.spinner("Calcolo RSI multi‑timeframe in corso..."):
+            df_mtf = fetch_mtf_data(tickers_all)
+
+        if df_mtf.empty:
+            st.caption("Nessun dato Multi‑Timeframe disponibile (storici insufficienti).")
+        else:
+            df_mtf = df_mtf.merge(
+                df_ep[["Ticker", "Nome", "Pro_Score", "Stato"]],
+                on="Ticker",
+                how="left"
+            ).drop_duplicates(subset=["Ticker"])
+
+            st.markdown("**Top 30 per MTF_Score (allineamento forza RSI multi‑TF)**")
+            df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(30)
+            st.dataframe(
+                df_mtf_view[["Nome", "Ticker", "RSI_1D", "RSI_1W", "RSI_1M", "MTF_Score", "Pro_Score", "Stato"]],
+                use_container_width=True,
+            )
+
+            df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+            csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
+
+            st.download_button(
+                "⬇️ CSV Multi‑Timeframe (solo ticker, top MTF_Score)",
+                data=csv_mtf,
+                file_name=f"signals_multitimeframe_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 # =============================================================================
 # EXPORT XLSX COMPLETO (TUTTI I TAB)
@@ -658,7 +732,7 @@ xlsx_all_tabs = output_all.getvalue()
 st.download_button(
     "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime)",
     data=xlsx_all_tabs,
-    file_name=f"scanner_full_pro3_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+    file_name=f"scanner_full_pro4_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True,
 )
@@ -677,12 +751,14 @@ def unique_list(seq):
             res.append(x)
     return res
 
-# raccogli ticker per ogni sezione (usiamo df completi, non solo top N)
-tick_early   = unique_list(sheet_early["Ticker"].tolist()) if not sheet_early.empty else []
-tick_pro     = unique_list(sheet_pro["Ticker"].tolist()) if not sheet_pro.empty else []
-tick_rea     = unique_list(sheet_rea_sig["Ticker"].tolist()) if not sheet_rea_sig.empty else []
+sheet_mtf = df_mtf if 'df_mtf' in locals() else pd.DataFrame()
+
+tick_early   = unique_list(sheet_early["Ticker"].tolist())    if not sheet_early.empty else []
+tick_pro     = unique_list(sheet_pro["Ticker"].tolist())      if not sheet_pro.empty else []
+tick_rea     = unique_list(sheet_rea_sig["Ticker"].tolist())  if not sheet_rea_sig.empty else []
 tick_seraf   = unique_list(sheet_serafini["Ticker"].tolist()) if not sheet_serafini.empty else []
-tick_regime  = unique_list(sheet_regime["Ticker"].tolist()) if not sheet_regime.empty else []
+tick_regime  = unique_list(sheet_regime["Ticker"].tolist())   if not sheet_regime.empty else []
+tick_mtf     = unique_list(sheet_mtf["Ticker"].tolist())      if not sheet_mtf.empty else []
 
 lines = []
 
@@ -711,12 +787,17 @@ if tick_regime:
     lines.extend(tick_regime)
     lines.append("")
 
+if tick_mtf:
+    lines.append("# MULTI_TIMEFRAME")
+    lines.extend(tick_mtf)
+    lines.append("")
+
 if lines:
     tv_text = "\n".join(lines)
     st.download_button(
         "⬇️ CSV unico TradingView (ticker per tab)",
         data=tv_text,
-        file_name=f"tradingview_all_tabs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        file_name=f"tradingview_all_tabs_pro4_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv",
         use_container_width=True,
     )
