@@ -193,7 +193,6 @@ with col1:
         elif "Stato" not in df_epidf_ep.columns:
             st.metric("Titoli EARLY", 0)
             st.caption(f"❌ Colonna 'Stato' mancante")
-            # Debug info (rimuovi in produzione)
             with st.expander("🔍 Debug Info"):
                 st.write(f"Colonne disponibili: {df_epidf_ep.columns.tolist()}")
         else:
@@ -255,16 +254,12 @@ with col3:
         elif df_rea.empty:
             st.metric("Titoli REA-QUANT", 0)
             st.caption("ℹ️ Nessun titolo trovato")
-        elif "Stato" not in df_rea.columns:
-            st.metric("Titoli REA-QUANT", 0)
-            st.caption(f"❌ Colonna 'Stato' mancante")
         else:
             # CALCOLO CORRETTO - REA usa "distanza_poc" invece di "Stato"
-            # Adatta in base alla tua logica
             if "distanza_poc" in df_rea.columns:
-                n_rea = len(df_rea[df_rea["distanza_poc"] <= 2.00])  # Usa il tuo threshold
+                n_rea = len(df_rea[df_rea["distanza_poc"] <= r_poc])
             else:
-                n_rea = len(df_rea)  # Se non hai filtro specifico
+                n_rea = len(df_rea)
                 
             st.metric("Titoli REA-QUANT", n_rea)
             
@@ -279,194 +274,3 @@ with col3:
     except Exception as e:
         st.metric("Titoli REA-QUANT", 0)
         st.caption(f"❌ Errore: {str(e)}")
-
-# ============================================================================
-# SEZIONE VISUALIZZAZIONE RISULTATI
-# ============================================================================
-
-st.divider()
-
-# ----------------------------------------------------------------------------
-# TABS PER I 3 SCANNER
-# ----------------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["🎯 EARLY Scanner", "💎 PRO Scanner", "📊 REA-QUANT Scanner"])
-
-# TAB 1: EARLY Scanner
-with tab1:
-    st.subheader("🎯 Risultati EARLY Scanner")
-    
-    try:
-        if df_epidf_ep is not None and not df_epidf_ep.empty and "Stato" in df_epidf_ep.columns:
-            df_early_filtered = df_epidf_ep[df_epidf_ep["Stato"] == "EARLY"]
-            
-            if not df_early_filtered.empty:
-                st.success(f"✅ Trovati {len(df_early_filtered)} titoli EARLY")
-                
-                # Ordina per volume o RSI (adatta alle tue colonne)
-                if "Volume" in df_early_filtered.columns:
-                    df_early_filtered = df_early_filtered.sort_values("Volume", ascending=False)
-                
-                # Mostra tabella
-                st.dataframe(
-                    df_early_filtered,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=400
-                )
-                
-                # Download CSV
-                csv = df_early_filtered.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"early_scanner_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("ℹ️ Nessun titolo EARLY trovato con i parametri attuali")
-                st.write("**Suggerimenti:**")
-                st.write("- Aumenta la distanza EMA20 (attuale: 2%)")
-                st.write("- Allarga il range RSI minimo/massimo")
-                st.write("- Verifica che il mercato sia aperto")
-        else:
-            st.warning("⚠️ Dati EARLY non disponibili. Clicca su 'AVVIA SCANNER' per caricare i dati.")
-            
-    except Exception as e:
-        st.error(f"❌ Errore nella visualizzazione EARLY: {str(e)}")
-
-# TAB 2: PRO Scanner
-with tab2:
-    st.subheader("💎 Risultati PRO Scanner")
-    
-    try:
-        if df_pro is not None and not df_pro.empty and "Stato" in df_pro.columns:
-            df_pro_filtered = df_pro[df_pro["Stato"] == "PRO"]
-            
-            if not df_pro_filtered.empty:
-                st.success(f"✅ Trovati {len(df_pro_filtered)} titoli PRO")
-                
-                # Ordina per RSI
-                if "RSI" in df_pro_filtered.columns:
-                    df_pro_filtered = df_pro_filtered.sort_values("RSI", ascending=True)
-                
-                st.dataframe(
-                    df_pro_filtered,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=400
-                )
-                
-                # Download CSV
-                csv = df_pro_filtered.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"pro_scanner_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("ℹ️ Nessun titolo PRO trovato con i parametri attuali")
-                st.write("**Suggerimenti:**")
-                st.write("- Aumenta RSI massimo (attuale: 70)")
-                st.write("- Riduci RSI minimo (attuale: 40)")
-        else:
-            st.warning("⚠️ Dati PRO non disponibili. Clicca su 'AVVIA SCANNER' per caricare i dati.")
-            
-    except Exception as e:
-        st.error(f"❌ Errore nella visualizzazione PRO: {str(e)}")
-
-# TAB 3: REA-QUANT Scanner
-with tab3:
-    st.subheader("📊 Risultati REA-QUANT Scanner")
-    
-    try:
-        if df_rea is not None and not df_rea.empty:
-            # REA usa distanza_poc, non "Stato"
-            if "distanza_poc" in df_rea.columns:
-                df_rea_filtered = df_rea[df_rea["distanza_poc"] <= 2.00]  # Adatta threshold
-            else:
-                df_rea_filtered = df_rea
-            
-            if not df_rea_filtered.empty:
-                st.success(f"✅ Trovati {len(df_rea_filtered)} titoli REA-QUANT")
-                
-                # Ordina per distanza POC
-                if "distanza_poc" in df_rea_filtered.columns:
-                    df_rea_filtered = df_rea_filtered.sort_values("distanza_poc", ascending=True)
-                
-                st.dataframe(
-                    df_rea_filtered,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=400
-                )
-                
-                # Download CSV
-                csv = df_rea_filtered.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"rea_scanner_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv"
-                )
-            else:
-                st.info("ℹ️ Nessun titolo REA-QUANT trovato con i parametri attuali")
-                st.write("**Suggerimenti:**")
-                st.write("- Aumenta distanza POC massima (attuale: 2%)")
-        else:
-            st.warning("⚠️ Dati REA-QUANT non disponibili. Clicca su 'AVVIA SCANNER' per caricare i dati.")
-            
-    except Exception as e:
-        st.error(f"❌ Errore nella visualizzazione REA-QUANT: {str(e)}")
-
-# ============================================================================
-# SEZIONE ANALISI COMBINATA (BONUS)
-# ============================================================================
-
-st.divider()
-st.header("🎯 Analisi Combinata")
-
-try:
-    # Trova titoli presenti in più scanner (segnali forti)
-    titoli_early = set()
-    titoli_pro = set()
-    titoli_rea = set()
-    
-    if df_epidf_ep is not None and not df_epidf_ep.empty and "Ticker" in df_epidf_ep.columns:
-        titoli_early = set(df_epidf_ep[df_epidf_ep["Stato"] == "EARLY"]["Ticker"].tolist())
-    
-    if df_pro is not None and not df_pro.empty and "Ticker" in df_pro.columns:
-        titoli_pro = set(df_pro[df_pro["Stato"] == "PRO"]["Ticker"].tolist())
-    
-    if df_rea is not None and not df_rea.empty and "Ticker" in df_rea.columns:
-        titoli_rea = set(df_rea["Ticker"].tolist())
-    
-    # Titoli in 2+ scanner
-    titoli_multipli = (titoli_early & titoli_pro) | (titoli_early & titoli_rea) | (titoli_pro & titoli_rea)
-    
-    # Titoli in tutti e 3 i scanner (SEGNALE FORTISSIMO)
-    titoli_tutti = titoli_early & titoli_pro & titoli_rea
-    
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        st.metric("🔥 Titoli in 2+ Scanner", len(titoli_multipli))
-        if titoli_multipli:
-            st.write(", ".join(sorted(titoli_multipli)))
-    
-    with col_b:
-        st.metric("⭐ Titoli in TUTTI i Scanner", len(titoli_tutti))
-        if titoli_tutti:
-            st.write(", ".join(sorted(titoli_tutti)))
-            st.success("🎯 SEGNALI FORTISSIMI - Priorità massima!")
-    
-except Exception as e:
-    st.error(f"❌ Errore nell'analisi combinata: {str(e)}")
-
-# ============================================================================
-# FOOTER
-# ============================================================================
-
-st.divider()
-st.caption(f"📅 Ultimo aggiornamento: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-st.caption("💡 Ricorda: Questi sono segnali automatici. Fai sempre la tua analisi prima di operare.")
