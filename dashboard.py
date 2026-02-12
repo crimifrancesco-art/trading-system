@@ -170,7 +170,28 @@ if st.session_state.get('done'):
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Titoli EARLY", len(df_ep[df_ep["Stato"]=="EARLY"]))
+# DEBUG: Verifica struttura DataFrame
+st.write("🔍 DEBUG INFO:")
+st.write(f"DataFrame shape: {df_epidf_ep.shape}")
+st.write(f"Colonne disponibili: {df_epidf_ep.columns.tolist()}")
+st.write(f"Prime 3 righe:")
+st.dataframe(df_epidf_ep.head(3))
+
+# Poi usa il fix sicuro
+if not df_epidf_ep.empty and "Stato" in df_epidf_ep.columns:
+    n_early = len(df_epidf_ep[df_epidf_ep["Stato"]=="EARLY"])
+    st.metric("Titoli EARLY", n_early)
+else:
+    st.error("❌ Colonna 'Stato' non trovata nel DataFrame")
+        
+   # DOPO (CORRETTO):
+if not df_epidf_ep.empty and "Stato" in df_epidf_ep.columns:
+    n_early = len(df_epidf_ep[df_epidf_ep["Stato"]=="EARLY"])
+    st.metric("Titoli EARLY", n_early)
+else:
+    st.metric("Titoli EARLY", 0)
+    st.warning("⚠️ Nessun dato disponibile per EARLY scanner")
+    
     with col2:
         st.metric("Titoli PRO", len(df_ep[df_ep["Stato"]=="PRO"]))
     with col3:
