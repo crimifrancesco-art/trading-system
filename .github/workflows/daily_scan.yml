@@ -2,8 +2,10 @@ name: Trading Scanner Daily
 
 on:
   schedule:
-    - cron: '0 7 * * 1-5'
+    - cron: '0 7 * * 1-5'   # 9:00 CET (7:00 UTC in inverno, 8:00 UTC in estate)
+    - cron: '30 13 * * 1-5' # 15:30 CET (13:30 UTC in inverno, 14:30 UTC in estate)
   workflow_dispatch:
+
 
 jobs:
   scan:
