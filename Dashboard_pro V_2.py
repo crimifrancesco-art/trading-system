@@ -309,15 +309,11 @@ if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True)
     st.session_state["df_ep_pro"] = pd.DataFrame(r_ep)
     st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
 
-    st.rerun()  # rerun ufficiale Streamlit [web:69]
+    st.rerun()
 
-# se non ci sono risultati, fermati
-if "df_ep_pro" not in st.session_state or "df_rea_pro" not in st.session_state:
-    st.warning("Nessun risultato in memoria: esegui lo scanner PRO.")
-    st.stop()
-
-df_ep = st.session_state["df_ep_pro"]
-df_rea = st.session_state["df_rea_pro"]
+# lettura sicura da session_state (anche se vuoto)
+df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
+df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================#
 # METRICHE
@@ -362,7 +358,7 @@ cols_rea = ["Nome", "Ticker", "Prezzo",
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
     if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato EARLY disponibile (colonna 'Stato' assente).")
+        st.caption("Nessun dato EARLY disponibile (ancora nessuno scan o scan vuoto).")
     else:
         df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
         if df_early.empty:
@@ -386,7 +382,7 @@ with tab_e:
 with tab_p:
     st.subheader("🟣 Segnali PRO")
     if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato PRO disponibile (colonna 'Stato' assente).")
+        st.caption("Nessun dato PRO disponibile (ancora nessuno scan o scan vuoto).")
     else:
         df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
         if df_pro.empty:
