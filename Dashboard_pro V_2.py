@@ -58,14 +58,13 @@ st.info(f"Mercati selezionati: **{', '.join(sel)}**")
 # =============================================================================
 @st.cache_data(ttl=3600)
 def load_universe(markets):
-    """Costruisce la lista di ticker per i mercati selezionati."""
     t = []
 
     if "SP500" in markets:
         sp = pd.read_csv(
             "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
         )["Symbol"].tolist()
-        t += sp  # universo completo SP500 [file:115]
+        t += sp
 
     if "Nasdaq" in markets:
         t += [
@@ -109,12 +108,10 @@ def load_universe(markets):
     return list(dict.fromkeys(t))
 
 def calc_obv(close, volume):
-    """On-Balance Volume cumulato semplice."""
     direction = np.sign(close.diff().fillna(0))
     return (direction * volume).cumsum()
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
-    """Scanner EARLY + PRO + REA + OBV + ATR expansion."""
     try:
         data = yf.Ticker(ticker).history(period="6mo")
         if len(data) < 40:
@@ -160,7 +157,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         atr_val = float(atr.iloc[-1])
 
         atr_ratio = float(atr.iloc[-1] / atr.rolling(50).mean().iloc[-1])
-        atr_expansion = atr_ratio > 1.2  # espansione volatilità [web:101]
+        atr_expansion = atr_ratio > 1.2
 
         stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
 
@@ -247,14 +244,27 @@ df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================
-# DASHBOARD – TAB EARLY / PRO / REA + QUANT / SERAFINI / REGIME
+# DASHBOARD – METRICHE E TAB
 # =============================================================================
 st.header("Risultati Scanner")
 
+# metriche robuste se 'Stato' non esiste
+if "Stato" in df_ep.columns:
+    n_early = (df_ep["Stato"] == "EARLY").sum()
+    n_pro   = (df_ep["Stato"] == "PRO").sum()
+else:
+    n_early = 0
+    n_pro   = 0
+
+if "Stato" in df_rea.columns:
+    n_rea = (df_rea["Stato"] == "HOT").sum()
+else:
+    n_rea = 0
+
 col1, col2, col3 = st.columns(3)
-col1.metric("Segnali EARLY", (df_ep["Stato"] == "EARLY").sum())
-col2.metric("Segnali PRO", (df_ep["Stato"] == "PRO").sum())
-col3.metric("Segnali REA‑QUANT", (df_rea["Stato"] == "HOT").sum() if not df_rea.empty else 0)
+col1.metric("Segnali EARLY", n_early)
+col2.metric("Segnali PRO", n_pro)
+col3.metric("Segnali REA‑QUANT", n_rea)
 
 tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime = st.tabs(
     ["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "🧮 Rea Quant", "📈 Serafini Systems", "🧊 Regime & Momentum"]
@@ -263,59 +273,65 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime = st.tabs(
 # EARLY
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
-    df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
-    if df_early.empty:
-        st.caption("Nessun segnale EARLY.")
+    if "Stato" not in df_ep.columns:
+        st.caption("Nessun dato EARLY disponibile (colonna 'Stato' assente).")
     else:
-        df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
-        st.dataframe(df_early_view, use_container_width=True)
+        df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
+        if df_early.empty:
+            st.caption("Nessun segnale EARLY.")
+        else:
+            df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
+            st.dataframe(df_early_view, use_container_width=True)
 
-        df_early_tv = df_early_view.rename(
-            columns={
-                "Ticker": "symbol",
-                "Prezzo": "price",
-                "RSI": "rsi",
-                "Vol_Ratio": "volume_ratio",
-            }
-        )[["symbol", "price", "rsi", "volume_ratio"]]
-        csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
+            df_early_tv = df_early_view.rename(
+                columns={
+                    "Ticker": "symbol",
+                    "Prezzo": "price",
+                    "RSI": "rsi",
+                    "Vol_Ratio": "volume_ratio",
+                }
+            )[["symbol", "price", "rsi", "volume_ratio"]]
+            csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV EARLY per TradingView",
-            data=csv_early,
-            file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            st.download_button(
+                "⬇️ CSV EARLY per TradingView",
+                data=csv_early,
+                file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 # PRO
 with tab_p:
     st.subheader("🟣 Segnali PRO")
-    df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
-    if df_pro.empty:
-        st.caption("Nessun segnale PRO.")
+    if "Stato" not in df_ep.columns:
+        st.caption("Nessun dato PRO disponibile (colonna 'Stato' assente).")
     else:
-        df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
-        st.dataframe(df_pro_view, use_container_width=True)
+        df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
+        if df_pro.empty:
+            st.caption("Nessun segnale PRO.")
+        else:
+            df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
+            st.dataframe(df_pro_view, use_container_width=True)
 
-        df_pro_tv = df_pro_view.rename(
-            columns={
-                "Ticker": "symbol",
-                "Prezzo": "price",
-                "RSI": "rsi",
-                "Vol_Ratio": "volume_ratio",
-                "OBV_Trend": "obv_trend",
-            }
-        )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
-        csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
+            df_pro_tv = df_pro_view.rename(
+                columns={
+                    "Ticker": "symbol",
+                    "Prezzo": "price",
+                    "RSI": "rsi",
+                    "Vol_Ratio": "volume_ratio",
+                    "OBV_Trend": "obv_trend",
+                }
+            )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
+            csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ CSV PRO per TradingView",
-            data=csv_pro,
-            file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            st.download_button(
+                "⬇️ CSV PRO per TradingView",
+                data=csv_pro,
+                file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
 # REA‑QUANT
 with tab_r:
@@ -345,12 +361,12 @@ with tab_r:
             use_container_width=True,
         )
 
-# TAB MASSIMO REA – ANALISI QUANT
+# MASSIMO REA – ANALISI QUANT
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
 
     if df_rea.empty:
-        st.caption("Nessun dato REA‑QUANT disponibile. Esegui lo scanner.")
+        st.caption("Nessun dato REA‑QUANT disponibile.")
     else:
         df_rea_q = df_rea.copy()
 
@@ -384,12 +400,12 @@ with tab_rea_q:
             use_container_width=True,
         )
 
-# TAB STEFANO SERAFINI – SYSTEMS
+# STEFANO SERAFINI – SYSTEMS
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
 
     if df_ep.empty:
-        st.caption("Nessun dato scanner disponibile. Esegui lo scanner.")
+        st.caption("Nessun dato scanner disponibile.")
     else:
         universe = df_ep["Ticker"].unique().tolist()
         records = []
@@ -434,12 +450,12 @@ with tab_serafini:
 
             st.dataframe(df_break_view, use_container_width=True)
 
-# TAB REGIME & MOMENTUM
+# REGIME & MOMENTUM
 with tab_regime:
     st.subheader("🧊 Regime & Momentum multi‑mercato")
 
-    if df_ep.empty:
-        st.caption("Nessun dato scanner disponibile. Esegui lo scanner.")
+    if df_ep.empty or "Stato" not in df_ep.columns:
+        st.caption("Nessun dato scanner disponibile.")
     else:
         df_all = df_ep.copy()
         n_tot = len(df_all)
