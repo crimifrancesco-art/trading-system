@@ -579,7 +579,6 @@ with tab_regime:
             use_container_width=True,
         )
 
-        # Sintesi per mercato (solo tabellare: no Plotly, nessuna dipendenza extra)
         def detect_market_simple(t):
             if t.endswith(".MI"):
                 return "FTSE"
@@ -711,6 +710,7 @@ sheet_rea_quant  = df_rea_q if 'df_rea_q' in locals() else pd.DataFrame()
 sheet_serafini   = df_break_view if 'df_break_view' in locals() else pd.DataFrame()
 if 'sheet_regime' not in locals():
     sheet_regime = pd.DataFrame()
+sheet_mtf_full   = df_mtf if 'df_mtf' in locals() else pd.DataFrame()
 
 output_all = io.BytesIO()
 with pd.ExcelWriter(output_all, engine="xlsxwriter") as writer:
@@ -726,11 +726,13 @@ with pd.ExcelWriter(output_all, engine="xlsxwriter") as writer:
         sheet_serafini.to_excel(writer, index=False, sheet_name="SERAFINI")
     if not sheet_regime.empty:
         sheet_regime.to_excel(writer, index=False, sheet_name="REGIME_MOMENTUM")
+    if not sheet_mtf_full.empty:
+        sheet_mtf_full.to_excel(writer, index=False, sheet_name="MULTI_TIMEFRAME")
 
 xlsx_all_tabs = output_all.getvalue()
 
 st.download_button(
-    "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime)",
+    "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime • MTF)",
     data=xlsx_all_tabs,
     file_name=f"scanner_full_pro4_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -738,9 +740,9 @@ st.download_button(
 )
 
 # =============================================================================
-# EXPORT UNICO PER TRADINGVIEW (SOLO TICKER PER TAB)
+# EXPORT UNICO PER TRADINGVIEW (SOLO TICKER TOP 10 PER TAB)
 # =============================================================================
-st.subheader("⬇️ Export unico TradingView (solo ticker)")
+st.subheader("⬇️ Export unico TradingView (solo ticker, top 10 per tab)")
 
 def unique_list(seq):
     seen = set()
@@ -751,51 +753,62 @@ def unique_list(seq):
             res.append(x)
     return res
 
-sheet_mtf = df_mtf if 'df_mtf' in locals() else pd.DataFrame()
-
-tick_early   = unique_list(sheet_early["Ticker"].tolist())    if not sheet_early.empty else []
-tick_pro     = unique_list(sheet_pro["Ticker"].tolist())      if not sheet_pro.empty else []
-tick_rea     = unique_list(sheet_rea_sig["Ticker"].tolist())  if not sheet_rea_sig.empty else []
-tick_seraf   = unique_list(sheet_serafini["Ticker"].tolist()) if not sheet_serafini.empty else []
-tick_regime  = unique_list(sheet_regime["Ticker"].tolist())   if not sheet_regime.empty else []
-tick_mtf     = unique_list(sheet_mtf["Ticker"].tolist())      if not sheet_mtf.empty else []
+# Costruiamo le liste top 10 per ogni tab
+top10_early   = unique_list(df_early_all.sort_values("Early_Score", ascending=False)["Ticker"].head(10).tolist()) if not df_early_all.empty else []
+top10_pro     = unique_list(df_pro_all.sort_values("Pro_Score",   ascending=False)["Ticker"].head(10).tolist())  if not df_pro_all.empty   else []
+top10_rea     = unique_list(df_rea_all.sort_values("Rea_Score",   ascending=False)["Ticker"].head(10).tolist())  if not df_rea_all.empty   else []
+top10_seraf   = unique_list(df_break_view.sort_values("Pro_Score",ascending=False)["Ticker"].head(10).tolist())  if 'df_break_view' in locals() and not df_break_view.empty else []
+top10_regime  = unique_list(sheet_regime.sort_values("Momentum",  ascending=False)["Ticker"].head(10).tolist())  if not sheet_regime.empty else []
+top10_mtf     = unique_list(sheet_mtf_full.sort_values("MTF_Score",ascending=False)["Ticker"].head(10).tolist()) if not sheet_mtf_full.empty else []
 
 lines = []
 
-if tick_early:
+# EARLY -> PRO
+if top10_early:
     lines.append("# EARLY")
-    lines.extend(tick_early)
-    lines.append("")
+    lines.extend(top10_early)
+    lines.append("# PRO")  # nome del tab successivo
 
-if tick_pro:
-    lines.append("# PRO")
-    lines.extend(tick_pro)
-    lines.append("")
-
-if tick_rea:
+# PRO -> REA_QUANT
+if top10_pro:
+    if not top10_early:   # se EARLY era vuoto, metti comunque intestazione PRO
+        lines.append("# PRO")
+    lines.extend(top10_pro)
     lines.append("# REA_QUANT")
-    lines.extend(tick_rea)
-    lines.append("")
 
-if tick_seraf:
+# REA_QUANT -> SERAFINI
+if top10_rea:
+    if not top10_pro and "# REA_QUANT" not in lines:
+        lines.append("# REA_QUANT")
+    lines.extend(top10_rea)
     lines.append("# SERAFINI")
-    lines.extend(tick_seraf)
-    lines.append("")
 
-if tick_regime:
+# SERAFINI -> REGIME_MOMENTUM
+if top10_seraf:
+    if not top10_rea and "# SERAFINI" not in lines:
+        lines.append("# SERAFINI")
+    lines.extend(top10_seraf)
     lines.append("# REGIME_MOMENTUM")
-    lines.extend(tick_regime)
-    lines.append("")
 
-if tick_mtf:
+# REGIME_MOMENTUM -> MULTI_TIMEFRAME
+if top10_regime:
+    if not top10_seraf and "# REGIME_MOMENTUM" not in lines:
+        lines.append("# REGIME_MOMENTUM")
+    lines.extend(top10_regime)
     lines.append("# MULTI_TIMEFRAME")
-    lines.extend(tick_mtf)
-    lines.append("")
+
+# MULTI_TIMEFRAME (ultimo: nessun tab successivo reale, ma manteniamo lo schema)
+if top10_mtf:
+    if not top10_regime and "# MULTI_TIMEFRAME" not in lines:
+        lines.append("# MULTI_TIMEFRAME")
+    lines.extend(top10_mtf)
+    # opzionale: potresti aggiungere qualcosa tipo "# END" se lo vuoi esplicito
+    # lines.append("# END")
 
 if lines:
     tv_text = "\n".join(lines)
     st.download_button(
-        "⬇️ CSV unico TradingView (ticker per tab)",
+        "⬇️ CSV unico TradingView (top 10 per tab, con separatori di sezione)",
         data=tv_text,
         file_name=f"tradingview_all_tabs_pro4_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv",
