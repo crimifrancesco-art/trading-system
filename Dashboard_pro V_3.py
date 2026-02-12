@@ -5,18 +5,19 @@ import numpy as np
 from datetime import datetime
 import time
 import io
+import plotly.express as px  # Heatmap grafica
 
 # -----------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 3.0",
+    page_title="Trading Scanner – Versione PRO 3.1",
     layout="wide",
     page_icon="📊"
 )
 
-st.title("📊 Trading Scanner – Versione PRO 3.0")
-st.caption("Scanner EARLY • PRO • REA‑QUANT + Rea Quant • Serafini • Regime & Momentum – Dashboard professionale")
+st.title("📊 Trading Scanner – Versione PRO 3.1")
+st.caption("Scanner EARLY • PRO • REA‑QUANT + Rea Quant • Serafini • Regime & Momentum – Heatmap & Export TradingView")
 
 # =============================================================================
 # SIDEBAR – MERCATI E PARAMETRI
@@ -209,7 +210,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 if "done_pro" not in st.session_state:
     st.session_state["done_pro"] = False
 
-if st.button("🚀 AVVIA SCANNER PRO 3.0", type="primary", use_container_width=True):
+if st.button("🚀 AVVIA SCANNER PRO 3.1", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli...")
 
@@ -348,7 +349,6 @@ with tab_p:
         df_pro = df_pro_all.copy()
         df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
 
-        # Piccolo abbellimento testuale per OBV_Trend
         df_pro_view["OBV_Trend"] = df_pro_view["OBV_Trend"].replace(
             {"UP": "UP (flusso in ingresso)", "DOWN": "DOWN (flusso in uscita)"}
         )
@@ -427,9 +427,9 @@ with tab_rea_q:
     with st.expander("📘 Legenda Rea Quant (analisi)"):
         st.markdown(
             "- **N**: numero di titoli HOT per mercato.\n"
-            "- **Vol_Ratio_med**: media Vol_Ratio dei titoli HOT, misura la pressione volumetrica media.\n"
+            "- **Vol_Ratio_med**: media Vol_Ratio dei titoli HOT.\n"
             "- **Rea_Score_med**: intensità media del segnale REA per mercato.\n"
-            "- Top 10: titoli ordinati per Vol_Ratio, quelli in cima sono i più \"spinti\" da flussi volumetrici."
+            "- Top 10: titoli ordinati per Vol_Ratio, i primi sono i più \"spinti\" dai volumi."
         )
 
     if df_rea_all.empty:
@@ -542,9 +542,9 @@ with tab_regime:
 
     with st.expander("📘 Legenda Regime & Momentum"):
         st.markdown(
-            "- **Regime**: quota di segnali PRO rispetto agli EARLY, utile per capire se il mercato è più in fase di trend o di costruzione.\n"
-            "- **Momentum**: metrica sintetica Pro_Score×10 + RSI; più è alta, più il titolo è in forte spinta.\n"
-            "- Heatmap (sotto): mostra la media del momentum per mercato, colori caldi = maggiore forza."
+            "- **Regime**: quota di segnali PRO rispetto agli EARLY.\n"
+            "- **Momentum**: metrica sintetica Pro_Score×10 + RSI; più è alta, più il titolo è forte.\n"
+            "- Heatmap: media del Momentum per mercato, verde = forte, rosso = debole."
         )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
@@ -581,7 +581,7 @@ with tab_regime:
         )
 
         # -------------------------------------------------------------
-        # NUOVA HEATMAP SEMPLIFICATA PER REGIME/MOMENTUM PER MERCATO
+        # HEATMAP GRAFICA PLOTLY PER REGIME/MOMENTUM
         # -------------------------------------------------------------
         def detect_market_simple(t):
             if t.endswith(".MI"):
@@ -601,26 +601,40 @@ with tab_regime:
             N=("Ticker", "count")
         ).reset_index()
 
-        st.markdown("**Heatmap testuale Regime & Momentum per mercato**")
-        st.caption(
-            "Legenda heatmap: Momentum_med alto = mercato forte; N = numero di titoli con segnali in quel mercato. "
-            "Usa questa tabella come sintesi veloce multi‑asset."
-        )
-        st.dataframe(heat.sort_values("Momentum_med", ascending=False), use_container_width=True)
+        st.markdown("**Heatmap Regime & Momentum per mercato**")
+        if not heat.empty:
+            fig = px.imshow(
+                heat[["Momentum_med"]].T,
+                labels=dict(x="Mercato", y="Metrica", color="Momentum medio"),
+                x=heat["Mercato"],
+                y=["Momentum_med"],
+                color_continuous_scale="RdYlGn"
+            )
+            fig.update_layout(
+                coloraxis_colorbar=dict(
+                    title="Momentum",
+                    ticks="outside",
+                    tickformat=".0f"
+                ),
+                xaxis_title="Mercato",
+                yaxis_title="",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.caption("Nessun dato sufficiente per la heatmap.")
 
         sheet_regime = df_all.sort_values("Momentum", ascending=False)
 
 # =============================================================================
 # EXPORT XLSX COMPLETO (TUTTI I TAB)
 # =============================================================================
-st.subheader("⬇️ Esportazione completa in Excel")
+st.subheader("⬇️ Esportazioni")
 
-sheet_early   = df_early_all.copy()
-sheet_pro     = df_pro_all.copy()
-sheet_rea_sig = df_rea_all.copy()
-sheet_rea_quant = df_rea_q if 'df_rea_q' in locals() else pd.DataFrame()
-sheet_serafini = df_break_view if 'df_break_view' in locals() else pd.DataFrame()
-
+sheet_early      = df_early_all.copy()
+sheet_pro        = df_pro_all.copy()
+sheet_rea_sig    = df_rea_all.copy()
+sheet_rea_quant  = df_rea_q if 'df_rea_q' in locals() else pd.DataFrame()
+sheet_serafini   = df_break_view if 'df_break_view' in locals() else pd.DataFrame()
 if 'sheet_regime' not in locals():
     sheet_regime = pd.DataFrame()
 
@@ -642,9 +656,69 @@ with pd.ExcelWriter(output_all, engine="xlsxwriter") as writer:
 xlsx_all_tabs = output_all.getvalue()
 
 st.download_button(
-    "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime) – PRO 3.0",
+    "⬇️ XLSX COMPLETO (EARLY • PRO • REA • Rea Quant • Serafini • Regime)",
     data=xlsx_all_tabs,
     file_name=f"scanner_full_pro3_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True,
 )
+
+# =============================================================================
+# EXPORT UNICO PER TRADINGVIEW (SOLO TICKER PER TAB)
+# =============================================================================
+st.subheader("⬇️ Export unico TradingView (solo ticker)")
+
+def unique_list(seq):
+    seen = set()
+    res = []
+    for x in seq:
+        if x not in seen:
+            seen.add(x)
+            res.append(x)
+    return res
+
+# raccogli ticker per ogni sezione (usiamo df completi, non solo top N)
+tick_early   = unique_list(sheet_early["Ticker"].tolist()) if not sheet_early.empty else []
+tick_pro     = unique_list(sheet_pro["Ticker"].tolist()) if not sheet_pro.empty else []
+tick_rea     = unique_list(sheet_rea_sig["Ticker"].tolist()) if not sheet_rea_sig.empty else []
+tick_seraf   = unique_list(sheet_serafini["Ticker"].tolist()) if not sheet_serafini.empty else []
+tick_regime  = unique_list(sheet_regime["Ticker"].tolist()) if not sheet_regime.empty else []
+
+lines = []
+
+if tick_early:
+    lines.append("# EARLY")
+    lines.extend(tick_early)
+    lines.append("")
+
+if tick_pro:
+    lines.append("# PRO")
+    lines.extend(tick_pro)
+    lines.append("")
+
+if tick_rea:
+    lines.append("# REA_QUANT")
+    lines.extend(tick_rea)
+    lines.append("")
+
+if tick_seraf:
+    lines.append("# SERAFINI")
+    lines.extend(tick_seraf)
+    lines.append("")
+
+if tick_regime:
+    lines.append("# REGIME_MOMENTUM")
+    lines.extend(tick_regime)
+    lines.append("")
+
+if lines:
+    tv_text = "\n".join(lines)
+    st.download_button(
+        "⬇️ CSV unico TradingView (ticker per tab)",
+        data=tv_text,
+        file_name=f"tradingview_all_tabs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+else:
+    st.caption("Nessun ticker disponibile per l'export TradingView.")
