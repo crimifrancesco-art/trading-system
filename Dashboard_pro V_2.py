@@ -245,31 +245,32 @@ df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
 # =============================================================================
-# RISULTATI SCANNER – METRICHE COERENTI CON I TAB
+# RISULTATI SCANNER – METRICHE BASATE SUI DF DEI TAB
 # =============================================================================
 if "Stato" in df_ep.columns:
-    df_early_all = df_ep[df_ep["Stato"] == "EARLY"]
-    df_pro_all   = df_ep[df_ep["Stato"] == "PRO"]
-    n_early = len(df_early_all)
-    n_pro   = len(df_pro_all)
+    df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
+    df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
 else:
     df_early_all = pd.DataFrame()
     df_pro_all   = pd.DataFrame()
-    n_early = n_pro = 0
 
 if "Stato" in df_rea.columns:
-    df_rea_all = df_rea[df_rea["Stato"] == "HOT"]
-    n_rea = len(df_rea_all)
+    df_rea_all = df_rea[df_rea["Stato"] == "HOT"].copy()
 else:
     df_rea_all = pd.DataFrame()
-    n_rea = 0
+
+n_early = len(df_early_all)
+n_pro   = len(df_pro_all)
+n_rea   = len(df_rea_all)
+n_tot   = n_early + n_pro + n_rea
 
 st.header("Risultati Scanner")
 
-col1, col2, col3 = st.columns(3)
-col1.metric("Segnali EARLY", n_early)
-col2.metric("Segnali PRO", n_pro)
-col3.metric("Segnali REA‑QUANT", n_rea)
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Segnali EARLY", n_early)
+c2.metric("Segnali PRO", n_pro)
+c3.metric("Segnali REA‑QUANT", n_rea)
+c4.metric("Totale segnali scanner", n_tot)
 
 # =============================================================================
 # TABS
@@ -281,79 +282,73 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime = st.tabs(
 # EARLY
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
-    if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato EARLY disponibile (colonna 'Stato' assente).")
+    if df_early_all.empty:
+        st.caption("Nessun segnale EARLY.")
     else:
         df_early = df_early_all.copy()
-        if df_early.empty:
-            st.caption("Nessun segnale EARLY.")
-        else:
-            df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
-            st.dataframe(df_early_view, use_container_width=True)
+        df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
+        st.dataframe(df_early_view, use_container_width=True)
 
-            df_early_tv = df_early_view.rename(
-                columns={
-                    "Ticker": "symbol",
-                    "Prezzo": "price",
-                    "RSI": "rsi",
-                    "Vol_Ratio": "volume_ratio",
-                }
-            )[["symbol", "price", "rsi", "volume_ratio"]]
-            csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
+        df_early_tv = df_early_view.rename(
+            columns={
+                "Ticker": "symbol",
+                "Prezzo": "price",
+                "RSI": "rsi",
+                "Vol_Ratio": "volume_ratio",
+            }
+        )[["symbol", "price", "rsi", "volume_ratio"]]
+        csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
 
-            st.download_button(
-                "⬇️ CSV EARLY per TradingView",
-                data=csv_early,
-                file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
+        st.download_button(
+            "⬇️ CSV EARLY per TradingView",
+            data=csv_early,
+            file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
-            # XLSX EARLY completo
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_early.to_excel(writer, index=False, sheet_name="EARLY")
-            xlsx_data = output.getvalue()
+        # XLSX EARLY completo
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_early.to_excel(writer, index=False, sheet_name="EARLY")
+        xlsx_data = output.getvalue()
 
-            st.download_button(
-                "⬇️ XLSX EARLY (tutte le colonne)",
-                data=xlsx_data,
-                file_name=f"early_full_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
+        st.download_button(
+            "⬇️ XLSX EARLY (tutte le colonne)",
+            data=xlsx_data,
+            file_name=f"early_full_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
 # PRO
 with tab_p:
     st.subheader("🟣 Segnali PRO")
-    if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato PRO disponibile (colonna 'Stato' assente).")
+    if df_pro_all.empty:
+        st.caption("Nessun segnale PRO.")
     else:
         df_pro = df_pro_all.copy()
-        if df_pro.empty:
-            st.caption("Nessun segnale PRO.")
-        else:
-            df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
-            st.dataframe(df_pro_view, use_container_width=True)
+        df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
+        st.dataframe(df_pro_view, use_container_width=True)
 
-            df_pro_tv = df_pro_view.rename(
-                columns={
-                    "Ticker": "symbol",
-                    "Prezzo": "price",
-                    "RSI": "rsi",
-                    "Vol_Ratio": "volume_ratio",
-                    "OBV_Trend": "obv_trend",
-                }
-            )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
-            csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
+        df_pro_tv = df_pro_view.rename(
+            columns={
+                "Ticker": "symbol",
+                "Prezzo": "price",
+                "RSI": "rsi",
+                "Vol_Ratio": "volume_ratio",
+                "OBV_Trend": "obv_trend",
+            }
+        )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
+        csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
-            st.download_button(
-                "⬇️ CSV PRO per TradingView",
-                data=csv_pro,
-                file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
+        st.download_button(
+            "⬇️ CSV PRO per TradingView",
+            data=csv_pro,
+            file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
 # REA‑QUANT
 with tab_r:
@@ -480,14 +475,14 @@ with tab_regime:
         st.caption("Nessun dato scanner disponibile.")
     else:
         df_all = df_ep.copy()
-        n_tot = len(df_all)
+        n_tot_signals = len(df_all)
         n_pro_tot = (df_all["Stato"] == "PRO").sum()
         n_early_tot = (df_all["Stato"] == "EARLY").sum()
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Totale segnali", n_tot)
-        c2.metric("% PRO", f"{(n_pro_tot / n_tot * 100):.1f}%" if n_tot else "0.0%")
-        c3.metric("% EARLY", f"{(n_early_tot / n_tot * 100):.1f}%" if n_tot else "0.0%")
+        c1r, c2r, c3r = st.columns(3)
+        c1r.metric("Totale segnali (EARLY+PRO)", n_tot_signals)
+        c2r.metric("% PRO", f"{(n_pro_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%")
+        c3r.metric("% EARLY", f"{(n_early_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%")
 
         st.markdown("**Top 10 momentum (Pro_Score + RSI)**")
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
