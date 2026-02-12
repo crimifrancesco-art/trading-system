@@ -5,60 +5,57 @@ import numpy as np
 from datetime import datetime
 import time
 from io import BytesIO
+from yfinance.utils import YFRateLimitError
 
-# -----------------------------------------------------------------------------#
-# CONFIGURAZIONE BASE PAGINA
-# -----------------------------------------------------------------------------#
 st.set_page_config(
-    page_title="Trading Dashboard PRO – DEBUG",
+    page_title="Trading Dashboard PRO (Lite)",
     layout="wide",
     page_icon="📊"
 )
 
-st.title("SCAN • FILTER • EXECUTE – DEBUG")
-st.caption("Versione PRO con log per capire perché non escono segnali")
+st.markdown("#### Quantitative Trading Dashboard")
+st.title("SCAN • FILTER • EXECUTE – LITE")
+st.caption("Versione PRO ottimizzata per Streamlit Cloud (no rate limit)")
 
-# =============================================================================#
-# SIDEBAR – MERCATI E PARAMETRI
-# =============================================================================#
+# -----------------------------------------------------------------------------
+# SIDEBAR
+# -----------------------------------------------------------------------------
 st.sidebar.title("⚙️ Configurazione")
 
-st.sidebar.subheader("📈 Selezione Mercati (DEBUG: SP500 obbligatorio)")
+st.sidebar.subheader("📈 Selezione Mercati")
 m = {
-    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", True),
-    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", False),
+    "SP500":  st.sidebar.checkbox("🇺🇸 S&P 500 (sample 40)", True),
+    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100 (big names)", False),
 }
 sel = [k for k, v in m.items() if v]
 
-if "SP500" not in sel:
-    st.sidebar.warning("Per debug lascia S&P 500 selezionato.")
-    sel.append("SP500")
-
 st.sidebar.divider()
-st.sidebar.subheader("🎛️ Parametri Scanner (molto larghi)")
+st.sidebar.subheader("🎛️ Parametri Scanner")
 
-e_h    = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 50.0, 20.0, 1.0) / 100
-p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, 0, 5)
-p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, 100, 5)
-r_poc  = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 50.0, 20.0, 1.0) / 100
+e_h    = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 20.0, 5.0, 0.5) / 100
+p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, 30, 5)
+p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, 70, 5)
+r_poc  = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 20.0, 5.0, 0.5) / 100
 
-top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, 20, 5)
+top = st.sidebar.number_input("TOP N titoli per tab", 5, 40, 15, 5)
 
-st.info(f"Mercati selezionati: **{', '.join(sel)}**")
+if not sel:
+    st.warning("Seleziona almeno un mercato.")
+    st.stop()
 
-# =============================================================================#
-# FUNZIONI DI SUPPORTO
-# =============================================================================#
+# -----------------------------------------------------------------------------
+# SUPPORTO
+# -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
-    # per ora S&P500 + qualche big tech, così siamo sicuri
-    sp = pd.read_csv(
-        "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-    )["Symbol"].tolist()
-    t += sp[:100]  # solo primi 100 per velocità
+    if "SP500" in markets:
+        sp = pd.read_csv(
+            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
+        )["Symbol"].tolist()
+        t += sp[:40]  # solo primi 40 per evitare rate limit
     if "Nasdaq" in markets:
-        t += ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"]
+        t += ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "ADBE"]
     return list(dict.fromkeys(t))
 
 def calc_obv(close, volume):
@@ -66,8 +63,14 @@ def calc_obv(close, volume):
     return (direction * volume).cumsum()
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
-    # niente try/except: se c'è un problema lo vediamo a schermo
-    data = yf.Ticker(ticker).history(period="6mo")
+    try:
+        data = yf.Ticker(ticker).history(period="6mo")
+    except YFRateLimitError:
+        # salta il ticker se Yahoo blocca la richiesta
+        return None, None
+    except Exception:
+        return None, None
+
     if len(data) < 40:
         return None, None
 
@@ -90,8 +93,12 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     rsi = 100 - (100 / (1 + (gain / loss)))
     rsi_val = float(rsi.iloc[-1])
 
-    # per debug, NON filtriamo su RSI/vol_ratio (li calcoliamo solo)
+    if p_rmin < rsi_val < p_rmax:
+        pro_score += 3
+
     vol_ratio = float(v.iloc[-1] / v.rolling(20).mean().iloc[-1])
+    if vol_ratio > 1.2:
+        pro_score += 2
 
     obv = calc_obv(c, v)
     obv_slope = obv.diff().rolling(5).mean().iloc[-1]
@@ -104,16 +111,16 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     atr_ratio = float(atr.iloc[-1] / atr.rolling(50).mean().iloc[-1])
     atr_expansion = atr_ratio > 1.2
 
-    stato_ep = "PRO" if pro_score >= 3 else ("EARLY" if early_score >= 8 else "-")
+    stato_ep = "PRO" if pro_score >= 6 else ("EARLY" if early_score >= 8 else "-")
 
     tp = (h + l + c) / 3
-    bins = np.linspace(float(l.min()), float(h.max()), 50)
+    bins = np.linspace(float(l.min()), float(h.max()), 40)
     price_bins = pd.cut(tp, bins, labels=bins[:-1])
     vp = pd.DataFrame({"P": price_bins, "V": v}).groupby("P")["V"].sum()
     poc = float(vp.idxmax())
     dist_poc = abs(price - poc) / poc
 
-    rea_score = 7 if (dist_poc < r_poc and vol_ratio > 0) else 0
+    rea_score = 7 if (dist_poc < r_poc and vol_ratio > 1.2) else 0
     stato_rea = "HOT" if rea_score >= 7 else "-"
 
     res_ep = {
@@ -153,13 +160,12 @@ def all_tabs_to_xlsx(df_early, df_pro, df_rea,
             df_rea[cols_rea].to_excel(writer, index=False, sheet_name="REA_QUANT")
     return output.getvalue()
 
-# =============================================================================#
+# -----------------------------------------------------------------------------
 # SCAN
-# =============================================================================#
-if st.button("🚀 AVVIA SCANNER PRO (DEBUG)", type="primary", use_container_width=True):
+# -----------------------------------------------------------------------------
+if st.button("🚀 AVVIA SCANNER PRO", type="primary", use_container_width=True):
     universe = load_universe(sel)
-    st.write("DEBUG: numero ticker universo =", len(universe))
-    st.write("DEBUG: primi 10 ticker =", universe[:10])
+    st.info(f"Scansione in corso su {len(universe)} titoli…")
 
     pb = st.progress(0)
     status = st.empty()
@@ -174,29 +180,22 @@ if st.button("🚀 AVVIA SCANNER PRO (DEBUG)", type="primary", use_container_wid
         if rea:
             r_rea.append(rea)
         pb.progress((i + 1) / len(universe))
-        if (i + 1) % 20 == 0:
-            time.sleep(0.1)
+        time.sleep(0.05)  # piccolo delay per non saturare Yahoo
 
     status.text("✅ Scansione completata.")
     pb.empty()
-
-    st.write("DEBUG: numero record EP =", len(r_ep))
-    st.write("DEBUG: numero record REA =", len(r_rea))
-    if r_ep:
-        st.write("DEBUG: esempio record EP:", r_ep[0])
 
     st.session_state["df_ep_pro"] = pd.DataFrame(r_ep)
     st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
 
     st.rerun()
 
-# lettura da sessione
 df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
-# =============================================================================#
+# -----------------------------------------------------------------------------
 # METRICHE
-# =============================================================================#
+# -----------------------------------------------------------------------------
 st.header("Risultati Scanner")
 
 if "Stato" in df_ep.columns:
@@ -216,10 +215,10 @@ col1.metric("Segnali EARLY", n_early)
 col2.metric("Segnali PRO", n_pro)
 col3.metric("Segnali REA‑QUANT", n_rea)
 
-# =============================================================================#
-# TABS PRINCIPALI (solo EARLY/PRO per debug)
-# =============================================================================#
-tab_e, tab_p = st.tabs(["🟢 EARLY", "🟣 PRO"])
+# -----------------------------------------------------------------------------
+# TABS
+# -----------------------------------------------------------------------------
+tab_e, tab_p, tab_r = st.tabs(["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT"])
 
 cols_early = [
     "Ticker", "Prezzo",
@@ -228,14 +227,14 @@ cols_early = [
     "OBV_Trend", "ATR", "ATR_Exp", "Stato"
 ]
 cols_pro = cols_early
+cols_rea = ["Ticker", "Prezzo", "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"]
 
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
     if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato EARLY (nessuna colonna 'Stato').")
+        st.caption("Nessun dato EARLY (ancora nessuno scan valido).")
     else:
         df_early = df_ep[df_ep["Stato"] == "EARLY"].copy()
-        st.write("DEBUG: EARLY rows =", len(df_early))
         if df_early.empty:
             st.caption("Nessun segnale EARLY.")
         else:
@@ -245,12 +244,37 @@ with tab_e:
 with tab_p:
     st.subheader("🟣 Segnali PRO")
     if "Stato" not in df_ep.columns:
-        st.caption("Nessun dato PRO (nessuna colonna 'Stato').")
+        st.caption("Nessun dato PRO (ancora nessuno scan valido).")
     else:
         df_pro = df_ep[df_ep["Stato"] == "PRO"].copy()
-        st.write("DEBUG: PRO rows =", len(df_pro))
         if df_pro.empty:
             st.caption("Nessun segnale PRO.")
         else:
             df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
             st.dataframe(df_pro_view[cols_pro], use_container_width=True)
+
+with tab_r:
+    st.subheader("🟠 Segnali REA‑QUANT")
+    if df_rea.empty:
+        st.caption("Nessun segnale REA‑QUANT.")
+    else:
+        st.dataframe(df_rea[cols_rea].sort_values("Rea_Score", ascending=False).head(top),
+                     use_container_width=True)
+
+# -----------------------------------------------------------------------------
+# XLSX COMPLETO
+# -----------------------------------------------------------------------------
+df_early_all = df_ep[df_ep.get("Stato", "") == "EARLY"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
+df_pro_all   = df_ep[df_ep.get("Stato", "") == "PRO"].copy() if "Stato" in df_ep.columns else pd.DataFrame()
+df_rea_all   = df_rea.copy()
+
+xlsx_all = all_tabs_to_xlsx(df_early_all, df_pro_all, df_rea_all,
+                            cols_early, cols_pro, cols_rea)
+
+st.download_button(
+    "⬇️ XLSX completo (EARLY • PRO • REA‑QUANT)",
+    data=xlsx_all,
+    file_name=f"scanner_all_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True,
+)
