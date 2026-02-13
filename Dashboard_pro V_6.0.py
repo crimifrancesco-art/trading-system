@@ -13,15 +13,15 @@ from fpdf import FPDF  # pip install fpdf2
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 6.0",
+    page_title="Trading Scanner – Versione PRO 6.0 (Light)",
     layout="wide",
     page_icon="📊"
 )
 
-st.title("📊 Trading Scanner – Versione PRO 6.0")
+st.title("📊 Trading Scanner – Versione PRO 6.0 (Light)")
 st.caption(
     "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
-    "Multi‑Timeframe • Risk & Portfolio • Backtest PRO • Alert Designer • Cruscotto Giornaliero • Watchlist DB"
+    "Multi‑Timeframe • Risk & Portfolio • Alert Designer • Cruscotto Giornaliero • Watchlist DB"
 )
 
 # -----------------------------------------------------------------------------
@@ -268,7 +268,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 if "done_pro" not in st.session_state:
     st.session_state["done_pro"] = False
 
-if st.button("🚀 AVVIA SCANNER PRO 6.0", type="primary", use_container_width=True):
+if st.button("🚀 AVVIA SCANNER PRO 6.0 (Light)", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli...")
 
@@ -343,7 +343,6 @@ c4.metric("Totale segnali scanner", n_tot)
     tab_regime,
     tab_mtf,
     tab_risk,
-    tab_backtest,
     tab_alert,
     tab_daily,
     tab_watch,
@@ -357,7 +356,6 @@ c4.metric("Totale segnali scanner", n_tot)
         "🧊 Regime & Momentum",
         "🕒 Multi‑Timeframe",
         "💼 Risk & Portfolio",
-        "🔁 Backtest PRO",
         "🔔 Alert Designer",
         "📆 Cruscotto Giornaliero",
         "📌 Watchlist & Note",
@@ -505,10 +503,6 @@ with tab_r:
 # =============================================================================
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
-    st.markdown(
-        "Analisi per mercato sui soli titoli con **Stato = HOT**: "
-        "conteggio segnali, Vol_Ratio medio, Rea_Score medio e top 10 per pressione volumetrica."
-    )
 
     if df_rea_all.empty:
         st.caption("Nessun dato REA‑QUANT disponibile.")
@@ -550,10 +544,6 @@ with tab_rea_q:
 # =============================================================================
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
-    st.markdown(
-        "Sistema Donchian‑style su 20 giorni: breakout su massimi/minimi 20‑giorni "
-        "calcolato su tutti i ticker scansionati."
-    )
 
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile.")
@@ -616,10 +606,6 @@ with tab_serafini:
 # =============================================================================
 with tab_regime:
     st.subheader("🧊 Regime & Momentum multi‑mercato")
-    st.markdown(
-        "Regime: % PRO vs EARLY sul totale segnali. "
-        "Momentum: ranking per Pro_Score × 10 + RSI su tutti i titoli scansionati."
-    )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
         st.caption("Nessun dato scanner disponibile.")
@@ -640,16 +626,6 @@ with tab_regime:
         st.dataframe(
             df_mom[["Nome", "Ticker", "Prezzo", "Pro_Score", "RSI",
                     "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"]],
-            use_container_width=True,
-        )
-
-        df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
-        csv_mom = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
-        st.download_button(
-            "⬇️ CSV Top Momentum (solo ticker)",
-            data=csv_mom,
-            file_name=f"signals_momentum_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
             use_container_width=True,
         )
 
@@ -689,10 +665,6 @@ with tab_regime:
 # =============================================================================
 with tab_mtf:
     st.subheader("🕒 Analisi Multi‑Timeframe (RSI 1D / 1W / 1M)")
-    st.markdown(
-        "Analisi RSI su tre timeframe (daily, weekly, monthly) per tutti i titoli scansionati, "
-        "con segnale sintetico ALIGN_LONG / ALIGN_SHORT / MIXED."
-    )
 
     if df_ep.empty:
         st.caption("Nessun dato base disponibile per il Multi‑Timeframe.")
@@ -765,42 +737,7 @@ with tab_mtf:
                 use_container_width=True,
             )
 
-            df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
-            csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
-            st.download_button(
-                "⬇️ CSV Multi‑Timeframe (solo ticker, top MTF_Score)",
-                data=csv_mtf,
-                file_name=f"signals_multitimeframe_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
             mtf_long = df_mtf[df_mtf["Segnale_MTF"] == "ALIGN_LONG"].sort_values("MTF_Score", ascending=False)
-            mtf_short = df_mtf[df_mtf["Segnale_MTF"] == "ALIGN_SHORT"].sort_values("MTF_Score", ascending=False)
-
-            if not mtf_long.empty:
-                csv_mtf_long = mtf_long[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
-                    index=False, header=False
-                ).encode("utf-8")
-                st.download_button(
-                    "⬇️ CSV MTF – ALIGN_LONG (solo ticker)",
-                    data=csv_mtf_long,
-                    file_name=f"signals_mtf_align_long_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
-
-            if not mtf_short.empty:
-                csv_mtf_short = mtf_short[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
-                    index=False, header=False
-                ).encode("utf-8")
-                st.download_button(
-                    "⬇️ CSV MTF – ALIGN_SHORT (solo ticker)",
-                    data=csv_mtf_short,
-                    file_name=f"signals_mtf_align_short_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
 
             tick_mtf_sel = st.multiselect(
                 "Seleziona ticker MTF (ALIGN_LONG) da aggiungere a Watchlist",
@@ -817,9 +754,6 @@ with tab_mtf:
 # =============================================================================
 with tab_risk:
     st.subheader("💼 Risk & Portfolio")
-    st.markdown(
-        "Carica un CSV del portafoglio (colonne: **Ticker,Qty,Prezzo_medio**) per analizzare pesi, volatilità e contributo a rischio."
-    )
 
     uploaded_port = st.file_uploader(
         "Carica portafoglio (CSV con colonne: Ticker, Qty, Prezzo_medio)", type=["csv"]
@@ -881,122 +815,6 @@ with tab_risk:
                 use_container_width=True,
             )
 
-            top_risk = port_df.sort_values("Risk_Contribution", ascending=False).head(3)
-            vol_port = np.nanmean(port_df["Vol_20d_%"].values)
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Valore totale portafoglio", f"{tot_val:,.0f}")
-            col2.metric("Volatilità media 20d (approx)", f"{vol_port:,.1f}%")
-            if not top_risk.empty:
-                col3.metric(
-                    "Posizione più rischiosa",
-                    f"{top_risk.iloc[0]['Ticker']} ({top_risk.iloc[0]['Risk_Contribution']:.1f}%)"
-                )
-
-            csv_port = port_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇️ CSV Portafoglio con metriche di rischio",
-                data=csv_port,
-                file_name=f"portfolio_risk_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
-# =============================================================================
-# TAB BACKTEST PRO (semplificato)
-# =============================================================================
-with tab_backtest:
-    st.subheader("🔁 Backtest veloce logica PRO")
-    st.markdown(
-        "Backtest semplice: entra quando un titolo ha condizioni tipo PRO "
-        "(prezzo > EMA20 e RSI nel range definito), "
-        "esci quando il prezzo chiude sotto EMA20 o l'RSI scende sotto una soglia."
-    )
-
-    if df_pro_all.empty:
-        st.caption("Nessun segnale/profilo PRO disponibile per il backtest.")
-    else:
-        years = st.slider("Anni di storico da usare", 1, 5, 2)
-        rsi_exit = st.slider("RSI exit (chiudi se sotto)", 10, 60, 40, 5)
-        max_trades = st.number_input("Max ticker da backtestare (per performance)", 5, 50, 10, 5)
-
-        tickers_bt = df_pro_all["Ticker"].unique().tolist()[:max_trades]
-
-        @st.cache_data(ttl=3600)
-        def run_backtest_pro(tickers, years, rsi_exit, rsi_min, rsi_max):
-            results = []
-            start_date = datetime.today() - timedelta(days=years*365)
-            for tkr in tickers:
-                try:
-                    data = yf.download(tkr, start=start_date, progress=False)
-                    if data.empty:
-                        continue
-                    close = data["Close"]
-                    ema20 = close.ewm(20).mean()
-                    delta = close.diff()
-                    gain = delta.where(delta > 0, 0).rolling(14).mean()
-                    loss = -delta.where(delta < 0, 0).rolling(14).mean()
-                    rs = gain / loss
-                    rsi = 100 - (100 / (1 + rs))
-
-                    in_pos = False
-                    entry_price = 0.0
-                    trades = []
-
-                    for i in range(21, len(data)):
-                        price = close.iloc[i]
-                        e20 = ema20.iloc[i]
-                        rsi_val = rsi.iloc[i]
-
-                        if np.isnan(rsi_val) or np.isnan(e20):
-                            continue
-
-                        if not in_pos and price > e20 and rsi_min < rsi_val < rsi_max:
-                            in_pos = True
-                            entry_price = price
-                            continue
-
-                        if in_pos and (price < e20 or rsi_val < rsi_exit):
-                            ret = (price / entry_price - 1) * 100
-                            trades.append(ret)
-                            in_pos = False
-
-                    if trades:
-                        trades_arr = np.array(trades)
-                        avg_ret = trades_arr.mean()
-                        win_rate = (trades_arr > 0).mean() * 100
-                        best_tr = trades_arr.max()
-                        worst_tr = trades_arr.min()
-                        sharpe = (trades_arr.mean() / (trades_arr.std()+1e-9)) * np.sqrt(252)
-                        results.append({
-                            "Ticker": tkr,
-                            "N_trades": len(trades),
-                            "Avg_Trade_%": round(avg_ret, 2),
-                            "Win_Rate_%": round(win_rate, 1),
-                            "Best_Trade_%": round(best_tr, 2),
-                            "Worst_Trade_%": round(worst_tr, 2),
-                            "Sharpe_like": round(sharpe, 2),
-                        })
-                except Exception:
-                    continue
-            return pd.DataFrame(results)
-
-        if st.button("▶️ Esegui Backtest PRO"):
-            with st.spinner("Backtest in corso..."):
-                df_bt = run_backtest_pro(tickers_bt, years, rsi_exit, p_rmin, p_rmax)
-            if df_bt.empty:
-                st.caption("Nessun risultato di backtest disponibile.")
-            else:
-                df_bt_view = df_bt.sort_values("Sharpe_like", ascending=False)
-                st.dataframe(df_bt_view, use_container_width=True)
-                csv_bt = df_bt_view.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "⬇️ CSV Risultati Backtest PRO",
-                    data=csv_bt,
-                    file_name=f"backtest_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
-
 # =============================================================================
 # TAB ALERT DESIGNER (robusto)
 # =============================================================================
@@ -1033,8 +851,7 @@ with tab_alert:
 
     if not sources:
         st.caption(
-            "Nessun insieme di segnali disponibile al momento per costruire alert "
-            "(controlla che ci siano segnali EARLY/PRO/REA/MTF in questa scansione)."
+            "Nessun insieme di segnali disponibile al momento per costruire alert."
         )
     else:
         sel_sources = st.multiselect(
@@ -1206,7 +1023,11 @@ with tab_watch:
             pdf.cell(100, 6, note_txt, 1)
             pdf.ln()
 
-        pdf_bytes = pdf.output(dest="S").encode("latin1")
+        pdf_raw = pdf.output(dest="S")
+        if isinstance(pdf_raw, str):
+            pdf_bytes = pdf_raw.encode("latin1")
+        else:
+            pdf_bytes = pdf_raw
 
         c1, c2, c3 = st.columns(3)
         c1.download_button(
