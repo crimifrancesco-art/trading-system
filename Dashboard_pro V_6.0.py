@@ -305,7 +305,7 @@ if st.button("🚀 AVVIA SCANNER PRO 6.0", type="primary", use_container_width=T
     st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
     st.session_state["done_pro"] = True
 
-    st.experimental_rerun()
+    st.rerun()
 
 if not st.session_state.get("done_pro"):
     st.stop()
