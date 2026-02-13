@@ -8,3 +8,4 @@ gspread-dataframe
 google-auth
 xlsxwriter
 plotly
+fpdf2
