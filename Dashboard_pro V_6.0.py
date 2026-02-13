@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
 import io
 import sqlite3
@@ -188,11 +188,9 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         price = float(c.iloc[-1])
         ema20 = float(c.ewm(20).mean().iloc[-1])
 
-        # EARLY
         dist_ema = abs(price - ema20) / ema20
         early_score = 8 if dist_ema < e_h else 0
 
-        # PRO
         pro_score = 3 if price > ema20 else 0
 
         delta = c.diff()
@@ -221,7 +219,6 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
         stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
 
-        # REA‑QUANT
         tp = (h + l + c) / 3
         bins = np.linspace(float(l.min()), float(h.max()), 50)
         price_bins = pd.cut(tp, bins, labels=bins[:-1])
@@ -303,9 +300,6 @@ if not st.session_state.get("done_pro"):
 df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
 df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
-# =============================================================================
-# RISULTATI SCANNER – METRICHE
-# =============================================================================
 if "Stato" in df_ep.columns:
     df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
     df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
@@ -816,7 +810,7 @@ with tab_risk:
             )
 
 # =============================================================================
-# TAB ALERT DESIGNER (robusto)
+# TAB ALERT DESIGNER
 # =============================================================================
 with tab_alert:
     st.subheader("🔔 Alert Designer per TradingView")
@@ -850,9 +844,7 @@ with tab_alert:
                 ).head(top)
 
     if not sources:
-        st.caption(
-            "Nessun insieme di segnali disponibile al momento per costruire alert."
-        )
+        st.caption("Nessun insieme di segnali disponibile al momento per costruire alert.")
     else:
         sel_sources = st.multiselect(
             "Seleziona insiemi da includere negli alert",
@@ -989,54 +981,66 @@ with tab_watch:
         st.markdown("### Watchlist completa")
         st.dataframe(wl_df, use_container_width=True)
 
+        # XLSX
         out_xlsx = io.BytesIO()
         with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
             wl_df.to_excel(writer, index=False, sheet_name="WATCHLIST")
         xlsx_bytes = out_xlsx.getvalue()
 
-        csv_tickers = wl_df[["ticker"]].drop_duplicates().to_csv(index=False, header=False).encode("utf-8")
+        # CSV solo ticker
+        csv_tickers = wl_df[["ticker"]].drop_duplicates().to_csv(
+            index=False, header=False
+        ).encode("utf-8")
 
-        class PDF(FPDF):
-            def header(self):
-                self.set_font("Arial", "B", 12)
-                self.cell(0, 10, "Watchlist & Note", 0, 1, "C")
-                self.ln(2)
+        # PDF in BytesIO
+        pdf_buffer = io.BytesIO()
+        try:
+            class PDF(FPDF):
+                def header(self):
+                    self.set_font("Arial", "B", 12)
+                    self.cell(0, 10, "Watchlist & Note", 0, 1, "C")
+                    self.ln(2)
 
-        pdf = PDF()
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.set_font("Arial", size=8)
+            pdf = PDF()
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            pdf.set_font("Arial", size=8)
 
-        pdf.set_font("Arial", "B", 8)
-        pdf.cell(30, 6, "Ticker", 1)
-        pdf.cell(30, 6, "Origine", 1)
-        pdf.cell(30, 6, "Data", 1)
-        pdf.cell(100, 6, "Note", 1)
-        pdf.ln()
-
-        pdf.set_font("Arial", size=8)
-        for _, row in wl_df.iterrows():
-            pdf.cell(30, 6, str(row["ticker"])[:12], 1)
-            pdf.cell(30, 6, str(row["origine"])[:12], 1)
-            pdf.cell(30, 6, str(row["created_at"])[:16], 1)
-            note_txt = (row["note"] or "")[:60]
-            pdf.cell(100, 6, note_txt, 1)
+            pdf.set_font("Arial", "B", 8)
+            pdf.cell(30, 6, "Ticker", 1)
+            pdf.cell(30, 6, "Origine", 1)
+            pdf.cell(30, 6, "Data", 1)
+            pdf.cell(100, 6, "Note", 1)
             pdf.ln()
 
-        pdf_raw = pdf.output(dest="S")
-        if isinstance(pdf_raw, str):
-            pdf_bytes = pdf_raw.encode("latin1")
-        else:
-            pdf_bytes = pdf_raw
+            pdf.set_font("Arial", size=8)
+            for _, row in wl_df.iterrows():
+                pdf.cell(30, 6, str(row["ticker"])[:12], 1)
+                pdf.cell(30, 6, str(row["origine"])[:12], 1)
+                pdf.cell(30, 6, str(row["created_at"])[:16], 1)
+                note_txt = (row["note"] or "")[:60]
+                pdf.cell(100, 6, note_txt, 1)
+                pdf.ln()
+
+            pdf.output(pdf_buffer)
+            pdf_bytes = pdf_buffer.getvalue()
+            pdf_ok = True
+        except Exception:
+            pdf_ok = False
+            pdf_bytes = b""
 
         c1, c2, c3 = st.columns(3)
-        c1.download_button(
-            "⬇️ PDF Watchlist",
-            data=pdf_bytes,
-            file_name=f"watchlist_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
+        if pdf_ok:
+            c1.download_button(
+                "⬇️ PDF Watchlist",
+                data=pdf_bytes,
+                file_name=f"watchlist_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+        else:
+            c1.caption("PDF non disponibile (errore nella generazione).")
+
         c2.download_button(
             "⬇️ XLSX Watchlist",
             data=xlsx_bytes,
