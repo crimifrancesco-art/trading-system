@@ -67,6 +67,10 @@ def load_watchlist():
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
     conn.close()
+    # MIGRAZIONE SOFT: garantisce sempre le colonne necessarie
+    for col in ["ticker", "name", "origine", "note", "created_at"]:
+        if col not in df.columns:
+            df[col] = ""
     return df
 
 def update_watchlist_note(row_id, new_note):
@@ -406,7 +410,6 @@ with tab_e:
             use_container_width=True,
         )
 
-        # Aggiunta alla watchlist
         options_early = [
             f"{row['Ticker']} – {row['Nome']}" for _, row in df_early_view.iterrows()
         ]
@@ -421,7 +424,7 @@ with tab_e:
             names   = [s.split(" – ")[1] for s in selection_early]
             add_to_watchlist(tickers, names, "EARLY", note_early)
             st.success("EARLY salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # PRO
@@ -487,7 +490,7 @@ with tab_p:
             names   = [s.split(" – ")[1] for s in selection_pro]
             add_to_watchlist(tickers, names, "PRO", note_pro)
             st.success("PRO salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # REA‑QUANT (segnali)
@@ -547,7 +550,7 @@ with tab_r:
             names   = [s.split(" – ")[1] for s in selection_rea]
             add_to_watchlist(tickers, names, "REA_HOT", note_rea)
             st.success("REA‑QUANT salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -617,7 +620,7 @@ with tab_rea_q:
             names   = [s.split(" – ")[1] for s in selection_rea_q]
             add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q)
             st.success("Rea Quant salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # STEFANO SERAFINI – SYSTEMS
@@ -699,7 +702,7 @@ with tab_serafini:
                 names   = [s.split(" – ")[1] for s in selection_seraf]
                 add_to_watchlist(tickers, names, "SERAFINI", note_seraf)
                 st.success("Serafini salvati in watchlist.")
-                st.experimental_rerun()
+                st.rerun()
 
 # =============================================================================
 # REGIME & MOMENTUM
@@ -791,7 +794,7 @@ with tab_regime:
             names   = [s.split(" – ")[1] for s in selection_regime]
             add_to_watchlist(tickers, names, "REGIME_MOMENTUM", note_regime)
             st.success("Regime/Momentum salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # MULTI‑TIMEFRAME – RSI Daily / Weekly / Monthly (con Segnale_MTF)
@@ -938,7 +941,7 @@ with tab_mtf:
                 names   = [s.split(" – ")[1] for s in selection_mtf]
                 add_to_watchlist(tickers, names, "MTF_ALIGN_LONG", note_mtf)
                 st.success("MTF ALIGN_LONG salvati in watchlist.")
-                st.experimental_rerun()
+                st.rerun()
 
 # =============================================================================
 # 💼 RISK & PORTFOLIO
@@ -1171,7 +1174,10 @@ with tab_watch:
         st.dataframe(wl_df, use_container_width=True)
 
         st.markdown("### Modifica nota di una riga")
-        labels = [f"{r['ticker']} – {r['name']} ({r['origine']}) - {r['created_at']}" for _, r in wl_df.iterrows()]
+        labels = [
+            f"{r['ticker']} – {r.get('name','')} ({r.get('origine','')}) - {r.get('created_at','')}"
+            for _, r in wl_df.iterrows()
+        ]
         ids = wl_df["id"].astype(str).tolist()
         mapping = dict(zip(labels, ids))
 
@@ -1184,7 +1190,7 @@ with tab_watch:
         if col_upd.button("💾 Aggiorna nota"):
             update_watchlist_note(sel_id, new_note)
             st.success("Nota aggiornata.")
-            st.experimental_rerun()
+            st.rerun()
 
         st.markdown("### Rimuovi più elementi")
         ids_to_delete = st.multiselect(
@@ -1197,7 +1203,7 @@ with tab_watch:
         if col_del.button("🗑️ Rimuovi selezionati"):
             delete_from_watchlist(ids_to_delete)
             st.success("Elementi rimossi dalla watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
         # Export XLSX
         out_xlsx = io.BytesIO()
@@ -1235,9 +1241,9 @@ with tab_watch:
             pdf.set_font("Arial", size=8)
             for _, row in wl_df.iterrows():
                 pdf.cell(30, 6, str(row["ticker"])[:12], 1)
-                pdf.cell(50, 6, str(row["name"])[:22], 1)
-                pdf.cell(25, 6, str(row["origine"])[:10], 1)
-                pdf.cell(35, 6, str(row["created_at"])[:16], 1)
+                pdf.cell(50, 6, str(row.get("name",""))[:22], 1)
+                pdf.cell(25, 6, str(row.get("origine",""))[:10], 1)
+                pdf.cell(35, 6, str(row.get("created_at",""))[:16], 1)
                 note_txt = (row["note"] or "")[:30]
                 pdf.cell(50, 6, note_txt, 1)
                 pdf.ln()
