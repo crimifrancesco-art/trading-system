@@ -140,7 +140,6 @@ if st.session_state["show_sidebar"]:
 
         top = st.number_input("TOP N titoli per tab", 5, 50, 15, 5)
 else:
-    # Se nascosto, recupera comunque i parametri da session_state (default se mancanti)
     m = {
         "Eurostoxx":   st.session_state.get("m_eurostoxx", False),
         "FTSE":        st.session_state.get("m_ftse", False),
@@ -153,14 +152,13 @@ else:
         "Crypto":      st.session_state.get("m_crypto", False),
         "Emerging":    st.session_state.get("m_emerg", False),
     }
-    sel = [k for k, v in m.items() if v]
-    e_h    = st.session_state.get("EARLY_e_h", 2.0/100)
+    sel   = [k for k, v in m.items() if v]
+    e_h   = st.session_state.get("EARLY_e_h", 2.0/100)
     p_rmin = st.session_state.get("PRO_p_rmin", 40)
     p_rmax = st.session_state.get("PRO_p_rmax", 70)
     r_poc  = st.session_state.get("REA_r_poc", 2.0/100)
     top    = st.session_state.get("TOP_N", 15)
 
-# Salva ultimi parametri in session_state (utile se si nasconde il menu)
 st.session_state["EARLY_e_h"] = e_h
 st.session_state["PRO_p_rmin"] = p_rmin
 st.session_state["PRO_p_rmax"] = p_rmax
@@ -179,52 +177,41 @@ st.info(f"Mercati selezionati: **{', '.join(sel)}**")
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
-
     if "SP500" in markets:
         sp = pd.read_csv(
             "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
         )["Symbol"].tolist()
         t += sp
-
     if "Nasdaq" in markets:
         t += [
             "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO",
             "NFLX", "ADBE", "COST", "PEP", "CSCO", "INTC", "AMD"
         ]
-
     if "Dow" in markets:
         t += [
             "AAPL", "MSFT", "JPM", "V", "UNH", "JNJ", "WMT", "PG", "HD",
             "DIS", "KO", "MCD", "BA", "CAT", "GS"
         ]
-
     if "Russell" in markets:
         t += ["IWM", "VTWO"]
-
     if "FTSE" in markets:
         t += [
             "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
             "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI"
         ]
-
     if "Eurostoxx" in markets:
         t += [
             "ASML.AS", "NESN.SW", "SAN.PA", "TTE.PA",
             "AIR.PA", "MC.PA", "OR.PA", "SU.PA"
         ]
-
     if "Commodities" in markets:
         t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
-
     if "ETF" in markets:
         t += ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"]
-
     if "Crypto" in markets:
         t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
-
     if "Emerging" in markets:
         t += ["EEM", "EWZ", "INDA", "FXI"]
-
     return list(dict.fromkeys(t))
 
 def calc_obv(close, volume):
@@ -247,11 +234,11 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
         price = float(c.iloc[-1])
         ema20 = float(c.ewm(20).mean().iloc[-1])
-        sma20 = ema20  # uso stesso valore per checks Finviz
+        sma20 = ema20
         sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
         sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
 
-        # EARLY
+        # EARLY: score decrescente con la distanza dalla EMA
         dist_ema = abs(price - ema20) / ema20
         early_score = max(0, 8 - (dist_ema / e_h) * 8) if dist_ema <= 3 * e_h else 0
 
@@ -299,11 +286,10 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             rea_score += 2
         stato_rea = "HOT" if rea_score >= 7 else "-"
 
-        # Dati aggiuntivi per Finviz‑style
-        avg_volume = float(v.rolling(20).mean().iloc[-1])  # proxy Average Volume
-        rel_volume = vol_ratio                                  # proxy Relative Volume
+        avg_volume = float(v.rolling(20).mean().iloc[-1])  # proxy avg vol
+        rel_volume = vol_ratio
         eps_next_y = info.get("earningsGrowth", None)
-        eps_next_5y = info.get("earningsQuarterlyGrowth", None)  # proxy
+        eps_next_5y = info.get("earningsQuarterlyGrowth", None)
         options_short = bool(info.get("sharesShort", 0) > 0)
 
         res_ep = {
@@ -488,22 +474,6 @@ with tab_e:
             use_container_width=True,
         )
 
-        options_early = [
-            f"{row['Ticker']} – {row['Nome']}" for _, row in df_early_view.iterrows()
-        ]
-        selection_early = st.multiselect(
-            "Aggiungi alla Watchlist (EARLY):",
-            options=options_early,
-            key="wl_early",
-        )
-        note_early = st.text_input("Note comuni per questi ticker EARLY", key="note_wl_early")
-        if st.button("📌 Salva in Watchlist (EARLY)"):
-            tickers = [s.split(" – ")[0] for s in selection_early]
-            names   = [s.split(" – ")[1] for s in selection_early]
-            add_to_watchlist(tickers, names, "EARLY", note_early)
-            st.success("EARLY salvati in watchlist.")
-            st.rerun()
-
 # =============================================================================
 # PRO
 # =============================================================================
@@ -554,22 +524,6 @@ with tab_p:
             use_container_width=True,
         )
 
-        options_pro = [
-            f"{row['Ticker']} – {row['Nome']}" for _, row in df_pro_view.iterrows()
-        ]
-        selection_pro = st.multiselect(
-            "Aggiungi alla Watchlist (PRO):",
-            options=options_pro,
-            key="wl_pro",
-        )
-        note_pro = st.text_input("Note comuni per questi ticker PRO", key="note_wl_pro")
-        if st.button("📌 Salva in Watchlist (PRO)"):
-            tickers = [s.split(" – ")[0] for s in selection_pro]
-            names   = [s.split(" – ")[1] for s in selection_pro]
-            add_to_watchlist(tickers, names, "PRO", note_pro)
-            st.success("PRO salvati in watchlist.")
-            st.rerun()
-
 # =============================================================================
 # REA‑QUANT (segnali)
 # =============================================================================
@@ -613,22 +567,6 @@ with tab_r:
             mime="text/csv",
             use_container_width=True,
         )
-
-        options_rea = [
-            f"{row['Ticker']} – {row['Nome']}" for _, row in df_rea_view.iterrows()
-        ]
-        selection_rea = st.multiselect(
-            "Aggiungi alla Watchlist (REA‑QUANT HOT):",
-            options=options_rea,
-            key="wl_rea",
-        )
-        note_rea = st.text_input("Note comuni per questi ticker REA‑QUANT", key="note_wl_rea")
-        if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
-            tickers = [s.split(" – ")[0] for s in selection_rea]
-            names   = [s.split(" – ")[1] for s in selection_rea]
-            add_to_watchlist(tickers, names, "REA_HOT", note_rea)
-            st.success("REA‑QUANT salvati in watchlist.")
-            st.rerun()
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -818,6 +756,7 @@ with tab_mtf:
     if df_ep.empty:
         st.caption("Nessun dato base disponibile per il Multi‑Timeframe.")
         df_mtf = pd.DataFrame()
+        sheet_mtf_full = pd.DataFrame()
     else:
         tickers_all = df_ep["Ticker"].unique().tolist()
 
@@ -873,6 +812,7 @@ with tab_mtf:
 
         if df_mtf.empty:
             st.caption("Nessun dato Multi‑Timeframe disponibile.")
+            sheet_mtf_full = pd.DataFrame()
         else:
             df_mtf = df_mtf.merge(
                 df_ep[["Ticker", "Nome", "Pro_Score", "Stato"]],
@@ -889,8 +829,6 @@ with tab_mtf:
             )
 
             sheet_mtf_full = df_mtf.copy()
-else:
-    sheet_mtf_full = pd.DataFrame()
 
 # =============================================================================
 # FINVIZ STYLE TAB
@@ -910,7 +848,7 @@ with tab_finviz:
             "3. Average Volume > 1.000K (media volumi 20 giorni > 1M).\n"
             "4. Options - Short available (short interest > 0).\n"
             "5. Prezzo > 10.\n"
-            "6. Relative Volume > 1 (Vol_Ratio > 1).\n"
+            "6. Relative Volume > 1 (Rel_Volume > 1).\n"
             "7. Prezzo sopra SMA20.\n"
             "8. Prezzo sopra SMA50.\n"
             "9. Prezzo sopra SMA200.\n"
@@ -919,11 +857,10 @@ with tab_finviz:
 
     if df_finviz.empty:
         st.caption("Nessun dato Finviz disponibile (esegui prima lo scanner).")
-        df_finviz_view = pd.DataFrame()
+        df_fv_view = pd.DataFrame()
     else:
         df_fv = df_finviz.copy()
 
-        # Calcolo score: ogni criterio vale 1 punto se rispettato
         cond_eps_y  = df_fv["EPS_NextY"].fillna(0) > 0.10
         cond_eps_5y = df_fv["EPS_Next5Y"].fillna(0) > 0.15
         cond_vol    = df_fv["Avg_Volume"].fillna(0) > 1000  # K
@@ -958,11 +895,8 @@ with tab_finviz:
             & cond_sma200
         ].copy()
 
-    if df_finviz.empty:
-        pass
-    else:
         if df_fv_filtered.empty:
-            st.caption("Nessun titolo soddisfa **tutti** i filtri Finviz; mostro comunque i migliori per FinvizScore.")
+            st.caption("Nessun titolo soddisfa tutti i filtri Finviz; mostro comunque i migliori per FinvizScore.")
             df_fv_view = df_fv.sort_values("FinvizScore", ascending=False).head(top)
         else:
             df_fv_view = df_fv_filtered.sort_values("FinvizScore", ascending=False).head(top)
@@ -978,7 +912,6 @@ with tab_finviz:
             use_container_width=True,
         )
 
-        # Export CSV/XLSX
         csv_fv = df_fv_view.to_csv(index=False).encode("utf-8")
         xlsx_buf = io.BytesIO()
         with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
@@ -1002,7 +935,7 @@ with tab_finviz:
         )
 
 # =============================================================================
-# EXPORT XLSX COMPLETO (TUTTI I TAB, SENZA RISK)
+# EXPORT XLSX COMPLETO
 # =============================================================================
 st.subheader("⬇️ Esportazioni")
 
@@ -1045,7 +978,7 @@ st.download_button(
 )
 
 # =============================================================================
-# EXPORT UNICO PER TRADINGVIEW (SOLO TICKER TOP 10 PER TAB)
+# EXPORT UNICO PER TRADINGVIEW
 # =============================================================================
 st.subheader("⬇️ Export unico TradingView (solo ticker, top 10 per tab)")
 
