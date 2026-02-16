@@ -10,12 +10,13 @@ from pathlib import Path
 from fpdf import FPDF  # pip install fpdf2
 
 # -----------------------------------------------------------------------------
-# CONFIGURAZIONE BASE PAGINA
+# CONFIGURAZIONE BASE PAGINA (sidebar mobile auto-chiudibile)
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="Trading Scanner – Versione PRO 7.0",
     layout="wide",
-    page_icon="📊"
+    page_icon="📊",
+    initial_sidebar_state="auto",
 )
 
 st.title("📊 Trading Scanner – Versione PRO 7.0")
@@ -23,20 +24,6 @@ st.caption(
     "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz‑style • Export TradingView • Watchlist DB"
 )
-
-# -----------------------------------------------------------------------------
-# STATO UI: VISIBILITÀ “SIDEBAR”
-# -----------------------------------------------------------------------------
-if "show_sidebar" not in st.session_state:
-    st.session_state["show_sidebar"] = True
-
-top_left_col, _ = st.columns([1, 9])
-with top_left_col:
-    if st.button(
-        "👁️ Nascondi/Mostra Menu",
-        help="Mostra o nasconde i controlli laterali"
-    ):
-        st.session_state["show_sidebar"] = not st.session_state["show_sidebar"]
 
 # -----------------------------------------------------------------------------
 # DB WATCHLIST (SQLite)
@@ -110,60 +97,34 @@ def reset_watchlist_db():
 init_db()
 
 # =============================================================================
-# “SIDEBAR” – MERCATI E PARAMETRI (IN CONTAINER COLLASSABILE)
+# SIDEBAR – MERCATI E PARAMETRI (sidebar nativa, a scomparsa)
 # =============================================================================
-if st.session_state["show_sidebar"]:
-    with st.container():
-        st.markdown("### ⚙️ Configurazione")
-        st.markdown("#### 📈 Selezione Mercati")
-        m = {
-            "Eurostoxx":   st.checkbox("🇪🇺 Eurostoxx 600", False, key="m_eurostoxx"),
-            "FTSE":        st.checkbox("🇮🇹 FTSE MIB", False, key="m_ftse"),
-            "SP500":       st.checkbox("🇺🇸 S&P 500", True, key="m_sp500"),
-            "Nasdaq":      st.checkbox("🇺🇸 Nasdaq 100", False, key="m_nasdaq"),
-            "Dow":         st.checkbox("🇺🇸 Dow Jones", False, key="m_dow"),
-            "Russell":     st.checkbox("🇺🇸 Russell 2000", False, key="m_russell"),
-            "Commodities": st.checkbox("🛢️ Materie Prime", False, key="m_cmd"),
-            "ETF":         st.checkbox("📦 ETF", False, key="m_etf"),
-            "Crypto":      st.checkbox("₿ Crypto", False, key="m_crypto"),
-            "Emerging":    st.checkbox("🌍 Emergenti", False, key="m_emerg"),
-        }
-        sel = [k for k, v in m.items() if v]
+st.sidebar.title("⚙️ Configurazione")
 
-        st.divider()
-        st.markdown("#### 🎛️ Parametri Scanner")
+st.sidebar.subheader("📈 Selezione Mercati")
+m = {
+    "Eurostoxx":   st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
+    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", False),
+    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", True),
+    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", False),
+    "Dow":         st.sidebar.checkbox("🇺🇸 Dow Jones", False),
+    "Russell":     st.sidebar.checkbox("🇺🇸 Russell 2000", False),
+    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
+    "ETF":         st.sidebar.checkbox("📦 ETF", False),
+    "Crypto":      st.sidebar.checkbox("₿ Crypto", False),
+    "Emerging":    st.sidebar.checkbox("🌍 Emergenti", False),
+}
+sel = [k for k, v in m.items() if v]
 
-        e_h    = st.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0, 2.0, 0.5) / 100
-        p_rmin = st.slider("PRO - RSI minimo", 0, 100, 40, 5)
-        p_rmax = st.slider("PRO - RSI massimo", 0, 100, 70, 5)
-        r_poc  = st.slider("REA - Distanza POC (%)", 0.0, 10.0, 2.0, 0.5) / 100
+st.sidebar.divider()
+st.sidebar.subheader("🎛️ Parametri Scanner")
 
-        top = st.number_input("TOP N titoli per tab", 5, 50, 15, 5)
-else:
-    m = {
-        "Eurostoxx":   st.session_state.get("m_eurostoxx", False),
-        "FTSE":        st.session_state.get("m_ftse", False),
-        "SP500":       st.session_state.get("m_sp500", True),
-        "Nasdaq":      st.session_state.get("m_nasdaq", False),
-        "Dow":         st.session_state.get("m_dow", False),
-        "Russell":     st.session_state.get("m_russell", False),
-        "Commodities": st.session_state.get("m_cmd", False),
-        "ETF":         st.session_state.get("m_etf", False),
-        "Crypto":      st.session_state.get("m_crypto", False),
-        "Emerging":    st.session_state.get("m_emerg", False),
-    }
-    sel   = [k for k, v in m.items() if v]
-    e_h   = st.session_state.get("EARLY_e_h", 2.0/100)
-    p_rmin = st.session_state.get("PRO_p_rmin", 40)
-    p_rmax = st.session_state.get("PRO_p_rmax", 70)
-    r_poc  = st.session_state.get("REA_r_poc", 2.0/100)
-    top    = st.session_state.get("TOP_N", 15)
+e_h    = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0, 2.0, 0.5) / 100
+p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, 40, 5)
+p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, 70, 5)
+r_poc  = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 10.0, 2.0, 0.5) / 100
 
-st.session_state["EARLY_e_h"] = e_h
-st.session_state["PRO_p_rmin"] = p_rmin
-st.session_state["PRO_p_rmax"] = p_rmax
-st.session_state["REA_r_poc"] = r_poc
-st.session_state["TOP_N"] = top
+top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, 15, 5)
 
 if not sel:
     st.warning("⚠️ Seleziona almeno un mercato nel menu.")
@@ -474,6 +435,23 @@ with tab_e:
             use_container_width=True,
         )
 
+        # Aggiunta in Watchlist
+        options_early = [
+            f"{row['Ticker']} – {row['Nome']}" for _, row in df_early_view.iterrows()
+        ]
+        selection_early = st.multiselect(
+            "Aggiungi alla Watchlist (EARLY):",
+            options=options_early,
+            key="wl_early",
+        )
+        note_early = st.text_input("Note comuni per questi ticker EARLY", key="note_wl_early")
+        if st.button("📌 Salva in Watchlist (EARLY)"):
+            tickers = [s.split(" – ")[0] for s in selection_early]
+            names   = [s.split(" – ")[1] for s in selection_early]
+            add_to_watchlist(tickers, names, "EARLY", note_early)
+            st.success("EARLY salvati in watchlist.")
+            st.experimental_rerun()
+
 # =============================================================================
 # PRO
 # =============================================================================
@@ -524,6 +502,23 @@ with tab_p:
             use_container_width=True,
         )
 
+        # Aggiunta in Watchlist
+        options_pro = [
+            f"{row['Ticker']} – {row['Nome']}" for _, row in df_pro_view.iterrows()
+        ]
+        selection_pro = st.multiselect(
+            "Aggiungi alla Watchlist (PRO):",
+            options=options_pro,
+            key="wl_pro",
+        )
+        note_pro = st.text_input("Note comuni per questi ticker PRO", key="note_wl_pro")
+        if st.button("📌 Salva in Watchlist (PRO)"):
+            tickers = [s.split(" – ")[0] for s in selection_pro]
+            names   = [s.split(" – ")[1] for s in selection_pro]
+            add_to_watchlist(tickers, names, "PRO", note_pro)
+            st.success("PRO salvati in watchlist.")
+            st.experimental_rerun()
+
 # =============================================================================
 # REA‑QUANT (segnali)
 # =============================================================================
@@ -567,6 +562,23 @@ with tab_r:
             mime="text/csv",
             use_container_width=True,
         )
+
+        # Aggiunta in Watchlist
+        options_rea = [
+            f"{row['Ticker']} – {row['Nome']}" for _, row in df_rea_view.iterrows()
+        ]
+        selection_rea = st.multiselect(
+            "Aggiungi alla Watchlist (REA‑QUANT HOT):",
+            options=options_rea,
+            key="wl_rea",
+        )
+        note_rea = st.text_input("Note comuni per questi ticker REA‑QUANT", key="note_wl_rea")
+        if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
+            tickers = [s.split(" – ")[0] for s in selection_rea]
+            names   = [s.split(" – ")[1] for s in selection_rea]
+            add_to_watchlist(tickers, names, "REA_HOT", note_rea)
+            st.success("REA‑QUANT salvati in watchlist.")
+            st.experimental_rerun()
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -623,7 +635,7 @@ with tab_rea_q:
         )
 
 # =============================================================================
-# STEFANO SERAFINI – SYSTEMS
+# SERAFINI SYSTEMS
 # =============================================================================
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
@@ -734,7 +746,7 @@ with tab_regime:
         sheet_regime = df_all.sort_values("Momentum", ascending=False)
 
 # =============================================================================
-# MULTI‑TIMEFRAME – RSI Daily / Weekly / Monthly
+# MULTI‑TIMEFRAME
 # =============================================================================
 with tab_mtf:
     st.subheader("🕒 Analisi Multi‑Timeframe (RSI 1D / 1W / 1M)")
@@ -755,7 +767,6 @@ with tab_mtf:
 
     if df_ep.empty:
         st.caption("Nessun dato base disponibile per il Multi‑Timeframe.")
-        df_mtf = pd.DataFrame()
         sheet_mtf_full = pd.DataFrame()
     else:
         tickers_all = df_ep["Ticker"].unique().tolist()
@@ -857,7 +868,6 @@ with tab_finviz:
 
     if df_finviz.empty:
         st.caption("Nessun dato Finviz disponibile (esegui prima lo scanner).")
-        df_fv_view = pd.DataFrame()
     else:
         df_fv = df_finviz.copy()
 
@@ -912,6 +922,7 @@ with tab_finviz:
             use_container_width=True,
         )
 
+        # Export + Watchlist
         csv_fv = df_fv_view.to_csv(index=False).encode("utf-8")
         xlsx_buf = io.BytesIO()
         with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
@@ -933,6 +944,22 @@ with tab_finviz:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
+
+        options_fv = [
+            f"{row['Ticker']} – {row['Nome']}" for _, row in df_fv_view.iterrows()
+        ]
+        selection_fv = st.multiselect(
+            "Aggiungi alla Watchlist (Finviz):",
+            options=options_fv,
+            key="wl_finviz",
+        )
+        note_fv = st.text_input("Note comuni per questi ticker Finviz", key="note_wl_finviz")
+        if st.button("📌 Salva in Watchlist (Finviz)"):
+            tickers = [s.split(" – ")[0] for s in selection_fv]
+            names   = [s.split(" – ")[1] for s in selection_fv]
+            add_to_watchlist(tickers, names, "FINVIZ", note_fv)
+            st.success("Finviz salvati in watchlist.")
+            st.experimental_rerun()
 
 # =============================================================================
 # EXPORT XLSX COMPLETO
@@ -1065,7 +1092,7 @@ with tab_watch:
     if st.button("🧹 Svuota completamente la Watchlist (reset DB)"):
         reset_watchlist_db()
         st.success("Watchlist e DB azzerati.")
-        st.rerun()
+        st.experimental_rerun()
 
     wl_df = load_watchlist()
 
@@ -1092,7 +1119,7 @@ with tab_watch:
         if col_upd.button("💾 Aggiorna nota"):
             update_watchlist_note(sel_id, new_note)
             st.success("Nota aggiornata.")
-            st.rerun()
+            st.experimental_rerun()
 
         st.markdown("### Rimuovi più elementi")
         ids_to_delete = st.multiselect(
@@ -1105,7 +1132,7 @@ with tab_watch:
         if col_del.button("🗑️ Rimuovi selezionati"):
             delete_from_watchlist(ids_to_delete)
             st.success("Elementi rimossi dalla watchlist.")
-            st.rerun()
+            st.experimental_rerun()
 
         out_xlsx = io.BytesIO()
         with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
