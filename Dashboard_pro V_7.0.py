@@ -199,11 +199,9 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
         sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
 
-        # EARLY
         dist_ema = abs(price - ema20) / ema20
         early_score = max(0, 8 - (dist_ema / e_h) * 8) if dist_ema <= 3 * e_h else 0
 
-        # PRO
         pro_score = 0
         if price > ema20:
             pro_score += 3
@@ -232,7 +230,6 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
         stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
 
-        # REA‑QUANT
         tp = (h + l + c) / 3
         bins = np.linspace(float(l.min()), float(h.max()), 50)
         price_bins = pd.cut(tp, bins, labels=bins[:-1])
