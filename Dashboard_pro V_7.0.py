@@ -184,6 +184,118 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         data = yf.Ticker(ticker).history(period="6mo")
         if len(data) < 40:
             return None, None, None
+
+        c = data["Close"]
+        h = data["High"]
+        l = data["Low"]
+        v = data["Volume"]
+
+        info = yf.Ticker(ticker).info
+        name = info.get("longName", info.get("shortName", ticker))[:50]
+
+        price = float(c.iloc[-1])
+        ema20 = float(c.ewm(20).mean().iloc[-1])
+        sma20 = ema20
+        sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
+        sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
+
+        # EARLY
+        dist_ema = abs(price - ema20) / ema20
+        early_score = max(0, 8 - (dist_ema / e_h) * 8) if dist_ema <= 3 * e_h else 0
+
+        # PRO
+        pro_score = 0
+        if price > ema20:
+            pro_score += 3
+        delta = c.diff()
+        gain = delta.where(delta > 0, 0).rolling(14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(14).mean()
+        rsi = 100 - (100 / (1 + (gain / loss)))
+        rsi_val = float(rsi.iloc[-1])
+
+        if p_rmin < rsi_val < p_rmax:
+            pro_score += 3
+        vol_ratio = float(v.iloc[-1] / v.rolling(20).mean().iloc[-1])
+        if vol_ratio > 1.2:
+            pro_score += 2
+
+        obv = calc_obv(c, v)
+        obv_slope = obv.diff().rolling(5).mean().iloc[-1]
+        obv_trend = "UP" if obv_slope > 0 else "DOWN"
+
+        tr = np.maximum(h - l, np.maximum(abs(h - c.shift()), abs(l - c.shift())))
+        atr = tr.rolling(14).mean()
+        atr_val = float(atr.iloc[-1])
+
+        atr_ratio = float(atr.iloc[-1] / atr.rolling(50).mean().iloc[-1])
+        atr_expansion = atr_ratio > 1.2
+
+        stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
+
+        # REA‑QUANT
+        tp = (h + l + c) / 3
+        bins = np.linspace(float(l.min()), float(h.max()), 50)
+        price_bins = pd.cut(tp, bins, labels=bins[:-1])
+        vp = pd.DataFrame({"P": price_bins, "V": v}).groupby("P")["V"].sum()
+        poc = float(vp.idxmax())
+        dist_poc = abs(price - poc) / poc
+
+        rea_score = 0
+        if dist_poc < r_poc:
+            rea_score += max(0, 7 - (dist_poc / r_poc) * 7)
+        if vol_ratio > 1.5:
+            rea_score += 2
+        stato_rea = "HOT" if rea_score >= 7 else "-"
+
+        avg_volume = float(v.rolling(20).mean().iloc[-1])
+        rel_volume = vol_ratio
+        eps_next_y = info.get("earningsGrowth", None)
+        eps_next_5y = info.get("earningsQuarterlyGrowth", None)
+        options_short = bool(info.get("sharesShort", 0) > 0)
+
+        res_ep = {
+            "Nome": name,
+            "Ticker": ticker,
+            "Prezzo": round(price, 2),
+            "Early_Score": round(early_score, 2),
+            "Pro_Score": round(pro_score, 2),
+            "RSI": round(rsi_val, 1),
+            "Vol_Ratio": round(vol_ratio, 2),
+            "OBV_Trend": obv_trend,
+            "ATR": round(atr_val, 2),
+            "ATR_Exp": atr_expansion,
+            "Stato": stato_ep,
+        }
+
+        res_rea = {
+            "Nome": name,
+            "Ticker": ticker,
+            "Prezzo": round(price, 2),
+            "Rea_Score": round(rea_score, 2),
+            "POC": round(poc, 2),
+            "Dist_POC_%": round(dist_poc * 100, 1),
+            "Vol_Ratio": round(vol_ratio, 2),
+            "Stato": stato_rea,
+        }
+
+        finviz_features = {
+            "Ticker": ticker,
+            "Nome": name,
+            "Prezzo": price,
+            "EPS_NextY": eps_next_y,
+            "EPS_Next5Y": eps_next_5y,
+            "Avg_Volume": avg_volume / 1000.0,
+            "Rel_Volume": rel_volume,
+            "Has_OptionsShort": options_short,
+            "Above_SMA20": price > sma20,
+            "Above_SMA50": price > sma50,
+            "Above_SMA200": price > sma200,
+        }
+
+        return res_ep, res_rea, finviz_features
+
+    except Exception:
+        return None, None, None
             
             
 # =============================================================================
