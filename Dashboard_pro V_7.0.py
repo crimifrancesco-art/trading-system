@@ -199,6 +199,83 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
         sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
 
+
+# =============================================================================
+# FUNZIONI FONDAMENTALI YFINANCE
+# =============================================================================
+@st.cache_data(ttl=3600)
+def get_fundamentals_single(ticker: str) -> pd.DataFrame:
+    """
+    Restituisce un DataFrame 1 riga con i principali fondamentali di un singolo ticker.
+    """
+    try:
+        info = yf.Ticker(ticker).info
+    except Exception:
+        return pd.DataFrame()
+
+    row = {
+        "Ticker": ticker,
+        "Nome": info.get("longName", info.get("shortName", ticker)),
+        "MarketCap": info.get("marketCap"),
+        "Sector": info.get("sector"),
+        "Industry": info.get("industry"),
+        "Country": info.get("country"),
+
+        "PE": info.get("trailingPE"),
+        "Forward_PE": info.get("forwardPE"),
+        "PEG_5Y": info.get("pegRatio"),
+        "Price_to_Book": info.get("priceToBook"),
+
+        "Profit_Margin": info.get("profitMargins"),
+        "Operating_Margin": info.get("operatingMargins"),
+        "Gross_Margin": info.get("grossMargins"),
+        "ROE": info.get("returnOnEquity"),
+        "ROA": info.get("returnOnAssets"),
+
+        "Debt_to_Equity": info.get("debtToEquity"),
+        "Current_Ratio": info.get("currentRatio"),
+        "Quick_Ratio": info.get("quickRatio"),
+
+        "Div_Yield": info.get("dividendYield"),
+        "Payout_Ratio": info.get("payoutRatio"),
+        "Dividend_Rate": info.get("dividendRate"),
+
+        "EPS_Growth_NextY": info.get("earningsGrowth"),
+        "EPS_Growth_5Y": info.get("earningsQuarterlyGrowth"),
+        "Revenue_Growth": info.get("revenueGrowth"),
+    }
+    df = pd.DataFrame([row])
+
+    # converto alcune colonne in percentuale
+    pct_cols = [
+        "Profit_Margin", "Operating_Margin", "Gross_Margin",
+        "ROE", "ROA", "Div_Yield", "Payout_Ratio",
+        "EPS_Growth_NextY", "EPS_Growth_5Y", "Revenue_Growth",
+    ]
+    for c in pct_cols:
+        if c in df.columns:
+            df[c] = df[c] * 100
+
+    return df
+
+
+@st.cache_data(ttl=3600)
+def fetch_fundamentals_bulk(tickers: list[str]) -> pd.DataFrame:
+    """
+    Scarica i fondamentali per una lista di ticker, usando get_fundamentals_single.
+    """
+    records = []
+    for tkr in tickers:
+        df_one = get_fundamentals_single(tkr)
+        if not df_one.empty:
+            records.append(df_one.iloc[0].to_dict())
+    if not records:
+        return pd.DataFrame()
+    return pd.DataFrame(records)
+
+
+
+
         # EARLY
         dist_ema = abs(price - ema20) / ema20
         early_score = max(0, 8 - (dist_ema / e_h) * 8) if dist_ema <= 3 * e_h else 0
@@ -631,3 +708,4 @@ with tab_funda:
 # WATCHLIST & resto (esportazioni, ecc.) – puoi riusare esattamente la parte
 # già funzionante dell'ultima versione 7.0 che ti ho dato.
 # =============================================================================
+
