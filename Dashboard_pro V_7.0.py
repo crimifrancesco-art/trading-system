@@ -189,7 +189,10 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         h = data["High"]
         l = data["Low"]
         v = data["Volume"]
-
+        
+        
+        
+        
         info = yf.Ticker(ticker).info
         name = info.get("longName", info.get("shortName", ticker))[:50]
 
