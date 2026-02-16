@@ -450,7 +450,7 @@ with tab_e:
             names   = [s.split(" – ")[1] for s in selection_early]
             add_to_watchlist(tickers, names, "EARLY", note_early)
             st.success("EARLY salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # PRO
@@ -517,7 +517,7 @@ with tab_p:
             names   = [s.split(" – ")[1] for s in selection_pro]
             add_to_watchlist(tickers, names, "PRO", note_pro)
             st.success("PRO salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # REA‑QUANT (segnali)
@@ -578,7 +578,7 @@ with tab_r:
             names   = [s.split(" – ")[1] for s in selection_rea]
             add_to_watchlist(tickers, names, "REA_HOT", note_rea)
             st.success("REA‑QUANT salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -959,7 +959,7 @@ with tab_finviz:
             names   = [s.split(" – ")[1] for s in selection_fv]
             add_to_watchlist(tickers, names, "FINVIZ", note_fv)
             st.success("Finviz salvati in watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
 # =============================================================================
 # EXPORT XLSX COMPLETO
@@ -1092,7 +1092,7 @@ with tab_watch:
     if st.button("🧹 Svuota completamente la Watchlist (reset DB)"):
         reset_watchlist_db()
         st.success("Watchlist e DB azzerati.")
-        st.experimental_rerun()
+        st.rerun()
 
     wl_df = load_watchlist()
 
@@ -1119,7 +1119,7 @@ with tab_watch:
         if col_upd.button("💾 Aggiorna nota"):
             update_watchlist_note(sel_id, new_note)
             st.success("Nota aggiornata.")
-            st.experimental_rerun()
+            st.rerun()
 
         st.markdown("### Rimuovi più elementi")
         ids_to_delete = st.multiselect(
@@ -1132,7 +1132,7 @@ with tab_watch:
         if col_del.button("🗑️ Rimuovi selezionati"):
             delete_from_watchlist(ids_to_delete)
             st.success("Elementi rimossi dalla watchlist.")
-            st.experimental_rerun()
+            st.rerun()
 
         out_xlsx = io.BytesIO()
         with pd.ExcelWriter(out_xlsx, engine="xlsxwriter") as writer:
