@@ -1083,18 +1083,23 @@ else:
 # =============================================================================
 # 📌 WATCHLIST & NOTE
 # =============================================================================
-with tab_watch:
-    st.subheader("📌 Watchlist & Note (DB persistente)")
-    st.markdown(
-        "Gestisci la watchlist unificata: aggiunte dai tab, note, cancellazioni, export PDF/XLSX/CSV."
-    )
+with tabwatch:
+    st.subheader("Watchlist & Note DB persistente")
+    st.markdown("Gestisci la watchlist unificata: aggiunte dai tab, note, cancellazioni, export PDF/XLSX/CSV.")
 
-    if st.button("🧹 Svuota completamente la Watchlist (reset DB)"):
+    col_reset, col_refresh = st.columns(2)
+    if col_reset.button("🧹 Svuota completamente la Watchlist (reset DB)"):
         reset_watchlist_db()
         st.success("Watchlist e DB azzerati.")
         st.experimental_rerun()
 
-    wl_df = load_watchlist()
+    # 🔄 pulsante refresh watchlist
+    if col_refresh.button("🔄 Refresh Watchlist"):
+        st.experimental_rerun()
+
+    wldf = load_watchlist()
+    # (da qui in poi lasci invariato tutto il tuo codice esistente: tabella, note, delete, export)
+
 
     if wl_df.empty:
         st.caption("La watchlist è vuota. Aggiungi ticker dagli altri tab.")
