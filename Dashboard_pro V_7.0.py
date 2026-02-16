@@ -184,22 +184,8 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         data = yf.Ticker(ticker).history(period="6mo")
         if len(data) < 40:
             return None, None, None
-
-        c = data["Close"]
-        h = data["High"]
-        l = data["Low"]
-        v = data["Volume"]
-
-        info = yf.Ticker(ticker).info
-        name = info.get("longName", info.get("shortName", ticker))[:50]
-
-        price = float(c.iloc[-1])
-        ema20 = float(c.ewm(20).mean().iloc[-1])
-        sma20 = ema20
-        sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
-        sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
-
-
+            
+            
 # =============================================================================
 # FUNZIONI FONDAMENTALI YFINANCE
 # =============================================================================
@@ -272,9 +258,24 @@ def fetch_fundamentals_bulk(tickers: list[str]) -> pd.DataFrame:
     if not records:
         return pd.DataFrame()
     return pd.DataFrame(records)
+            
+     
+     
+            
 
+        c = data["Close"]
+        h = data["High"]
+        l = data["Low"]
+        v = data["Volume"]
 
+        info = yf.Ticker(ticker).info
+        name = info.get("longName", info.get("shortName", ticker))[:50]
 
+        price = float(c.iloc[-1])
+        ema20 = float(c.ewm(20).mean().iloc[-1])
+        sma20 = ema20
+        sma50 = float(c.rolling(50).mean().iloc[-1]) if len(c) >= 50 else ema20
+        sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else ema20
 
         # EARLY
         dist_ema = abs(price - ema20) / ema20
