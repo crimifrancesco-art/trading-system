@@ -600,6 +600,17 @@ with tab_e:
             use_container_width=True,
         )
 
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_early_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
         options_early = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
@@ -688,6 +699,16 @@ with tab_p:
             "⬇️ Export PRO CSV",
             data=csv_data,
             file_name=f"PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+        tv_data = df_pro_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export PRO TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
         )
@@ -810,6 +831,17 @@ with tab_r:
             mime="text/csv",
             use_container_width=True,
         )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
@@ -821,6 +853,17 @@ with tab_r:
             data=data_xlsx,
             file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
             use_container_width=True,
         )
 
@@ -948,6 +991,17 @@ with tab_rea_q:
             "⬇️ Export REA Top10 CSV",
             data=csv_data,
             file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_rea_top["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
         )
@@ -1140,6 +1194,17 @@ with tab_serafini:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_break_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
             options_seraf = [
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_break_view.iterrows()
@@ -1244,6 +1309,17 @@ with tab_regime:
             data=data_xlsx,
             file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_mom["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
             use_container_width=True,
         )
 
@@ -1450,6 +1526,17 @@ with tab_mtf:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_mtf_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
             # CSV MTF (solo ticker, come prima)
             df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
@@ -1675,6 +1762,17 @@ with tab_finviz:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_finviz_sel["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
 
                 # CSV Finviz (symbol, price numerico)
                 df_finviz_tv = df_finviz_sel.rename(
@@ -1847,6 +1945,18 @@ with tab_watch:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
+        # EXPORT TradingView (solo ticker) dalla watchlist
+        if "ticker" in df_wl.columns:
+            tv_data = df_wl["ticker"].drop_duplicates().to_frame(name="symbol")
+            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+            st.download_button(
+                "⬇️ Export Watchlist TradingView (solo ticker)",
+                data=csv_tv,
+                file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
         st.markdown("---")
 
