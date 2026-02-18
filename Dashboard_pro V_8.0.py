@@ -750,9 +750,6 @@ with tab_r:
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
 # =============================================================================
-# =============================================================================
-# MASSIMO REA – ANALISI QUANT
-# =============================================================================
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
     st.markdown(
@@ -1195,10 +1192,15 @@ with tab_mtf:
             st.dataframe(
                 df_mtf_show,
                 use_container_width=True,
+                                    
                 column_config={
                     "Prezzo": "Prezzo",
                     "MarketCap_fmt": "Market Cap",
-                    "Vol_Today_fmt": "Vol giorno
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                },
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
