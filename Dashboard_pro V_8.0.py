@@ -262,7 +262,6 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         vol_7d_avg = float(v.tail(7).mean())
         currency = info.get("currency", "USD")
 
-
         # EARLY
         dist_ema = abs(price - ema20) / ema20
         early_score = 8 if dist_ema < e_h else 0
@@ -307,7 +306,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         rea_score = 7 if (dist_poc < r_poc and vol_ratio > 1.5) else 0
         stato_rea = "HOT" if rea_score >= 7 else "-"
 
-                res_ep = {
+        res_ep = {
             "Nome": name,
             "Ticker": ticker,
             "Prezzo": round(price, 2),
