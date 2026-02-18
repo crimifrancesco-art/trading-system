@@ -81,14 +81,21 @@ def add_formatted_cols(df):
 #######          NUOVO CODICE TRADINGVIEW     ###########
 #########################################################
 def add_links(df):
-    df["Yahoo"] = df["Ticker"].apply(
+    # usa 'Ticker' se c'è, altrimenti 'ticker'
+    if "Ticker" in df.columns:
+        col = "Ticker"
+    else:
+        col = "ticker"
+
+    df["Yahoo"] = df[col].apply(
         lambda t: f"https://finance.yahoo.com/quote/{t}"
     )
-    # al posto di Finviz uso TradingView
-    df["Finviz"] = df["Ticker"].apply(
+    # link TradingView nella colonna Finviz
+    df["Finviz"] = df[col].apply(
         lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
     )
     return df
+
 
 
 DB_PATH = Path("watchlist.db")
@@ -1498,9 +1505,6 @@ with tab_finviz:
                     st.success("Titoli Finviz‑like salvati in watchlist.")
                     st.rerun()
 
-# =============================================================================
-# 📌 WATCHLIST & NOTE
-# =============================================================================
 # =============================================================================
 # 📌 WATCHLIST & NOTE
 # =============================================================================
