@@ -750,6 +750,9 @@ with tab_r:
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
 # =============================================================================
+# =============================================================================
+# MASSIMO REA – ANALISI QUANT
+# =============================================================================
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
     st.markdown(
@@ -763,7 +766,7 @@ with tab_rea_q:
             "- **Vol_Ratio_med**: media Vol_Ratio.\n"
             "- **Rea_Score_med**: intensità media segnale.\n"
             "- **MarketCap / Volumi**: medie indicative per mercato.\n"
-            "- Top 10: ordinati per Vol_Ratio."
+            "- Top 10: ordinati per Vol_Ratio con link Yahoo/Finviz."
         )
 
     if df_rea_all.empty:
@@ -795,7 +798,8 @@ with tab_rea_q:
 
         st.dataframe(agg, use_container_width=True)
 
-                st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
+        # Top 10 per pressione volumetrica
+        st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
         df_rea_top = add_formatted_cols(df_rea_top)
         df_rea_top = add_links(df_rea_top)
