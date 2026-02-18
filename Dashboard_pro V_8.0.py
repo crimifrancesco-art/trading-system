@@ -1107,7 +1107,7 @@ with tab_mtf:
         st.markdown(
             "- **RSI_1D / RSI_1W / RSI_1M**: RSI(14) su TF giornaliero, settimanale e mensile.\n"
             "- **MTF_Score**: media dei tre RSI.\n"
-            "- **MarketCap / Volumi**: dati di contesto per selezionare titoli più liquidi.\n"
+            "- **MarketCap / Volumi / Prezzo**: dati di contesto per selezionare titoli più liquidi.\n"
             "- **Segnale_MTF**: ALIGN_LONG, ALIGN_SHORT o MIXED.\n"
             "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
@@ -1172,28 +1172,25 @@ with tab_mtf:
         if df_mtf.empty:
             st.caption("Nessun dato Multi‑Timeframe disponibile.")
         else:
-            
+            # porto dentro prezzo, market cap, volumi e valuta dal df_ep
             df_mtf = df_mtf.merge(
                 df_ep[[
                     "Ticker", "Nome", "Pro_Score", "Stato",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency",
-                    "Prezzo",
+                    "Prezzo", "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
                 ]],
                 on="Ticker",
                 how="left"
             ).drop_duplicates(subset=["Ticker"])
 
-
             cols_order = [
                 "Nome", "Ticker",
-                "Prezzo",
-                "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                "Prezzo", "MarketCap", "Vol_Today", "Vol_7d_Avg",
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"
             ]
-
-            ]
             df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
+
+            # formattazione prezzo/market cap/volumi + link
             df_mtf = add_formatted_cols(df_mtf)
             df_mtf = add_links(df_mtf)
 
@@ -1203,7 +1200,7 @@ with tab_mtf:
             else:
                 df_mtf_view = df_mtf.head(30)
 
-                df_mtf_show = df_mtf_view[[
+            df_mtf_show = df_mtf_view[[
                 "Nome", "Ticker",
                 "Prezzo_fmt", "MarketCap_fmt",
                 "Vol_Today_fmt", "Vol_7d_Avg_fmt",
@@ -1226,6 +1223,60 @@ with tab_mtf:
                 },
             )
 
+            # CSV MTF (solo ticker, come prima)
+            df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+            csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
+
+            st.download_button(
+                "⬇️ CSV Multi‑Timeframe (solo ticker, top MTF_Score)",
+                data=csv_mtf,
+                file_name=f"signals_multitimeframe_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+            mtf_long = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_LONG"].sort_values("MTF_Score", ascending=False)
+            mtf_short = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_SHORT"].sort_values("MTF_Score", ascending=False)
+
+            if not mtf_long.empty:
+                csv_mtf_long = mtf_long[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
+                    index=False, header=False
+                ).encode("utf-8")
+                st.download_button(
+                    "⬇️ CSV MTF – ALIGN_LONG (solo ticker)",
+                    data=csv_mtf_long,
+                    file_name=f"signals_mtf_align_long_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+            if not mtf_short.empty:
+                csv_mtf_short = mtf_short[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
+                    index=False, header=False
+                ).encode("utf-8")
+                st.download_button(
+                    "⬇️ CSV MTF – ALIGN_SHORT (solo ticker)",
+                    data=csv_mtf_short,
+                    file_name=f"signals_mtf_align_short_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+            options_mtf = [
+                f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
+            ]
+            selection_mtf = st.multiselect(
+                "Aggiungi alla Watchlist (MTF ALIGN_LONG):",
+                options=options_mtf,
+                key="wl_mtf",
+            )
+            note_mtf = st.text_input("Note comuni per questi ticker MTF", key="note_wl_mtf")
+            if st.button("📌 Salva in Watchlist (MTF ALIGN_LONG)"):
+                tickers = [s.split(" – ")[1] for s in selection_mtf]
+                names   = [s.split(" – ")[0] for s in selection_mtf]
+                add_to_watchlist(tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG")
+                st.success("MTF ALIGN_LONG salvati in watchlist.")
+                st.rerun()
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
