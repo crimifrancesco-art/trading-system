@@ -762,7 +762,6 @@ with tab_r:
             st.success("REA‑QUANT salvati in watchlist.")
             st.rerun()
 
-
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
 # =============================================================================
@@ -778,7 +777,7 @@ with tab_rea_q:
             "- **N**: numero di titoli HOT per mercato.\n"
             "- **Vol_Ratio_med**: media Vol_Ratio.\n"
             "- **Rea_Score_med**: intensità media segnale.\n"
-            "- **MarketCap / Volumi**: medie indicative per mercato.\n"
+            "- **MarketCap / Volumi / Prezzo**: medie indicative per mercato.\n"
             "- Top 10: ordinati per Vol_Ratio con link Yahoo/Finviz."
         )
 
@@ -788,10 +787,10 @@ with tab_rea_q:
     else:
         df_rea_q = df_rea_all.copy()
 
-        # porto dentro anche il prezzo dal dataframe principale
+        # porto dentro il prezzo dal dataframe principale, se disponibile
         if "Prezzo" in df_ep.columns:
             df_rea_q = df_rea_q.merge(
-                df_ep[["Ticker", "Prezzo"]],
+                df_ep[["Ticker", "Prezzo", "Currency"]],
                 on="Ticker",
                 how="left",
             )
@@ -819,25 +818,46 @@ with tab_rea_q:
 
         st.dataframe(agg, use_container_width=True)
 
-        # Top 10 per pressione volumetrica
+        # ---------------- Top 10 per pressione volumetrica ----------------
         st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
+
+        # aggiungo formattazione e link (funzioni già definite in alto)
         df_rea_top = add_formatted_cols(df_rea_top)
         df_rea_top = add_links(df_rea_top)
 
-        df_rea_top_show = df_rea_top[[
+        # costruisco la vista, usando Prezzo_fmt se esiste, altrimenti Prezzo
+        if "Prezzo_fmt" in df_rea_top.columns:
+            prezzo_col = "Prezzo_fmt"
+        elif "Prezzo" in df_rea_top.columns:
+            prezzo_col = "Prezzo"
+        else:
+            prezzo_col = None  # nessun prezzo disponibile
+
+        cols = [
             "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt",
+        ]
+        if prezzo_col is not None:
+            cols.append(prezzo_col)
+        cols += [
+            "MarketCap_fmt",
             "Vol_Today_fmt", "Vol_7d_Avg_fmt",
             "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
             "Yahoo", "Finviz",
-        ]]
+        ]
+
+        df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
+
+        if prezzo_col == "Prezzo_fmt":
+            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo_fmt": "Prezzo"})
+        elif prezzo_col == "Prezzo":
+            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo": "Prezzo"})
 
         st.dataframe(
             df_rea_top_show,
             use_container_width=True,
             column_config={
-                "Prezzo_fmt": "Prezzo",
+                "Prezzo": "Prezzo",
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
@@ -861,6 +881,7 @@ with tab_rea_q:
             add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
             st.success("Rea Quant salvati in watchlist.")
             st.rerun()
+
 
 # =============================================================================
 # STEFANO SERAFINI – SYSTEMS
