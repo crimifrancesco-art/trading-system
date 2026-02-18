@@ -1217,7 +1217,7 @@ with tab_finviz:
             "- **Price > 10$**.\n"
             "- **Relative Volume > 1** (vol corrente / avg vol > 1).\n"
             "- **Price above SMA20 / SMA50 / SMA200** calcolate sui close giornalieri.\n"
-            "- Vengono mostrati anche **MarketCap, Vol_Today, Vol_7d_Avg**."
+            "- Colonne **Prezzo / Market Cap / Volumi** formattate e link **Yahoo/Finviz** per ogni ticker."
         )
 
     if df_ep.empty:
@@ -1277,12 +1277,13 @@ with tab_finviz:
             df_finviz = df_fund.merge(
                 df_ep[[
                     "Ticker", "Nome", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio", "Stato",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg"
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
                 ]],
                 on="Ticker",
                 how="left",
             )
 
+            # Filtri Finviz-like (puoi parametrizzarli da sidebar se vuoi)
             cond_price = df_finviz["Price"] > 10
             cond_eps_y = df_finviz["EPS_NextY"] > 0.10
             cond_eps_5y = df_finviz["EPS_Next5Y"] > 0.15
@@ -1319,7 +1320,9 @@ with tab_finviz:
                     "SMA20", "SMA50", "SMA200", "Stato"
                 ]
                 df_finviz_sel = df_finviz_sel[[c for c in cols_order if c in df_finviz_sel.columns]]
-                                df_finviz_sel = df_finviz_sel.sort_values("Pro_Score", ascending=False)
+                df_finviz_sel = df_finviz_sel.sort_values("Pro_Score", ascending=False)
+
+                # aggiungo formattazione e link
                 df_finviz_sel = add_formatted_cols(df_finviz_sel)
                 df_finviz_sel = add_links(df_finviz_sel)
 
@@ -1347,7 +1350,7 @@ with tab_finviz:
                     },
                 )
 
-
+                # CSV Finviz (symbol, price numerico)
                 df_finviz_tv = df_finviz_sel.rename(
                     columns={
                         "Ticker": "symbol",
@@ -1367,15 +1370,15 @@ with tab_finviz:
                 options_finviz = [
                     f"{row['Nome']} – {row['Ticker']}" for _, row in df_finviz_sel.head(top).iterrows()
                 ]
-                selection_finviz = st.multiselect(
-                    "Aggiungi alla Watchlist (Finviz‑like):",
-                    options=options_finviz,
-                    key="wl_finviz",
-                )
                 note_finviz = st.text_input(
                     "Note comuni per questi ticker Finviz‑like",
                     value="Preset Finviz EPS/Vol/MA",
                     key="note_wl_finviz"
+                )
+                selection_finviz = st.multiselect(
+                    "Aggiungi alla Watchlist (Finviz‑like):",
+                    options=options_finviz,
+                    key="wl_finviz",
                 )
                 if st.button("📌 Salva in Watchlist (Finviz‑like)"):
                     tickers = [s.split(" – ")[1] for s in selection_finviz]
