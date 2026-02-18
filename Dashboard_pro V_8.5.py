@@ -539,7 +539,7 @@ with tab_e:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
@@ -640,7 +640,7 @@ with tab_p:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
@@ -737,7 +737,7 @@ with tab_r:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
@@ -876,7 +876,7 @@ with tab_rea_q:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
@@ -988,7 +988,7 @@ with tab_serafini:
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
             )
 
@@ -1072,7 +1072,7 @@ with tab_regime:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
@@ -1254,7 +1254,7 @@ with tab_mtf:
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
             )
 
@@ -1457,7 +1457,7 @@ with tab_finviz:
                         "Vol_Today_fmt": "Vol giorno",
                         "Vol_7d_Avg_fmt": "Vol medio 7g",
                         "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                        "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                        "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                     },
                 )
 
