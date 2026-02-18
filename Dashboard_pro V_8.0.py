@@ -1203,17 +1203,15 @@ with tab_mtf:
             else:
                 df_mtf_view = df_mtf.head(30)
 
-            df_mtf_show = df_mtf_view[[
+                df_mtf_show = df_mtf_view[[
                 "Nome", "Ticker",
                 "Prezzo_fmt", "MarketCap_fmt",
                 "Vol_Today_fmt", "Vol_7d_Avg_fmt",
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato",
                 "Yahoo", "Finviz",
-            ]
-            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"}
-            )
- 
+            ]]
+            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"})
 
             st.dataframe(
                 df_mtf_show,
@@ -1227,6 +1225,7 @@ with tab_mtf:
                     "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
                 },
             )
+
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
