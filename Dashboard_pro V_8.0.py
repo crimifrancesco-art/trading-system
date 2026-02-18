@@ -26,6 +26,45 @@ st.caption(
 # -----------------------------------------------------------------------------
 # DB WATCHLIST (SQLite) + MIGRAZIONE TREND
 # -----------------------------------------------------------------------------
+import locale
+locale.setlocale(locale.LC_ALL, "")
+
+def fmt_currency(value, symbol="€"):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    return f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def fmt_int(value):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    return f"{int(value):,}".replace(",", ".")
+
+def add_formatted_cols(df):
+    # se non c'è Currency, assumo USD
+    if "Currency" not in df.columns:
+        df["Currency"] = "USD"
+    df["Prezzo_fmt"] = df.apply(
+        lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"),
+        axis=1,
+    )
+    df["MarketCap_fmt"] = df.apply(
+        lambda r: fmt_currency(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"),
+        axis=1,
+    )
+    df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
+    df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
+    return df
+
+def add_links(df):
+    df["Yahoo"] = df["Ticker"].apply(
+        lambda t: f"https://finance.yahoo.com/quote/{t}"
+    )
+    df["Finviz"] = df["Ticker"].apply(
+        lambda t: f"https://finviz.com/quote.ashx?t={t.split('.')[0]}"
+    )
+    return df
+
+
 DB_PATH = Path("watchlist.db")
 
 def init_db():
@@ -217,10 +256,12 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         price = float(c.iloc[-1])
         ema20 = float(c.ewm(20).mean().iloc[-1])
 
-        # Capitalizzazione e volumi
+        # Capitalizzazione, volumi e valuta
         market_cap = info.get("marketCap", np.nan)
         vol_today = float(v.iloc[-1])
         vol_7d_avg = float(v.tail(7).mean())
+        currency = info.get("currency", "USD")
+
 
         # EARLY
         dist_ema = abs(price - ema20) / ema20
@@ -266,13 +307,14 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         rea_score = 7 if (dist_poc < r_poc and vol_ratio > 1.5) else 0
         stato_rea = "HOT" if rea_score >= 7 else "-"
 
-        res_ep = {
+                res_ep = {
             "Nome": name,
             "Ticker": ticker,
             "Prezzo": round(price, 2),
             "MarketCap": market_cap,
             "Vol_Today": int(vol_today),
             "Vol_7d_Avg": int(vol_7d_avg),
+            "Currency": currency,
             "Early_Score": early_score,
             "Pro_Score": pro_score,
             "RSI": round(rsi_val, 1),
@@ -290,6 +332,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             "MarketCap": market_cap,
             "Vol_Today": int(vol_today),
             "Vol_7d_Avg": int(vol_7d_avg),
+            "Currency": currency,
             "Rea_Score": rea_score,
             "POC": round(poc, 2),
             "Dist_POC_%": round(dist_poc * 100, 1),
@@ -408,24 +451,42 @@ with tab_e:
             "- **Early_Score**: 8 se il prezzo è entro la soglia percentuale dalla EMA20; 0 altrimenti.\n"
             "- **RSI**: RSI a 14 periodi.\n"
             "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
-            "- **MarketCap**: capitalizzazione di mercato corrente.\n"
+            "- **MarketCap**: capitalizzazione di mercato corrente (formattata con valuta).\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
-            "- **Stato = EARLY**: setup in formazione vicino alla media."
+            "- **Stato = EARLY**: setup in formazione vicino alla media.\n"
+            "- Colonne **Yahoo / Finviz**: link diretti alle schede del titolo."
         )
 
     if df_early_all.empty:
         st.caption("Nessun segnale EARLY.")
     else:
         df_early = df_early_all.copy()
+        df_early = add_formatted_cols(df_early)
+        df_early = add_links(df_early)
+
         cols_order = [
-            "Nome", "Ticker", "Prezzo",
-            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt", "Vol_Today_fmt", "Vol_7d_Avg_fmt",
             "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+            "Yahoo", "Finviz",
         ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
+
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
-        st.dataframe(df_early_view, use_container_width=True)
+
+        st.dataframe(
+            df_early_view,
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "MarketCap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo Finance"),
+                "Finviz": st.column_config.LinkColumn("Finviz"),
+            },
+        )
 
         df_early_tv = df_early_view.rename(
             columns={
