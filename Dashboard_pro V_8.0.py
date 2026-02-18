@@ -1192,7 +1192,6 @@ with tab_mtf:
             st.dataframe(
                 df_mtf_show,
                 use_container_width=True,
-                                    
                 column_config={
                     "Prezzo": "Prezzo",
                     "MarketCap_fmt": "Market Cap",
@@ -1201,6 +1200,7 @@ with tab_mtf:
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                     "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
                 },
+            )
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
