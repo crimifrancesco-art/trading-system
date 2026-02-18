@@ -1470,14 +1470,16 @@ with tab_mtf:
                     elif (rsi_1d < 50) and (rsi_1w < 50) and (rsi_1m < 50):
                         signal = "ALIGN_SHORT"
 
-                    records.append({
-                        "Ticker": tkr,
-                        "RSI_1D": round(rsi_1d, 1) if not np.isnan(rsi_1d) else np.nan,
-                        "RSI_1W": round(rsi_1w, 1) if not np.isnan(rsi_1w) else np.nan,
-                        "RSI_1M": round(rsi_1m, 1) if not np.isnan(rsi_1m) else np.nan,
-                        "MTF_Score": round(mtf_score, 1) if not np.isnan(mtf_score) else np.nan,
-                        "Segnale_MTF": signal,
-                    })
+                    records.append(
+                        {
+                            "Ticker": tkr,
+                            "RSI_1D": round(rsi_1d, 1) if not np.isnan(rsi_1d) else np.nan,
+                            "RSI_1W": round(rsi_1w, 1) if not np.isnan(rsi_1w) else np.nan,
+                            "RSI_1M": round(rsi_1m, 1) if not np.isnan(rsi_1m) else np.nan,
+                            "MTF_Score": round(mtf_score, 1) if not np.isnan(mtf_score) else np.nan,
+                            "Segnale_MTF": signal,
+                        }
+                    )
                 except Exception:
                     continue
 
@@ -1491,19 +1493,37 @@ with tab_mtf:
         else:
             # porto dentro prezzo, market cap, volumi e valuta dal df_ep
             df_mtf = df_mtf.merge(
-                df_ep[[
-                    "Ticker", "Nome", "Pro_Score", "Stato",
-                    "Prezzo", "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
-                ]],
+                df_ep[
+                    [
+                        "Ticker",
+                        "Nome",
+                        "Pro_Score",
+                        "Stato",
+                        "Prezzo",
+                        "MarketCap",
+                        "Vol_Today",
+                        "Vol_7d_Avg",
+                        "Currency",
+                    ]
+                ],
                 on="Ticker",
-                how="left"
+                how="left",
             ).drop_duplicates(subset=["Ticker"])
 
             cols_order = [
-                "Nome", "Ticker",
-                "Prezzo", "MarketCap", "Vol_Today", "Vol_7d_Avg",
-                "RSI_1D", "RSI_1W", "RSI_1M",
-                "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"
+                "Nome",
+                "Ticker",
+                "Prezzo",
+                "MarketCap",
+                "Vol_Today",
+                "Vol_7d_Avg",
+                "RSI_1D",
+                "RSI_1W",
+                "RSI_1M",
+                "MTF_Score",
+                "Segnale_MTF",
+                "Pro_Score",
+                "Stato",
             ]
             df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
 
@@ -1517,15 +1537,25 @@ with tab_mtf:
             else:
                 df_mtf_view = df_mtf.head(30)
 
-            df_mtf_show = df_mtf_view[[
-                "Nome", "Ticker",
-                "Prezzo_fmt", "MarketCap_fmt",
-                "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-                "RSI_1D", "RSI_1W", "RSI_1M",
-                "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato",
-                "Yahoo", "Finviz",
-            ]]
-            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"})
+            df_mtf_show = df_mtf_view[
+                [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo_fmt",
+                    "MarketCap_fmt",
+                    "Vol_Today_fmt",
+                    "Vol_7d_Avg_fmt",
+                    "RSI_1D",
+                    "RSI_1W",
+                    "RSI_1M",
+                    "MTF_Score",
+                    "Segnale_MTF",
+                    "Pro_Score",
+                    "Stato",
+                    "Yahoo",
+                    "Finviz",
+                ]
+            ].rename(columns={"Prezzo_fmt": "Prezzo"})
 
             st.dataframe(
                 df_mtf_show,
@@ -1539,6 +1569,7 @@ with tab_mtf:
                     "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
             )
+
             # EXPORT MTF
             csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
             st.download_button(
@@ -1561,19 +1592,8 @@ with tab_mtf:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_mtf_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-            # CSV MTF (solo ticker, come prima)
+            # EXPORT TradingView (solo ticker, come prima)
             df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
             csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
 
@@ -1585,13 +1605,21 @@ with tab_mtf:
                 use_container_width=True,
             )
 
-            mtf_long = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_LONG"].sort_values("MTF_Score", ascending=False)
-            mtf_short = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_SHORT"].sort_values("MTF_Score", ascending=False)
+            # subset ALIGN_LONG / ALIGN_SHORT
+            mtf_long = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_LONG"].sort_values(
+                "MTF_Score", ascending=False
+            )
+            mtf_short = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_SHORT"].sort_values(
+                "MTF_Score", ascending=False
+            )
 
             if not mtf_long.empty:
-                csv_mtf_long = mtf_long[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
-                    index=False, header=False
-                ).encode("utf-8")
+                csv_mtf_long = (
+                    mtf_long[["Ticker"]]
+                    .rename(columns={"Ticker": "symbol"})
+                    .to_csv(index=False, header=False)
+                    .encode("utf-8")
+                )
                 st.download_button(
                     "⬇️ CSV MTF – ALIGN_LONG (solo ticker)",
                     data=csv_mtf_long,
@@ -1601,9 +1629,12 @@ with tab_mtf:
                 )
 
             if not mtf_short.empty:
-                csv_mtf_short = mtf_short[["Ticker"]].rename(columns={"Ticker": "symbol"}).to_csv(
-                    index=False, header=False
-                ).encode("utf-8")
+                csv_mtf_short = (
+                    mtf_short[["Ticker"]]
+                    .rename(columns={"Ticker": "symbol"})
+                    .to_csv(index=False, header=False)
+                    .encode("utf-8")
+                )
                 st.download_button(
                     "⬇️ CSV MTF – ALIGN_SHORT (solo ticker)",
                     data=csv_mtf_short,
@@ -1612,6 +1643,7 @@ with tab_mtf:
                     use_container_width=True,
                 )
 
+            # Watchlist da ALIGN_LONG
             options_mtf = [
                 f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
             ]
@@ -1620,13 +1652,19 @@ with tab_mtf:
                 options=options_mtf,
                 key="wl_mtf",
             )
-            note_mtf = st.text_input("Note comuni per questi ticker MTF", key="note_wl_mtf")
+            note_mtf = st.text_input(
+                "Note comuni per questi ticker MTF", key="note_wl_mtf"
+            )
+
             if st.button("📌 Salva in Watchlist (MTF ALIGN_LONG)"):
                 tickers = [s.split(" – ")[1] for s in selection_mtf]
-                names   = [s.split(" – ")[0] for s in selection_mtf]
-                add_to_watchlist(tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG")
+                names = [s.split(" – ")[0] for s in selection_mtf]
+                add_to_watchlist(
+                    tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG"
+                )
                 st.success("MTF ALIGN_LONG salvati in watchlist.")
                 st.rerun()
+
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
