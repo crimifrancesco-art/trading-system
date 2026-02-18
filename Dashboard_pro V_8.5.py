@@ -1509,9 +1509,21 @@ with tab_finviz:
 # 📌 WATCHLIST & NOTE
 # =============================================================================
 with tab_watch:
-    st.subheader("📌 Watchlist & Note")
+    # titolo + pulsanti sulla stessa riga
+    col_title, col_refresh, col_reset = st.columns([4, 1, 2])
+    with col_title:
+        st.subheader("📌 Watchlist & Note")
+    with col_refresh:
+        if st.button("🔄 Refresh"):
+            st.rerun()
+    with col_reset:
+        if st.button("🧨 Reset DB"):
+            reset_watchlist_db()
+            st.success("Watchlist azzerata.")
+            st.rerun()
 
     df_wl = load_watchlist()
+
 
     if df_wl.empty:
         st.caption("Watchlist vuota.")
