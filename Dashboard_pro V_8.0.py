@@ -967,7 +967,8 @@ with tab_regime:
         st.markdown(
             "- **Regime**: quota segnali PRO vs EARLY.\n"
             "- **Momentum**: Pro_Score×10 + RSI.\n"
-            "- **MarketCap / Volumi**: per contestualizzare i top momentum."
+            "- **MarketCap / Volumi**: per contestualizzare i top momentum.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
@@ -993,7 +994,7 @@ with tab_regime:
             "Pro_Score", "RSI",
             "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"
         ]
-                df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
+        df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
         df_mom = add_formatted_cols(df_mom)
         df_mom = add_links(df_mom)
 
@@ -1018,7 +1019,6 @@ with tab_regime:
                 "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
             },
         )
-
 
         df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
         csv_mom = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
