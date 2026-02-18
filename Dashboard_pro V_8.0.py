@@ -31,6 +31,7 @@ DB_PATH = Path("watchlist.db")
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # Crea tabella base se non esiste
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS watchlist (
@@ -44,6 +45,13 @@ def init_db():
         )
         """
     )
+    # MIGRAZIONE: aggiungi colonna trend se manca (vecchio DB)
+    try:
+        c.execute("ALTER TABLE watchlist ADD COLUMN trend TEXT")
+    except sqlite3.OperationalError:
+        # La colonna esiste già, ignora
+        pass
+
     conn.commit()
     conn.close()
 
@@ -72,22 +80,6 @@ def load_watchlist():
         if col not in df.columns:
             df[col] = ""
     return df
-
-def update_watchlist_note(row_id, new_note):
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
-    conn.commit()
-    conn.close()
-
-def delete_from_watchlist(ids):
-    if not ids:
-        return
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
-    conn.commit()
-    conn.close()
 
 init_db()
 
@@ -1210,3 +1202,4 @@ with tab_watch:
                 mime="application/pdf",
                 use_container_width=True,
             )
+
