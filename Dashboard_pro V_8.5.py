@@ -1,3 +1,4 @@
+import io
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -569,7 +570,32 @@ with tab_e:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
+ 
+        #************************************************************************/////////////////
+        # EXPORT <nome_tab> # EARLY
+        csv_data = df_X_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export <NOME_TAB> CSV",
+            data=csv_data,
+            file_name=f"<nome_tab>_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+)
 
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_X_view.to_excel(writer, index=False, sheet_name="<NOME_TAB>")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export <NOME_TAB> XLSX",
+            data=data_xlsx,
+            file_name=f"<nome_tab>_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+)
+        #************************************************************************/////////////////////
+        
         # CSV per TradingView: uso la colonna Prezzo numerica originale
         df_early_tv = df_early_view.rename(
             columns={
