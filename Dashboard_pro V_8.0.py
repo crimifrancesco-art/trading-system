@@ -39,8 +39,19 @@ def fmt_int(value):
         return ""
     return f"{int(value):,}".replace(",", ".")
 
+def fmt_marketcap(value, symbol="€"):
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    v = float(value)
+    if v >= 1_000_000_000:
+        return f"{symbol}{v/1_000_000_000:,.2f}B".replace(",", "X").replace(".", ",").replace("X", ".")
+    if v >= 1_000_000:
+        return f"{symbol}{v/1_000_000:,.2f}M".replace(",", "X").replace(".", ",").replace("X", ".")
+    if v >= 1_000:
+        return f"{symbol}{v/1_000:,.2f}K".replace(",", "X").replace(".", ",").replace("X", ".")
+    return fmt_currency(v, symbol)
+
 def add_formatted_cols(df):
-    # se non c'è Currency, assumo USD
     if "Currency" not in df.columns:
         df["Currency"] = "USD"
     df["Prezzo_fmt"] = df.apply(
@@ -48,12 +59,13 @@ def add_formatted_cols(df):
         axis=1,
     )
     df["MarketCap_fmt"] = df.apply(
-        lambda r: fmt_currency(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"),
+        lambda r: fmt_marketcap(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"),
         axis=1,
     )
     df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
     df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
     return df
+
 
 def add_links(df):
     df["Yahoo"] = df["Ticker"].apply(
@@ -450,10 +462,10 @@ with tab_e:
             "- **Early_Score**: 8 se il prezzo è entro la soglia percentuale dalla EMA20; 0 altrimenti.\n"
             "- **RSI**: RSI a 14 periodi.\n"
             "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
-            "- **MarketCap**: capitalizzazione di mercato corrente (formattata con valuta).\n"
+            "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
             "- **Stato = EARLY**: setup in formazione vicino alla media.\n"
-            "- Colonne **Yahoo / Finviz**: link diretti alle schede del titolo."
+            "- Pulsanti **Yahoo / Finviz**: aprono la scheda del titolo nel browser."
         )
 
     if df_early_all.empty:
@@ -461,32 +473,69 @@ with tab_e:
     else:
         df_early = df_early_all.copy()
         df_early = add_formatted_cols(df_early)
-        df_early = add_links(df_early)
 
         cols_order = [
             "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt", "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "Prezzo", "Prezzo_fmt",
+            "MarketCap", "MarketCap_fmt",
+            "Vol_Today", "Vol_Today_fmt",
+            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
             "Early_Score", "Pro_Score",
             "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
-            "Yahoo", "Finviz",
         ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
 
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
 
+        # Mostro solo le colonne formattate nella tabella
+        df_early_show = df_early_view[[
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt",
+            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+        ]]
+
         st.dataframe(
-            df_early_view,
+            df_early_show,
             use_container_width=True,
             column_config={
                 "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "MarketCap",
+                "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Yahoo": st.column_config.LinkColumn("Yahoo Finance"),
-                "Finviz": st.column_config.LinkColumn("Finviz"),
             },
         )
 
+        # Pulsanti di link per ogni riga (Yahoo / Finviz)
+        st.markdown("**Link rapidi per il titolo selezionato**")
+        tickers_list = df_early_view["Ticker"].tolist()
+        names_list = df_early_view["Nome"].tolist()
+        if tickers_list:
+            col_sel, col_yf, col_fv = st.columns([3, 1, 1])
+            with col_sel:
+                sel_ticker = st.selectbox(
+                    "Seleziona un titolo:",
+                    options=list(range(len(tickers_list))),
+                    format_func=lambda i: f"{names_list[i]} ({tickers_list[i]})",
+                    key="early_link_sel",
+                )
+            tkr_sel = tickers_list[sel_ticker]
+            with col_yf:
+                if st.button("Apri Yahoo", key="early_yahoo"):
+                    st.markdown(
+                        f"[Apri in Yahoo Finance](https://finance.yahoo.com/quote/{tkr_sel})",
+                        unsafe_allow_html=True,
+                    )
+            with col_fv:
+                if st.button("Apri Finviz", key="early_finviz"):
+                    tkr_fv = tkr_sel.split(".")[0]
+                    st.markdown(
+                        f"[Apri in Finviz](https://finviz.com/quote.ashx?t={tkr_fv})",
+                        unsafe_allow_html=True,
+                    )
+
+        # CSV per TradingView: uso la colonna Prezzo numerica
         df_early_tv = df_early_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -520,6 +569,7 @@ with tab_e:
             add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
             st.success("EARLY salvati in watchlist.")
             st.rerun()
+
 
 # =============================================================================
 # PRO
