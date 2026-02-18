@@ -682,6 +682,28 @@ with tab_p:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
+        # EXPORT PRO
+        csv_data = df_pro_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export PRO CSV",
+            data=csv_data,
+            file_name=f"PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_pro_view.to_excel(writer, index=False, sheet_name="PRO")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export PRO XLSX",
+            data=data_xlsx,
+            file_name=f"PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
         df_pro_tv = df_pro_view.rename(
             columns={
@@ -778,6 +800,28 @@ with tab_r:
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
+        )
+        # EXPORT REA
+        csv_data = df_rea_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export REA CSV",
+            data=csv_data,
+            file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_rea_view.to_excel(writer, index=False, sheet_name="REA")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export REA XLSX",
+            data=data_xlsx,
+            file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
 
         df_rea_tv = df_rea_view.rename(
@@ -898,6 +942,28 @@ with tab_rea_q:
             "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
             "Yahoo", "Finviz",
         ]
+        # EXPORT REA TOP10
+        csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export REA Top10 CSV",
+            data=csv_data,
+            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOP10")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export REA Top10 XLSX",
+            data=data_xlsx,
+            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+        )
 
         df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
 
@@ -917,6 +983,28 @@ with tab_rea_q:
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
+        )
+        # EXPORT REA TOP10
+        csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export REA Top10 CSV",
+            data=csv_data,
+            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOP10")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export REA Top10 XLSX",
+            data=data_xlsx,
+            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
 
         options_rea_q = [
@@ -1030,6 +1118,28 @@ with tab_serafini:
                     "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
             )
+            # EXPORT SERAFINI
+            csv_data = df_break_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export Serafini CSV",
+                data=csv_data,
+                file_name=f"SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_break_view.to_excel(writer, index=False, sheet_name="SERAFINI")
+            data_xlsx = output.getvalue()
+
+            st.download_button(
+                "⬇️ Export Serafini XLSX",
+                data=data_xlsx,
+                file_name=f"SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
             options_seraf = [
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_break_view.iterrows()
@@ -1113,6 +1223,28 @@ with tab_regime:
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
+        )
+        # EXPORT MOMENTUM
+        csv_data = df_mom.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export Momentum CSV",
+            data=csv_data,
+            file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_mom.to_excel(writer, index=False, sheet_name="MOMENTUM")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export Momentum XLSX",
+            data=data_xlsx,
+            file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
 
         df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
@@ -1295,6 +1427,28 @@ with tab_mtf:
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                     "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
+            )
+            # EXPORT MTF
+            csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export MTF CSV",
+                data=csv_data,
+                file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_mtf_view.to_excel(writer, index=False, sheet_name="MTF")
+            data_xlsx = output.getvalue()
+
+            st.download_button(
+                "⬇️ Export MTF XLSX",
+                data=data_xlsx,
+                file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
             )
 
             # CSV MTF (solo ticker, come prima)
@@ -1499,6 +1653,28 @@ with tab_finviz:
                         "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                     },
                 )
+                # EXPORT FINVIZ
+                csv_data = df_finviz_sel.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "⬇️ Export Finviz‑like CSV",
+                    data=csv_data,
+                    file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                    df_finviz_sel.to_excel(writer, index=False, sheet_name="FINVIZ")
+                data_xlsx = output.getvalue()
+
+                st.download_button(
+                    "⬇️ Export Finviz‑like XLSX",
+                    data=data_xlsx,
+                    file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                )
 
                 # CSV Finviz (symbol, price numerico)
                 df_finviz_tv = df_finviz_sel.rename(
@@ -1648,6 +1824,28 @@ with tab_watch:
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
+        )
+        # EXPORT WATCHLIST
+        csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export Watchlist CSV",
+            data=csv_data,
+            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_wl_view.to_excel(writer, index=False, sheet_name="WATCHLIST")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export Watchlist XLSX",
+            data=data_xlsx,
+            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
         )
 
         st.markdown("---")
