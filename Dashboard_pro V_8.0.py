@@ -66,13 +66,27 @@ def add_formatted_cols(df):
     df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
     return df
 
-
+#########################################################
+#######          VECCHIO CODICE FINVIZ        ###########
+#########################################################
+#def add_links(df):
+#    df["Yahoo"] = df["Ticker"].apply(
+#        lambda t: f"https://finance.yahoo.com/quote/{t}"
+#    )
+#    df["Finviz"] = df["Ticker"].apply(
+#        lambda t: f"https://finviz.com/quote.ashx?t={t.split('.')[0]}"
+#   )
+#    return df
+#########################################################
+#######          NUOVO CODICE TRADINGVIEW     ###########
+#########################################################
 def add_links(df):
     df["Yahoo"] = df["Ticker"].apply(
         lambda t: f"https://finance.yahoo.com/quote/{t}"
     )
+    # al posto di Finviz uso TradingView
     df["Finviz"] = df["Ticker"].apply(
-        lambda t: f"https://finviz.com/quote.ashx?t={t.split('.')[0]}"
+        lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
     )
     return df
 
