@@ -1116,42 +1116,62 @@ with tab_serafini:
                 breakout_up = last >= high20.iloc[-2]
                 breakout_down = last <= low20.iloc[-2]
 
-                records.append({
-                    "Ticker": tkr,
-                    "Prezzo": round(last, 2),
-                    "Hi20": round(high20.iloc[-2], 2),
-                    "Lo20": round(low20.iloc[-2], 2),
-                    "Breakout_Up": breakout_up,
-                    "Breakout_Down": breakout_down,
-                })
+                records.append(
+                    {
+                        "Ticker": tkr,
+                        "Prezzo": round(last, 2),
+                        "Hi20": round(high20.iloc[-2], 2),
+                        "Lo20": round(low20.iloc[-2], 2),
+                        "Breakout_Up": breakout_up,
+                        "Breakout_Down": breakout_down,
+                    }
+                )
             except Exception:
                 continue
 
         df_break = pd.DataFrame(records)
+
         if df_break.empty:
             st.caption("Nessun breakout rilevato (20 giorni).")
             df_break_view = pd.DataFrame()
         else:
             df_break = df_break.merge(
-                df_ep[[
-                    "Ticker", "Nome", "Pro_Score", "RSI", "Vol_Ratio",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
-                ]],
+                df_ep[
+                    [
+                        "Ticker",
+                        "Nome",
+                        "Pro_Score",
+                        "RSI",
+                        "Vol_Ratio",
+                        "MarketCap",
+                        "Vol_Today",
+                        "Vol_7d_Avg",
+                        "Currency",
+                    ]
+                ],
                 on="Ticker",
-                how="left"
+                how="left",
             )
 
             df_break = add_formatted_cols(df_break)
             df_break = add_links(df_break)
 
             cols_order = [
-                "Nome", "Ticker",
-                "Prezzo_fmt", "MarketCap_fmt",
-                "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-                "Hi20", "Lo20",
-                "Breakout_Up", "Breakout_Down",
-                "Pro_Score", "RSI", "Vol_Ratio",
-                "Yahoo", "Finviz",
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Hi20",
+                "Lo20",
+                "Breakout_Up",
+                "Breakout_Down",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "Yahoo",
+                "Finviz",
             ]
             df_break = df_break[[c for c in cols_order if c in df_break.columns]]
 
@@ -1169,9 +1189,12 @@ with tab_serafini:
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn(
+                        "TradingView", display_text="Apri"
+                    ),
                 },
             )
+
             # EXPORT SERAFINI
             csv_data = df_break_view.to_csv(index=False).encode("utf-8")
             st.download_button(
@@ -1191,37 +1214,49 @@ with tab_serafini:
                 "⬇️ Export Serafini XLSX",
                 data=data_xlsx,
                 file_name=f"SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
                 use_container_width=True,
             )
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_break_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            # EXPORT TradingView (solo ticker)
+            tv_data = (
+                df_break_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+            )
+            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
+            st.download_button(
+                "⬇️ Export Serafini TradingView (solo ticker)",
+                data=csv_tv,
+                file_name=f"TV_SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+            # Aggiunta a Watchlist
             options_seraf = [
-                f"{row['Nome']} – {row['Ticker']}" for _, row in df_break_view.iterrows()
+                f"{row['Nome']} – {row['Ticker']}"
+                for _, row in df_break_view.iterrows()
             ]
             selection_seraf = st.multiselect(
                 "Aggiungi alla Watchlist (Serafini Systems):",
                 options=options_seraf,
                 key="wl_seraf",
             )
-            note_seraf = st.text_input("Note comuni per questi ticker Serafini", key="note_wl_seraf")
+            note_seraf = st.text_input(
+                "Note comuni per questi ticker Serafini", key="note_wl_seraf"
+            )
+
             if st.button("📌 Salva in Watchlist (Serafini)"):
                 tickers = [s.split(" – ")[1] for s in selection_seraf]
-                names   = [s.split(" – ")[0] for s in selection_seraf]
-                add_to_watchlist(tickers, names, "SERAFINI", note_seraf, trend="LONG")
+                names = [s.split(" – ")[0] for s in selection_seraf]
+                add_to_watchlist(
+                    tickers, names, "SERAFINI", note_seraf, trend="LONG"
+                )
                 st.success("Serafini salvati in watchlist.")
                 st.rerun()
-
 
 # =============================================================================
 # REGIME & MOMENTUM
