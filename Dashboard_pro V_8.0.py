@@ -52,6 +52,15 @@ def init_db():
     conn.commit()
     conn.close()
 
+def reset_watchlist_db():
+    """Elimina completamente la tabella watchlist e la ricrea vuota."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS watchlist")
+    conn.commit()
+    conn.close()
+    init_db()
+
 def add_to_watchlist(tickers, names, origine, note, trend="LONG"):
     if not tickers:
         return
@@ -201,11 +210,17 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         l = data["Low"]
         v = data["Volume"]
 
-        info = yf.Ticker(ticker).info
+        yt = yf.Ticker(ticker)
+        info = yt.info
         name = info.get("longName", info.get("shortName", ticker))[:50]
 
         price = float(c.iloc[-1])
         ema20 = float(c.ewm(20).mean().iloc[-1])
+
+        # Capitalizzazione e volumi
+        market_cap = info.get("marketCap", np.nan)
+        vol_today = float(v.iloc[-1])
+        vol_7d_avg = float(v.tail(7).mean())
 
         # EARLY
         dist_ema = abs(price - ema20) / ema20
@@ -255,6 +270,9 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             "Nome": name,
             "Ticker": ticker,
             "Prezzo": round(price, 2),
+            "MarketCap": market_cap,
+            "Vol_Today": int(vol_today),
+            "Vol_7d_Avg": int(vol_7d_avg),
             "Early_Score": early_score,
             "Pro_Score": pro_score,
             "RSI": round(rsi_val, 1),
@@ -269,6 +287,9 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             "Nome": name,
             "Ticker": ticker,
             "Prezzo": round(price, 2),
+            "MarketCap": market_cap,
+            "Vol_Today": int(vol_today),
+            "Vol_7d_Avg": int(vol_7d_avg),
             "Rea_Score": rea_score,
             "POC": round(poc, 2),
             "Dist_POC_%": round(dist_poc * 100, 1),
@@ -386,7 +407,9 @@ with tab_e:
         st.markdown(
             "- **Early_Score**: 8 se il prezzo è entro la soglia percentuale dalla EMA20; 0 altrimenti.\n"
             "- **RSI**: RSI a 14 periodi.\n"
-            "- **Vol_Ratio**: volume odierno / media 20 giorni; >1 = volume sopra media.\n"
+            "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
+            "- **MarketCap**: capitalizzazione di mercato corrente.\n"
+            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
             "- **Stato = EARLY**: setup in formazione vicino alla media."
         )
 
@@ -394,8 +417,12 @@ with tab_e:
         st.caption("Nessun segnale EARLY.")
     else:
         df_early = df_early_all.copy()
-        cols_order = ["Nome", "Ticker", "Prezzo", "Early_Score", "Pro_Score",
-                      "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"]
+        cols_order = [
+            "Nome", "Ticker", "Prezzo",
+            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+        ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
         st.dataframe(df_early_view, use_container_width=True)
@@ -447,8 +474,8 @@ with tab_p:
     with st.expander("📘 Legenda PRO"):
         st.markdown(
             "- **Pro_Score**: punteggio composito (prezzo sopra EMA20, RSI nel range, volume sopra media).\n"
-            "- **RSI**: 14 periodi, nel range definito da slider.\n"
-            "- **Vol_Ratio**: volume relativo, >1.2 = forte interesse.\n"
+            "- **MarketCap**: capitalizzazione di mercato.\n"
+            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **OBV_Trend**: UP/DOWN in base alla pendenza media OBV 5 periodi.\n"
             "- **Stato = PRO**: trend avanzato con conferme."
         )
@@ -457,8 +484,12 @@ with tab_p:
         st.caption("Nessun segnale PRO.")
     else:
         df_pro = df_pro_all.copy()
-        cols_order = ["Nome", "Ticker", "Prezzo", "Early_Score", "Pro_Score",
-                      "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"]
+        cols_order = [
+            "Nome", "Ticker", "Prezzo",
+            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+        ]
         df_pro = df_pro[[c for c in cols_order if c in df_pro.columns]]
 
         df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
@@ -516,9 +547,10 @@ with tab_r:
     with st.expander("📘 Legenda REA‑QUANT (segnali)"):
         st.markdown(
             "- **Rea_Score**: 7 quando prezzo vicino al POC e volume molto sopra la media.\n"
+            "- **MarketCap**: capitalizzazione.\n"
+            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **POC**: livello di prezzo con il massimo volume scambiato.\n"
             "- **Dist_POC_%**: distanza % tra prezzo e POC.\n"
-            "- **Vol_Ratio**: proxy di pressione volumetrica.\n"
             "- **Stato = HOT**: area di forte decisione."
         )
 
@@ -526,8 +558,11 @@ with tab_r:
         st.caption("Nessun segnale REA‑QUANT.")
     else:
         df_rea = df_rea_all.copy()
-        cols_order = ["Nome", "Ticker", "Prezzo", "Rea_Score", "POC",
-                      "Dist_POC_%", "Vol_Ratio", "Stato"]
+        cols_order = [
+            "Nome", "Ticker", "Prezzo",
+            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"
+        ]
         df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
 
         df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
@@ -583,6 +618,7 @@ with tab_rea_q:
             "- **N**: numero di titoli HOT per mercato.\n"
             "- **Vol_Ratio_med**: media Vol_Ratio.\n"
             "- **Rea_Score_med**: intensità media segnale.\n"
+            "- **MarketCap / Volumi**: medie indicative per mercato.\n"
             "- Top 10: ordinati per Vol_Ratio."
         )
 
@@ -609,6 +645,8 @@ with tab_rea_q:
             N=("Ticker", "count"),
             Vol_Ratio_med=("Vol_Ratio", "mean"),
             Rea_Score_med=("Rea_Score", "mean"),
+            MarketCap_med=("MarketCap", "mean"),
+            Vol_Today_med=("Vol_Today", "mean"),
         ).reset_index()
 
         st.dataframe(agg, use_container_width=True)
@@ -616,8 +654,11 @@ with tab_rea_q:
         st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
         st.dataframe(
-            df_rea_top[["Nome", "Ticker", "Prezzo", "POC",
-                        "Dist_POC_%", "Vol_Ratio", "Stato"]],
+            df_rea_top[[
+                "Nome", "Ticker", "Prezzo",
+                "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                "POC", "Dist_POC_%", "Vol_Ratio", "Stato"
+            ]],
             use_container_width=True,
         )
 
@@ -650,8 +691,8 @@ with tab_serafini:
     with st.expander("📘 Legenda Serafini Systems"):
         st.markdown(
             "- **Hi20 / Lo20**: massimo/minimo a 20 giorni.\n"
-            "- **Breakout_Up**: True se l'ultimo close rompe i massimi.\n"
-            "- **Breakout_Down**: True se l'ultimo close rompe i minimi.\n"
+            "- **Breakout_Up/Down**: rottura massimi/minimi.\n"
+            "- **MarketCap / Volumi**: info di contesto.\n"
             "- Ordinamento per Pro_Score per privilegiare i breakout in trend forti."
         )
 
@@ -691,13 +732,21 @@ with tab_serafini:
             df_break_view = pd.DataFrame()
         else:
             df_break = df_break.merge(
-                df_ep[["Ticker", "Nome", "Pro_Score", "RSI", "Vol_Ratio"]],
+                df_ep[[
+                    "Ticker", "Nome", "Pro_Score", "RSI", "Vol_Ratio",
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg"
+                ]],
                 on="Ticker",
                 how="left"
             )
 
-            cols_order = ["Nome", "Ticker", "Prezzo", "Hi20", "Lo20",
-                          "Breakout_Up", "Breakout_Down", "Pro_Score", "RSI", "Vol_Ratio"]
+            cols_order = [
+                "Nome", "Ticker", "Prezzo",
+                "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                "Hi20", "Lo20",
+                "Breakout_Up", "Breakout_Down",
+                "Pro_Score", "RSI", "Vol_Ratio"
+            ]
             df_break = df_break[[c for c in cols_order if c in df_break.columns]]
 
             st.markdown("**Breakout su massimi/minimi 20 giorni (Donchian style)**")
@@ -737,7 +786,7 @@ with tab_regime:
         st.markdown(
             "- **Regime**: quota segnali PRO vs EARLY.\n"
             "- **Momentum**: Pro_Score×10 + RSI.\n"
-            "- Tabella per capire se il mercato è in costruzione o in trend."
+            "- **MarketCap / Volumi**: per contestualizzare i top momentum."
         )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
@@ -757,8 +806,12 @@ with tab_regime:
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
         df_mom = df_all.sort_values("Momentum", ascending=False).head(10)
 
-        cols_order = ["Nome", "Ticker", "Prezzo", "Pro_Score", "RSI",
-                      "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"]
+        cols_order = [
+            "Nome", "Ticker", "Prezzo",
+            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Pro_Score", "RSI",
+            "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"
+        ]
         df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
 
         st.dataframe(df_mom, use_container_width=True)
@@ -788,7 +841,9 @@ with tab_regime:
 
         heat = df_all.groupby("Mercato").agg(
             Momentum_med=("Momentum", "mean"),
-            N=("Ticker", "count")
+            N=("Ticker", "count"),
+            MarketCap_med=("MarketCap", "mean"),
+            Vol_Today_med=("Vol_Today", "mean"),
         ).reset_index()
 
         st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
@@ -827,10 +882,8 @@ with tab_mtf:
         st.markdown(
             "- **RSI_1D / RSI_1W / RSI_1M**: RSI(14) su TF giornaliero, settimanale e mensile.\n"
             "- **MTF_Score**: media dei tre RSI.\n"
-            "- **Segnale_MTF**:\n"
-            "  - ALIGN_LONG: tutti e tre gli RSI > 50.\n"
-            "  - ALIGN_SHORT: tutti e tre < 50.\n"
-            "  - MIXED: situazione non allineata."
+            "- **MarketCap / Volumi**: dati di contesto per selezionare titoli più liquidi.\n"
+            "- **Segnale_MTF**: ALIGN_LONG, ALIGN_SHORT o MIXED."
         )
 
     if df_ep.empty:
@@ -844,9 +897,10 @@ with tab_mtf:
             records = []
             for tkr in tickers:
                 try:
-                    d_daily = yf.Ticker(tkr).history(period="6mo", interval="1d")
-                    d_week  = yf.Ticker(tkr).history(period="2y",  interval="1wk")
-                    d_month = yf.Ticker(tkr).history(period="5y",  interval="1mo")
+                    yt = yf.Ticker(tkr)
+                    d_daily = yt.history(period="6mo", interval="1d")
+                    d_week  = yt.history(period="2y",  interval="1wk")
+                    d_month = yt.history(period="5y",  interval="1mo")
 
                     def rsi_from_close(close, period=14):
                         if len(close) < period + 1:
@@ -893,13 +947,20 @@ with tab_mtf:
             st.caption("Nessun dato Multi‑Timeframe disponibile.")
         else:
             df_mtf = df_mtf.merge(
-                df_ep[["Ticker", "Nome", "Pro_Score", "Stato"]],
+                df_ep[[
+                    "Ticker", "Nome", "Pro_Score", "Stato",
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg"
+                ]],
                 on="Ticker",
                 how="left"
             ).drop_duplicates(subset=["Ticker"])
 
-            cols_order = ["Nome", "Ticker", "RSI_1D", "RSI_1W", "RSI_1M",
-                          "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"]
+            cols_order = [
+                "Nome", "Ticker",
+                "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                "RSI_1D", "RSI_1W", "RSI_1M",
+                "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"
+            ]
             df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
 
             st.markdown("**Top 30 per MTF_Score (allineamento forza RSI multi‑TF)**")
@@ -977,12 +1038,9 @@ with tab_finviz:
             "- **Options – Short available** (optionable = True).\n"
             "- **Price > 10$**.\n"
             "- **Relative Volume > 1** (vol corrente / avg vol > 1).\n"
-            "- **Price above SMA20 / SMA50 / SMA200** calcolate sui close giornalieri."
+            "- **Price above SMA20 / SMA50 / SMA200** calcolate sui close giornalieri.\n"
+            "- Vengono mostrati anche **MarketCap, Vol_Today, Vol_7d_Avg**."
         )
-
-    st.markdown(
-        "Vengono filtrati i titoli dell'universo scansionato che rispettano tutti i criteri sopra."
-    )
 
     if df_ep.empty:
         st.caption("Nessun dato base disponibile per il filtro Finviz.")
@@ -1039,7 +1097,10 @@ with tab_finviz:
             st.caption("Impossibile calcolare i filtri Finviz‑like (dati insufficienti).")
         else:
             df_finviz = df_fund.merge(
-                df_ep[["Ticker", "Nome", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio", "Stato"]],
+                df_ep[[
+                    "Ticker", "Nome", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio", "Stato",
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg"
+                ]],
                 on="Ticker",
                 how="left",
             )
@@ -1071,8 +1132,12 @@ with tab_finviz:
             else:
                 st.markdown("**Titoli che soddisfano tutti i filtri Finviz‑like**")
                 cols_order = [
-                    "Nome", "Ticker", "Price", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio",
-                    "EPS_NextY", "EPS_Next5Y", "AvgVolume", "RelVolume",
+                    "Nome", "Ticker",
+                    "Price", "Prezzo",
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                    "Pro_Score", "RSI", "Vol_Ratio",
+                    "EPS_NextY", "EPS_Next5Y",
+                    "AvgVolume", "RelVolume",
                     "SMA20", "SMA50", "SMA200", "Stato"
                 ]
                 df_finviz_sel = df_finviz_sel[[c for c in cols_order if c in df_finviz_sel.columns]]
@@ -1126,8 +1191,15 @@ with tab_watch:
         "più origine, note e data."
     )
 
-    if st.button("🔄 Refresh Watchlist"):
-        st.rerun()
+    col_w1, col_w2 = st.columns(2)
+    with col_w1:
+        if st.button("🔄 Refresh Watchlist"):
+            st.rerun()
+    with col_w2:
+        if st.button("🧨 Elimina intero DB Watchlist"):
+            reset_watchlist_db()
+            st.success("Watchlist azzerata. DB ricreato da zero.")
+            st.rerun()
 
     df_watch = load_watchlist()
 
@@ -1142,7 +1214,10 @@ with tab_watch:
         ids_to_delete = st.multiselect(
             "Seleziona ID da eliminare dalla watchlist:",
             options=df_watch["id"].tolist(),
-            format_func=lambda x: f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} ({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})",
+            format_func=lambda x: (
+                f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} "
+                f"({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})"
+            ),
             key="wl_delete_ids",
         )
         if st.button("🗑️ Elimina selezionati"):
@@ -1154,7 +1229,12 @@ with tab_watch:
         id_edit = st.selectbox(
             "Seleziona ID per modificare la nota:",
             options=[None] + df_watch["id"].tolist(),
-            format_func=lambda x: "—" if x is None else f"ID {x}",
+            format_func=lambda x: (
+                "—"
+                if x is None
+                else f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} "
+                     f"({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})"
+            ),
             key="wl_edit_id",
         )
         if id_edit is not None:
