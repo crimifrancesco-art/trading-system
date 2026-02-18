@@ -1704,7 +1704,11 @@ with tab_finviz:
                     eps_next_y = info.get("earningsGrowth")
                     eps_next_5y = info.get("earningsQuarterlyGrowth")
                     avg_vol = info.get("averageVolume")
-                    rel_vol = info.get("regularMarketVolume") / avg_vol if avg_vol and avg_vol > 0 else np.nan
+                    rel_vol = (
+                        info.get("regularMarketVolume") / avg_vol
+                        if avg_vol and avg_vol > 0
+                        else np.nan
+                    )
                     optionable = info.get("optionable", False)
 
                     hist = yt.history(period="260d")
@@ -1712,22 +1716,36 @@ with tab_finviz:
                         sma20 = sma50 = sma200 = np.nan
                     else:
                         close = hist["Close"]
-                        sma20 = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else np.nan
-                        sma50 = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else np.nan
-                        sma200 = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else np.nan
+                        sma20 = (
+                            close.rolling(20).mean().iloc[-1]
+                            if len(close) >= 20
+                            else np.nan
+                        )
+                        sma50 = (
+                            close.rolling(50).mean().iloc[-1]
+                            if len(close) >= 50
+                            else np.nan
+                        )
+                        sma200 = (
+                            close.rolling(200).mean().iloc[-1]
+                            if len(close) >= 200
+                            else np.nan
+                        )
 
-                    recs.append({
-                        "Ticker": tkr,
-                        "Price": price,
-                        "EPS_NextY": eps_next_y,
-                        "EPS_Next5Y": eps_next_5y,
-                        "AvgVolume": avg_vol,
-                        "RelVolume": rel_vol,
-                        "Optionable": optionable,
-                        "SMA20": sma20,
-                        "SMA50": sma50,
-                        "SMA200": sma200,
-                    })
+                    recs.append(
+                        {
+                            "Ticker": tkr,
+                            "Price": price,
+                            "EPS_NextY": eps_next_y,
+                            "EPS_Next5Y": eps_next_5y,
+                            "AvgVolume": avg_vol,
+                            "RelVolume": rel_vol,
+                            "Optionable": optionable,
+                            "SMA20": sma20,
+                            "SMA50": sma50,
+                            "SMA200": sma200,
+                        }
+                    )
                 except Exception:
                     continue
             return pd.DataFrame(recs)
@@ -1739,15 +1757,26 @@ with tab_finviz:
             st.caption("Impossibile calcolare i filtri Finviz‑like (dati insufficienti).")
         else:
             df_finviz = df_fund.merge(
-                df_ep[[
-                    "Ticker", "Nome", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio", "Stato",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
-                ]],
+                df_ep[
+                    [
+                        "Ticker",
+                        "Nome",
+                        "Prezzo",
+                        "Pro_Score",
+                        "RSI",
+                        "Vol_Ratio",
+                        "Stato",
+                        "MarketCap",
+                        "Vol_Today",
+                        "Vol_7d_Avg",
+                        "Currency",
+                    ]
+                ],
                 on="Ticker",
                 how="left",
             )
 
-            # Filtri Finviz-like (puoi parametrizzarli da sidebar se vuoi)
+            # Filtri Finviz-like
             cond_price = df_finviz["Price"] > 10
             cond_eps_y = df_finviz["EPS_NextY"] > 0.10
             cond_eps_5y = df_finviz["EPS_Next5Y"] > 0.15
@@ -1759,15 +1788,15 @@ with tab_finviz:
             cond_sma200 = df_finviz["Price"] > df_finviz["SMA200"]
 
             df_finviz_sel = df_finviz[
-                cond_price &
-                cond_eps_y &
-                cond_eps_5y &
-                cond_avg_vol &
-                cond_option &
-                cond_rel_vol &
-                cond_sma20 &
-                cond_sma50 &
-                cond_sma200
+                cond_price
+                & cond_eps_y
+                & cond_eps_5y
+                & cond_avg_vol
+                & cond_option
+                & cond_rel_vol
+                & cond_sma20
+                & cond_sma50
+                & cond_sma200
             ].copy()
 
             if df_finviz_sel.empty:
@@ -1775,31 +1804,59 @@ with tab_finviz:
             else:
                 st.markdown("**Titoli che soddisfano tutti i filtri Finviz‑like**")
                 cols_order = [
-                    "Nome", "Ticker",
-                    "Price", "Prezzo",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg",
-                    "Pro_Score", "RSI", "Vol_Ratio",
-                    "EPS_NextY", "EPS_Next5Y",
-                    "AvgVolume", "RelVolume",
-                    "SMA20", "SMA50", "SMA200", "Stato"
+                    "Nome",
+                    "Ticker",
+                    "Price",
+                    "Prezzo",
+                    "MarketCap",
+                    "Vol_Today",
+                    "Vol_7d_Avg",
+                    "Pro_Score",
+                    "RSI",
+                    "Vol_Ratio",
+                    "EPS_NextY",
+                    "EPS_Next5Y",
+                    "AvgVolume",
+                    "RelVolume",
+                    "SMA20",
+                    "SMA50",
+                    "SMA200",
+                    "Stato",
                 ]
-                df_finviz_sel = df_finviz_sel[[c for c in cols_order if c in df_finviz_sel.columns]]
-                df_finviz_sel = df_finviz_sel.sort_values("Pro_Score", ascending=False)
+                df_finviz_sel = df_finviz_sel[
+                    [c for c in cols_order if c in df_finviz_sel.columns]
+                ]
+                df_finviz_sel = df_finviz_sel.sort_values(
+                    "Pro_Score", ascending=False
+                )
 
                 # aggiungo formattazione e link
                 df_finviz_sel = add_formatted_cols(df_finviz_sel)
                 df_finviz_sel = add_links(df_finviz_sel)
 
-                df_finviz_show = df_finviz_sel.head(top)[[
-                    "Nome", "Ticker",
-                    "Prezzo_fmt", "MarketCap_fmt",
-                    "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-                    "Pro_Score", "RSI", "Vol_Ratio",
-                    "EPS_NextY", "EPS_Next5Y",
-                    "AvgVolume", "RelVolume",
-                    "SMA20", "SMA50", "SMA200", "Stato",
-                    "Yahoo", "Finviz",
-                ]]
+                df_finviz_show = df_finviz_sel.head(top)[
+                    [
+                        "Nome",
+                        "Ticker",
+                        "Prezzo_fmt",
+                        "MarketCap_fmt",
+                        "Vol_Today_fmt",
+                        "Vol_7d_Avg_fmt",
+                        "Pro_Score",
+                        "RSI",
+                        "Vol_Ratio",
+                        "EPS_NextY",
+                        "EPS_Next5Y",
+                        "AvgVolume",
+                        "RelVolume",
+                        "SMA20",
+                        "SMA50",
+                        "SMA200",
+                        "Stato",
+                        "Yahoo",
+                        "Finviz",
+                    ]
+                ]
 
                 st.dataframe(
                     df_finviz_show,
@@ -1810,10 +1867,13 @@ with tab_finviz:
                         "Vol_Today_fmt": "Vol giorno",
                         "Vol_7d_Avg_fmt": "Vol medio 7g",
                         "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                        "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                        "Finviz": st.column_config.LinkColumn(
+                            "TradingView", display_text="Apri"
+                        ),
                     },
                 )
-                # EXPORT FINVIZ
+
+                # EXPORT FINVIZ‑LIKE
                 csv_data = df_finviz_sel.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ Export Finviz‑like CSV",
@@ -1832,30 +1892,19 @@ with tab_finviz:
                     "⬇️ Export Finviz‑like XLSX",
                     data=data_xlsx,
                     file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
                     use_container_width=True,
                 )
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_finviz_sel["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
-        st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
-
-                # CSV Finviz (symbol, price numerico)
+                # EXPORT TradingView (solo ticker)
                 df_finviz_tv = df_finviz_sel.rename(
-                    columns={
-                        "Ticker": "symbol",
-                        "Price": "price",
-                    }
-                )[["symbol", "price"]]
-                csv_finviz = df_finviz_tv.to_csv(index=False).encode("utf-8")
+                    columns={"Ticker": "symbol", "Price": "price"}
+                )[["symbol", "price"]].drop_duplicates()
 
+                csv_finviz = df_finviz_tv.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ CSV Finviz‑like (symbol, price)",
                     data=csv_finviz,
@@ -1864,13 +1913,15 @@ with tab_finviz:
                     use_container_width=True,
                 )
 
+                # Watchlist Finviz‑like
                 options_finviz = [
-                    f"{row['Nome']} – {row['Ticker']}" for _, row in df_finviz_sel.head(top).iterrows()
+                    f"{row['Nome']} – {row['Ticker']}"
+                    for _, row in df_finviz_sel.head(top).iterrows()
                 ]
                 note_finviz = st.text_input(
                     "Note comuni per questi ticker Finviz‑like",
                     value="Preset Finviz EPS/Vol/MA",
-                    key="note_wl_finviz"
+                    key="note_wl_finviz",
                 )
                 selection_finviz = st.multiselect(
                     "Aggiungi alla Watchlist (Finviz‑like):",
@@ -1879,8 +1930,10 @@ with tab_finviz:
                 )
                 if st.button("📌 Salva in Watchlist (Finviz‑like)"):
                     tickers = [s.split(" – ")[1] for s in selection_finviz]
-                    names   = [s.split(" – ")[0] for s in selection_finviz]
-                    add_to_watchlist(tickers, names, "FINVIZ_LIKE", note_finviz, trend="LONG")
+                    names = [s.split(" – ")[0] for s in selection_finviz]
+                    add_to_watchlist(
+                        tickers, names, "FINVIZ_LIKE", note_finviz, trend="LONG"
+                    )
                     st.success("Titoli Finviz‑like salvati in watchlist.")
                     st.rerun()
 
