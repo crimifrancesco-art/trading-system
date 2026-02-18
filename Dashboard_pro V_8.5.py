@@ -577,21 +577,26 @@ with tab_e:
         #************************************************************************/////////////////////
         
         # CSV per TradingView: uso la colonna Prezzo numerica originale
-        df_early_tv = df_early_view.rename(
-            columns={
-                "Ticker": "symbol",
-                "Prezzo": "price",
-                "RSI": "rsi",
-                "Vol_Ratio": "volume_ratio",
-            }
-        )[["symbol", "price", "rsi", "volume_ratio"]]
-        csv_early = df_early_tv.to_csv(index=False).encode("utf-8")
+               # EXPORT EARLY
+        csv_data = df_early_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export EARLY CSV",
+            data=csv_data,
+            file_name=f"EARLY_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_early_view.to_excel(writer, index=False, sheet_name="EARLY")
+        data_xlsx = output.getvalue()
 
         st.download_button(
-            "⬇️ CSV EARLY per TradingView",
-            data=csv_early,
-            file_name=f"signals_early_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
+            "⬇️ Export EARLY XLSX",
+            data=data_xlsx,
+            file_name=f"EARLY_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
 
