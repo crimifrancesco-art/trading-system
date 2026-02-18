@@ -561,21 +561,29 @@ with tab_p:
     with st.expander("📘 Legenda PRO"):
         st.markdown(
             "- **Pro_Score**: punteggio composito (prezzo sopra EMA20, RSI nel range, volume sopra media).\n"
-            "- **MarketCap**: capitalizzazione di mercato.\n"
+            "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **OBV_Trend**: UP/DOWN in base alla pendenza media OBV 5 periodi.\n"
-            "- **Stato = PRO**: trend avanzato con conferme."
+            "- **Stato = PRO**: trend avanzato con conferme.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
     if df_pro_all.empty:
         st.caption("Nessun segnale PRO.")
     else:
         df_pro = df_pro_all.copy()
+        df_pro = add_formatted_cols(df_pro)
+        df_pro = add_links(df_pro)
+
         cols_order = [
-            "Nome", "Ticker", "Prezzo",
-            "MarketCap", "Vol_Today", "Vol_7d_Avg",
+            "Nome", "Ticker",
+            "Prezzo", "Prezzo_fmt",
+            "MarketCap", "MarketCap_fmt",
+            "Vol_Today", "Vol_Today_fmt",
+            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
             "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato"
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+            "Yahoo", "Finviz",
         ]
         df_pro = df_pro[[c for c in cols_order if c in df_pro.columns]]
 
@@ -584,7 +592,27 @@ with tab_p:
             {"UP": "UP (flusso in ingresso)", "DOWN": "DOWN (flusso in uscita)"}
         )
 
-        st.dataframe(df_pro_view, use_container_width=True)
+        df_pro_show = df_pro_view[[
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt",
+            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "Early_Score", "Pro_Score",
+            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+            "Yahoo", "Finviz",
+        ]]
+
+        st.dataframe(
+            df_pro_show,
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+            },
+        )
 
         df_pro_tv = df_pro_view.rename(
             columns={
@@ -634,26 +662,54 @@ with tab_r:
     with st.expander("📘 Legenda REA‑QUANT (segnali)"):
         st.markdown(
             "- **Rea_Score**: 7 quando prezzo vicino al POC e volume molto sopra la media.\n"
-            "- **MarketCap**: capitalizzazione.\n"
+            "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **POC**: livello di prezzo con il massimo volume scambiato.\n"
             "- **Dist_POC_%**: distanza % tra prezzo e POC.\n"
-            "- **Stato = HOT**: area di forte decisione."
+            "- **Stato = HOT**: area di forte decisione.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
     if df_rea_all.empty:
         st.caption("Nessun segnale REA‑QUANT.")
     else:
         df_rea = df_rea_all.copy()
+        df_rea = add_formatted_cols(df_rea)
+        df_rea = add_links(df_rea)
+
         cols_order = [
-            "Nome", "Ticker", "Prezzo",
-            "MarketCap", "Vol_Today", "Vol_7d_Avg",
-            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato"
+            "Nome", "Ticker",
+            "Prezzo", "Prezzo_fmt",
+            "MarketCap", "MarketCap_fmt",
+            "Vol_Today", "Vol_Today_fmt",
+            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
+            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
+            "Yahoo", "Finviz",
         ]
         df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
 
         df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
-        st.dataframe(df_rea_view, use_container_width=True)
+
+        df_rea_show = df_rea_view[[
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt",
+            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
+            "Yahoo", "Finviz",
+        ]]
+
+        st.dataframe(
+            df_rea_show,
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+            },
+        )
 
         df_rea_tv = df_rea_view.rename(
             columns={
@@ -689,6 +745,7 @@ with tab_r:
             add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
             st.success("REA‑QUANT salvati in watchlist.")
             st.rerun()
+
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -738,15 +795,30 @@ with tab_rea_q:
 
         st.dataframe(agg, use_container_width=True)
 
-        st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
+                st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
+        df_rea_top = add_formatted_cols(df_rea_top)
+        df_rea_top = add_links(df_rea_top)
+
+        df_rea_top_show = df_rea_top[[
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt",
+            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
+            "Yahoo", "Finviz",
+        ]]
+
         st.dataframe(
-            df_rea_top[[
-                "Nome", "Ticker", "Prezzo",
-                "MarketCap", "Vol_Today", "Vol_7d_Avg",
-                "POC", "Dist_POC_%", "Vol_Ratio", "Stato"
-            ]],
+            df_rea_top_show,
             use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+            },
         )
 
         options_rea_q = [
@@ -779,8 +851,9 @@ with tab_serafini:
         st.markdown(
             "- **Hi20 / Lo20**: massimo/minimo a 20 giorni.\n"
             "- **Breakout_Up/Down**: rottura massimi/minimi.\n"
-            "- **MarketCap / Volumi**: info di contesto.\n"
-            "- Ordinamento per Pro_Score per privilegiare i breakout in trend forti."
+            "- **Market Cap / Volumi**: info di contesto.\n"
+            "- Ordinamento per Pro_Score per privilegiare i breakout in trend forti.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
     if df_ep.empty:
@@ -821,18 +894,23 @@ with tab_serafini:
             df_break = df_break.merge(
                 df_ep[[
                     "Ticker", "Nome", "Pro_Score", "RSI", "Vol_Ratio",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg"
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
                 ]],
                 on="Ticker",
                 how="left"
             )
 
+            df_break = add_formatted_cols(df_break)
+            df_break = add_links(df_break)
+
             cols_order = [
-                "Nome", "Ticker", "Prezzo",
-                "MarketCap", "Vol_Today", "Vol_7d_Avg",
+                "Nome", "Ticker",
+                "Prezzo_fmt", "MarketCap_fmt",
+                "Vol_Today_fmt", "Vol_7d_Avg_fmt",
                 "Hi20", "Lo20",
                 "Breakout_Up", "Breakout_Down",
-                "Pro_Score", "RSI", "Vol_Ratio"
+                "Pro_Score", "RSI", "Vol_Ratio",
+                "Yahoo", "Finviz",
             ]
             df_break = df_break[[c for c in cols_order if c in df_break.columns]]
 
@@ -841,7 +919,18 @@ with tab_serafini:
                 (df_break["Breakout_Up"]) | (df_break["Breakout_Down"])
             ].sort_values("Pro_Score", ascending=False)
 
-            st.dataframe(df_break_view, use_container_width=True)
+            st.dataframe(
+                df_break_view,
+                use_container_width=True,
+                column_config={
+                    "Prezzo_fmt": "Prezzo",
+                    "MarketCap_fmt": "Market Cap",
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                },
+            )
 
             options_seraf = [
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_break_view.iterrows()
@@ -858,6 +947,7 @@ with tab_serafini:
                 add_to_watchlist(tickers, names, "SERAFINI", note_seraf, trend="LONG")
                 st.success("Serafini salvati in watchlist.")
                 st.rerun()
+
 
 # =============================================================================
 # REGIME & MOMENTUM
@@ -899,9 +989,32 @@ with tab_regime:
             "Pro_Score", "RSI",
             "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"
         ]
-        df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
+                df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
+        df_mom = add_formatted_cols(df_mom)
+        df_mom = add_links(df_mom)
 
-        st.dataframe(df_mom, use_container_width=True)
+        df_mom_show = df_mom[[
+            "Nome", "Ticker",
+            "Prezzo_fmt", "MarketCap_fmt",
+            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+            "Pro_Score", "RSI",
+            "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum",
+            "Yahoo", "Finviz",
+        ]]
+
+        st.dataframe(
+            df_mom_show,
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+            },
+        )
+
 
         df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
         csv_mom = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
@@ -1048,14 +1161,38 @@ with tab_mtf:
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"
             ]
-            df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
+                        df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
+            df_mtf = add_formatted_cols(df_mtf)
+            df_mtf = add_links(df_mtf)
 
             st.markdown("**Top 30 per MTF_Score (allineamento forza RSI multi‑TF)**")
             if "MTF_Score" in df_mtf.columns:
                 df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(30)
             else:
                 df_mtf_view = df_mtf.head(30)
-            st.dataframe(df_mtf_view, use_container_width=True)
+
+            df_mtf_show = df_mtf_view[[
+                "Nome", "Ticker",
+                "Prezzo_fmt", "MarketCap_fmt",
+                "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+                "RSI_1D", "RSI_1W", "RSI_1M",
+                "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato",
+                "Yahoo", "Finviz",
+            ]]
+
+            st.dataframe(
+                df_mtf_show,
+                use_container_width=True,
+                column_config={
+                    "Prezzo_fmt": "Prezzo",
+                    "MarketCap_fmt": "Market Cap",
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                },
+            )
+
 
             df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
             csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
@@ -1228,9 +1365,34 @@ with tab_finviz:
                     "SMA20", "SMA50", "SMA200", "Stato"
                 ]
                 df_finviz_sel = df_finviz_sel[[c for c in cols_order if c in df_finviz_sel.columns]]
-                df_finviz_sel = df_finviz_sel.sort_values("Pro_Score", ascending=False)
+                                df_finviz_sel = df_finviz_sel.sort_values("Pro_Score", ascending=False)
+                df_finviz_sel = add_formatted_cols(df_finviz_sel)
+                df_finviz_sel = add_links(df_finviz_sel)
 
-                st.dataframe(df_finviz_sel.head(top), use_container_width=True)
+                df_finviz_show = df_finviz_sel.head(top)[[
+                    "Nome", "Ticker",
+                    "Prezzo_fmt", "MarketCap_fmt",
+                    "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+                    "Pro_Score", "RSI", "Vol_Ratio",
+                    "EPS_NextY", "EPS_Next5Y",
+                    "AvgVolume", "RelVolume",
+                    "SMA20", "SMA50", "SMA200", "Stato",
+                    "Yahoo", "Finviz",
+                ]]
+
+                st.dataframe(
+                    df_finviz_show,
+                    use_container_width=True,
+                    column_config={
+                        "Prezzo_fmt": "Prezzo",
+                        "MarketCap_fmt": "Market Cap",
+                        "Vol_Today_fmt": "Vol giorno",
+                        "Vol_7d_Avg_fmt": "Vol medio 7g",
+                        "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                        "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
+                    },
+                )
+
 
                 df_finviz_tv = df_finviz_sel.rename(
                     columns={
