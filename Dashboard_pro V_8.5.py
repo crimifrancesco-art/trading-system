@@ -52,19 +52,39 @@ def fmt_marketcap(value, symbol="€"):
     return fmt_currency(v, symbol)
 
 def add_formatted_cols(df):
+    # se manca Currency, default USD
     if "Currency" not in df.columns:
         df["Currency"] = "USD"
-    df["Prezzo_fmt"] = df.apply(
-        lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"),
-        axis=1,
-    )
-    df["MarketCap_fmt"] = df.apply(
-        lambda r: fmt_marketcap(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"),
-        axis=1,
-    )
-    df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
-    df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
+
+    # Prezzo: crea Prezzo_fmt solo se la colonna esiste
+    if "Prezzo" in df.columns:
+        df["Prezzo_fmt"] = df.apply(
+            lambda r: fmt_currency(
+                r["Prezzo"],
+                "€" if r["Currency"] == "EUR" else "$"
+            ),
+            axis=1,
+        )
+
+    # MarketCap
+    if "MarketCap" in df.columns:
+        df["MarketCap_fmt"] = df.apply(
+            lambda r: fmt_marketcap(
+                r["MarketCap"],
+                "€" if r["Currency"] == "EUR" else "$"
+            ),
+            axis=1,
+        )
+
+    # Volumi
+    if "Vol_Today" in df.columns:
+        df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
+
+    if "Vol_7d_Avg" in df.columns:
+        df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
+
     return df
+
 
 #########################################################
 #######          VECCHIO CODICE FINVIZ        ###########
