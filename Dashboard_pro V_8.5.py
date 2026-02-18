@@ -600,6 +600,7 @@ with tab_e:
             use_container_width=True,
         )
 
+
         options_early = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
         ]
