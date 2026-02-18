@@ -465,7 +465,7 @@ with tab_e:
             "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
             "- **Stato = EARLY**: setup in formazione vicino alla media.\n"
-            "- Pulsanti **Yahoo / Finviz**: aprono la scheda del titolo nel browser."
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
     if df_early_all.empty:
@@ -473,7 +473,9 @@ with tab_e:
     else:
         df_early = df_early_all.copy()
         df_early = add_formatted_cols(df_early)
+        df_early = add_links(df_early)
 
+        # mantengo anche le colonne numeriche Prezzo/MarketCap/Vol per CSV
         cols_order = [
             "Nome", "Ticker",
             "Prezzo", "Prezzo_fmt",
@@ -482,18 +484,20 @@ with tab_e:
             "Vol_7d_Avg", "Vol_7d_Avg_fmt",
             "Early_Score", "Pro_Score",
             "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+            "Yahoo", "Finviz",
         ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
 
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
 
-        # Mostro solo le colonne formattate nella tabella
+        # Tabella: uso solo le colonne formattate + pulsanti link
         df_early_show = df_early_view[[
             "Nome", "Ticker",
             "Prezzo_fmt", "MarketCap_fmt",
             "Vol_Today_fmt", "Vol_7d_Avg_fmt",
             "Early_Score", "Pro_Score",
             "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
+            "Yahoo", "Finviz",
         ]]
 
         st.dataframe(
@@ -504,38 +508,12 @@ with tab_e:
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("Finviz", display_text="Apri"),
             },
         )
 
-        # Pulsanti di link per ogni riga (Yahoo / Finviz)
-        st.markdown("**Link rapidi per il titolo selezionato**")
-        tickers_list = df_early_view["Ticker"].tolist()
-        names_list = df_early_view["Nome"].tolist()
-        if tickers_list:
-            col_sel, col_yf, col_fv = st.columns([3, 1, 1])
-            with col_sel:
-                sel_ticker = st.selectbox(
-                    "Seleziona un titolo:",
-                    options=list(range(len(tickers_list))),
-                    format_func=lambda i: f"{names_list[i]} ({tickers_list[i]})",
-                    key="early_link_sel",
-                )
-            tkr_sel = tickers_list[sel_ticker]
-            with col_yf:
-                if st.button("Apri Yahoo", key="early_yahoo"):
-                    st.markdown(
-                        f"[Apri in Yahoo Finance](https://finance.yahoo.com/quote/{tkr_sel})",
-                        unsafe_allow_html=True,
-                    )
-            with col_fv:
-                if st.button("Apri Finviz", key="early_finviz"):
-                    tkr_fv = tkr_sel.split(".")[0]
-                    st.markdown(
-                        f"[Apri in Finviz](https://finviz.com/quote.ashx?t={tkr_fv})",
-                        unsafe_allow_html=True,
-                    )
-
-        # CSV per TradingView: uso la colonna Prezzo numerica
+        # CSV per TradingView: uso la colonna Prezzo numerica originale
         df_early_tv = df_early_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -569,7 +547,6 @@ with tab_e:
             add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
             st.success("EARLY salvati in watchlist.")
             st.rerun()
-
 
 # =============================================================================
 # PRO
