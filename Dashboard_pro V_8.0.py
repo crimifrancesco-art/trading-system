@@ -1210,8 +1210,9 @@ with tab_mtf:
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato",
                 "Yahoo", "Finviz",
-            ]]
-            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"})
+            ]
+            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"}
+            )
  
 
             st.dataframe(
