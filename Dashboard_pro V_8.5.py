@@ -535,28 +535,52 @@ with tab_e:
 
         # mantengo anche le colonne numeriche Prezzo/MarketCap/Vol per CSV
         cols_order = [
-            "Nome", "Ticker",
-            "Prezzo", "Prezzo_fmt",
-            "MarketCap", "MarketCap_fmt",
-            "Vol_Today", "Vol_Today_fmt",
-            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
-            "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
-            "Yahoo", "Finviz",
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "Prezzo_fmt",
+            "MarketCap",
+            "MarketCap_fmt",
+            "Vol_Today",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg",
+            "Vol_7d_Avg_fmt",
+            "Early_Score",
+            "Pro_Score",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
+            "Stato",
+            "Yahoo",
+            "Finviz",
         ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
 
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
 
         # Tabella: uso solo le colonne formattate + pulsanti link
-        df_early_show = df_early_view[[
-            "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt",
-            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-            "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
-            "Yahoo", "Finviz",
-        ]]
+        df_early_show = df_early_view[
+            [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Early_Score",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "OBV_Trend",
+                "ATR",
+                "ATR_Exp",
+                "Stato",
+                "Yahoo",
+                "Finviz",
+            ]
+        ]
 
         st.dataframe(
             df_early_show,
@@ -570,14 +594,10 @@ with tab_e:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
- 
-        #************************************************************************/////////////////
-        # EXPORT <nome_tab> # EARLY
-        # EARLY
-        #************************************************************************/////////////////////
-        
-        # CSV per TradingView: uso la colonna Prezzo numerica originale
-               # EXPORT EARLY
+
+        # ==========================
+        # EXPORT EARLY
+        # ==========================
         csv_data = df_early_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export EARLY CSV",
@@ -585,6 +605,7 @@ with tab_e:
             file_name=f"EARLY_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_early_csv",
         )
 
         output = io.BytesIO()
@@ -598,20 +619,25 @@ with tab_e:
             file_name=f"EARLY_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            key="dl_early_xlsx",
         )
 
-        # EXPORT TradingView (solo ticker)
+        # EXPORT TradingView (solo ticker) EARLY
         tv_data = df_early_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
+            "⬇️ Export EARLY TradingView (solo ticker)",
             data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"TV_EARLY_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_tv_early",
         )
 
+        # ==========================
+        # Watchlist EARLY
+        # ==========================
         options_early = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
         ]
@@ -620,10 +646,12 @@ with tab_e:
             options=options_early,
             key="wl_early",
         )
-        note_early = st.text_input("Note comuni per questi ticker EARLY", key="note_wl_early")
+        note_early = st.text_input(
+            "Note comuni per questi ticker EARLY", key="note_wl_early"
+        )
         if st.button("📌 Salva in Watchlist (EARLY)"):
             tickers = [s.split(" – ")[1] for s in selection_early]
-            names   = [s.split(" – ")[0] for s in selection_early]
+            names = [s.split(" – ")[0] for s in selection_early]
             add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
             st.success("EARLY salvati in watchlist.")
             st.rerun()
@@ -656,14 +684,26 @@ with tab_p:
         df_pro = add_links(df_pro)
 
         cols_order = [
-            "Nome", "Ticker",
-            "Prezzo", "Prezzo_fmt",
-            "MarketCap", "MarketCap_fmt",
-            "Vol_Today", "Vol_Today_fmt",
-            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
-            "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
-            "Yahoo", "Finviz",
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "Prezzo_fmt",
+            "MarketCap",
+            "MarketCap_fmt",
+            "Vol_Today",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg",
+            "Vol_7d_Avg_fmt",
+            "Early_Score",
+            "Pro_Score",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
+            "Stato",
+            "Yahoo",
+            "Finviz",
         ]
         df_pro = df_pro[[c for c in cols_order if c in df_pro.columns]]
 
@@ -672,14 +712,26 @@ with tab_p:
             {"UP": "UP (flusso in ingresso)", "DOWN": "DOWN (flusso in uscita)"}
         )
 
-        df_pro_show = df_pro_view[[
-            "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt",
-            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-            "Early_Score", "Pro_Score",
-            "RSI", "Vol_Ratio", "OBV_Trend", "ATR", "ATR_Exp", "Stato",
-            "Yahoo", "Finviz",
-        ]]
+        df_pro_show = df_pro_view[
+            [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Early_Score",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "OBV_Trend",
+                "ATR",
+                "ATR_Exp",
+                "Stato",
+                "Yahoo",
+                "Finviz",
+            ]
+        ]
 
         st.dataframe(
             df_pro_show,
@@ -693,7 +745,10 @@ with tab_p:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
+
+        # ==========================
         # EXPORT PRO
+        # ==========================
         csv_data = df_pro_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export PRO CSV",
@@ -701,16 +756,7 @@ with tab_p:
             file_name=f"PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
-        )
-        tv_data = df_pro_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export PRO TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
+            key="dl_pro_csv",
         )
 
         output = io.BytesIO()
@@ -724,8 +770,23 @@ with tab_p:
             file_name=f"PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            key="dl_pro_xlsx",
         )
 
+        # EXPORT PRO TradingView (solo ticker)
+        tv_data = df_pro_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export PRO TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_PRO_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_tv_pro",
+        )
+
+        # CSV PRO arricchito per TradingView (symbol, price, rsi, volume_ratio, obv_trend)
         df_pro_tv = df_pro_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -738,13 +799,17 @@ with tab_p:
         csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ CSV PRO per TradingView",
+            "⬇️ CSV PRO per TradingView (dettagliato)",
             data=csv_pro,
             file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_pro_tv_full",
         )
 
+        # ==========================
+        # Watchlist PRO
+        # ==========================
         options_pro = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
         ]
@@ -753,10 +818,12 @@ with tab_p:
             options=options_pro,
             key="wl_pro",
         )
-        note_pro = st.text_input("Note comuni per questi ticker PRO", key="note_wl_pro")
+        note_pro = st.text_input(
+            "Note comuni per questi ticker PRO", key="note_wl_pro"
+        )
         if st.button("📌 Salva in Watchlist (PRO)"):
             tickers = [s.split(" – ")[1] for s in selection_pro]
-            names   = [s.split(" – ")[0] for s in selection_pro]
+            names = [s.split(" – ")[0] for s in selection_pro]
             add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
             st.success("PRO salvati in watchlist.")
             st.rerun()
@@ -790,25 +857,45 @@ with tab_r:
         df_rea = add_links(df_rea)
 
         cols_order = [
-            "Nome", "Ticker",
-            "Prezzo", "Prezzo_fmt",
-            "MarketCap", "MarketCap_fmt",
-            "Vol_Today", "Vol_Today_fmt",
-            "Vol_7d_Avg", "Vol_7d_Avg_fmt",
-            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
-            "Yahoo", "Finviz",
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "Prezzo_fmt",
+            "MarketCap",
+            "MarketCap_fmt",
+            "Vol_Today",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg",
+            "Vol_7d_Avg_fmt",
+            "Rea_Score",
+            "POC",
+            "Dist_POC_%",
+            "Vol_Ratio",
+            "Stato",
+            "Yahoo",
+            "Finviz",
         ]
         df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
 
         df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
 
-        df_rea_show = df_rea_view[[
-            "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt",
-            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-            "Rea_Score", "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
-            "Yahoo", "Finviz",
-        ]]
+        df_rea_show = df_rea_view[
+            [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Rea_Score",
+                "POC",
+                "Dist_POC_%",
+                "Vol_Ratio",
+                "Stato",
+                "Yahoo",
+                "Finviz",
+            ]
+        ]
 
         st.dataframe(
             df_rea_show,
@@ -822,25 +909,18 @@ with tab_r:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
-        # EXPORT REA
+
+        # ==========================
+        # EXPORT REA‑QUANT
+        # ==========================
         csv_data = df_rea_view.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Export REA CSV",
+            "⬇️ Export REA‑QUANT CSV",
             data=csv_data,
             file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
-        )
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
+            key="dl_rea_csv",
         )
 
         output = io.BytesIO()
@@ -849,24 +929,28 @@ with tab_r:
         data_xlsx = output.getvalue()
 
         st.download_button(
-            "⬇️ Export REA XLSX",
+            "⬇️ Export REA‑QUANT XLSX",
             data=data_xlsx,
             file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            key="dl_rea_xlsx",
         )
-        # EXPORT TradingView (solo ticker)
+
+        # EXPORT REA‑QUANT TradingView (solo ticker)
         tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
+            "⬇️ Export REA‑QUANT TradingView (solo ticker)",
             data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"TV_REA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_tv_rea",
         )
 
+        # CSV REA‑QUANT arricchito per TradingView
         df_rea_tv = df_rea_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -879,13 +963,17 @@ with tab_r:
         csv_rea = df_rea_tv.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ CSV REA‑QUANT per TradingView",
+            "⬇️ CSV REA‑QUANT per TradingView (dettagliato)",
             data=csv_rea,
             file_name=f"signals_rea_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_rea_tv_full",
         )
 
+        # ==========================
+        # Watchlist REA‑QUANT
+        # ==========================
         options_rea = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
         ]
@@ -894,10 +982,12 @@ with tab_r:
             options=options_rea,
             key="wl_rea",
         )
-        note_rea = st.text_input("Note comuni per questi ticker REA‑QUANT", key="note_wl_rea")
+        note_rea = st.text_input(
+            "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
+        )
         if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
             tickers = [s.split(" – ")[1] for s in selection_rea]
-            names   = [s.split(" – ")[0] for s in selection_rea]
+            names = [s.split(" – ")[0] for s in selection_rea]
             add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
             st.success("REA‑QUANT salvati in watchlist.")
             st.rerun()
@@ -962,7 +1052,7 @@ with tab_rea_q:
         st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
 
-        # aggiungo formattazione e link (funzioni già definite in alto)
+        # aggiungo formattazione e link
         df_rea_top = add_formatted_cols(df_rea_top)
         df_rea_top = add_links(df_rea_top)
 
@@ -972,20 +1062,26 @@ with tab_rea_q:
         elif "Prezzo" in df_rea_top.columns:
             prezzo_col = "Prezzo"
         else:
-            prezzo_col = None  # nessun prezzo disponibile
+            prezzo_col = None
 
-        cols = [
-            "Nome", "Ticker",
-        ]
+        cols = ["Nome", "Ticker"]
         if prezzo_col is not None:
             cols.append(prezzo_col)
         cols += [
             "MarketCap_fmt",
-            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-            "POC", "Dist_POC_%", "Vol_Ratio", "Stato",
-            "Yahoo", "Finviz",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg_fmt",
+            "POC",
+            "Dist_POC_%",
+            "Vol_Ratio",
+            "Stato",
+            "Yahoo",
+            "Finviz",
         ]
+
+        # ==========================
         # EXPORT REA TOP10
+        # ==========================
         csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export REA Top10 CSV",
@@ -993,17 +1089,19 @@ with tab_rea_q:
             file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_rea_top10_csv",
         )
-        # EXPORT TradingView (solo ticker)
+
         tv_data = df_rea_top["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
         st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
+            "⬇️ Export REA Top10 TradingView (solo ticker)",
             data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"TV_REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_tv_rea_top10",
         )
 
         output = io.BytesIO()
@@ -1017,6 +1115,7 @@ with tab_rea_q:
             file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            key="dl_rea_top10_xlsx",
         )
 
         df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
@@ -1038,29 +1137,10 @@ with tab_rea_q:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
-        # EXPORT REA TOP10
-        csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export REA Top10 CSV",
-            data=csv_data,
-            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
 
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOP10")
-        data_xlsx = output.getvalue()
-
-        st.download_button(
-            "⬇️ Export REA Top10 XLSX",
-            data=data_xlsx,
-            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-        )
-
+        # ==========================
+        # Watchlist Rea Quant Top10
+        # ==========================
         options_rea_q = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
         ]
@@ -1069,10 +1149,12 @@ with tab_rea_q:
             options=options_rea_q,
             key="wl_rea_q",
         )
-        note_rea_q = st.text_input("Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q")
+        note_rea_q = st.text_input(
+            "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
+        )
         if st.button("📌 Salva in Watchlist (Rea Quant)"):
             tickers = [s.split(" – ")[1] for s in selection_rea_q]
-            names   = [s.split(" – ")[0] for s in selection_rea_q]
+            names = [s.split(" – ")[0] for s in selection_rea_q]
             add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
             st.success("Rea Quant salvati in watchlist.")
             st.rerun()
@@ -1109,10 +1191,12 @@ with tab_serafini:
                 data = yf.Ticker(tkr).history(period="3mo")
                 if len(data) < 20:
                     continue
+
                 close = data["Close"]
                 high20 = close.rolling(20).max()
                 low20 = close.rolling(20).min()
                 last = close.iloc[-1]
+
                 breakout_up = last >= high20.iloc[-2]
                 breakout_down = last <= low20.iloc[-2]
 
@@ -1195,7 +1279,9 @@ with tab_serafini:
                 },
             )
 
+            # ==========================
             # EXPORT SERAFINI
+            # ==========================
             csv_data = df_break_view.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export Serafini CSV",
@@ -1203,6 +1289,7 @@ with tab_serafini:
                 file_name=f"SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_seraf_csv",
             )
 
             output = io.BytesIO()
@@ -1214,17 +1301,13 @@ with tab_serafini:
                 "⬇️ Export Serafini XLSX",
                 data=data_xlsx,
                 file_name=f"SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
+                key="dl_seraf_xlsx",
             )
 
             # EXPORT TradingView (solo ticker)
-            tv_data = (
-                df_break_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-            )
+            tv_data = df_break_view["Ticker"].drop_duplicates().to_frame(name="symbol")
             csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
             st.download_button(
@@ -1233,9 +1316,12 @@ with tab_serafini:
                 file_name=f"TV_SERAFINI_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_tv_seraf",
             )
 
-            # Aggiunta a Watchlist
+            # ==========================
+            # Watchlist Serafini
+            # ==========================
             options_seraf = [
                 f"{row['Nome']} – {row['Ticker']}"
                 for _, row in df_break_view.iterrows()
@@ -1286,31 +1372,61 @@ with tab_regime:
 
         c1r, c2r, c3r = st.columns(3)
         c1r.metric("Totale segnali (EARLY+PRO)", n_tot_signals)
-        c2r.metric("% PRO", f"{(n_pro_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%")
-        c3r.metric("% EARLY", f"{(n_early_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%")
+        c2r.metric(
+            "% PRO",
+            f"{(n_pro_tot / n_tot_signals * 100):.1f}%"
+            if n_tot_signals
+            else "0.0%",
+        )
+        c3r.metric(
+            "% EARLY",
+            f"{(n_early_tot / n_tot_signals * 100):.1f}%"
+            if n_tot_signals
+            else "0.0%",
+        )
 
         st.markdown("**Top 10 momentum (Pro_Score + RSI)**")
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
         df_mom = df_all.sort_values("Momentum", ascending=False).head(10)
 
         cols_order = [
-            "Nome", "Ticker", "Prezzo",
-            "MarketCap", "Vol_Today", "Vol_7d_Avg",
-            "Pro_Score", "RSI",
-            "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum"
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "MarketCap",
+            "Vol_Today",
+            "Vol_7d_Avg",
+            "Pro_Score",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "ATR",
+            "Stato",
+            "Momentum",
         ]
         df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
         df_mom = add_formatted_cols(df_mom)
         df_mom = add_links(df_mom)
 
-        df_mom_show = df_mom[[
-            "Nome", "Ticker",
-            "Prezzo_fmt", "MarketCap_fmt",
-            "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-            "Pro_Score", "RSI",
-            "Vol_Ratio", "OBV_Trend", "ATR", "Stato", "Momentum",
-            "Yahoo", "Finviz",
-        ]]
+        df_mom_show = df_mom[
+            [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "OBV_Trend",
+                "ATR",
+                "Stato",
+                "Momentum",
+                "Yahoo",
+                "Finviz",
+            ]
+        ]
 
         st.dataframe(
             df_mom_show,
@@ -1324,7 +1440,10 @@ with tab_regime:
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
+
+        # ==========================
         # EXPORT MOMENTUM
+        # ==========================
         csv_data = df_mom.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export Momentum CSV",
@@ -1332,6 +1451,7 @@ with tab_regime:
             file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_mom_csv",
         )
 
         output = io.BytesIO()
@@ -1345,27 +1465,19 @@ with tab_regime:
             file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
-        )
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_mom["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
+            key="dl_mom_xlsx",
         )
 
+        # EXPORT Momentum TradingView (solo ticker)
         df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
-        csv_mom = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
+        csv_mom_tv = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
         st.download_button(
             "⬇️ CSV Top Momentum (solo ticker)",
-            data=csv_mom,
+            data=csv_mom_tv,
             file_name=f"signals_momentum_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_tv_mom",
         )
 
         def detect_market_simple(t):
@@ -1390,10 +1502,16 @@ with tab_regime:
 
         st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
         if not heat.empty:
-            st.dataframe(heat.sort_values("Momentum_med", ascending=False), use_container_width=True)
+            st.dataframe(
+                heat.sort_values("Momentum_med", ascending=False),
+                use_container_width=True,
+            )
         else:
             st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
+        # ==========================
+        # Watchlist Top Momentum
+        # ==========================
         options_regime = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
         ]
@@ -1402,11 +1520,15 @@ with tab_regime:
             options=options_regime,
             key="wl_regime",
         )
-        note_regime = st.text_input("Note comuni per questi ticker Momentum", key="note_wl_regime")
+        note_regime = st.text_input(
+            "Note comuni per questi ticker Momentum", key="note_wl_regime"
+        )
         if st.button("📌 Salva in Watchlist (Regime/Momentum)"):
             tickers = [s.split(" – ")[1] for s in selection_regime]
-            names   = [s.split(" – ")[0] for s in selection_regime]
-            add_to_watchlist(tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG")
+            names = [s.split(" – ")[0] for s in selection_regime]
+            add_to_watchlist(
+                tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG"
+            )
             st.success("Regime/Momentum salvati in watchlist.")
             st.rerun()
 
@@ -1570,7 +1692,9 @@ with tab_mtf:
                 },
             )
 
+            # ==========================
             # EXPORT MTF
+            # ==========================
             csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export MTF CSV",
@@ -1578,6 +1702,7 @@ with tab_mtf:
                 file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_mtf_csv",
             )
 
             output = io.BytesIO()
@@ -1591,9 +1716,10 @@ with tab_mtf:
                 file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
+                key="dl_mtf_xlsx",
             )
 
-            # EXPORT TradingView (solo ticker, come prima)
+            # EXPORT TradingView (solo ticker, top MTF_Score)
             df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
             csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
 
@@ -1603,6 +1729,7 @@ with tab_mtf:
                 file_name=f"signals_multitimeframe_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_tv_mtf_all",
             )
 
             # subset ALIGN_LONG / ALIGN_SHORT
@@ -1626,6 +1753,7 @@ with tab_mtf:
                     file_name=f"signals_mtf_align_long_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     use_container_width=True,
+                    key="dl_tv_mtf_long",
                 )
 
             if not mtf_short.empty:
@@ -1641,9 +1769,12 @@ with tab_mtf:
                     file_name=f"signals_mtf_align_short_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     use_container_width=True,
+                    key="dl_tv_mtf_short",
                 )
 
+            # ==========================
             # Watchlist da ALIGN_LONG
+            # ==========================
             options_mtf = [
                 f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
             ]
@@ -1664,7 +1795,6 @@ with tab_mtf:
                 )
                 st.success("MTF ALIGN_LONG salvati in watchlist.")
                 st.rerun()
-
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
@@ -1873,7 +2003,9 @@ with tab_finviz:
                     },
                 )
 
+                # ==========================
                 # EXPORT FINVIZ‑LIKE
+                # ==========================
                 csv_data = df_finviz_sel.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ Export Finviz‑like CSV",
@@ -1881,6 +2013,7 @@ with tab_finviz:
                     file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     use_container_width=True,
+                    key="dl_finviz_csv",
                 )
 
                 output = io.BytesIO()
@@ -1892,14 +2025,12 @@ with tab_finviz:
                     "⬇️ Export Finviz‑like XLSX",
                     data=data_xlsx,
                     file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime=(
-                        "application/vnd.openxmlformats-officedocument."
-                        "spreadsheetml.sheet"
-                    ),
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
+                    key="dl_finviz_xlsx",
                 )
 
-                # EXPORT TradingView (solo ticker)
+                # EXPORT TradingView (symbol, price)
                 df_finviz_tv = df_finviz_sel.rename(
                     columns={"Ticker": "symbol", "Price": "price"}
                 )[["symbol", "price"]].drop_duplicates()
@@ -1911,9 +2042,12 @@ with tab_finviz:
                     file_name=f"signals_finviz_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
                     use_container_width=True,
+                    key="dl_tv_finviz",
                 )
 
+                # ==========================
                 # Watchlist Finviz‑like
+                # ==========================
                 options_finviz = [
                     f"{row['Nome']} – {row['Ticker']}"
                     for _, row in df_finviz_sel.head(top).iterrows()
@@ -1956,7 +2090,6 @@ with tab_watch:
 
     df_wl = load_watchlist()
 
-
     if df_wl.empty:
         st.caption("Watchlist vuota.")
     else:
@@ -1979,14 +2112,16 @@ with tab_watch:
                 vol_7d_avg = float(vol.mean())
                 currency = info.get("currency", "USD")
 
-                records_mkt.append({
-                    "ticker": tkr,
-                    "Prezzo": price,
-                    "MarketCap": market_cap,
-                    "Vol_Today": vol_today,
-                    "Vol_7d_Avg": vol_7d_avg,
-                    "Currency": currency,
-                })
+                records_mkt.append(
+                    {
+                        "ticker": tkr,
+                        "Prezzo": price,
+                        "MarketCap": market_cap,
+                        "Vol_Today": vol_today,
+                        "Vol_7d_Avg": vol_7d_avg,
+                        "Currency": currency,
+                    }
+                )
             except Exception:
                 continue
 
@@ -2046,10 +2181,15 @@ with tab_watch:
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn(
+                    "TradingView", display_text="Apri"
+                ),
             },
         )
+
+        # ==========================
         # EXPORT WATCHLIST
+        # ==========================
         csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export Watchlist CSV",
@@ -2057,6 +2197,7 @@ with tab_watch:
             file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
+            key="dl_watch_csv",
         )
 
         output = io.BytesIO()
@@ -2070,7 +2211,9 @@ with tab_watch:
             file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
+            key="dl_watch_xlsx",
         )
+
         # EXPORT TradingView (solo ticker) dalla watchlist
         if "ticker" in df_wl.columns:
             tv_data = df_wl["ticker"].drop_duplicates().to_frame(name="symbol")
@@ -2082,6 +2225,7 @@ with tab_watch:
                 file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
+                key="dl_tv_watch",
             )
 
         st.markdown("---")
