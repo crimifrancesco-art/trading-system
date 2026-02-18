@@ -164,9 +164,9 @@ st.sidebar.title("⚙️ Configurazione")
 st.sidebar.subheader("📈 Selezione Mercati")
 m = {
     "Eurostoxx":   st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", False),
+    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", True),
     "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", True),
-    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", False),
+    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", True),
     "Dow":         st.sidebar.checkbox("🇺🇸 Dow Jones", False),
     "Russell":     st.sidebar.checkbox("🇺🇸 Russell 2000", False),
     "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
@@ -184,7 +184,23 @@ p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, 40, 5)
 p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, 70, 5)
 r_poc  = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 10.0, 2.0, 0.5) / 100
 
+st.sidebar.subheader("🔎 Filtri avanzati")
+
+# Finviz-like
+eps_next_y_min = st.sidebar.number_input("EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0)
+eps_next_5y_min = st.sidebar.number_input("EPS Growth Next 5Y min (%)", 0.0, 100.0, 15.0, 1.0)
+avg_vol_min_mln = st.sidebar.number_input("Avg Volume min (milioni)", 0.0, 100.0, 1.0, 0.5)
+price_min_finviz = st.sidebar.number_input("Prezzo min per filtro Finviz", 0.0, 5000.0, 10.0, 1.0)
+
+# Rea-Quant
+vol_ratio_hot = st.sidebar.number_input("Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1)
+
+# Momentum
+momentum_min = st.sidebar.number_input("Momentum minimo (Pro_Score*10+RSI)", 0.0, 2000.0, 0.0, 10.0)
+
+st.sidebar.subheader("📤 Output")
 top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, 15, 5)
+
 
 if not sel:
     st.warning("⚠️ Seleziona almeno un mercato dalla sidebar.")
@@ -772,6 +788,14 @@ with tab_rea_q:
     else:
         df_rea_q = df_rea_all.copy()
 
+        # porto dentro anche il prezzo dal dataframe principale
+        if "Prezzo" in df_ep.columns:
+            df_rea_q = df_rea_q.merge(
+                df_ep[["Ticker", "Prezzo"]],
+                on="Ticker",
+                how="left",
+            )
+
         def detect_market_rea(t):
             if t.endswith(".MI"):
                 return "FTSE"
@@ -1148,21 +1172,26 @@ with tab_mtf:
         if df_mtf.empty:
             st.caption("Nessun dato Multi‑Timeframe disponibile.")
         else:
+            
             df_mtf = df_mtf.merge(
                 df_ep[[
                     "Ticker", "Nome", "Pro_Score", "Stato",
-                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency"
+                    "MarketCap", "Vol_Today", "Vol_7d_Avg", "Currency",
+                    "Prezzo",
                 ]],
                 on="Ticker",
                 how="left"
             ).drop_duplicates(subset=["Ticker"])
 
+
             cols_order = [
                 "Nome", "Ticker",
-                "Prezzo",          # se non c'è, verrà ignorato
+                "Prezzo",
                 "MarketCap", "Vol_Today", "Vol_7d_Avg",
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato"
+            ]
+
             ]
             df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
             df_mtf = add_formatted_cols(df_mtf)
@@ -1176,18 +1205,14 @@ with tab_mtf:
 
             df_mtf_show = df_mtf_view[[
                 "Nome", "Ticker",
-                "Prezzo_fmt" if "Prezzo_fmt" in df_mtf_view.columns else "Prezzo",
-                "MarketCap_fmt",
+                "Prezzo_fmt", "MarketCap_fmt",
                 "Vol_Today_fmt", "Vol_7d_Avg_fmt",
                 "RSI_1D", "RSI_1W", "RSI_1M",
                 "MTF_Score", "Segnale_MTF", "Pro_Score", "Stato",
                 "Yahoo", "Finviz",
             ]]
-
-            # rinomino la colonna prezzo nel caso usi Prezzo_fmt
-            df_mtf_show = df_mtf_show.rename(
-                columns={"Prezzo_fmt": "Prezzo"}
-            )
+            df_mtf_show = df_mtf_show.rename(columns={"Prezzo_fmt": "Prezzo"})
+ 
 
             st.dataframe(
                 df_mtf_show,
