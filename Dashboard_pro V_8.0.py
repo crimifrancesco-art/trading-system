@@ -24,14 +24,13 @@ st.caption(
 )
 
 # -----------------------------------------------------------------------------
-# DB WATCHLIST (SQLite)
+# DB WATCHLIST (SQLite) + MIGRAZIONE TREND
 # -----------------------------------------------------------------------------
 DB_PATH = Path("watchlist.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    # Crea tabella base se non esiste
     c.execute(
         """
         CREATE TABLE IF NOT EXISTS watchlist (
@@ -45,13 +44,11 @@ def init_db():
         )
         """
     )
-    # MIGRAZIONE: aggiungi colonna trend se manca (vecchio DB)
+    # Migrazione: aggiungi colonna trend se DB vecchio
     try:
         c.execute("ALTER TABLE watchlist ADD COLUMN trend TEXT")
     except sqlite3.OperationalError:
-        # La colonna esiste già, ignora
         pass
-
     conn.commit()
     conn.close()
 
@@ -80,6 +77,22 @@ def load_watchlist():
         if col not in df.columns:
             df[col] = ""
     return df
+
+def update_watchlist_note(row_id, new_note):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
+    conn.commit()
+    conn.close()
+
+def delete_from_watchlist(ids):
+    if not ids:
+        return
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
+    conn.commit()
+    conn.close()
 
 init_db()
 
@@ -729,7 +742,6 @@ with tab_regime:
 
     if df_ep.empty or "Stato" not in df_ep.columns:
         st.caption("Nessun dato scanner disponibile.")
-        sheet_regime = pd.DataFrame()
     else:
         df_all = df_ep.copy()
         n_tot_signals = len(df_all)
@@ -784,8 +796,6 @@ with tab_regime:
             st.dataframe(heat.sort_values("Momentum_med", ascending=False), use_container_width=True)
         else:
             st.caption("Nessun dato sufficiente per la sintesi per mercato.")
-
-        sheet_regime = df_all.sort_values("Momentum", ascending=False)
 
         options_regime = [
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
@@ -958,20 +968,24 @@ with tab_mtf:
 # =============================================================================
 with tab_finviz:
     st.subheader("📊 Segnali stile Finviz")
+
+    with st.expander("📘 Legenda Filtri Finviz‑like"):
+        st.markdown(
+            "- **EPS Growth Next Year > 10%** (proxy: earningsGrowth di Yahoo Finance > 0.10).\n"
+            "- **EPS Growth Next 5 Years > 15%** (proxy: earningsQuarterlyGrowth > 0.15).\n"
+            "- **Average Volume > 1.000K**.\n"
+            "- **Options – Short available** (optionable = True).\n"
+            "- **Price > 10$**.\n"
+            "- **Relative Volume > 1** (vol corrente / avg vol > 1).\n"
+            "- **Price above SMA20 / SMA50 / SMA200** calcolate sui close giornalieri."
+        )
+
     st.markdown(
-        "Selezione interna dei titoli che soddisfano filtri equivalenti ai tuoi preset Finviz:\n"
-        "- EPS Growth Next Year > 10%\n"
-        "- EPS Growth Next 5 Years > 15%\n"
-        "- Average Volume > 1.000K\n"
-        "- Options – Short available\n"
-        "- Price > 10$\n"
-        "- Relative Volume > 1\n"
-        "- Price above SMA20, SMA50, SMA200"
+        "Vengono filtrati i titoli dell'universo scansionato che rispettano tutti i criteri sopra."
     )
 
     if df_ep.empty:
         st.caption("Nessun dato base disponibile per il filtro Finviz.")
-        df_finviz = pd.DataFrame()
     else:
         tickers_all = df_ep["Ticker"].unique().tolist()
 
@@ -987,8 +1001,8 @@ with tab_finviz:
                     if price is None:
                         price = np.nan
 
-                    eps_next_y = info.get("earningsGrowth")        # proxy EPS growth next year
-                    eps_next_5y = info.get("earningsQuarterlyGrowth")  # proxy EPS growth 5y (grezza)
+                    eps_next_y = info.get("earningsGrowth")
+                    eps_next_5y = info.get("earningsQuarterlyGrowth")
                     avg_vol = info.get("averageVolume")
                     rel_vol = info.get("regularMarketVolume") / avg_vol if avg_vol and avg_vol > 0 else np.nan
                     optionable = info.get("optionable", False)
@@ -1023,7 +1037,6 @@ with tab_finviz:
 
         if df_fund.empty:
             st.caption("Impossibile calcolare i filtri Finviz‑like (dati insufficienti).")
-            df_finviz = pd.DataFrame()
         else:
             df_finviz = df_fund.merge(
                 df_ep[["Ticker", "Nome", "Prezzo", "Pro_Score", "RSI", "Vol_Ratio", "Stato"]],
@@ -1109,7 +1122,7 @@ with tab_finviz:
 with tab_watch:
     st.subheader("📌 Watchlist & Note")
     st.markdown(
-        "Gestisci la watchlist centralizzata: almeno Nome, Ticker, Trend (LONG/SHORT), "
+        "Gestisci la watchlist centralizzata: Nome, Ticker, Trend (LONG/SHORT), "
         "più origine, note e data."
     )
 
@@ -1129,12 +1142,12 @@ with tab_watch:
         ids_to_delete = st.multiselect(
             "Seleziona ID da eliminare dalla watchlist:",
             options=df_watch["id"].tolist(),
-            format_func=lambda x: f"ID {x} – {df_watch[df_watch['id'] == x]['ticker'].iloc[0]}",
+            format_func=lambda x: f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} ({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})",
             key="wl_delete_ids",
         )
         if st.button("🗑️ Elimina selezionati"):
             delete_from_watchlist(ids_to_delete)
-            st.success("Righe eliminante dalla watchlist.")
+            st.success("Righe eliminate dalla watchlist.")
             st.rerun()
 
         st.markdown("**Modifica nota per singolo elemento**")
@@ -1202,4 +1215,3 @@ with tab_watch:
                 mime="application/pdf",
                 use_container_width=True,
             )
-
