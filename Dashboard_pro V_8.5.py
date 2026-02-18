@@ -1501,114 +1501,152 @@ with tab_finviz:
 # =============================================================================
 # 📌 WATCHLIST & NOTE
 # =============================================================================
+# =============================================================================
+# 📌 WATCHLIST & NOTE
+# =============================================================================
 with tab_watch:
     st.subheader("📌 Watchlist & Note")
-    st.markdown(
-        "Gestisci la watchlist centralizzata: Nome, Ticker, Trend (LONG/SHORT), "
-        "più origine, note e data."
-    )
 
-    col_w1, col_w2 = st.columns(2)
-    with col_w1:
-        if st.button("🔄 Refresh Watchlist"):
-            st.rerun()
-    with col_w2:
-        if st.button("🧨 Elimina intero DB Watchlist"):
-            reset_watchlist_db()
-            st.success("Watchlist azzerata. DB ricreato da zero.")
-            st.rerun()
+    df_wl = load_watchlist()
 
-    df_watch = load_watchlist()
-
-    if df_watch.empty:
-        st.caption("Watchlist vuota. Aggiungi ticker dalle varie tab dello scanner.")
+    if df_wl.empty:
+        st.caption("Watchlist vuota.")
     else:
-        st.dataframe(
-            df_watch[["id", "name", "ticker", "trend", "origine", "note", "created_at"]],
-            use_container_width=True,
+        # ---------------- Dati di mercato da Yahoo per i ticker in watchlist ----------------
+        tickers_wl = df_wl["ticker"].unique().tolist()
+        records_mkt = []
+        for tkr in tickers_wl:
+            try:
+                yt = yf.Ticker(tkr)
+                info = yt.info
+                hist = yt.history(period="7d")
+                if hist.empty:
+                    continue
+                close = hist["Close"]
+                vol = hist["Volume"]
+
+                price = float(close.iloc[-1])
+                market_cap = info.get("marketCap", np.nan)
+                vol_today = float(vol.iloc[-1])
+                vol_7d_avg = float(vol.mean())
+                currency = info.get("currency", "USD")
+
+                records_mkt.append({
+                    "ticker": tkr,
+                    "Prezzo": price,
+                    "MarketCap": market_cap,
+                    "Vol_Today": vol_today,
+                    "Vol_7d_Avg": vol_7d_avg,
+                    "Currency": currency,
+                })
+            except Exception:
+                continue
+
+        df_mkt = pd.DataFrame(records_mkt)
+
+        if not df_mkt.empty:
+            df_wl = df_wl.merge(df_mkt, on="ticker", how="left")
+
+        # formatto prezzo / market cap / volumi e aggiungo link Yahoo + TradingView
+        df_wl = add_formatted_cols(df_wl)
+        df_wl = add_links(df_wl)
+
+        # ---------------- Tabella principale watchlist ----------------
+        # etichetta leggibile ID – Nome (Ticker)
+        df_wl["ID_label"] = (
+            df_wl["id"].astype(str)
+            + " – "
+            + df_wl["name"].fillna("")
+            + " ("
+            + df_wl["ticker"]
+            + ")"
         )
 
-        ids_to_delete = st.multiselect(
-            "Seleziona ID da eliminare dalla watchlist:",
-            options=df_watch["id"].tolist(),
-            format_func=lambda x: (
-                f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} "
-                f"({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})"
-            ),
-            key="wl_delete_ids",
+        cols_show = [
+            "ID_label",
+            "trend",
+            "origine",
+            "note",
+            "created_at",
+        ]
+
+        # nuove colonne di mercato (se presenti)
+        if "Prezzo_fmt" in df_wl.columns:
+            cols_show.insert(1, "Prezzo_fmt")
+        if "MarketCap_fmt" in df_wl.columns:
+            cols_show.insert(2, "MarketCap_fmt")
+        if "Vol_Today_fmt" in df_wl.columns:
+            cols_show.insert(3, "Vol_Today_fmt")
+        if "Vol_7d_Avg_fmt" in df_wl.columns:
+            cols_show.insert(4, "Vol_7d_Avg_fmt")
+
+        # colonne link alla fine
+        if "Yahoo" in df_wl.columns:
+            cols_show.append("Yahoo")
+        if "Finviz" in df_wl.columns:
+            cols_show.append("Finviz")  # contiene link TradingView
+
+        df_wl_view = df_wl[cols_show]
+
+        st.dataframe(
+            df_wl_view,
+            use_container_width=True,
+            column_config={
+                "ID_label": "ID – Nome (Ticker)",
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+            },
         )
-        if st.button("🗑️ Elimina selezionati"):
-            delete_from_watchlist(ids_to_delete)
-            st.success("Righe eliminate dalla watchlist.")
+
+        st.markdown("---")
+
+        # ---------------- Modifica note ----------------
+        st.subheader("✏️ Modifica nota per una riga")
+
+        id_options = df_wl["id"].astype(str).tolist()
+        id_labels = df_wl["ID_label"].tolist()
+        id_map = dict(zip(id_labels, id_options))
+
+        selected_row = st.selectbox(
+            "Seleziona riga da modificare:",
+            options=id_labels,
+            key="wl_edit_row",
+        )
+        row_id = id_map[selected_row]
+
+        current_note = df_wl.loc[df_wl["id"] == int(row_id), "note"].values[0]
+        new_note = st.text_area("Nota", value=current_note, key="wl_edit_note")
+
+        if st.button("💾 Salva nota"):
+            update_watchlist_note(row_id, new_note)
+            st.success("Nota aggiornata.")
             st.rerun()
 
-        st.markdown("**Modifica nota per singolo elemento**")
-        id_edit = st.selectbox(
-            "Seleziona ID per modificare la nota:",
-            options=[None] + df_watch["id"].tolist(),
-            format_func=lambda x: (
-                "—"
-                if x is None
-                else f"ID {x} – {df_watch[df_watch['id'] == x]['name'].iloc[0]} "
-                     f"({df_watch[df_watch['id'] == x]['ticker'].iloc[0]})"
-            ),
-            key="wl_edit_id",
+        # ---------------- Eliminazione righe ----------------
+        st.subheader("🗑️ Elimina righe dalla Watchlist")
+
+        del_rows = st.multiselect(
+            "Seleziona righe da eliminare:",
+            options=id_labels,
+            key="wl_delete_rows",
         )
-        if id_edit is not None:
-            old_note = df_watch.loc[df_watch["id"] == id_edit, "note"].iloc[0]
-            new_note = st.text_area("Nuova nota:", value=old_note, key="wl_edit_note")
-            if st.button("💾 Salva nota aggiornata"):
-                update_watchlist_note(id_edit, new_note)
-                st.success("Nota aggiornata.")
+        del_ids = [id_map[label] for label in del_rows]
+
+        col_del1, col_del2 = st.columns(2)
+        with col_del1:
+            if st.button("❌ Elimina selezionate"):
+                delete_from_watchlist(del_ids)
+                st.success("Righe eliminate dalla watchlist.")
                 st.rerun()
 
-        csv_watch = df_watch.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Esporta Watchlist in CSV",
-            data=csv_watch,
-            file_name=f"watchlist_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+        # ---------------- Reset completo DB ----------------
+        st.subheader("⚠️ Reset completo Watchlist DB")
 
-        def build_watchlist_pdf(df: pd.DataFrame) -> bytes:
-            pdf = FPDF()
-            pdf.set_auto_page_break(auto=True, margin=15)
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 14)
-            pdf.cell(0, 10, "Watchlist – Trading Scanner PRO 8.0", ln=True)
-
-            pdf.set_font("Arial", "", 10)
-            pdf.cell(0, 8, f"Generato il: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
-            pdf.ln(4)
-
-            pdf.set_font("Arial", "B", 9)
-            pdf.cell(20, 8, "Ticker", 1)
-            pdf.cell(50, 8, "Nome", 1)
-            pdf.cell(20, 8, "Trend", 1)
-            pdf.cell(25, 8, "Origine", 1)
-            pdf.cell(75, 8, "Note", 1)
-            pdf.ln(8)
-
-            pdf.set_font("Arial", "", 8)
-            for _, row in df.iterrows():
-                pdf.cell(20, 6, str(row["ticker"])[:12], 1)
-                pdf.cell(50, 6, str(row["name"])[:28], 1)
-                pdf.cell(20, 6, str(row["trend"])[:10], 1)
-                pdf.cell(25, 6, str(row["origine"])[:12], 1)
-                note_txt = (str(row["note"])[:70]) if row["note"] else ""
-                pdf.cell(75, 6, note_txt, 1)
-                pdf.ln(6)
-
-            pdf_bytes = pdf.output(dest="S").encode("latin-1", "ignore")
-            return pdf_bytes
-
-        if st.button("📄 Genera PDF Watchlist"):
-            pdf_bytes = build_watchlist_pdf(df_watch)
-            st.download_button(
-                "⬇️ Download PDF Watchlist",
-                data=pdf_bytes,
-                file_name=f"watchlist_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
+        if st.button("🧨 Elimina TUTTO il DB Watchlist e riparti da zero"):
+            reset_watchlist_db()
+            st.success("Watchlist azzerata.")
+            st.rerun()
