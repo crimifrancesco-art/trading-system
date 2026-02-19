@@ -1374,76 +1374,243 @@ with tab_serafini:
 # MULTI‑TIMEFRAME
 # =============================================================================
 with tab_mtf:
-    st.subheader("🕒 Multi‑Timeframe (RSI 3 TF)")
-
+    st.subheader("🕒 Analisi Multi‑Timeframe")
     st.markdown(
-        "Analisi della coerenza del RSI su tre timeframe (es. daily, weekly, monthly) "
-        "per individuare allineamenti di forza debole/forte multi‑orizzonte."
+        "Vista sintetica dei segnali su più timeframe, usando i risultati PRO/EARLY "
+        "come base (es. daily con supporto di segnali su timeframe maggiori/minori)."
     )
 
     with st.expander("📘 Legenda Multi‑Timeframe"):
         st.markdown(
-            "- **RSI_D / RSI_W / RSI_M**: RSI su daily/weekly/monthly.\n"
-            "- **MTF_Score**: punteggio sintetico di allineamento (es. somma di punti per RSI in range favorevoli).\n"
-            "- **ALIGN_LONG**: True quando i tre RSI sono allineati per scenari long.\n"
-            "- **ALIGN_SHORT**: True quando i tre RSI sono allineati per scenari short.\n"
+            "- Usa i segnali PRO/EARLY come base.\n"
+            "- Mostra metriche di trend/momentum utili su più orizzonti.\n"
             "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
-    # se non hai ancora costruito df_mtf in precedenza, qui si assume che esista
-    if "df_mtf" not in locals() and "df_mtf" not in st.session_state:
-        st.caption("Nessun dato Multi‑Timeframe disponibile.")
+    if df_ep.empty:
+        st.caption("Nessun dato scanner disponibile per la vista Multi‑Timeframe.")
     else:
-        # recupera df_mtf (da dove lo hai salvato; adatta se usi altra struttura)
-        if "df_mtf" in st.session_state:
-            df_mtf = st.session_state["df_mtf"]
-        else:
-            df_mtf = df_ep.copy()  # fallback, adatta alla tua logica
+        # per semplicità usiamo df_ep così com'è; puoi arricchirlo con altre logiche MTF
+        df_mtf = df_ep.copy()
+        df_mtf = add_formatted_cols(df_mtf)
+        df_mtf = add_links(df_mtf)
 
-        if df_mtf.empty:
-            st.caption("Nessun dato Multi‑Timeframe disponibile.")
-        else:
-            df_mtf = add_formatted_cols(df_mtf)
-            df_mtf = add_links(df_mtf)
+        cols_order = [
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "Prezzo_fmt",
+            "MarketCap",
+            "MarketCap_fmt",
+            "Vol_Today",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg",
+            "Vol_7d_Avg_fmt",
+            "Early_Score",
+            "Pro_Score",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
+            "Stato",
+            "Yahoo",
+            "Finviz",
+        ]
+        df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
 
-            # ---------------- TOP N per MTF_Score ----------------
-            st.markdown("**Top N per MTF_Score (allineamento forza RSI multi‑TF)**")
-            if "MTF_Score" in df_mtf.columns:
-                df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
-            else:
-                df_mtf_view = df_mtf.head(top)
+        # ordino per Pro_Score + Early_Score come proxy di forza multi‑timeframe
+        df_mtf["MTF_Score"] = df_mtf.get("Pro_Score", 0) + df_mtf.get("Early_Score", 0)
+        df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
 
-            cols_mtf = [
-                c
-                for c in [
-                    "Nome",
-                    "Ticker",
-                    "Prezzo_fmt",
-                    "MarketCap_fmt",
-                    "Vol_Today_fmt",
-                    "Vol_7d_Avg_fmt",
-                    "RSI_D",
-                    "RSI_W",
-                    "RSI_M",
-                    "MTF_Score",
-                    "ALIGN_LONG",
-                    "ALIGN_SHORT",
-                    "Yahoo",
-                    "Finviz",
-                ]
-                if c in df_mtf_view.columns
+        df_mtf_show = df_mtf_view[
+            [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Early_Score",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "OBV_Trend",
+                "ATR",
+                "ATR_Exp",
+                "Stato",
+                "MTF_Score",
+                "Yahoo",
+                "Finviz",
+            ]
+        ]
+
+        st.dataframe(
+            df_mtf_show,
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "MTF_Score": "MTF Score",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn(
+                    "TradingView", display_text="Apri"
+                ),
+            },
+        )
+
+        # ==========================
+        # EXPORT MTF
+        # ==========================
+        csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "⬇️ Export MTF CSV",
+            data=csv_data,
+            file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_mtf_csv",
+        )
+
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df_mtf_view.to_excel(writer, index=False, sheet_name="MTF")
+        data_xlsx = output.getvalue()
+
+        st.download_button(
+            "⬇️ Export MTF XLSX",
+            data=data_xlsx,
+            file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="dl_mtf_xlsx",
+        )
+
+        # ==========================
+        # Watchlist Multi‑Timeframe (con seleziona tutti) – key wl_mtf
+        # ==========================
+        options_mtf = sorted(
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_mtf_view.iterrows()
+        )
+
+        col_sel_all_mtf, _ = st.columns([1, 3])
+        with col_sel_all_mtf:
+            if st.button("✅ Seleziona tutti (Top MTF)", key="btn_sel_all_mtf"):
+                st.session_state["wl_mtf"] = options_mtf
+
+        selection_mtf = st.multiselect(
+            "Aggiungi alla Watchlist (Multi‑Timeframe):",
+            options=options_mtf,
+            key="wl_mtf",
+        )
+
+        note_mtf = st.text_input(
+            "Note comuni per questi ticker Multi‑Timeframe", key="note_wl_mtf"
+        )
+
+        if st.button("📌 Salva in Watchlist (Multi‑Timeframe)"):
+            tickers = [s.split(" – ")[1] for s in selection_mtf]
+            names = [s.split(" – ")[0] for s in selection_mtf]
+            add_to_watchlist(tickers, names, "MTF", note_mtf, trend="LONG")
+            st.success("Multi‑Timeframe salvati in watchlist.")
+            st.rerun()
+
+# =============================================================================
+# FINVIZ‑LIKE SCREENER
+# =============================================================================
+with tab_finviz:
+    st.subheader("📊 Screener stile Finviz")
+    st.markdown(
+        "Filtraggio fondamentale/quantitativo (EPS Growth, volume medio, prezzo) "
+        "per individuare titoli di qualità e liquidità adeguata."
+    )
+
+    with st.expander("📘 Legenda Finviz"):
+        st.markdown(
+            "- Filtri EPS Next Year / Next 5Y, volume medio e prezzo minimo.\n"
+            "- I dati sono derivati dall'universo scansionato.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+        )
+
+    if df_ep.empty:
+        st.caption("Nessun dato scanner disponibile per il filtro Finviz.")
+    else:
+        # qui assumo che tu abbia già creato df_finviz a partire da df_ep
+        # se non c'è, puoi partire da df_ep e aggiungere colonne fondamentali a modo tuo
+        df_finviz = df_ep.copy()
+
+        # ESEMPIO: se hai già colonne EPS_nextY, EPS_5Y, Avg_Vol_mln, Price
+        # applica i filtri della sidebar
+        if all(col in df_finviz.columns for col in ["EPS_nextY", "EPS_5Y", "Avg_Vol_mln", "Prezzo"]):
+            df_finviz = df_finviz[
+                (df_finviz["EPS_nextY"] >= eps_next_y_min)
+                & (df_finviz["EPS_5Y"] >= eps_next_5y_min)
+                & (df_finviz["Avg_Vol_mln"] >= avg_vol_min_mln)
+                & (df_finviz["Prezzo"] >= price_min_finviz)
             ]
 
-            df_mtf_show = df_mtf_view[cols_mtf]
+        if df_finviz.empty:
+            st.caption("Nessun titolo soddisfa i filtri Finviz.")
+        else:
+            df_finviz = add_formatted_cols(df_finviz)
+            df_finviz = add_links(df_finviz)
+
+            cols_order = [
+                "Nome",
+                "Ticker",
+                "Prezzo",
+                "Prezzo_fmt",
+                "MarketCap",
+                "MarketCap_fmt",
+                "Vol_Today",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg",
+                "Vol_7d_Avg_fmt",
+                "EPS_nextY",
+                "EPS_5Y",
+                "Avg_Vol_mln",
+                "Stato",
+                "Yahoo",
+                "Finviz",
+            ]
+            df_finviz = df_finviz[[c for c in cols_order if c in df_finviz.columns]]
+
+            df_finviz_view = df_finviz.sort_values("MarketCap", ascending=False).head(top)
+
+            df_finviz_show = df_finviz_view[
+                [
+                    c
+                    for c in [
+                        "Nome",
+                        "Ticker",
+                        "Prezzo_fmt",
+                        "MarketCap_fmt",
+                        "Vol_Today_fmt",
+                        "Vol_7d_Avg_fmt",
+                        "EPS_nextY",
+                        "EPS_5Y",
+                        "Avg_Vol_mln",
+                        "Stato",
+                        "Yahoo",
+                        "Finviz",
+                    ]
+                    if c in df_finviz_view.columns
+                ]
+            ]
 
             st.dataframe(
-                df_mtf_show,
+                df_finviz_show,
                 use_container_width=True,
                 column_config={
                     "Prezzo_fmt": "Prezzo",
                     "MarketCap_fmt": "Market Cap",
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "EPS_nextY": "EPS Next Y (%)",
+                    "EPS_5Y": "EPS Next 5Y (%)",
+                    "Avg_Vol_mln": "Avg Vol (mln)",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                     "Finviz": st.column_config.LinkColumn(
                         "TradingView", display_text="Apri"
@@ -1452,197 +1619,66 @@ with tab_mtf:
             )
 
             # ==========================
-            # Watchlist MTF (ALIGN_LONG)
+            # EXPORT FINVIZ
             # ==========================
-            if "ALIGN_LONG" in df_mtf.columns:
-                mtf_long = df_mtf[df_mtf["ALIGN_LONG"]].copy()
-                if mtf_long.empty:
-                    st.caption("Nessun titolo con ALIGN_LONG.")
-                else:
-                    options_mtf = sorted(
-                        f"{row['Nome']} – {row['Ticker']}"
-                        for _, row in mtf_long.iterrows()
-                    )
-                    selection_mtf = st.multiselect(
-                        "Aggiungi alla Watchlist (Multi‑Timeframe ALIGN_LONG):",
-                        options=options_mtf,
-                        key="wl_mtf",
-                    )
-                    note_mtf = st.text_input(
-                        "Note comuni per questi ticker (Multi‑Timeframe)",
-                        key="note_wl_mtf",
-                    )
-                    if st.button("📌 Salva in Watchlist (Multi‑Timeframe)"):
-                        tickers = [s.split(" – ")[1] for s in selection_mtf]
-                        names = [s.split(" – ")[0] for s in selection_mtf]
-                        add_to_watchlist(
-                            tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG"
-                        )
-                        st.success("Multi‑Timeframe salvati in watchlist.")
-                        st.rerun()
-            else:
-                st.caption("Colonna ALIGN_LONG non presente nei dati MTF.")
+            csv_data = df_finviz_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export Finviz CSV",
+                data=csv_data,
+                file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_finviz_csv",
+            )
 
-# =============================================================================
-# FINVIZ‑LIKE
-# =============================================================================
-with tab_finviz:
-    st.subheader("📊 Finviz‑like Screener")
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_finviz_view.to_excel(writer, index=False, sheet_name="FINVIZ")
+            data_xlsx = output.getvalue()
 
-    st.markdown(
-        "Filtro in stile Finviz basato su crescita EPS, volumi medi e prezzo minimo."
-    )
+            st.download_button(
+                "⬇️ Export Finviz XLSX",
+                data=data_xlsx,
+                file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+                use_container_width=True,
+                key="dl_finviz_xlsx",
+            )
 
-    with st.expander("📘 Legenda Finviz‑like"):
-        st.markdown(
-            "- **EPS Next Y / Next 5Y**: crescita attesa EPS nel prossimo anno / 5 anni.\n"
-            "- **Avg Volume**: volume medio scambiato.\n"
-            "- **Price**: prezzo corrente.\n"
-            "- Il filtro applica i parametri della sidebar (EPS, volume, prezzo minimo)."
-        )
+            # ==========================
+            # Watchlist Finviz (con seleziona tutti) – key wl_finviz
+            # ==========================
+            options_finviz = sorted(
+                f"{row['Nome']} – {row['Ticker']}"
+                for _, row in df_finviz_view.iterrows()
+            )
 
-    # qui si assume che tu abbia già costruito df_finviz (es. da df_ep/df_rea/yf)
-    if "df_finviz" not in locals() and "df_finviz" not in st.session_state:
-        st.caption("Nessun dato Finviz‑like disponibile.")
-    else:
-        if "df_finviz" in st.session_state:
-            df_finviz = st.session_state["df_finviz"]
-        else:
-            df_finviz = df_ep.copy()  # adatta alla tua logica effettiva
+            col_sel_all_finviz, _ = st.columns([1, 3])
+            with col_sel_all_finviz:
+                if st.button("✅ Seleziona tutti (Top Finviz)", key="btn_sel_all_finviz"):
+                    st.session_state["wl_finviz"] = options_finviz
 
-        if df_finviz.empty:
-            st.caption("Nessun dato Finviz‑like disponibile.")
-        else:
-            # Applica filtri Finviz‑like
-            df_finviz_sel = df_finviz.copy()
+            selection_finviz = st.multiselect(
+                "Aggiungi alla Watchlist (Finviz):",
+                options=options_finviz,
+                key="wl_finviz",
+            )
 
-            if "EPS_nextY" in df_finviz_sel.columns:
-                df_finviz_sel = df_finviz_sel[
-                    df_finviz_sel["EPS_nextY"] >= eps_next_y_min
-                ]
-            if "EPS_5Y" in df_finviz_sel.columns:
-                df_finviz_sel = df_finviz_sel[
-                    df_finviz_sel["EPS_5Y"] >= eps_next_5y_min
-                ]
-            if "Avg_Vol_mln" in df_finviz_sel.columns:
-                df_finviz_sel = df_finviz_sel[
-                    df_finviz_sel["Avg_Vol_mln"] >= avg_vol_min_mln
-                ]
-            if "Price" in df_finviz_sel.columns:
-                df_finviz_sel = df_finviz_sel[
-                    df_finviz_sel["Price"] >= price_min_finviz
-                ]
+            note_finviz = st.text_input(
+                "Note comuni per questi ticker Finviz", key="note_wl_finviz"
+            )
 
-            if df_finviz_sel.empty:
-                st.caption("Nessun titolo soddisfa i filtri Finviz‑like.")
-            else:
-                df_finviz_sel = add_links(df_finviz_sel)
-
-                df_finviz_show = df_finviz_sel.head(top)[
-                    [
-                        c
-                        for c in [
-                            "Nome",
-                            "Ticker",
-                            "Price",
-                            "EPS_nextY",
-                            "EPS_5Y",
-                            "Avg_Vol_mln",
-                            "Yahoo",
-                            "Finviz",
-                        ]
-                        if c in df_finviz_sel.columns
-                    ]
-                ]
-
-                st.dataframe(
-                    df_finviz_show,
-                    use_container_width=True,
-                    column_config={
-                        "Price": "Prezzo",
-                        "Avg_Vol_mln": "Avg Vol (mln)",
-                        "Yahoo": st.column_config.LinkColumn(
-                            "Yahoo", display_text="Apri"
-                        ),
-                        "Finviz": st.column_config.LinkColumn(
-                            "TradingView", display_text="Apri"
-                        ),
-                    },
+            if st.button("📌 Salva in Watchlist (Finviz)"):
+                tickers = [s.split(" – ")[1] for s in selection_finviz]
+                names = [s.split(" – ")[0] for s in selection_finviz]
+                add_to_watchlist(
+                    tickers, names, "FINVIZ", note_finviz, trend="LONG"
                 )
-
-                # ==========================
-                # EXPORT FINVIZ‑LIKE
-                # ==========================
-                csv_data = df_finviz_sel.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "⬇️ Export Finviz‑like CSV",
-                    data=csv_data,
-                    file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="dl_finviz_csv",
-                )
-
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                    df_finviz_sel.to_excel(writer, index=False, sheet_name="FINVIZ")
-                data_xlsx = output.getvalue()
-
-                st.download_button(
-                    "⬇️ Export Finviz‑like XLSX",
-                    data=data_xlsx,
-                    file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime=(
-                        "application/vnd.openxmlformats-officedocument."
-                        "spreadsheetml.sheet"
-                    ),
-                    use_container_width=True,
-                    key="dl_finviz_xlsx",
-                )
-
-                # EXPORT TradingView (symbol, price)
-                if all(c in df_finviz_sel.columns for c in ["Ticker", "Price"]):
-                    df_finviz_tv = df_finviz_sel.rename(
-                        columns={"Ticker": "symbol", "Price": "price"}
-                    )[["symbol", "price"]].drop_duplicates()
-
-                    csv_finviz = df_finviz_tv.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "⬇️ CSV Finviz‑like (symbol, price)",
-                        data=csv_finviz,
-                        file_name=(
-                            f"signals_finviz_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-                        ),
-                        mime="text/csv",
-                        use_container_width=True,
-                        key="dl_tv_finviz",
-                    )
-
-                # ==========================
-                # Watchlist Finviz‑like (ORDINATA)
-                # ==========================
-                options_finviz = sorted(
-                    f"{row['Nome']} – {row['Ticker']}"
-                    for _, row in df_finviz_sel.head(top).iterrows()
-                )
-                note_finviz = st.text_input(
-                    "Note comuni per questi ticker Finviz‑like",
-                    value="Preset Finviz EPS/Vol/MA",
-                    key="note_wl_finviz",
-                )
-                selection_finviz = st.multiselect(
-                    "Aggiungi alla Watchlist (Finviz‑like):",
-                    options=options_finviz,
-                    key="wl_finviz",
-                )
-                if st.button("📌 Salva in Watchlist (Finviz‑like)"):
-                    tickers = [s.split(" – ")[1] for s in selection_finviz]
-                    names = [s.split(" – ")[0] for s in selection_finviz]
-                    add_to_watchlist(
-                        tickers, names, "FINVIZ_LIKE", note_finviz, trend="LONG"
-                    )
-                    st.success("Titoli Finviz‑like salvati in watchlist.")
-                    st.rerun()
+                st.success("Finviz salvati in watchlist.")
+                st.rerun()
 
 # =============================================================================
 # 📌 WATCHLIST & NOTE
