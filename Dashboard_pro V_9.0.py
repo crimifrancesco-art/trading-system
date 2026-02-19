@@ -672,13 +672,15 @@ if st.button("📌 Salva in Watchlist (EARLY)"):
 with tab_p:
     st.subheader("🟣 Segnali PRO")
     st.markdown(
-        f"Filtro PRO: titoli con **Stato = PRO** (prezzo sopra EMA20, RSI tra {p_rmin} e {p_rmax}, "
+        f"Filtro PRO: titoli con **Stato = PRO** "
+        f"(prezzo sopra EMA20, RSI tra {p_rmin} e {p_rmax}, "
         "Vol_Ratio > 1.2, Pro_Score elevato)."
     )
 
     with st.expander("📘 Legenda PRO"):
         st.markdown(
-            "- **Pro_Score**: punteggio composito (prezzo sopra EMA20, RSI nel range, volume sopra media).\n"
+            "- **Pro_Score**: punteggio composito (prezzo sopra EMA20, RSI nel range, "
+            "volume sopra media).\n"
             "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **OBV_Trend**: UP/DOWN in base alla pendenza media OBV 5 periodi.\n"
@@ -805,9 +807,7 @@ with tab_p:
                 "Vol_Ratio": "volume_ratio",
                 "OBV_Trend": "obv_trend",
             }
-        )[
-            ["symbol", "price", "rsi", "volume_ratio", "obv_trend"]
-        ]
+        )[[ "symbol", "price", "rsi", "volume_ratio", "obv_trend" ]]
         csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
         st.download_button(
@@ -819,33 +819,32 @@ with tab_p:
             key="dl_pro_tv_full",
         )
 
-# ==========================
-# Watchlist PRO (con seleziona tutti)
-# ==========================
-options_pro = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
-)
+        # ==========================
+        # Watchlist PRO (con seleziona tutti)
+        # ==========================
+        options_pro = sorted(
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
+        )
 
-col_sel_all, _ = st.columns([1, 3])
-with col_sel_all:
-    if st.button("✅ Seleziona tutti (Top N PRO)", key="btn_sel_all_pro"):
-        st.session_state["wl_pro"] = options_pro
+        col_sel_all_pro, _ = st.columns([1, 3])
+        with col_sel_all_pro:
+            if st.button("✅ Seleziona tutti (Top N PRO)", key="btn_sel_all_pro"):
+                st.session_state["wl_pro"] = options_pro
 
-selection_pro = st.multiselect(
-    "Aggiungi alla Watchlist (PRO):",
-    options=options_pro,
-    key="wl_pro",
-)
-note_pro = st.text_input(
-    "Note comuni per questi ticker PRO", key="note_wl_pro"
-)
-if st.button("📌 Salva in Watchlist (PRO)"):
-    tickers = [s.split(" – ")[1] for s in selection_pro]
-    names = [s.split(" – ")[0] for s in selection_pro]
-    add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
-    st.success("PRO salvati in watchlist.")
-    st.rerun()
-
+        selection_pro = st.multiselect(
+            "Aggiungi alla Watchlist (PRO):",
+            options=options_pro,
+            key="wl_pro",
+        )
+        note_pro = st.text_input(
+            "Note comuni per questi ticker PRO", key="note_wl_pro"
+        )
+        if st.button("📌 Salva in Watchlist (PRO)"):
+            tickers = [s.split(" – ")[1] for s in selection_pro]
+            names = [s.split(" – ")[0] for s in selection_pro]
+            add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
+            st.success("PRO salvati in watchlist.")
+            st.rerun()
 # =============================================================================
 # REA‑QUANT (segnali)
 # =============================================================================
