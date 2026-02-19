@@ -1851,191 +1851,214 @@ with tab_watch:
     df_wl = load_watchlist()
     if df_wl.empty:
         st.caption("Watchlist vuota.")
-    else:
-        # ---------------- Dati di mercato da Yahoo per i ticker in watchlist ----------------
-        tickers_wl = df_wl["ticker"].unique().tolist()
-        records_mkt = []
-        for tkr in tickers_wl:
-            try:
-                yt = yf.Ticker(tkr)
-                info = yt.info
-                hist = yt.history(period="7d")
-                if hist.empty:
-                    continue
-                close = hist["Close"]
-                vol = hist["Volume"]
+        st.stop()
 
-                price = float(close.iloc[-1])
-                market_cap = info.get("marketCap", np.nan)
-                vol_today = float(vol.iloc[-1])
-                vol_7d_avg = float(vol.mean())
-                currency = info.get("currency", "USD")
+    # ---------------- Filtri rapidi origine / trend ----------------
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        origine_filter = st.selectbox(
+            "Filtro origine:",
+            options=["Tutte"] + sorted(df_wl["origine"].unique().tolist()),
+            index=0,
+            key="wl_filter_origine",
+        )
+    with col_f2:
+        trend_filter = st.selectbox(
+            "Filtro trend:",
+            options=["Tutti"] + sorted(df_wl["trend"].unique().tolist()),
+            index=0,
+            key="wl_filter_trend",
+        )
 
-                records_mkt.append(
-                    {
-                        "ticker": tkr,
-                        "Prezzo": price,
-                        "MarketCap": market_cap,
-                        "Vol_Today": vol_today,
-                        "Vol_7d_Avg": vol_7d_avg,
-                        "Currency": currency,
-                    }
-                )
-            except Exception:
+    df_wl_filt = df_wl.copy()
+    if origine_filter != "Tutte":
+        df_wl_filt = df_wl_filt[df_wl_filt["origine"] == origine_filter]
+    if trend_filter != "Tutti":
+        df_wl_filt = df_wl_filt[df_wl_filt["trend"] == trend_filter]
+
+    if df_wl_filt.empty:
+        st.caption("Nessuna riga corrisponde ai filtri selezionati.")
+        st.stop()
+
+    # ---------------- Dati di mercato da Yahoo per i ticker filtrati ----------------
+    tickers_wl = df_wl_filt["ticker"].unique().tolist()
+    records_mkt = []
+    for tkr in tickers_wl:
+        try:
+            yt = yf.Ticker(tkr)
+            info = yt.info
+            hist = yt.history(period="7d")
+            if hist.empty:
                 continue
+            close = hist["Close"]
+            vol = hist["Volume"]
 
-        df_mkt = pd.DataFrame(records_mkt)
+            price = float(close.iloc[-1])
+            market_cap = info.get("marketCap", np.nan)
+            vol_today = float(vol.iloc[-1])
+            vol_7d_avg = float(vol.mean())
+            currency = info.get("currency", "USD")
 
-        if not df_mkt.empty:
-            df_wl = df_wl.merge(df_mkt, on="ticker", how="left")
-
-        # formatto prezzo / market cap / volumi e aggiungo link Yahoo + TradingView
-        df_wl = add_formatted_cols(df_wl)
-        df_wl = add_links(df_wl)
-
-        # ---------------- Tabella principale watchlist ----------------
-        # etichetta leggibile ID | Nome | Ticker (ma i campi restano separati)
-        df_wl["label"] = (
-            df_wl["id"].astype(str)
-            + " | "
-            + df_wl["name"].fillna("")
-            + " | "
-            + df_wl["ticker"].fillna("")
-        )
-
-        # ordino alfabeticamente per nome (e poi per ticker)
-        df_wl = df_wl.sort_values(["name", "ticker"])
-
-        cols_show = [
-            "label",
-            "trend",
-            "origine",
-            "note",
-            "created_at",
-        ]
-
-        # nuove colonne di mercato (se presenti)
-        if "Prezzo_fmt" in df_wl.columns:
-            cols_show.insert(1, "Prezzo_fmt")
-        if "MarketCap_fmt" in df_wl.columns:
-            cols_show.insert(2, "MarketCap_fmt")
-        if "Vol_Today_fmt" in df_wl.columns:
-            cols_show.insert(3, "Vol_Today_fmt")
-        if "Vol_7d_Avg_fmt" in df_wl.columns:
-            cols_show.insert(4, "Vol_7d_Avg_fmt")
-
-        # colonne link alla fine
-        if "Yahoo" in df_wl.columns:
-            cols_show.append("Yahoo")
-        if "Finviz" in df_wl.columns:
-            cols_show.append("Finviz")  # contiene link TradingView
-
-        df_wl_view = df_wl[cols_show]
-
-        st.dataframe(
-            df_wl_view,
-            use_container_width=True,
-            column_config={
-                "label": "ID | Nome | Ticker",
-                "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn(
-                    "TradingView", display_text="Apri"
-                ),
-            },
-        )
-
-        # ==========================
-        # EXPORT WATCHLIST
-        # ==========================
-        csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export Watchlist CSV",
-            data=csv_data,
-            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_watch_csv",
-        )
-
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_wl_view.to_excel(writer, index=False, sheet_name="WATCHLIST")
-        data_xlsx = output.getvalue()
-
-        st.download_button(
-            "⬇️ Export Watchlist XLSX",
-            data=data_xlsx,
-            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_watch_xlsx",
-        )
-
-        # EXPORT TradingView (solo ticker) dalla watchlist
-        if "ticker" in df_wl.columns:
-            tv_data = df_wl["ticker"].drop_duplicates().to_frame(name="symbol")
-            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-            st.download_button(
-                "⬇️ Export Watchlist TradingView (solo ticker)",
-                data=csv_tv,
-                file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_tv_watch",
+            records_mkt.append(
+                {
+                    "ticker": tkr,
+                    "Prezzo": price,
+                    "MarketCap": market_cap,
+                    "Vol_Today": vol_today,
+                    "Vol_7d_Avg": vol_7d_avg,
+                    "Currency": currency,
+                }
             )
+        except Exception:
+            continue
 
-        st.markdown("---")
+    df_mkt = pd.DataFrame(records_mkt)
 
-        # ---------------- Modifica note ----------------
-        st.subheader("✏️ Modifica nota per una riga")
+    if not df_mkt.empty:
+        df_wl_filt = df_wl_filt.merge(df_mkt, on="ticker", how="left")
 
-        # uso le label ordinate per nome (già ordinato sopra)
-        id_options = df_wl["id"].astype(str).tolist()
-        labels = df_wl["label"].tolist()
-        id_map = dict(zip(labels, id_options))
+    # formatto prezzo / market cap / volumi e aggiungo link Yahoo + TradingView
+    df_wl_filt = add_formatted_cols(df_wl_filt)
+    df_wl_filt = add_links(df_wl_filt)
 
-        selected_row = st.selectbox(
-            "Seleziona riga da modificare:",
-            options=labels,
-            key="wl_edit_row",
-        )
-        row_id = id_map[selected_row]
+    # ---------------- Tabella principale watchlist ----------------
+    # etichetta leggibile ID | Nome | Ticker
+    df_wl_filt["label"] = (
+        df_wl_filt["id"].astype(str)
+        + " | "
+        + df_wl_filt["name"].fillna("")
+        + " | "
+        + df_wl_filt["ticker"].fillna("")
+    )
 
-        current_note = df_wl.loc[df_wl["id"] == int(row_id), "note"].values[0]
-        new_note = st.text_area("Nota", value=current_note, key="wl_edit_note")
+    # ordino alfabeticamente per nome (e poi per ticker)
+    df_wl_filt = df_wl_filt.sort_values(["name", "ticker"])
 
-        if st.button("💾 Salva nota"):
-            update_watchlist_note(row_id, new_note)
-            st.success("Nota aggiornata.")
+    cols_show = [
+        "label",
+        "trend",
+        "origine",
+        "note",
+        "created_at",
+    ]
+
+    if "Prezzo_fmt" in df_wl_filt.columns:
+        cols_show.insert(1, "Prezzo_fmt")
+    if "MarketCap_fmt" in df_wl_filt.columns:
+        cols_show.insert(2, "MarketCap_fmt")
+    if "Vol_Today_fmt" in df_wl_filt.columns:
+        cols_show.insert(3, "Vol_Today_fmt")
+    if "Vol_7d_Avg_fmt" in df_wl_filt.columns:
+        cols_show.insert(4, "Vol_7d_Avg_fmt")
+
+    if "Yahoo" in df_wl_filt.columns:
+        cols_show.append("Yahoo")
+    if "Finviz" in df_wl_filt.columns:
+        cols_show.append("Finviz")
+
+    df_wl_view = df_wl_filt[cols_show]
+
+    st.dataframe(
+        df_wl_view,
+        use_container_width=True,
+        column_config={
+            "label": "ID | Nome | Ticker",
+            "Prezzo_fmt": "Prezzo",
+            "MarketCap_fmt": "Market Cap",
+            "Vol_Today_fmt": "Vol giorno",
+            "Vol_7d_Avg_fmt": "Vol medio 7g",
+            "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+            "Finviz": st.column_config.LinkColumn(
+                "TradingView", display_text="Apri"
+            ),
+        },
+    )
+
+    # ==========================
+    # EXPORT WATCHLIST
+    # ==========================
+    csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Export Watchlist CSV",
+        data=csv_data,
+        file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="dl_watch_csv",
+    )
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df_wl_view.to_excel(writer, index=False, sheet_name="WATCHLIST")
+    data_xlsx = output.getvalue()
+
+    st.download_button(
+        "⬇️ Export Watchlist XLSX",
+        data=data_xlsx,
+        file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="dl_watch_xlsx",
+    )
+
+    # EXPORT TradingView (solo ticker) dai dati filtrati
+    tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
+    csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+    st.download_button(
+        "⬇️ Export Watchlist TradingView (solo ticker)",
+        data=csv_tv,
+        file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="dl_tv_watch",
+    )
+
+    st.markdown("---")
+
+    # ---------------- Modifica note ----------------
+    st.subheader("✏️ Modifica nota per una riga")
+
+    id_options = df_wl_filt["id"].astype(str).tolist()
+    labels = df_wl_filt["label"].tolist()
+    id_map = dict(zip(labels, id_options))
+
+    selected_row = st.selectbox(
+        "Seleziona riga da modificare:",
+        options=labels,
+        key="wl_edit_row",
+    )
+    row_id = id_map[selected_row]
+
+    current_note = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"].values[0]
+    new_note = st.text_area("Nota", value=current_note, key="wl_edit_note")
+
+    if st.button("💾 Salva nota"):
+        update_watchlist_note(row_id, new_note)
+        st.success("Nota aggiornata.")
+        st.rerun()
+
+    # ---------------- Eliminazione righe ----------------
+    st.subheader("🗑️ Elimina righe dalla Watchlist")
+
+    del_rows = st.multiselect(
+        "Seleziona righe da eliminare:",
+        options=labels,
+        key="wl_delete_rows",
+    )
+    del_ids = [id_map[label] for label in del_rows]
+
+    col_del1, col_del2 = st.columns(2)
+    with col_del1:
+        if st.button("❌ Elimina selezionate"):
+            delete_from_watchlist(del_ids)
+            st.success("Righe eliminate dalla watchlist.")
             st.rerun()
 
-        # ---------------- Eliminazione righe ----------------
-        st.subheader("🗑️ Elimina righe dalla Watchlist")
+    # ---------------- Reset completo DB ----------------
+    st.subheader("⚠️ Reset completo Watchlist DB")
 
-        del_rows = st.multiselect(
-            "Seleziona righe da eliminare:",
-            options=labels,
-            key="wl_delete_rows",
-        )
-        del_ids = [id_map[label] for label in del_rows]
-
-        col_del1, col_del2 = st.columns(2)
-        with col_del1:
-            if st.button("❌ Elimina selezionate"):
-                delete_from_watchlist(del_ids)
-                st.success("Righe eliminate dalla watchlist.")
-                st.rerun()
-
-        # ---------------- Reset completo DB ----------------
-        st.subheader("⚠️ Reset completo Watchlist DB")
-
-        if st.button("🧨 Elimina TUTTO il DB Watchlist e riparti da zero"):
-            reset_watchlist_db()
-            st.success("Watchlist azzerata.")
-            st.rerun()
-
+    if st.button("🧨 Elimina TUTTO il DB Watchlist e riparti da zero"):
+        reset_watchlist_db()
+        st.success("Watchlist azzerata.")
+        st.rerun()
