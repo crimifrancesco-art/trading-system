@@ -638,9 +638,10 @@ with tab_e:
         # ==========================
         # Watchlist EARLY
         # ==========================
-        options_early = [
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
-        ]
+        options_early = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
+)
+
         selection_early = st.multiselect(
             "Aggiungi alla Watchlist (EARLY):",
             options=options_early,
@@ -810,9 +811,10 @@ with tab_p:
         # ==========================
         # Watchlist PRO
         # ==========================
-        options_pro = [
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
-        ]
+       options_pro = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
+)
+
         selection_pro = st.multiselect(
             "Aggiungi alla Watchlist (PRO):",
             options=options_pro,
@@ -974,9 +976,10 @@ with tab_r:
         # ==========================
         # Watchlist REA‑QUANT
         # ==========================
-        options_rea = [
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
-        ]
+        options_rea = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
+)
+
         selection_rea = st.multiselect(
             "Aggiungi alla Watchlist (REA‑QUANT HOT):",
             options=options_rea,
@@ -1050,7 +1053,7 @@ with tab_rea_q:
 
         # ---------------- Top 10 per pressione volumetrica ----------------
         st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
-        df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(10)
+        df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(top)
 
         # aggiungo formattazione e link
         df_rea_top = add_formatted_cols(df_rea_top)
@@ -1141,9 +1144,10 @@ with tab_rea_q:
         # ==========================
         # Watchlist Rea Quant Top10
         # ==========================
-        options_rea_q = [
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
-        ]
+        options_rea_q = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
+)
+
         selection_rea_q = st.multiselect(
             "Aggiungi alla Watchlist (Rea Quant Top10):",
             options=options_rea_q,
@@ -1261,8 +1265,9 @@ with tab_serafini:
 
             st.markdown("**Breakout su massimi/minimi 20 giorni (Donchian style)**")
             df_break_view = df_break[
-                (df_break["Breakout_Up"]) | (df_break["Breakout_Down"])
-            ].sort_values("Pro_Score", ascending=False)
+    (df_break["Breakout_Up"]) | (df_break["Breakout_Down"])
+].sort_values("Pro_Score", ascending=False).head(top)
+
 
             st.dataframe(
                 df_break_view,
@@ -1322,10 +1327,11 @@ with tab_serafini:
             # ==========================
             # Watchlist Serafini
             # ==========================
-            options_seraf = [
-                f"{row['Nome']} – {row['Ticker']}"
-                for _, row in df_break_view.iterrows()
-            ]
+            options_seraf = sorted(
+    f"{row['Nome']} – {row['Ticker']}"
+    for _, row in df_break_view.iterrows()
+)
+
             selection_seraf = st.multiselect(
                 "Aggiungi alla Watchlist (Serafini Systems):",
                 options=options_seraf,
@@ -1387,7 +1393,8 @@ with tab_regime:
 
         st.markdown("**Top 10 momentum (Pro_Score + RSI)**")
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
-        df_mom = df_all.sort_values("Momentum", ascending=False).head(10)
+        df_mom = df_all.sort_values("Momentum", ascending=False).head(top)
+
 
         cols_order = [
             "Nome",
@@ -1512,9 +1519,10 @@ with tab_regime:
         # ==========================
         # Watchlist Top Momentum
         # ==========================
-        options_regime = [
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
-        ]
+        options_regime = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
+)
+
         selection_regime = st.multiselect(
             "Aggiungi alla Watchlist (Top Momentum):",
             options=options_regime,
@@ -1653,11 +1661,12 @@ with tab_mtf:
             df_mtf = add_formatted_cols(df_mtf)
             df_mtf = add_links(df_mtf)
 
-            st.markdown("**Top 30 per MTF_Score (allineamento forza RSI multi‑TF)**")
-            if "MTF_Score" in df_mtf.columns:
-                df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(30)
-            else:
-                df_mtf_view = df_mtf.head(30)
+            st.markdown("**Top N per MTF_Score (allineamento forza RSI multi‑TF)**")
+if "MTF_Score" in df_mtf.columns:
+    df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
+else:
+    df_mtf_view = df_mtf.head(top)
+
 
             df_mtf_show = df_mtf_view[
                 [
@@ -1775,9 +1784,10 @@ with tab_mtf:
             # ==========================
             # Watchlist da ALIGN_LONG
             # ==========================
-            options_mtf = [
-                f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
-            ]
+            options_mtf = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
+)
+
             selection_mtf = st.multiselect(
                 "Aggiungi alla Watchlist (MTF ALIGN_LONG):",
                 options=options_mtf,
@@ -2048,10 +2058,11 @@ with tab_finviz:
                 # ==========================
                 # Watchlist Finviz‑like
                 # ==========================
-                options_finviz = [
-                    f"{row['Nome']} – {row['Ticker']}"
-                    for _, row in df_finviz_sel.head(top).iterrows()
-                ]
+               options_finviz = sorted(
+    f"{row['Nome']} – {row['Ticker']}"
+    for _, row in df_finviz_sel.head(top).iterrows()
+)
+
                 note_finviz = st.text_input(
                     "Note comuni per questi ticker Finviz‑like",
                     value="Preset Finviz EPS/Vol/MA",
