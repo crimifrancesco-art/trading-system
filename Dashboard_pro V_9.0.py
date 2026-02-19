@@ -13,12 +13,13 @@ from fpdf import FPDF  # pip install fpdf2
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 8.0",
+    page_title="Trading Scanner – Versione PRO 9.0",
     layout="wide",
     page_icon="📊"
 )
 
-st.title("📊 Trading Scanner – Versione PRO 8.0")
+st.title("📊 Trading Scanner – Versione PRO 9.0")
+
 st.caption(
     "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz • Watchlist DB"
@@ -636,27 +637,34 @@ with tab_e:
             key="dl_tv_early",
         )
 
-        # ==========================
-        # Watchlist EARLY
-        # ==========================
-        options_early = sorted(
+# ==========================
+# Watchlist EARLY (con seleziona tutti)
+# ==========================
+options_early = sorted(
     f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
 )
 
-        selection_early = st.multiselect(
-            "Aggiungi alla Watchlist (EARLY):",
-            options=options_early,
-            key="wl_early",
-        )
-        note_early = st.text_input(
-            "Note comuni per questi ticker EARLY", key="note_wl_early"
-        )
-        if st.button("📌 Salva in Watchlist (EARLY)"):
-            tickers = [s.split(" – ")[1] for s in selection_early]
-            names = [s.split(" – ")[0] for s in selection_early]
-            add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
-            st.success("EARLY salvati in watchlist.")
-            st.rerun()
+col_sel_all_early, _ = st.columns([1, 3])
+with col_sel_all_early:
+    if st.button("✅ Seleziona tutti (Top N EARLY)", key="btn_sel_all_early"):
+        st.session_state["wl_early"] = options_early
+
+selection_early = st.multiselect(
+    "Aggiungi alla Watchlist (EARLY):",
+    options=options_early,
+    key="wl_early",
+)
+
+note_early = st.text_input(
+    "Note comuni per questi ticker EARLY", key="note_wl_early"
+)
+
+if st.button("📌 Salva in Watchlist (EARLY)"):
+    tickers = [s.split(" – ")[1] for s in selection_early]
+    names = [s.split(" – ")[0] for s in selection_early]
+    add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
+    st.success("EARLY salvati in watchlist.")
+    st.rerun()
 
 # =============================================================================
 # PRO
@@ -811,27 +819,32 @@ with tab_p:
             key="dl_pro_tv_full",
         )
 
-        # ==========================
-        # Watchlist PRO (ORDINATA)
-        # ==========================
-        options_pro = sorted(
-            f"{row['Nome']} – {row['Ticker']}"
-            for _, row in df_pro_view.iterrows()
-        )
-        selection_pro = st.multiselect(
-            "Aggiungi alla Watchlist (PRO):",
-            options=options_pro,
-            key="wl_pro",
-        )
-        note_pro = st.text_input(
-            "Note comuni per questi ticker PRO", key="note_wl_pro"
-        )
-        if st.button("📌 Salva in Watchlist (PRO)"):
-            tickers = [s.split(" – ")[1] for s in selection_pro]
-            names = [s.split(" – ")[0] for s in selection_pro]
-            add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
-            st.success("PRO salvati in watchlist.")
-            st.rerun()
+# ==========================
+# Watchlist PRO (con seleziona tutti)
+# ==========================
+options_pro = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
+)
+
+col_sel_all, _ = st.columns([1, 3])
+with col_sel_all:
+    if st.button("✅ Seleziona tutti (Top N PRO)", key="btn_sel_all_pro"):
+        st.session_state["wl_pro"] = options_pro
+
+selection_pro = st.multiselect(
+    "Aggiungi alla Watchlist (PRO):",
+    options=options_pro,
+    key="wl_pro",
+)
+note_pro = st.text_input(
+    "Note comuni per questi ticker PRO", key="note_wl_pro"
+)
+if st.button("📌 Salva in Watchlist (PRO)"):
+    tickers = [s.split(" – ")[1] for s in selection_pro]
+    names = [s.split(" – ")[0] for s in selection_pro]
+    add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
+    st.success("PRO salvati in watchlist.")
+    st.rerun()
 
 # =============================================================================
 # REA‑QUANT (segnali)
@@ -976,27 +989,35 @@ with tab_r:
             key="dl_rea_tv_full",
         )
 
-        # ==========================
-        # Watchlist REA‑QUANT
-        # ==========================
-        options_rea = sorted(
+ # ==========================
+# Watchlist REA‑QUANT (con seleziona tutti)
+# ==========================
+options_rea = sorted(
     f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
 )
 
-        selection_rea = st.multiselect(
-            "Aggiungi alla Watchlist (REA‑QUANT HOT):",
-            options=options_rea,
-            key="wl_rea",
-        )
-        note_rea = st.text_input(
-            "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
-        )
-        if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
-            tickers = [s.split(" – ")[1] for s in selection_rea]
-            names = [s.split(" – ")[0] for s in selection_rea]
-            add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
-            st.success("REA‑QUANT salvati in watchlist.")
-            st.rerun()
+col_sel_all_rea, _ = st.columns([1, 3])
+with col_sel_all_rea:
+    if st.button("✅ Seleziona tutti (Top N REA‑QUANT)", key="btn_sel_all_rea"):
+        st.session_state["wl_rea"] = options_rea
+
+selection_rea = st.multiselect(
+    "Aggiungi alla Watchlist (REA‑QUANT HOT):",
+    options=options_rea,
+    key="wl_rea",
+)
+
+note_rea = st.text_input(
+    "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
+)
+
+if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
+    tickers = [s.split(" – ")[1] for s in selection_rea]
+    names = [s.split(" – ")[0] for s in selection_rea]
+    add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
+    st.success("REA‑QUANT salvati in watchlist.")
+    st.rerun()
+
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -1112,28 +1133,34 @@ with tab_rea_q:
             key="dl_rea_topn_xlsx",
         )
 
-        # ==========================
-        # Watchlist Rea Quant TopN
-        # ==========================
-        st.markdown("**Aggiunta rapida in Watchlist (Rea Quant TopN)**")
+  # ==========================
+# Watchlist Rea Quant TopN (con seleziona tutti)
+# ==========================
+options_rea_q = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
+)
 
-        options_rea_q = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
-        )
-        selection_rea_q = st.multiselect(
-            "Aggiungi alla Watchlist (Rea Quant TopN):",
-            options=options_rea_q,
-            key="wl_rea_q",
-        )
-        note_rea_q = st.text_input(
-            "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
-        )
-        if st.button("📌 Salva in Watchlist (Rea Quant)"):
-            tickers = [s.split(" – ")[1] for s in selection_rea_q]
-            names = [s.split(" – ")[0] for s in selection_rea_q]
-            add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
-            st.success("Rea Quant salvati in watchlist.")
-            st.rerun()
+col_sel_all_rea_q, _ = st.columns([1, 3])
+with col_sel_all_rea_q:
+    if st.button("✅ Seleziona tutti (Rea Quant TopN)", key="btn_sel_all_rea_q"):
+        st.session_state["wl_rea_q"] = options_rea_q
+
+selection_rea_q = st.multiselect(
+    "Aggiungi alla Watchlist (Rea Quant TopN):",
+    options=options_rea_q,
+    key="wl_rea_q",
+)
+
+note_rea_q = st.text_input(
+    "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
+)
+
+if st.button("📌 Salva in Watchlist (Rea Quant)"):
+    tickers = [s.split(" – ")[1] for s in selection_rea_q]
+    names = [s.split(" – ")[0] for s in selection_rea_q]
+    add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
+    st.success("Rea Quant salvati in watchlist.")
+    st.rerun()
 
         # ==========================
         # 2) Analisi per mercato (AVANZATA, nascosta)
@@ -1323,31 +1350,37 @@ with tab_serafini:
                 key="dl_tv_seraf",
             )
 
-            # ==========================
-            # Watchlist Serafini
-            # ==========================
-            options_seraf = sorted(
-    f"{row['Nome']} – {row['Ticker']}"
-    for _, row in df_break_view.iterrows()
+       # ==========================
+# Watchlist Serafini (con seleziona tutti)
+# ==========================
+options_seraf = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_seraf_view.iterrows()
 )
 
-            selection_seraf = st.multiselect(
-                "Aggiungi alla Watchlist (Serafini Systems):",
-                options=options_seraf,
-                key="wl_seraf",
-            )
-            note_seraf = st.text_input(
-                "Note comuni per questi ticker Serafini", key="note_wl_seraf"
-            )
+col_sel_all_seraf, _ = st.columns([1, 3])
+with col_sel_all_seraf:
+    if st.button("✅ Seleziona tutti (Top Serafini)", key="btn_sel_all_seraf"):
+        st.session_state["wl_seraf"] = options_seraf
 
-            if st.button("📌 Salva in Watchlist (Serafini)"):
-                tickers = [s.split(" – ")[1] for s in selection_seraf]
-                names = [s.split(" – ")[0] for s in selection_seraf]
-                add_to_watchlist(
-                    tickers, names, "SERAFINI", note_seraf, trend="LONG"
-                )
-                st.success("Serafini salvati in watchlist.")
-                st.rerun()
+selection_seraf = st.multiselect(
+    "Aggiungi alla Watchlist (Serafini):",
+    options=options_seraf,
+    key="wl_seraf",
+)
+
+note_seraf = st.text_input(
+    "Note comuni per questi ticker Serafini", key="note_wl_seraf"
+)
+
+if st.button("📌 Salva in Watchlist (Serafini)"):
+    tickers = [s.split(" – ")[1] for s in selection_seraf]
+    names = [s.split(" – ")[0] for s in selection_seraf]
+    add_to_watchlist(
+        tickers, names, "SERAFINI", note_seraf, trend="LONG"
+    )
+    st.success("Serafini salvati in watchlist.")
+    st.rerun()
+
 
 # =============================================================================
 # REGIME & MOMENTUM
@@ -1532,30 +1565,37 @@ with tab_regime:
             else:
                 st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
-            # ==========================
-            # Watchlist Top Momentum
-            # ==========================
-            options_regime = sorted(
-                f"{row['Nome']} – {row['Ticker']}"
-                for _, row in df_mom.iterrows()
-            )
+# ==========================
+# Watchlist Top Momentum (con seleziona tutti)
+# ==========================
+options_regime = sorted(
+    f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
+)
 
-            selection_regime = st.multiselect(
-                "Aggiungi alla Watchlist (Top Momentum):",
-                options=options_regime,
-                key="wl_regime",
-            )
-            note_regime = st.text_input(
-                "Note comuni per questi ticker Momentum", key="note_wl_regime"
-            )
-            if st.button("📌 Salva in Watchlist (Regime/Momentum)"):
-                tickers = [s.split(" – ")[1] for s in selection_regime]
-                names = [s.split(" – ")[0] for s in selection_regime]
-                add_to_watchlist(
-                    tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG"
-                )
-                st.success("Regime/Momentum salvati in watchlist.")
-                st.rerun()
+col_sel_all_regime, _ = st.columns([1, 3])
+with col_sel_all_regime:
+    if st.button("✅ Seleziona tutti (Top Momentum)", key="btn_sel_all_regime"):
+        st.session_state["wl_regime"] = options_regime
+
+selection_regime = st.multiselect(
+    "Aggiungi alla Watchlist (Top Momentum):",
+    options=options_regime,
+    key="wl_regime",
+)
+
+note_regime = st.text_input(
+    "Note comuni per questi ticker Momentum", key="note_wl_regime"
+)
+
+if st.button("📌 Salva in Watchlist (Regime/Momentum)"):
+    tickers = [s.split(" – ")[1] for s in selection_regime]
+    names = [s.split(" – ")[0] for s in selection_regime]
+    add_to_watchlist(
+        tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG"
+    )
+    st.success("Regime/Momentum salvati in watchlist.")
+    st.rerun()
+
 
 # =============================================================================
 # MULTI‑TIMEFRAME
