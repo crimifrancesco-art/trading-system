@@ -852,7 +852,7 @@ with tab_r:
     st.subheader("🟠 Segnali REA‑QUANT")
     st.markdown(
         f"Filtro REA‑QUANT: titoli con **Stato = HOT** "
-        f"(distanza dal POC < {r_poc*100:.1f}%, Vol_Ratio > 1.5)."
+        f"(distanza dal POC < {r_poc*100:.1f}%, Vol_Ratio > {vol_ratio_hot})."
     )
 
     with st.expander("📘 Legenda REA‑QUANT (segnali)"):
@@ -967,7 +967,7 @@ with tab_r:
             key="dl_tv_rea",
         )
 
-        # CSV REA‑QUANT arricchito per TradingView
+        # CSV REA‑QUANT per TradingView (dettagliato)
         df_rea_tv = df_rea_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -976,7 +976,7 @@ with tab_r:
                 "Dist_POC_%": "dist_poc_percent",
                 "Vol_Ratio": "volume_ratio",
             }
-        )[["symbol", "price", "poc", "dist_poc_percent", "volume_ratio"]]
+        )[[ "symbol", "price", "poc", "dist_poc_percent", "volume_ratio" ]]
         csv_rea = df_rea_tv.to_csv(index=False).encode("utf-8")
 
         st.download_button(
@@ -988,35 +988,32 @@ with tab_r:
             key="dl_rea_tv_full",
         )
 
- # ==========================
-# Watchlist REA‑QUANT (con seleziona tutti)
-# ==========================
-options_rea = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
-)
+        # ==========================
+        # Watchlist REA‑QUANT (con seleziona tutti)
+        # ==========================
+        options_rea = sorted(
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
+        )
 
-col_sel_all_rea, _ = st.columns([1, 3])
-with col_sel_all_rea:
-    if st.button("✅ Seleziona tutti (Top N REA‑QUANT)", key="btn_sel_all_rea"):
-        st.session_state["wl_rea"] = options_rea
+        col_sel_all_rea, _ = st.columns([1, 3])
+        with col_sel_all_rea:
+            if st.button("✅ Seleziona tutti (Top N REA‑QUANT)", key="btn_sel_all_rea"):
+                st.session_state["wl_rea"] = options_rea
 
-selection_rea = st.multiselect(
-    "Aggiungi alla Watchlist (REA‑QUANT HOT):",
-    options=options_rea,
-    key="wl_rea",
-)
-
-note_rea = st.text_input(
-    "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
-)
-
-if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
-    tickers = [s.split(" – ")[1] for s in selection_rea]
-    names = [s.split(" – ")[0] for s in selection_rea]
-    add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
-    st.success("REA‑QUANT salvati in watchlist.")
-    st.rerun()
-
+        selection_rea = st.multiselect(
+            "Aggiungi alla Watchlist (REA‑QUANT HOT):",
+            options=options_rea,
+            key="wl_rea",
+        )
+        note_rea = st.text_input(
+            "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
+        )
+        if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
+            tickers = [s.split(" – ")[1] for s in selection_rea]
+            names = [s.split(" – ")[0] for s in selection_rea]
+            add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
+            st.success("REA‑QUANT salvati in watchlist.")
+            st.rerun()
 
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
