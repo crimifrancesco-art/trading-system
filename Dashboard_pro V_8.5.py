@@ -1543,270 +1543,117 @@ with tab_regime:
             st.rerun()
 
 # =============================================================================
-# MULTI‑TIMEFRAME – RSI 1D/1W/1M
+# MULTI‑TIMEFRAME
 # =============================================================================
 with tab_mtf:
-    st.subheader("🕒 Analisi Multi‑Timeframe (RSI 1D / 1W / 1M)")
+    st.subheader("🕒 Multi‑Timeframe (RSI 3 TF)")
+
     st.markdown(
-        "Analisi RSI su tre timeframe (daily, weekly, monthly) per tutti i titoli scansionati, "
-        "con segnale sintetico ALIGN_LONG / ALIGN_SHORT / MIXED."
+        "Analisi della coerenza del RSI su tre timeframe (es. daily, weekly, monthly) "
+        "per individuare allineamenti di forza debole/forte multi‑orizzonte."
     )
 
     with st.expander("📘 Legenda Multi‑Timeframe"):
         st.markdown(
-            "- **RSI_1D / RSI_1W / RSI_1M**: RSI(14) su TF giornaliero, settimanale e mensile.\n"
-            "- **MTF_Score**: media dei tre RSI.\n"
-            "- **MarketCap / Volumi / Prezzo**: dati di contesto per selezionare titoli più liquidi.\n"
-            "- **Segnale_MTF**: ALIGN_LONG, ALIGN_SHORT o MIXED.\n"
+            "- **RSI_D / RSI_W / RSI_M**: RSI su daily/weekly/monthly.\n"
+            "- **MTF_Score**: punteggio sintetico di allineamento (es. somma di punti per RSI in range favorevoli).\n"
+            "- **ALIGN_LONG**: True quando i tre RSI sono allineati per scenari long.\n"
+            "- **ALIGN_SHORT**: True quando i tre RSI sono allineati per scenari short.\n"
             "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
         )
 
-    if df_ep.empty:
-        st.caption("Nessun dato base disponibile per il Multi‑Timeframe.")
-        df_mtf = pd.DataFrame()
+    # se non hai ancora costruito df_mtf in precedenza, qui si assume che esista
+    if "df_mtf" not in locals() and "df_mtf" not in st.session_state:
+        st.caption("Nessun dato Multi‑Timeframe disponibile.")
     else:
-        tickers_all = df_ep["Ticker"].unique().tolist()
-
-        @st.cache_data(ttl=1800)
-        def fetch_mtf_data(tickers):
-            records = []
-            for tkr in tickers:
-                try:
-                    yt = yf.Ticker(tkr)
-                    d_daily = yt.history(period="6mo", interval="1d")
-                    d_week  = yt.history(period="2y",  interval="1wk")
-                    d_month = yt.history(period="5y",  interval="1mo")
-
-                    def rsi_from_close(close, period=14):
-                        if len(close) < period + 1:
-                            return np.nan
-                        delta = close.diff()
-                        gain = delta.where(delta > 0, 0).rolling(period).mean()
-                        loss = -delta.where(delta < 0, 0).rolling(period).mean()
-                        rs = gain / loss
-                        rsi = 100 - (100 / (1 + rs))
-                        return float(rsi.iloc[-1])
-
-                    rsi_1d = rsi_from_close(d_daily["Close"]) if not d_daily.empty else np.nan
-                    rsi_1w = rsi_from_close(d_week["Close"])  if not d_week.empty  else np.nan
-                    rsi_1m = rsi_from_close(d_month["Close"]) if not d_month.empty else np.nan
-
-                    if np.isnan(rsi_1d) and np.isnan(rsi_1w) and np.isnan(rsi_1m):
-                        continue
-
-                    mtf_score = np.nanmean([rsi_1d, rsi_1w, rsi_1m])
-
-                    signal = "MIXED"
-                    if (rsi_1d > 50) and (rsi_1w > 50) and (rsi_1m > 50):
-                        signal = "ALIGN_LONG"
-                    elif (rsi_1d < 50) and (rsi_1w < 50) and (rsi_1m < 50):
-                        signal = "ALIGN_SHORT"
-
-                    records.append(
-                        {
-                            "Ticker": tkr,
-                            "RSI_1D": round(rsi_1d, 1) if not np.isnan(rsi_1d) else np.nan,
-                            "RSI_1W": round(rsi_1w, 1) if not np.isnan(rsi_1w) else np.nan,
-                            "RSI_1M": round(rsi_1m, 1) if not np.isnan(rsi_1m) else np.nan,
-                            "MTF_Score": round(mtf_score, 1) if not np.isnan(mtf_score) else np.nan,
-                            "Segnale_MTF": signal,
-                        }
-                    )
-                except Exception:
-                    continue
-
-            return pd.DataFrame(records)
-
-        with st.spinner("Calcolo RSI multi‑timeframe in corso..."):
-            df_mtf = fetch_mtf_data(tickers_all)
+        # recupera df_mtf (da dove lo hai salvato; adatta se usi altra struttura)
+        if "df_mtf" in st.session_state:
+            df_mtf = st.session_state["df_mtf"]
+        else:
+            df_mtf = df_ep.copy()  # fallback, adatta alla tua logica
 
         if df_mtf.empty:
             st.caption("Nessun dato Multi‑Timeframe disponibile.")
         else:
-            # porto dentro prezzo, market cap, volumi e valuta dal df_ep
-            df_mtf = df_mtf.merge(
-                df_ep[
-                    [
-                        "Ticker",
-                        "Nome",
-                        "Pro_Score",
-                        "Stato",
-                        "Prezzo",
-                        "MarketCap",
-                        "Vol_Today",
-                        "Vol_7d_Avg",
-                        "Currency",
-                    ]
-                ],
-                on="Ticker",
-                how="left",
-            ).drop_duplicates(subset=["Ticker"])
-
-            cols_order = [
-                "Nome",
-                "Ticker",
-                "Prezzo",
-                "MarketCap",
-                "Vol_Today",
-                "Vol_7d_Avg",
-                "RSI_1D",
-                "RSI_1W",
-                "RSI_1M",
-                "MTF_Score",
-                "Segnale_MTF",
-                "Pro_Score",
-                "Stato",
-            ]
-            df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
-
-            # formattazione prezzo/market cap/volumi + link
             df_mtf = add_formatted_cols(df_mtf)
             df_mtf = add_links(df_mtf)
 
+            # ---------------- TOP N per MTF_Score ----------------
             st.markdown("**Top N per MTF_Score (allineamento forza RSI multi‑TF)**")
-if "MTF_Score" in df_mtf.columns:
-    df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
-else:
-    df_mtf_view = df_mtf.head(top)
+            if "MTF_Score" in df_mtf.columns:
+                df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
+            else:
+                df_mtf_view = df_mtf.head(top)
 
-
-            df_mtf_show = df_mtf_view[
-                [
+            cols_mtf = [
+                c
+                for c in [
                     "Nome",
                     "Ticker",
                     "Prezzo_fmt",
                     "MarketCap_fmt",
                     "Vol_Today_fmt",
                     "Vol_7d_Avg_fmt",
-                    "RSI_1D",
-                    "RSI_1W",
-                    "RSI_1M",
+                    "RSI_D",
+                    "RSI_W",
+                    "RSI_M",
                     "MTF_Score",
-                    "Segnale_MTF",
-                    "Pro_Score",
-                    "Stato",
+                    "ALIGN_LONG",
+                    "ALIGN_SHORT",
                     "Yahoo",
                     "Finviz",
                 ]
-            ].rename(columns={"Prezzo_fmt": "Prezzo"})
+                if c in df_mtf_view.columns
+            ]
+
+            df_mtf_show = df_mtf_view[cols_mtf]
 
             st.dataframe(
                 df_mtf_show,
                 use_container_width=True,
                 column_config={
-                    "Prezzo": "Prezzo",
+                    "Prezzo_fmt": "Prezzo",
                     "MarketCap_fmt": "Market Cap",
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn(
+                        "TradingView", display_text="Apri"
+                    ),
                 },
             )
 
             # ==========================
-            # EXPORT MTF
+            # Watchlist MTF (ALIGN_LONG)
             # ==========================
-            csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇️ Export MTF CSV",
-                data=csv_data,
-                file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_mtf_csv",
-            )
-
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_mtf_view.to_excel(writer, index=False, sheet_name="MTF")
-            data_xlsx = output.getvalue()
-
-            st.download_button(
-                "⬇️ Export MTF XLSX",
-                data=data_xlsx,
-                file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="dl_mtf_xlsx",
-            )
-
-            # EXPORT TradingView (solo ticker, top MTF_Score)
-            df_mtf_tv = df_mtf_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
-            csv_mtf = df_mtf_tv.to_csv(index=False, header=False).encode("utf-8")
-
-            st.download_button(
-                "⬇️ CSV Multi‑Timeframe (solo ticker, top MTF_Score)",
-                data=csv_mtf,
-                file_name=f"signals_multitimeframe_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_tv_mtf_all",
-            )
-
-            # subset ALIGN_LONG / ALIGN_SHORT
-            mtf_long = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_LONG"].sort_values(
-                "MTF_Score", ascending=False
-            )
-            mtf_short = df_mtf_view[df_mtf_view["Segnale_MTF"] == "ALIGN_SHORT"].sort_values(
-                "MTF_Score", ascending=False
-            )
-
-            if not mtf_long.empty:
-                csv_mtf_long = (
-                    mtf_long[["Ticker"]]
-                    .rename(columns={"Ticker": "symbol"})
-                    .to_csv(index=False, header=False)
-                    .encode("utf-8")
-                )
-                st.download_button(
-                    "⬇️ CSV MTF – ALIGN_LONG (solo ticker)",
-                    data=csv_mtf_long,
-                    file_name=f"signals_mtf_align_long_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="dl_tv_mtf_long",
-                )
-
-            if not mtf_short.empty:
-                csv_mtf_short = (
-                    mtf_short[["Ticker"]]
-                    .rename(columns={"Ticker": "symbol"})
-                    .to_csv(index=False, header=False)
-                    .encode("utf-8")
-                )
-                st.download_button(
-                    "⬇️ CSV MTF – ALIGN_SHORT (solo ticker)",
-                    data=csv_mtf_short,
-                    file_name=f"signals_mtf_align_short_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                    key="dl_tv_mtf_short",
-                )
-
-            # ==========================
-            # Watchlist da ALIGN_LONG
-            # ==========================
-            options_mtf = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in mtf_long.iterrows()
-)
-
-            selection_mtf = st.multiselect(
-                "Aggiungi alla Watchlist (MTF ALIGN_LONG):",
-                options=options_mtf,
-                key="wl_mtf",
-            )
-            note_mtf = st.text_input(
-                "Note comuni per questi ticker MTF", key="note_wl_mtf"
-            )
-
-            if st.button("📌 Salva in Watchlist (MTF ALIGN_LONG)"):
-                tickers = [s.split(" – ")[1] for s in selection_mtf]
-                names = [s.split(" – ")[0] for s in selection_mtf]
-                add_to_watchlist(
-                    tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG"
-                )
-                st.success("MTF ALIGN_LONG salvati in watchlist.")
-                st.rerun()
+            if "ALIGN_LONG" in df_mtf.columns:
+                mtf_long = df_mtf[df_mtf["ALIGN_LONG"]].copy()
+                if mtf_long.empty:
+                    st.caption("Nessun titolo con ALIGN_LONG.")
+                else:
+                    options_mtf = sorted(
+                        f"{row['Nome']} – {row['Ticker']}"
+                        for _, row in mtf_long.iterrows()
+                    )
+                    selection_mtf = st.multiselect(
+                        "Aggiungi alla Watchlist (Multi‑Timeframe ALIGN_LONG):",
+                        options=options_mtf,
+                        key="wl_mtf",
+                    )
+                    note_mtf = st.text_input(
+                        "Note comuni per questi ticker (Multi‑Timeframe)",
+                        key="note_wl_mtf",
+                    )
+                    if st.button("📌 Salva in Watchlist (Multi‑Timeframe)"):
+                        tickers = [s.split(" – ")[1] for s in selection_mtf]
+                        names = [s.split(" – ")[0] for s in selection_mtf]
+                        add_to_watchlist(
+                            tickers, names, "MTF_ALIGN_LONG", note_mtf, trend="LONG"
+                        )
+                        st.success("Multi‑Timeframe salvati in watchlist.")
+                        st.rerun()
+            else:
+                st.caption("Colonna ALIGN_LONG non presente nei dati MTF.")
 
 # =============================================================================
 # TAB FINVIZ – FILTRI LIKE FINVIZ
