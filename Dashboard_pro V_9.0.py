@@ -203,6 +203,21 @@ init_db()
 # SIDEBAR – MERCATI E PARAMETRI
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
+# inizializzazione una sola volta
+if "sidebar_init" not in st.session_state:
+    st.session_state["sidebar_init"] = True
+
+    # mercati
+    st.session_state.setdefault("m_FTSE", True)
+    st.session_state.setdefault("m_SP500", True)
+    st.session_state.setdefault("m_Nasdaq", True)
+
+    # parametri principali
+    st.session_state.setdefault("e_h", 0.02)
+    st.session_state.setdefault("p_rmin", 40)
+    st.session_state.setdefault("p_rmax", 70)
+    st.session_state.setdefault("r_poc", 0.02)
+    st.session_state.setdefault("top", 15)
 
 st.sidebar.subheader("📈 Selezione Mercati")
 m = {
