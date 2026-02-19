@@ -1133,34 +1133,34 @@ with tab_rea_q:
             key="dl_rea_topn_xlsx",
         )
 
-  # ==========================
-# Watchlist Rea Quant TopN (con seleziona tutti)
-# ==========================
-options_rea_q = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
-)
+        # ==========================
+        # Watchlist Rea Quant TopN (con seleziona tutti)
+        # ==========================
+        options_rea_q = sorted(
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
+        )
 
-col_sel_all_rea_q, _ = st.columns([1, 3])
-with col_sel_all_rea_q:
-    if st.button("✅ Seleziona tutti (Rea Quant TopN)", key="btn_sel_all_rea_q"):
-        st.session_state["wl_rea_q"] = options_rea_q
+        col_sel_all_rea_q, _ = st.columns([1, 3])
+        with col_sel_all_rea_q:
+            if st.button("✅ Seleziona tutti (Rea Quant TopN)", key="btn_sel_all_rea_q"):
+                st.session_state["wl_rea_q"] = options_rea_q
 
-selection_rea_q = st.multiselect(
-    "Aggiungi alla Watchlist (Rea Quant TopN):",
-    options=options_rea_q,
-    key="wl_rea_q",
-)
+        selection_rea_q = st.multiselect(
+            "Aggiungi alla Watchlist (Rea Quant TopN):",
+            options=options_rea_q,
+            key="wl_rea_q",
+        )
 
-note_rea_q = st.text_input(
-    "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
-)
+        note_rea_q = st.text_input(
+            "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
+        )
 
-if st.button("📌 Salva in Watchlist (Rea Quant)"):
-    tickers = [s.split(" – ")[1] for s in selection_rea_q]
-    names = [s.split(" – ")[0] for s in selection_rea_q]
-    add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
-    st.success("Rea Quant salvati in watchlist.")
-    st.rerun()
+        if st.button("📌 Salva in Watchlist (Rea Quant)"):
+            tickers = [s.split(" – ")[1] for s in selection_rea_q]
+            names = [s.split(" – ")[0] for s in selection_rea_q]
+            add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
+            st.success("Rea Quant salvati in watchlist.")
+            st.rerun()
 
         # ==========================
         # 2) Analisi per mercato (AVANZATA, nascosta)
