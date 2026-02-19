@@ -1834,7 +1834,6 @@ with tab_watch:
             st.rerun()
 
     df_wl = load_watchlist()
-
     if df_wl.empty:
         st.caption("Watchlist vuota.")
     else:
@@ -1880,18 +1879,20 @@ with tab_watch:
         df_wl = add_links(df_wl)
 
         # ---------------- Tabella principale watchlist ----------------
-        # etichetta leggibile ID – Nome (Ticker)
-        df_wl["ID_label"] = (
+        # etichetta leggibile ID | Nome | Ticker (ma i campi restano separati)
+        df_wl["label"] = (
             df_wl["id"].astype(str)
-            + " – "
+            + " | "
             + df_wl["name"].fillna("")
-            + " ("
-            + df_wl["ticker"]
-            + ")"
+            + " | "
+            + df_wl["ticker"].fillna("")
         )
 
+        # ordino alfabeticamente per nome (e poi per ticker)
+        df_wl = df_wl.sort_values(["name", "ticker"])
+
         cols_show = [
-            "ID_label",
+            "label",
             "trend",
             "origine",
             "note",
@@ -1920,7 +1921,7 @@ with tab_watch:
             df_wl_view,
             use_container_width=True,
             column_config={
-                "ID_label": "ID – Nome (Ticker)",
+                "label": "ID | Nome | Ticker",
                 "Prezzo_fmt": "Prezzo",
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
@@ -1978,13 +1979,14 @@ with tab_watch:
         # ---------------- Modifica note ----------------
         st.subheader("✏️ Modifica nota per una riga")
 
+        # uso le label ordinate per nome (già ordinato sopra)
         id_options = df_wl["id"].astype(str).tolist()
-        id_labels = df_wl["ID_label"].tolist()
-        id_map = dict(zip(id_labels, id_options))
+        labels = df_wl["label"].tolist()
+        id_map = dict(zip(labels, id_options))
 
         selected_row = st.selectbox(
             "Seleziona riga da modificare:",
-            options=id_labels,
+            options=labels,
             key="wl_edit_row",
         )
         row_id = id_map[selected_row]
@@ -2002,7 +2004,7 @@ with tab_watch:
 
         del_rows = st.multiselect(
             "Seleziona righe da eliminare:",
-            options=id_labels,
+            options=labels,
             key="wl_delete_rows",
         )
         del_ids = [id_map[label] for label in del_rows]
@@ -2021,3 +2023,4 @@ with tab_watch:
             reset_watchlist_db()
             st.success("Watchlist azzerata.")
             st.rerun()
+
