@@ -1003,9 +1003,10 @@ with tab_r:
 # =============================================================================
 with tab_rea_q:
     st.subheader("🧮 Analisi Quantitativa stile Massimo Rea")
+
     st.markdown(
-        "Analisi per mercato sui soli titoli con **Stato = HOT**: "
-        "conteggio segnali, Vol_Ratio medio, Rea_Score medio e top 10 per pressione volumetrica."
+        "Analisi sui soli titoli con **Stato = HOT** (REA‑QUANT): "
+        "conteggio segnali, Vol_Ratio medio, Rea_Score medio e top N per pressione volumetrica."
     )
 
     with st.expander("📘 Legenda Rea Quant (analisi)"):
@@ -1014,7 +1015,7 @@ with tab_rea_q:
             "- **Vol_Ratio_med**: media Vol_Ratio.\n"
             "- **Rea_Score_med**: intensità media segnale.\n"
             "- **MarketCap / Volumi / Prezzo**: medie indicative per mercato.\n"
-            "- Top 10: ordinati per Vol_Ratio con link Yahoo/Finviz."
+            "- Top N: ordinati per Vol_Ratio con link Yahoo/TradingView."
         )
 
     if df_rea_all.empty:
@@ -1044,115 +1045,126 @@ with tab_rea_q:
 
         df_rea_q["Mercato"] = df_rea_q["Ticker"].apply(detect_market_rea)
 
-        agg = df_rea_q.groupby("Mercato").agg(
-            N=("Ticker", "count"),
-            Vol_Ratio_med=("Vol_Ratio", "mean"),
-            Rea_Score_med=("Rea_Score", "mean"),
-            MarketCap_med=("MarketCap", "mean"),
-            Vol_Today_med=("Vol_Today", "mean"),
-        ).reset_index()
+        # ------------ BLOCCO AVANZATO IN EXPANDER (PUOI IGNORARLO) ------------
+        with st.expander("📊 Analisi Rea Quant per mercato (avanzata)", expanded=False):
 
-        st.dataframe(agg, use_container_width=True)
+            agg = df_rea_q.groupby("Mercato").agg(
+                N=("Ticker", "count"),
+                Vol_Ratio_med=("Vol_Ratio", "mean"),
+                Rea_Score_med=("Rea_Score", "mean"),
+                MarketCap_med=("MarketCap", "mean"),
+                Vol_Today_med=("Vol_Today", "mean"),
+            ).reset_index()
 
-        # ---------------- Top 10 per pressione volumetrica ----------------
-        st.markdown("**Top 10 per pressione volumetrica (Vol_Ratio)**")
+            st.dataframe(agg, use_container_width=True)
+
+            # ---------------- Top N per pressione volumetrica ----------------
+            st.markdown("**Top N per pressione volumetrica (Vol_Ratio)**")
+            df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(top)
+
+            # aggiungo formattazione e link
+            df_rea_top = add_formatted_cols(df_rea_top)
+            df_rea_top = add_links(df_rea_top)
+
+            # costruisco la vista, usando Prezzo_fmt se esiste, altrimenti Prezzo
+            if "Prezzo_fmt" in df_rea_top.columns:
+                prezzo_col = "Prezzo_fmt"
+            elif "Prezzo" in df_rea_top.columns:
+                prezzo_col = "Prezzo"
+            else:
+                prezzo_col = None
+
+            cols = ["Nome", "Ticker"]
+            if prezzo_col is not None:
+                cols.append(prezzo_col)
+            cols += [
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "POC",
+                "Dist_POC_%",
+                "Vol_Ratio",
+                "Stato",
+                "Yahoo",
+                "Finviz",
+            ]
+
+            df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
+
+            if prezzo_col == "Prezzo_fmt":
+                df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo_fmt": "Prezzo"})
+            elif prezzo_col == "Prezzo":
+                df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo": "Prezzo"})
+
+            st.dataframe(
+                df_rea_top_show,
+                use_container_width=True,
+                column_config={
+                    "Prezzo": "Prezzo",
+                    "MarketCap_fmt": "Market Cap",
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn(
+                        "TradingView", display_text="Apri"
+                    ),
+                },
+            )
+
+            # ==========================
+            # EXPORT REA TOP N
+            # ==========================
+            csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export REA TopN CSV",
+                data=csv_data,
+                file_name=f"REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_rea_topn_csv",
+            )
+
+            tv_data = df_rea_top["Ticker"].drop_duplicates().to_frame(name="symbol")
+            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+            st.download_button(
+                "⬇️ Export REA TopN TradingView (solo ticker)",
+                data=csv_tv,
+                file_name=f"TV_REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_tv_rea_topn",
+            )
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOPN")
+            data_xlsx = output.getvalue()
+
+            st.download_button(
+                "⬇️ Export REA TopN XLSX",
+                data=data_xlsx,
+                file_name=f"REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+                use_container_width=True,
+                key="dl_rea_topn_xlsx",
+            )
+
+        # ------------ Watchlist Rea Quant TopN (resta fuori dall'expander) ------------
+        st.markdown("**Aggiunta rapida in Watchlist (Rea Quant TopN)**")
+
         df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(top)
-
-        # aggiungo formattazione e link
         df_rea_top = add_formatted_cols(df_rea_top)
         df_rea_top = add_links(df_rea_top)
 
-        # costruisco la vista, usando Prezzo_fmt se esiste, altrimenti Prezzo
-        if "Prezzo_fmt" in df_rea_top.columns:
-            prezzo_col = "Prezzo_fmt"
-        elif "Prezzo" in df_rea_top.columns:
-            prezzo_col = "Prezzo"
-        else:
-            prezzo_col = None
-
-        cols = ["Nome", "Ticker"]
-        if prezzo_col is not None:
-            cols.append(prezzo_col)
-        cols += [
-            "MarketCap_fmt",
-            "Vol_Today_fmt",
-            "Vol_7d_Avg_fmt",
-            "POC",
-            "Dist_POC_%",
-            "Vol_Ratio",
-            "Stato",
-            "Yahoo",
-            "Finviz",
-        ]
-
-        # ==========================
-        # EXPORT REA TOP10
-        # ==========================
-        csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export REA Top10 CSV",
-            data=csv_data,
-            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_rea_top10_csv",
-        )
-
-        tv_data = df_rea_top["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export REA Top10 TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_tv_rea_top10",
-        )
-
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOP10")
-        data_xlsx = output.getvalue()
-
-        st.download_button(
-            "⬇️ Export REA Top10 XLSX",
-            data=data_xlsx,
-            file_name=f"REA_TOP10_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_rea_top10_xlsx",
-        )
-
-        df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
-
-        if prezzo_col == "Prezzo_fmt":
-            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo_fmt": "Prezzo"})
-        elif prezzo_col == "Prezzo":
-            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo": "Prezzo"})
-
-        st.dataframe(
-            df_rea_top_show,
-            use_container_width=True,
-            column_config={
-                "Prezzo": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-            },
-        )
-
-        # ==========================
-        # Watchlist Rea Quant Top10
-        # ==========================
         options_rea_q = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
-)
-
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
+        )
         selection_rea_q = st.multiselect(
-            "Aggiungi alla Watchlist (Rea Quant Top10):",
+            "Aggiungi alla Watchlist (Rea Quant TopN):",
             options=options_rea_q,
             key="wl_rea_q",
         )
@@ -1165,7 +1177,6 @@ with tab_rea_q:
             add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
             st.success("Rea Quant salvati in watchlist.")
             st.rerun()
-
 
 # =============================================================================
 # STEFANO SERAFINI – SYSTEMS
