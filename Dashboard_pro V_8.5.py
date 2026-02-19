@@ -787,7 +787,7 @@ with tab_p:
             key="dl_tv_pro",
         )
 
-        # CSV PRO arricchito per TradingView (symbol, price, rsi, volume_ratio, obv_trend)
+        # CSV PRO arricchito per TradingView
         df_pro_tv = df_pro_view.rename(
             columns={
                 "Ticker": "symbol",
@@ -796,7 +796,9 @@ with tab_p:
                 "Vol_Ratio": "volume_ratio",
                 "OBV_Trend": "obv_trend",
             }
-        )[["symbol", "price", "rsi", "volume_ratio", "obv_trend"]]
+        )[
+            ["symbol", "price", "rsi", "volume_ratio", "obv_trend"]
+        ]
         csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
 
         st.download_button(
@@ -809,12 +811,12 @@ with tab_p:
         )
 
         # ==========================
-        # Watchlist PRO
+        # Watchlist PRO (ORDINATA)
         # ==========================
-       options_pro = sorted(
-    f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
-)
-
+        options_pro = sorted(
+            f"{row['Nome']} – {row['Ticker']}"
+            for _, row in df_pro_view.iterrows()
+        )
         selection_pro = st.multiselect(
             "Aggiungi alla Watchlist (PRO):",
             options=options_pro,
