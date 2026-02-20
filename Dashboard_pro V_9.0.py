@@ -164,7 +164,7 @@ def reset_watchlist_db():
     conn.close()
     init_db()
 
-def add_to_watchlist(tickers, names, origine, note, trend="LONG"):
+def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
     if not tickers:
         return
     conn = sqlite3.connect(DB_PATH)
@@ -172,20 +172,23 @@ def add_to_watchlist(tickers, names, origine, note, trend="LONG"):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for t, n in zip(tickers, names):
         c.execute(
-            "INSERT INTO watchlist (ticker, name, trend, origine, note, created_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (t, n, trend, origine, note, now),
+            "INSERT INTO watchlist (ticker, name, trend, origine, note, list_name, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (t, n, trend, origine, note, list_name, now),
         )
     conn.commit()
     conn.close()
 
+
 def load_watchlist():
     if not DB_PATH.exists():
-        return pd.DataFrame(columns=["id", "ticker", "name", "trend", "origine", "note", "created_at"])
+        return pd.DataFrame(
+            columns=["id", "ticker", "name", "trend", "origine", "note", "list_name", "created_at"]
+        )
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
     conn.close()
-    for col in ["ticker", "name", "trend", "origine", "note", "created_at"]:
+    for col in ["ticker", "name", "trend", "origine", "note", "list_name", "created_at"]:
         if col not in df.columns:
             df[col] = ""
     return df
@@ -314,6 +317,20 @@ top = st.sidebar.number_input(
     "TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5
 )
 st.session_state["top"] = top
+
+st.sidebar.subheader("📁 Lista Watchlist attiva")
+
+existing_lists = load_watchlist()
+list_options = sorted(existing_lists["list_name"].dropna().unique().tolist())
+list_options = [ln for ln in list_options if ln]
+default_list = list_options[0] if list_options else "DEFAULT"
+
+current_list = st.sidebar.text_input(
+    "Nome lista (nuova o esistente)",
+    value=st.session_state.get("current_list_name", default_list),
+)
+st.session_state["current_list_name"] = current_list
+
 
 # ---------------- Controllo mercati selezionati ----------------
 if not sel:
@@ -734,9 +751,11 @@ with tab_e:
         if st.button("📌 Salva in Watchlist (EARLY)"):
             tickers = [s.split(" – ")[1] for s in selection_early]
             names = [s.split(" – ")[0] for s in selection_early]
-            add_to_watchlist(tickers, names, "EARLY", note_early, trend="LONG")
-            st.success("EARLY salvati in watchlist.")
-            st.rerun()
+           add_to_watchlist(
+    tickers, names, "EARLY", note_early, trend="LONG",
+    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+ st.rerun()
 
 # =============================================================================
 # PRO
@@ -913,8 +932,11 @@ with tab_p:
         if st.button("📌 Salva in Watchlist (PRO)"):
             tickers = [s.split(" – ")[1] for s in selection_pro]
             names = [s.split(" – ")[0] for s in selection_pro]
-            add_to_watchlist(tickers, names, "PRO", note_pro, trend="LONG")
-            st.success("PRO salvati in watchlist.")
+            add_to_watchlist(
+    tickers, names, "PRO", note_early, trend="LONG",
+    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
             st.rerun()
 
 # =============================================================================
@@ -1083,8 +1105,11 @@ with tab_r:
         if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
             tickers = [s.split(" – ")[1] for s in selection_rea]
             names = [s.split(" – ")[0] for s in selection_rea]
-            add_to_watchlist(tickers, names, "REA_HOT", note_rea, trend="LONG")
-            st.success("REA‑QUANT salvati in watchlist.")
+    add_to_watchlist(
+        tickers, names, "REA_HOT", note_early, trend="LONG",
+        list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
             st.rerun()
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
@@ -1225,8 +1250,11 @@ with tab_rea_q:
         if st.button("📌 Salva in Watchlist (Rea Quant)"):
             tickers = [s.split(" – ")[1] for s in selection_rea_q]
             names = [s.split(" – ")[0] for s in selection_rea_q]
-            add_to_watchlist(tickers, names, "REA_QUANT", note_rea_q, trend="LONG")
-            st.success("Rea Quant salvati in watchlist.")
+            add_to_watchlist(
+        tickers, names, "REA_QUANT", note_early, trend="LONG",
+        list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
             st.rerun()
 
         # ==========================
@@ -1437,9 +1465,11 @@ with tab_serafini:
                     tickers = [s.split(" – ")[1] for s in selection_seraf]
                     names = [s.split(" – ")[0] for s in selection_seraf]
                     add_to_watchlist(
-                        tickers, names, "SERAFINI", note_seraf, trend="LONG"
-                    )
-                    st.success("Serafini salvati in watchlist.")
+                        add_to_watchlist(
+            tickers, names, "SERAFINI", note_early, trend="LONG",
+            list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
                     st.rerun()
 # =============================================================================
 # REGIME & MOMENTUM
@@ -1668,9 +1698,10 @@ with tab_regime:
                 tickers = [s.split(" – ")[1] for s in selection_regime]
                 names = [s.split(" – ")[0] for s in selection_regime]
                 add_to_watchlist(
-                    tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG"
-                )
-                st.success("Regime/Momentum salvati in watchlist.")
+            tickers, names, "REGIME_MOMENTUM", note_early, trend="LONG",
+            list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
                 st.rerun()
 
 # =============================================================================
@@ -1816,8 +1847,11 @@ with tab_mtf:
         if st.button("📌 Salva in Watchlist (Multi‑Timeframe)"):
             tickers = [s.split(" – ")[1] for s in selection_mtf]
             names = [s.split(" – ")[0] for s in selection_mtf]
-            add_to_watchlist(tickers, names, "MTF", note_mtf, trend="LONG")
-            st.success("Multi‑Timeframe salvati in watchlist.")
+            add_to_watchlist(
+            tickers, names, "MTF", note_early, trend="LONG",
+            list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
             st.rerun()
 
 # =============================================================================
@@ -1978,9 +2012,10 @@ with tab_finviz:
                 tickers = [s.split(" – ")[1] for s in selection_finviz]
                 names = [s.split(" – ")[0] for s in selection_finviz]
                 add_to_watchlist(
-                    tickers, names, "FINVIZ", note_finviz, trend="LONG"
-                )
-                st.success("Finviz salvati in watchlist.")
+                tickers, names, "FINVIZ", note_early, trend="LONG",
+                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+)
+
                 st.rerun()
 
 # =============================================================================
@@ -1995,9 +2030,18 @@ with tab_watch:
         if st.button("🔄 Refresh"):
             st.rerun()
     with col_reset:
-        if st.button("🧨 Reset DB"):
+        current_list = st.session_state.get("current_list_name", "DEFAULT")
+        if st.button(f"🧨 Reset lista '{current_list}'"):
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute("DELETE FROM watchlist WHERE list_name = ?", (current_list,))
+            conn.commit()
+            conn.close()
+            st.success(f"Lista '{current_list}' azzerata.")
+            st.rerun()
+        if st.button("🧨 Reset DB (tutte le liste)"):
             reset_watchlist_db()
-            st.success("Watchlist azzerata.")
+            st.success("Watchlist COMPLETAMENTE azzerata.")
             st.rerun()
 
     # carico il DB
@@ -2007,7 +2051,7 @@ with tab_watch:
         st.stop()
 
     # ---------------- Filtro per lista multipla ----------------
-    list_names = sorted(df_wl["list_name"].dropna().unique().tolist()) if "list_name" in df_wl.columns else []
+    list_names = sorted(df_wl["list_name"].dropna().unique().tolist())
     list_names = [ln for ln in list_names if ln]
     if not list_names:
         list_names = ["DEFAULT"]
@@ -2021,7 +2065,7 @@ with tab_watch:
         key="wl_filter_list",
     )
 
-    df_wl = df_wl[df_wl["list_name"] == list_filter] if "list_name" in df_wl.columns else df_wl
+    df_wl = df_wl[df_wl["list_name"] == list_filter]
     if df_wl.empty:
         st.caption("Questa lista è vuota.")
         st.stop()
@@ -2095,7 +2139,6 @@ with tab_watch:
     df_wl_filt = add_links(df_wl_filt)
 
     # ---------------- Tabella principale watchlist ----------------
-    # etichetta leggibile ID | Nome | Ticker
     df_wl_filt["label"] = (
         df_wl_filt["id"].astype(str)
         + " | "
@@ -2104,7 +2147,6 @@ with tab_watch:
         + df_wl_filt["ticker"].fillna("")
     )
 
-    # ordino alfabeticamente per nome (e poi per ticker)
     df_wl_filt = df_wl_filt.sort_values(["name", "ticker"])
 
     cols_show = [
@@ -2174,7 +2216,7 @@ with tab_watch:
         key="dl_watch_xlsx",
     )
 
-    # EXPORT TradingView (solo ticker) dai dati filtrati
+    # EXPORT TradingView (solo ticker)
     tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
     csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
@@ -2227,11 +2269,3 @@ with tab_watch:
             delete_from_watchlist(del_ids)
             st.success("Righe eliminate dalla watchlist.")
             st.rerun()
-
-    # ---------------- Reset completo DB ----------------
-    st.subheader("⚠️ Reset completo Watchlist DB")
-
-    if st.button("🧨 Elimina TUTTO il DB Watchlist e riparti da zero"):
-        reset_watchlist_db()
-        st.success("Watchlist azzerata.")
-        st.rerun()
