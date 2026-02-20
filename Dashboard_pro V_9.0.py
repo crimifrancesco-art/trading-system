@@ -368,11 +368,6 @@ m = {
 
 sel = [k for k, v in m.items() if v]
 
-# aggiorno stato mercati principali (coerente con le checkbox)
-st.session_state["m_FTSE"] = m_ftse
-st.session_state["m_SP500"] = m_sp500
-st.session_state["m_Nasdaq"] = m_nasdaq
-
 st.sidebar.divider()
 
 
