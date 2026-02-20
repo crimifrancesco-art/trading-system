@@ -24,7 +24,7 @@ st.set_page_config(
 st.title("📊 Trading Scanner – Versione PRO 9.0")
 
 st.caption(
-    "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
+    "EARLY • PRO • REA‑QUANT •  • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz • Watchlist DB"
 )
 
@@ -620,7 +620,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 if "done_pro" not in st.session_state:
     st.session_state["done_pro"] = False
 
-if st.button("🚀 AVVIA SCANNER PRO 8.0", type="primary", use_container_width=True):
+if st.button("🚀 AVVIA SCANNER PRO 9.0", type="primary", use_container_width=True):
     universe = load_universe(sel)
     st.info(f"Scansione in corso su {len(universe)} titoli...")
 
@@ -696,7 +696,7 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
         "🟢 EARLY",
         "🟣 PRO",
         "🟠 REA‑QUANT",
-        "🧮 Rea Quant",
+        "🧮 ",
         "📈 Serafini Systems",
         "🧊 Regime & Momentum",
         "🕒 Multi‑Timeframe",
@@ -1228,6 +1228,12 @@ with tab_rea_q:
             "- **RSI**: momentum di breve.\n"
             "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
+
+        # all'inizio del tab Rea Quant (subito dentro with tab_rea_q:)
+    if df_rea_all.empty:
+        df_rea_q = pd.DataFrame()
+    else:
+        df_rea_q = df_rea_all.copy()
 
     if df_rea_q.empty:
         st.caption("Nessun dato disponibile per l’analisi Rea Quant.")
