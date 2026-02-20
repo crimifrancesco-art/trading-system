@@ -2320,27 +2320,35 @@ with tab_watch:
             st.success("Watchlist azzerata.")
             st.rerun()
 
-    # Carico il DB
-    df_wl = load_watchlist()
-    if df_wl.empty:
-        st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
-        st.stop()
+   # Carico il DB
+df_wl = load_watchlist()
+if df_wl.empty:
+    st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
+    st.stop()
 
-    # =========================================================================
-    # Usa SOLO la lista attiva definita in sidebar
-    # =========================================================================
-    active_list = st.session_state.get("current_list_name", "DEFAULT")
-    st.caption(f"Lista attiva (definita in sidebar): **{active_list}**")
-    st.markdown("---")
+# =========================================================================
+# Usa SOLO la lista attiva definita in sidebar
+# =========================================================================
+active_list = st.session_state.get("current_list_name", "DEFAULT")
 
-    if "list_name" in df_wl.columns:
-        df_wl = df_wl[df_wl["list_name"] == active_list]
-    else:
-        df_wl["list_name"] = active_list
+st.markdown(
+    f"📁 **Lista Watchlist attiva:** `{active_list}`  "
+    "<br><span style='font-size: 0.9em; color: gray;'>"
+    "Modifica la lista attiva dalla sidebar nella sezione "
+    "<em>\"Lista Watchlist attiva\"</em>."
+    "</span>",
+    unsafe_allow_html=True,
+)
+st.markdown("---")
 
-    if df_wl.empty:
-        st.caption("Questa lista è vuota.")
-        st.stop()
+if "list_name" in df_wl.columns:
+    df_wl = df_wl[df_wl["list_name"] == active_list]
+else:
+    df_wl["list_name"] = active_list
+
+if df_wl.empty:
+    st.caption("Questa lista è vuota per il nome selezionato.")
+    st.stop()
 
     # =========================================================================
     # Dati di mercato da Yahoo per i ticker in watchlist
