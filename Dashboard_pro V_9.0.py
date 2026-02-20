@@ -614,7 +614,7 @@ with tab_e:
             "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
             "- **Stato = EARLY**: setup in formazione vicino alla media.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_early_all.empty:
@@ -751,11 +751,16 @@ with tab_e:
         if st.button("📌 Salva in Watchlist (EARLY)"):
             tickers = [s.split(" – ")[1] for s in selection_early]
             names = [s.split(" – ")[0] for s in selection_early]
-           add_to_watchlist(
-    tickers, names, "EARLY", note_early, trend="LONG",
-    list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
- st.rerun()
+            add_to_watchlist(
+                tickers,
+                names,
+                "EARLY",
+                note_early,
+                trend="LONG",
+                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            )
+            st.success("EARLY salvati in watchlist.")
+            st.rerun()
 
 # =============================================================================
 # PRO
