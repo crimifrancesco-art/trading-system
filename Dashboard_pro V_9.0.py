@@ -2273,7 +2273,7 @@ with tab_watch:
     # 1) Refresh semplice (rilegge il DB)
     with col_a1:
         if st.button("🔄 Refresh watchlist"):
-            st.experimental_rerun()
+            st.rerun()
 
     # 2) Reset COMPLETO DB (tutte le liste)
     with col_a2:
