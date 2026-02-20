@@ -656,47 +656,61 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     except Exception:
         return None, None
 
+st.sidebar.subheader("🧠 Modalità")
+only_watchlist = st.sidebar.checkbox(
+    "Mostra solo Watchlist (salta scanner)",
+    value=False,
+    key="only_watchlist",
+)
+
 
 # =============================================================================
 # SCAN
 # =============================================================================
-if "done_pro" not in st.session_state:
-    st.session_state["done_pro"] = False
-
-if st.button("🚀 AVVIA SCANNER PRO 9.0", type="primary", use_container_width=True):
-    universe = load_universe(sel)
-    st.info(f"Scansione in corso su {len(universe)} titoli...")
-
-    pb = st.progress(0)
-    status = st.empty()
-
-    r_ep, r_rea = [], []
-
-    for i, tkr in enumerate(universe):
-        status.text(f"Analisi: {tkr} ({i+1}/{len(universe)})")
-        ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc)
-        if ep:
-            r_ep.append(ep)
-        if rea:
-            r_rea.append(rea)
-        pb.progress((i + 1) / len(universe))
-        if (i + 1) % 10 == 0:
-            time.sleep(0.1)
-
-    status.text("✅ Scansione completata.")
-    pb.empty()
-
-    st.session_state["df_ep_pro"] = pd.DataFrame(r_ep)
-    st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
+if st.session_state.get("only_watchlist"):
+    # non eseguo scanner, ma mi serve comunque df_ep/df_rea vuoti
+    df_ep = pd.DataFrame()
+    df_rea = pd.DataFrame()
     st.session_state["done_pro"] = True
+else:
+    if "done_pro" not in st.session_state:
+        st.session_state["done_pro"] = False
 
-    st.rerun()
+    if st.button("🚀 AVVIA SCANNER PRO 9.0", type="primary", use_container_width=True):
+        universe = load_universe(sel)
+        st.info(f"Scansione in corso su {len(universe)} titoli...")
 
-if not st.session_state.get("done_pro"):
-    st.stop()
+        pb = st.progress(0)
+        status = st.empty()
 
-df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
-df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
+        r_ep, r_rea = [], []
+
+        for i, tkr in enumerate(universe):
+            status.text(f"Analisi: {tkr} ({i+1}/{len(universe)})")
+            ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc)
+            if ep:
+                r_ep.append(ep)
+            if rea:
+                r_rea.append(rea)
+            pb.progress((i + 1) / len(universe))
+            if (i + 1) % 10 == 0:
+                time.sleep(0.1)
+
+        status.text("✅ Scansione completata.")
+        pb.empty()
+
+        st.session_state["df_ep_pro"] = pd.DataFrame(r_ep)
+        st.session_state["df_rea_pro"] = pd.DataFrame(r_rea)
+        st.session_state["done_pro"] = True
+
+        st.rerun()
+
+    if not st.session_state.get("done_pro"):
+        st.stop()
+
+    df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
+    df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
+
 
 # =============================================================================
 # RISULTATI SCANNER – METRICHE
@@ -2277,62 +2291,15 @@ with tab_watch:
         st.stop()
 
     # =========================================================================
-    # 📁 Lista Watchlist attiva
+    # Usa SOLO la lista attiva definita in sidebar
     # =========================================================================
-    st.subheader("📁 Lista Watchlist attiva")
-
-    if "list_name" in df_wl.columns and not df_wl.empty:
-        existing_lists = (
-            df_wl["list_name"]
-            .dropna()
-            .astype(str)
-            .str.strip()
-            .tolist()
-        )
-        existing_lists = sorted({ln for ln in existing_lists if ln})
-    else:
-        existing_lists = []
-
-    if not existing_lists:
-        existing_lists = ["DEFAULT"]
-
-    # valore di default dalla sessione se presente
-    default_list = st.session_state.get("current_list_name", existing_lists[0])
-    if default_list not in existing_lists:
-        default_list = existing_lists[0]
-
-    col_sel, col_new = st.columns(2)
-
-    with col_sel:
-        selected_list = st.selectbox(
-            "Seleziona lista esistente",
-            options=existing_lists,
-            index=existing_lists.index(default_list),
-            key="wl_active_list",
-        )
-
-    with col_new:
-        new_list_name = st.text_input(
-            "Nome lista (nuova o esistente)",
-            value="",
-            key="wl_new_list_name",
-            placeholder="Es. Swing, Long term, Crypto...",
-        )
-
-    # logica lista attiva
-    active_list = new_list_name.strip() if new_list_name.strip() else selected_list
-
-    # salvo lista attiva in session_state
-    st.session_state["current_list_name"] = active_list
-
-    st.caption(f"Lista attiva: **{active_list}**")
+    active_list = st.session_state.get("current_list_name", "DEFAULT")
+    st.caption(f"Lista attiva (definita in sidebar): **{active_list}**")
     st.markdown("---")
 
-    # Applico il filtro per lista attiva
     if "list_name" in df_wl.columns:
         df_wl = df_wl[df_wl["list_name"] == active_list]
     else:
-        # se non esiste la colonna, considero tutto come unica lista
         df_wl["list_name"] = active_list
 
     if df_wl.empty:
@@ -2437,13 +2404,13 @@ with tab_watch:
     # =========================================================================
     st.subheader("📝 Modifica nota per una riga")
 
-    if df_wl_filt.empty:
+    id_options = df_wl_filt["id"].astype(str).tolist()
+    labels = df_wl_filt["label"].tolist()
+    id_map = dict(zip(labels, id_options))
+
+    if not labels:
         st.caption("Nessuna riga in watchlist per modificare le note.")
     else:
-        id_options = df_wl_filt["id"].astype(str).tolist()
-        labels = df_wl_filt["label"].tolist()
-        id_map = dict(zip(labels, id_options))
-
         selected_row = st.selectbox(
             "Seleziona riga da modificare",
             options=labels,
