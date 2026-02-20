@@ -1456,7 +1456,7 @@ with tab_regime:
             "- **Regime**: quota segnali PRO vs EARLY.\n"
             "- **Momentum**: Pro_Score×10 + RSI.\n"
             "- **MarketCap / Volumi**: per contestualizzare i top momentum.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_ep.empty or "Stato" not in df_ep.columns:
@@ -1485,7 +1485,7 @@ with tab_regime:
         # calcolo Momentum
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
 
-        # applico filtro minimo da sidebar
+        # applico filtro minimo da sidebar (momentum_min)
         df_all = df_all[df_all["Momentum"] >= momentum_min]
 
         if df_all.empty:
@@ -1593,7 +1593,7 @@ with tab_regime:
             )
 
             # ==========================
-            # Sintesi per mercato
+            # Sintesi Regime & Momentum per mercato
             # ==========================
             def detect_market_simple(t):
                 if t.endswith(".MI"):
@@ -1615,17 +1615,37 @@ with tab_regime:
                 Vol_Today_med=("Vol_Today", "mean"),
             ).reset_index()
 
+            # formatto MarketCap_med e Vol_Today_med
+            heat["MarketCap_med_fmt"] = heat["MarketCap_med"].apply(
+                lambda v: fmt_marketcap(v, "€")
+            )
+            heat["Vol_Today_med_fmt"] = heat["Vol_Today_med"].apply(fmt_int)
+
             st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
             if not heat.empty:
                 st.dataframe(
-                    heat.sort_values("Momentum_med", ascending=False),
+                    heat[
+                        [
+                            "Mercato",
+                            "Momentum_med",
+                            "N",
+                            "MarketCap_med_fmt",
+                            "Vol_Today_med_fmt",
+                        ]
+                    ].sort_values("Momentum_med", ascending=False),
                     use_container_width=True,
+                    column_config={
+                        "Momentum_med": "Momentum medio",
+                        "N": "N titoli",
+                        "MarketCap_med_fmt": "Market Cap med",
+                        "Vol_Today_med_fmt": "Vol medio giorno",
+                    },
                 )
             else:
                 st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
             # ==========================
-            # Watchlist Top Momentum (con seleziona tutti)
+            # Watchlist Top Momentum (con seleziona tutti) – key wl_regime
             # ==========================
             options_regime = sorted(
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
@@ -1984,6 +2004,26 @@ with tab_watch:
     df_wl = load_watchlist()
     if df_wl.empty:
         st.caption("Watchlist vuota. Aggiungi titoli dai tab scanner.")
+        st.stop()
+
+    # ---------------- Filtro per lista multipla ----------------
+    list_names = sorted(df_wl["list_name"].dropna().unique().tolist()) if "list_name" in df_wl.columns else []
+    list_names = [ln for ln in list_names if ln]
+    if not list_names:
+        list_names = ["DEFAULT"]
+
+    list_filter = st.selectbox(
+        "Lista watchlist:",
+        options=list_names,
+        index=list_names.index(
+            st.session_state.get("current_list_name", list_names[0])
+        ) if st.session_state.get("current_list_name") in list_names else 0,
+        key="wl_filter_list",
+    )
+
+    df_wl = df_wl[df_wl["list_name"] == list_filter] if "list_name" in df_wl.columns else df_wl
+    if df_wl.empty:
+        st.caption("Questa lista è vuota.")
         st.stop()
 
     # ---------------- Filtri rapidi origine / trend ----------------
