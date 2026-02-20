@@ -1462,6 +1462,7 @@ with tab_regime:
     if df_ep.empty or "Stato" not in df_ep.columns:
         st.caption("Nessun dato scanner disponibile.")
     else:
+        # uso solo righe con Pro_Score e RSI validi
         df_all = df_ep.copy().dropna(subset=["Pro_Score", "RSI"])
 
         n_tot_signals = len(df_all)
@@ -1484,7 +1485,7 @@ with tab_regime:
         # calcolo Momentum
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
 
-        # applico filtro minimo da sidebar (può restare 0 per vedere tutto)
+        # applico filtro minimo da sidebar
         df_all = df_all[df_all["Momentum"] >= momentum_min]
 
         if df_all.empty:
@@ -1547,7 +1548,9 @@ with tab_regime:
                 },
             )
 
-            # EXPORT Momentum
+            # ==========================
+            # EXPORT MOMENTUM
+            # ==========================
             csv_data = df_mom.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export Momentum CSV",
@@ -1589,7 +1592,9 @@ with tab_regime:
                 key="dl_tv_mom",
             )
 
+            # ==========================
             # Sintesi per mercato
+            # ==========================
             def detect_market_simple(t):
                 if t.endswith(".MI"):
                     return "FTSE"
@@ -1619,7 +1624,9 @@ with tab_regime:
             else:
                 st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
-            # Watchlist Top Momentum (con seleziona tutti) – key wl_regime
+            # ==========================
+            # Watchlist Top Momentum (con seleziona tutti)
+            # ==========================
             options_regime = sorted(
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
             )
@@ -1645,7 +1652,6 @@ with tab_regime:
                 )
                 st.success("Regime/Momentum salvati in watchlist.")
                 st.rerun()
-
 
 # =============================================================================
 # MULTI‑TIMEFRAME
