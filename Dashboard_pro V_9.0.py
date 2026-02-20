@@ -2124,15 +2124,20 @@ with tab_finviz:
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile per il filtro Finviz‑like.")
     else:
-        dffinviz = df_ep.copy()
+                dffinviz = df_ep.copy()
 
         if all(col in dffinviz.columns for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]):
+            # 1) rimuovo righe con valori mancanti sulle colonne fondamentali
+            dffinviz = dffinviz.dropna(subset=["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"])
+
+            # 2) applico i filtri numerici
             dffinviz = dffinviz[
                 (dffinviz["EPSnextY"] >= eps_next_y_min)
                 & (dffinviz["EPS5Y"] >= eps_next_5y_min)
                 & (dffinviz["AvgVolmln"] >= avg_vol_min_mln)
                 & (dffinviz["Prezzo"] >= price_min_finviz)
             ]
+
 
         if dffinviz.empty:
             st.caption("Nessun titolo soddisfa i filtri Finviz‑like.")
