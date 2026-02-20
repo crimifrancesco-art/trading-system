@@ -2254,57 +2254,63 @@ with tab_finviz:
                 st.success("Finviz‑like salvati in watchlist.")
                 st.rerun()
 # =============================================================================
-# 📌 WATCHLIST & NOTE
+# WATCHLIST & NOTE – gestione completa
 # =============================================================================
 with tab_watch:
-    # Header + pulsanti azione
-    col_title, col_refresh, col_reset = st.columns([4, 1, 2])
-    with col_title:
-        st.subheader("📌 Watchlist & Note")
-    with col_refresh:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.rerun()
-    with col_reset:
-        if st.button("🧹 Reset DB", type="secondary", use_container_width=True):
-            reset_watchlist_db()
-            st.success("Watchlist azzerata.")
-            st.rerun()
+    st.subheader("📌 Watchlist & Note")
 
-   # Carico il DB
-df_wl = load_watchlist()
-if df_wl.empty:
-    st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
-    st.stop()
+    # Carico il DB completo
+    df_wl = load_watchlist()
 
-# =========================================================================
-# Usa SOLO la lista attiva definita in sidebar
-# =========================================================================
-active_list = st.session_state.get("current_list_name", "DEFAULT")
+    if df_wl.empty:
+        st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
+        st.stop()
 
-st.markdown(
-    f"📁 **Lista Watchlist attiva:** `{active_list}`  "
-    "<br><span style='font-size: 0.9em; color: gray;'>"
-    "Modifica la lista attiva dalla sidebar nella sezione "
-    "<em>\"Lista Watchlist attiva\"</em>."
-    "</span>",
-    unsafe_allow_html=True,
-)
-st.markdown("---")
+    # Normalizzo colonne
+    for col in ["id", "ticker", "name", "trend", "origine", "note", "list_name", "created_at"]:
+        if col not in df_wl.columns:
+            df_wl[col] = "" if col != "id" else np.nan
 
-if "list_name" in df_wl.columns:
-    df_wl = df_wl[df_wl["list_name"] == active_list]
-else:
-    df_wl["list_name"] = active_list
+    # Liste disponibili
+    all_lists = (
+        df_wl["list_name"]
+        .fillna("DEFAULT")
+        .astype(str)
+        .str.strip()
+        .replace("", "DEFAULT")
+        .unique()
+        .tolist()
+    )
+    all_lists = sorted(all_lists)
 
-if df_wl.empty:
-    st.caption("Questa lista è vuota per il nome selezionato.")
-    st.stop()
+    # Selezione lista da visualizzare (indipendente dalla sidebar)
+    col_l1, col_l2 = st.columns([2, 1])
+    with col_l1:
+        current_list = st.selectbox(
+            "Lista da visualizzare",
+            options=all_lists,
+            index=all_lists.index(
+                st.session_state.get("current_list_name", all_lists[0])
+                if st.session_state.get("current_list_name", all_lists[0]) in all_lists
+                else 0
+            ),
+            help="Seleziona quale watchlist vuoi visualizzare e modificare.",
+        )
+    with col_l2:
+        st.markdown(
+            f"Lista attiva sidebar: **{st.session_state.get('current_list_name', 'DEFAULT')}**"
+        )
 
-    # =========================================================================
-    # Dati di mercato da Yahoo per i ticker in watchlist
-    # =========================================================================
+    df_wl = df_wl[df_wl["list_name"].fillna("DEFAULT") == current_list]
+
+    if df_wl.empty:
+        st.caption(f"Questa lista è vuota: '{current_list}'.")
+        st.stop()
+
+    # =======================
+    # Dati di mercato Yahoo
+    # =======================
     tickers_wl = df_wl["ticker"].dropna().unique().tolist()
-
     records_mkt = []
     for tkr in tickers_wl:
         try:
@@ -2340,27 +2346,24 @@ if df_wl.empty:
 
     df_mkt = pd.DataFrame(records_mkt)
 
-    # Merge dati di mercato
     df_wl_filt = df_wl.copy()
     if not df_mkt.empty:
         df_wl_filt = df_wl_filt.merge(df_mkt, on="ticker", how="left")
 
-    # Formattazione + link
     df_wl_filt = add_formatted_cols(df_wl_filt)
     df_wl_filt = add_links(df_wl_filt)
 
-    # Colonna label "ID – Nome (Ticker)"
+    # label per selezioni
     df_wl_filt["label"] = df_wl_filt.apply(
         lambda r: f"{r['id']} – {r.get('name', '')} ({r['ticker']})",
         axis=1,
     )
 
-    # Ordino per nome e ticker
     df_wl_filt = df_wl_filt.sort_values(["name", "ticker"], na_position="last")
 
-    # =========================================================================
-    # Tabella principale Watchlist
-    # =========================================================================
+    # =======================
+    # Tabella principale
+    # =======================
     cols_show = ["label", "trend", "origine", "note", "created_at"]
 
     if "Prezzo_fmt" in df_wl_filt.columns:
@@ -2393,123 +2396,103 @@ if df_wl.empty:
         },
     )
 
-    # =========================================================================
+    st.markdown("---")
+
+    # =======================
     # Modifica note
-    # =========================================================================
+    # =======================
     st.subheader("📝 Modifica nota per una riga")
 
-    id_options = df_wl_filt["id"].astype(str).tolist()
-    labels = df_wl_filt["label"].tolist()
-    id_map = dict(zip(labels, id_options))
+    options_row = df_wl_filt["label"].tolist()
+    row_sel = st.selectbox(
+        "Seleziona riga",
+        options=["—"] + options_row,
+        index=0,
+    )
 
-    if not labels:
-        st.caption("Nessuna riga in watchlist per modificare le note.")
-    else:
-        selected_row = st.selectbox(
-            "Seleziona riga da modificare",
-            options=labels,
-            key="wl_edit_row",
+    if row_sel != "—":
+        row_id = int(row_sel.split(" – ")[0])
+        old_note = df_wl_filt.loc[df_wl_filt["id"] == row_id, "note"].iloc[0]
+        new_note = st.text_area(
+            "Nota",
+            value=old_note,
+            key=f"note_edit_{row_id}",
         )
-        row_id = int(id_map[selected_row])
-
-        note_series = df_wl_filt.loc[df_wl_filt["id"] == row_id, "note"]
-        if note_series.empty:
-            current_note_raw = ""
-        else:
-            current_note_raw = note_series.values[0]
-
-        if current_note_raw is None:
-            current_note = ""
-        elif isinstance(current_note_raw, float) and np.isnan(current_note_raw):
-            current_note = ""
-        else:
-            current_note = str(current_note_raw)
-
-        new_note = st.text_area("Nota", current_note, key="wl_edit_note")
-
         if st.button("💾 Salva nota"):
             update_watchlist_note(row_id, new_note)
             st.success("Nota aggiornata.")
             st.rerun()
 
-        # =========================================================================
-        # Eliminazione righe
-        # =========================================================================
-        st.subheader("🗑️ Elimina righe dalla Watchlist")
+    st.markdown("---")
 
-        del_rows = st.multiselect(
-            "Seleziona righe da eliminare",
-            options=labels,
-            key="wl_delete_rows",
-        )
-        del_ids = [id_map[label] for label in del_rows]
+    # =======================
+    # Spostamento tra liste
+    # =======================
+    st.subheader("📂 Sposta righe tra watchlist")
 
-        col_del1, col_del2 = st.columns(2)
-        with col_del1:
-            if st.button(
-                "❌ Elimina selezionate",
-                type="secondary",
-                use_container_width=True,
-            ):
-                if del_ids:
-                    delete_from_watchlist(del_ids)
-                    st.success("Righe eliminate dalla watchlist.")
-                    st.rerun()
-                else:
-                    st.warning("Nessuna riga selezionata.")
+    move_rows = st.multiselect(
+        "Seleziona righe da spostare",
+        options=options_row,
+        key="move_rows",
+    )
 
-        # =========================================================================
-        # Export Watchlist
-        # =========================================================================
-        st.subheader("📤 Export Watchlist")
+    target_list = st.selectbox(
+        "Lista di destinazione",
+        options=all_lists + ["[NUOVA LISTA]"],
+        index=0,
+    )
 
-        tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export Watchlist TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_tv_watch",
+    new_list_name_input = ""
+    if target_list == "[NUOVA LISTA]":
+        new_list_name_input = st.text_input(
+            "Nome nuova lista",
+            value="",
+            key="new_list_name_move",
         )
 
-        st.markdown("---")
+    if st.button("➡️ Sposta righe"):
+        if not move_rows:
+            st.warning("Seleziona almeno una riga da spostare.")
+        else:
+            if target_list == "[NUOVA LISTA]":
+                dest = new_list_name_input.strip() or "NUOVA"
+            else:
+                dest = target_list
 
-        csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export Watchlist CSV",
-            data=csv_data,
-            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_watch_csv",
-        )
+            ids_to_move = [int(s.split(" – ")[0]) for s in move_rows]
 
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_wl_view.to_excel(writer, index=False, sheet_name="WATCHLIST")
-        data_xlsx = output.getvalue()
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.executemany(
+                "UPDATE watchlist SET list_name = ? WHERE id = ?",
+                [(dest, rid) for rid in ids_to_move],
+            )
+            conn.commit()
+            conn.close()
 
-        st.download_button(
-            "⬇️ Export Watchlist XLSX",
-            data=data_xlsx,
-            file_name=f"WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_watch_xlsx",
-        )
-
-        # =========================================================================
-        # Reset completo DB
-        # =========================================================================
-        st.subheader("⚠️ Reset completo Watchlist DB")
-        if st.button(
-            "🔥 Elimina TUTTO il DB Watchlist e riparti da zero",
-            type="primary",
-            use_container_width=True,
-        ):
-            reset_watchlist_db()
-            st.success("Watchlist azzerata completamente.")
+            st.success(f"Spostate {len(ids_to_move)} righe nella lista '{dest}'.")
             st.rerun()
+
+    st.markdown("---")
+
+    # =======================
+    # Cancellazione righe
+    # =======================
+    st.subheader("🗑️ Cancella righe dalla lista corrente")
+
+    del_rows = st.multiselect(
+        "Seleziona righe da cancellare",
+        options=options_row,
+        key="del_rows",
+    )
+
+    if st.button("❌ Elimina righe selezionate"):
+        if not del_rows:
+            st.warning("Seleziona almeno una riga da eliminare.")
+        else:
+            ids_to_del = [int(s.split(" – ")[0]) for s in del_rows]
+            delete_from_watchlist(ids_to_del)
+            st.success(f"Eliminate {len(ids_to_del)} righe dalla lista '{current_list}'.")
+            st.rerun()
+
 
