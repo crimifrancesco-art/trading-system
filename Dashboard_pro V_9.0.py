@@ -800,23 +800,6 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
 )
 
 # =============================================================================
-# TABS
-# =============================================================================
-tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch = st.tabs(
-    [
-        "🟢 EARLY",
-        "🟣 PRO",
-        "🟠 REA‑QUANT",
-        "🧮 Rea Quant",
-        "📈 Serafini Systems",
-        "🧊 Regime & Momentum",
-        "🕒 Multi‑Timeframe",
-        "📊 Finviz",
-        "📌 Watchlist & Note",
-    ]
-)
-
-# =============================================================================
 # EARLY – Top N per Early_Score
 # =============================================================================
 with tab_e:
