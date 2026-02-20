@@ -387,6 +387,8 @@ st.session_state["top"] = top
 st.sidebar.subheader("📁 Lista Watchlist attiva")
 
 df_wl_sidebar = load_watchlist()
+
+# elenco liste esistenti dal DB
 if not df_wl_sidebar.empty and "list_name" in df_wl_sidebar.columns:
     list_options = (
         df_wl_sidebar["list_name"]
@@ -399,44 +401,78 @@ if not df_wl_sidebar.empty and "list_name" in df_wl_sidebar.columns:
 else:
     list_options = []
 
+if not list_options:
+    list_options = ["DEFAULT"]
+
+# lista corrente salvata in sessione
 default_list = (
-    st.session_state.get("current_list_name")
-    if st.session_state.get("current_list_name") in list_options
-    else (list_options[0] if list_options else "DEFAULT")
+    st.session_state.get("current_list_name", list_options[0])
+    if st.session_state.get("current_list_name", list_options[0]) in list_options
+    else list_options[0]
 )
 
-col_l_sel, col_l_new = st.sidebar.columns(2)
+# 1) scegli la lista attiva
+selected_list = st.sidebar.selectbox(
+    "Lista esistente",
+    options=list_options,
+    index=list_options.index(default_list),
+    key="sb_wl_select",
+    help="Seleziona una watchlist già presente.",
+)
 
-with col_l_sel:
-    selected_list = st.selectbox(
-        "Lista esistente",
-        options=list_options if list_options else ["DEFAULT"],
-        index=(list_options.index(default_list) if list_options else 0),
-        key="sb_wl_select",
-    )
+# 2) crea una nuova lista (vuota)
+new_list_name = st.sidebar.text_input(
+    "Crea nuova lista",
+    value="",
+    key="sb_wl_new",
+    placeholder="Es. Swing, LT, Crypto...",
+    help="Scrivi un nome e premi Invio per iniziare una nuova lista vuota.",
+)
 
-with col_l_new:
-    new_list_name_sb = st.text_input(
-        "Nuova / rinomina",
-        value="",
-        key="sb_wl_new",
-        placeholder="Es. Swing, LT, Crypto...",
-    )
+# 3) rinomina la lista selezionata
+rename_target = st.sidebar.selectbox(
+    "Rinomina lista",
+    options=list_options,
+    index=list_options.index(selected_list),
+    key="sb_wl_rename_target",
+    help="Scegli quale lista vuoi rinominare.",
+)
 
-if new_list_name_sb.strip():
-    current_list = new_list_name_sb.strip()
-else:
-    current_list = selected_list
+new_name_for_rename = st.sidebar.text_input(
+    "Nuovo nome per la lista selezionata",
+    value="",
+    key="sb_wl_rename_new",
+    placeholder="Nuovo nome...",
+)
 
-st.session_state["current_list_name"] = current_list
-st.sidebar.caption(f"Lista attiva: **{current_list}**")
+if st.sidebar.button("🔤 Applica rinomina"):
+    if new_name_for_rename.strip():
+        old = rename_target
+        new = new_name_for_rename.strip()
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute(
+            "UPDATE watchlist SET list_name = ? WHERE list_name = ?",
+            (new, old),
+        )
+        conn.commit()
+        conn.close()
+        st.sidebar.success(f"Lista '{old}' rinominata in '{new}'.")
+        # aggiorno stato e forzo refresh nomi
+        st.session_state["current_list_name"] = new
+        st.experimental_rerun()
+    else:
+        st.sidebar.warning("Inserisci un nuovo nome per rinominare.")
 
-# ---------------- Controllo mercati selezionati ----------------
-if not sel:
-    st.warning("⚠️ Seleziona almeno un mercato dalla sidebar.")
-    st.stop()
+# LOGICA LISTA ATTIVA
+active_list = selected_list
 
-st.info(f"Mercati selezionati: **{', '.join(sel)}**")
+# se compilato "Crea nuova lista", quella diventa la lista attiva (vuota finché non aggiungi titoli)
+if new_list_name.strip():
+    active_list = new_list_name.strip()
+
+st.session_state["current_list_name"] = active_list
+st.sidebar.caption(f"Lista attiva: **{active_list}**")
 
 # =============================================================================
 # FUNZIONI DI SUPPORTO
