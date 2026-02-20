@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-
 from fpdf import FPDF  # pip install fpdf2
 
 # -----------------------------------------------------------------------------
@@ -31,7 +30,11 @@ st.caption(
 # -----------------------------------------------------------------------------
 # FORMATTAZIONE NUMERICA
 # -----------------------------------------------------------------------------
-locale.setlocale(locale.LC_ALL, "")
+# usa locale di sistema; se serve forza "it_IT.UTF-8"
+try:
+    locale.setlocale(locale.LC_ALL, "")
+except locale.Error:
+    pass
 
 
 def fmt_currency(value, symbol="€"):
@@ -120,12 +123,14 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
     # usa 'Ticker' se c'è, altrimenti 'ticker'
     col = "Ticker" if "Ticker" in df.columns else "ticker"
+    if col not in df.columns:
+        return df
 
-    df["Yahoo"] = df[col].apply(
+    df["Yahoo"] = df[col].astype(str).apply(
         lambda t: f"https://finance.yahoo.com/quote/{t}"
     )
     # link TradingView nella colonna Finviz (mantengo il nome per compatibilità)
-    df["Finviz"] = df[col].apply(
+    df["Finviz"] = df[col].astype(str).apply(
         lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
     )
     return df
@@ -183,6 +188,7 @@ def reset_watchlist_db():
 def add_to_watchlist(
     tickers, names, origine, note, trend="LONG", list_name="DEFAULT"
 ):
+    """Inserisce una lista di ticker in watchlist sulla lista indicata."""
     if not tickers:
         return
     conn = sqlite3.connect(DB_PATH)
@@ -220,7 +226,9 @@ def load_watchlist() -> pd.DataFrame:
         "SELECT * FROM watchlist ORDER BY created_at DESC", conn
     )
     conn.close()
+    # garantisco la presenza delle colonne chiave
     for col in [
+        "id",
         "ticker",
         "name",
         "trend",
@@ -230,7 +238,7 @@ def load_watchlist() -> pd.DataFrame:
         "created_at",
     ]:
         if col not in df.columns:
-            df[col] = ""
+            df[col] = "" if col != "id" else np.nan
     return df
 
 
@@ -256,14 +264,12 @@ def delete_from_watchlist(ids):
     conn.close()
 
 
+# inizializza DB
 init_db()
 
 # =============================================================================
-# SIDEBAR – MERCATI E PARAMETRI
+# INIZIALIZZAZIONE STATO
 # =============================================================================
-st.sidebar.title("⚙️ Configurazione")
-
-# inizializzazione una sola volta
 if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
 
@@ -278,6 +284,15 @@ if "sidebar_init" not in st.session_state:
     st.session_state.setdefault("p_rmax", 70)
     st.session_state.setdefault("r_poc", 0.02)
     st.session_state.setdefault("top", 15)
+
+# lista attiva di default
+if "current_list_name" not in st.session_state:
+    st.session_state["current_list_name"] = "DEFAULT"
+
+# =============================================================================
+# SIDEBAR – MERCATI E PARAMETRI
+# =============================================================================
+st.sidebar.title("⚙️ Configurazione")
 
 # ---------------- Selezione Mercati (persistente) ----------------
 st.sidebar.subheader("📈 Selezione Mercati")
@@ -295,7 +310,7 @@ m = {
 }
 sel = [k for k, v in m.items() if v]
 
-# aggiorno lo stato mercati
+# aggiorno stato mercati
 st.session_state["m_FTSE"] = m["FTSE"]
 st.session_state["m_SP500"] = m["SP500"]
 st.session_state["m_Nasdaq"] = m["Nasdaq"]
@@ -342,7 +357,6 @@ st.session_state["r_poc"] = r_poc
 # ---------------- Filtri avanzati ----------------
 st.sidebar.subheader("🔎 Filtri avanzati")
 
-# Finviz-like
 eps_next_y_min = st.sidebar.number_input(
     "EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0
 )
@@ -355,13 +369,9 @@ avg_vol_min_mln = st.sidebar.number_input(
 price_min_finviz = st.sidebar.number_input(
     "Prezzo min per filtro Finviz", 0.0, 5000.0, 10.0, 1.0
 )
-
-# Rea-Quant
 vol_ratio_hot = st.sidebar.number_input(
     "Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1
 )
-
-# Momentum
 momentum_min = st.sidebar.number_input(
     "Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0
 )
@@ -375,18 +385,51 @@ st.session_state["top"] = top
 
 # ---------------- Lista Watchlist attiva ----------------
 st.sidebar.subheader("📁 Lista Watchlist attiva")
-existing_lists = load_watchlist()
-list_options = sorted(
-    existing_lists["list_name"].dropna().unique().tolist()
-) if not existing_lists.empty else []
-list_options = [ln for ln in list_options if ln]
-default_list = list_options[0] if list_options else "DEFAULT"
 
-current_list = st.sidebar.text_input(
-    "Nome lista (nuova o esistente)",
-    value=st.session_state.get("current_list_name", default_list),
+df_wl_sidebar = load_watchlist()
+if not df_wl_sidebar.empty and "list_name" in df_wl_sidebar.columns:
+    list_options = (
+        df_wl_sidebar["list_name"]
+        .dropna()
+        .astype(str)
+        .str.strip()
+        .tolist()
+    )
+    list_options = sorted({ln for ln in list_options if ln})
+else:
+    list_options = []
+
+default_list = (
+    st.session_state.get("current_list_name")
+    if st.session_state.get("current_list_name") in list_options
+    else (list_options[0] if list_options else "DEFAULT")
 )
+
+col_l_sel, col_l_new = st.sidebar.columns(2)
+
+with col_l_sel:
+    selected_list = st.selectbox(
+        "Lista esistente",
+        options=list_options if list_options else ["DEFAULT"],
+        index=(list_options.index(default_list) if list_options else 0),
+        key="sb_wl_select",
+    )
+
+with col_l_new:
+    new_list_name_sb = st.text_input(
+        "Nuova / rinomina",
+        value="",
+        key="sb_wl_new",
+        placeholder="Es. Swing, LT, Crypto...",
+    )
+
+if new_list_name_sb.strip():
+    current_list = new_list_name_sb.strip()
+else:
+    current_list = selected_list
+
 st.session_state["current_list_name"] = current_list
+st.sidebar.caption(f"Lista attiva: **{current_list}**")
 
 # ---------------- Controllo mercati selezionati ----------------
 if not sel:
@@ -660,10 +703,10 @@ df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 # =============================================================================
 if "Stato" in df_ep.columns:
     df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
-    df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
+    df_pro_all = df_ep[df_ep["Stato"] == "PRO"].copy()
 else:
     df_early_all = pd.DataFrame()
-    df_pro_all   = pd.DataFrame()
+    df_pro_all = pd.DataFrame()
 
 if "Stato" in df_rea.columns:
     df_rea_all = df_rea[df_rea["Stato"] == "HOT"].copy()
@@ -671,9 +714,9 @@ else:
     df_rea_all = pd.DataFrame()
 
 n_early = len(df_early_all)
-n_pro   = len(df_pro_all)
-n_rea   = len(df_rea_all)
-n_tot   = n_early + n_pro + n_rea
+n_pro = len(df_pro_all)
+n_rea = len(df_rea_all)
+n_tot = n_early + n_pro + n_rea
 
 st.header("Panoramica segnali")
 
@@ -2258,7 +2301,7 @@ with tab_watch:
     if default_list not in existing_lists:
         default_list = existing_lists[0]
 
-    col_sel, col_new = st.columns([2, 2])
+    col_sel, col_new = st.columns(2)
 
     with col_sel:
         selected_list = st.selectbox(
@@ -2275,10 +2318,9 @@ with tab_watch:
             key="wl_new_list_name",
             placeholder="Es. Swing, Long term, Crypto...",
         )
-        if new_list_name.strip():
-            active_list = new_list_name.strip()
-        else:
-            active_list = selected_list
+
+    # logica lista attiva
+    active_list = new_list_name.strip() if new_list_name.strip() else selected_list
 
     # salvo lista attiva in session_state
     st.session_state["current_list_name"] = active_list
