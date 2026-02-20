@@ -24,7 +24,7 @@ st.set_page_config(
 st.title("📊 Trading Scanner – Versione PRO 9.0")
 
 st.caption(
-    "EARLY • PRO • REA‑QUANT •  • Serafini • Regime & Momentum • "
+    "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz • Watchlist DB"
 )
 
@@ -660,10 +660,10 @@ df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 # =============================================================================
 if "Stato" in df_ep.columns:
     df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
-    df_pro_all = df_ep[df_ep["Stato"] == "PRO"].copy()
+    df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
 else:
     df_early_all = pd.DataFrame()
-    df_pro_all = pd.DataFrame()
+    df_pro_all   = pd.DataFrame()
 
 if "Stato" in df_rea.columns:
     df_rea_all = df_rea[df_rea["Stato"] == "HOT"].copy()
@@ -671,9 +671,9 @@ else:
     df_rea_all = pd.DataFrame()
 
 n_early = len(df_early_all)
-n_pro = len(df_pro_all)
-n_rea = len(df_rea_all)
-n_tot = n_early + n_pro + n_rea
+n_pro   = len(df_pro_all)
+n_rea   = len(df_rea_all)
+n_tot   = n_early + n_pro + n_rea
 
 st.header("Panoramica segnali")
 
@@ -696,7 +696,7 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
         "🟢 EARLY",
         "🟣 PRO",
         "🟠 REA‑QUANT",
-        "🧮 ",
+        "🧮 Rea Quant",
         "📈 Serafini Systems",
         "🧊 Regime & Momentum",
         "🕒 Multi‑Timeframe",
@@ -705,6 +705,14 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
     ]
 )
 
+# =============================================================================
+# REA QUANT – PREPARAZIONE DF_REA_Q
+# (da usare nel blocco con `with tab_rea_q:` che hai già incollato prima)
+# =============================================================================
+if df_rea_all.empty:
+    df_rea_q = pd.DataFrame()
+else:
+    df_rea_q = df_rea_all.copy()
 # =============================================================================
 # EARLY
 # =============================================================================
