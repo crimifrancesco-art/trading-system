@@ -460,7 +460,8 @@ if st.sidebar.button("🔤 Applica rinomina"):
         st.sidebar.success(f"Lista '{old}' rinominata in '{new}'.")
         # aggiorno stato e forzo refresh nomi
         st.session_state["current_list_name"] = new
-        st.experimental_rerun()
+        st.rerun()
+
     else:
         st.sidebar.warning("Inserisci un nuovo nome per rinominare.")
 
