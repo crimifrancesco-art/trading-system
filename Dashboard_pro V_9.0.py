@@ -2255,12 +2255,12 @@ with tab_finviz:
                 st.rerun()
 
 # =============================================================================
-# WATCHLIST & NOTE – gestione completa con spostamento N righe
+# WATCHLIST & NOTE – gestione completa
 # =============================================================================
 with tab_watch:
     st.subheader("📌 Watchlist & Note")
 
-    # Carico il DB completo
+    # Carico l'intera tabella dal DB
     df_wl = load_watchlist()
 
     if df_wl.empty:
@@ -2272,26 +2272,25 @@ with tab_watch:
         if col not in df_wl.columns:
             df_wl[col] = "" if col != "id" else np.nan
 
-    # Liste disponibili
-    all_lists = (
+    # =======================
+    # Riepilogo per lista
+    # =======================
+    df_wl["list_name"] = (
         df_wl["list_name"]
         .fillna("DEFAULT")
         .astype(str)
         .str.strip()
         .replace("", "DEFAULT")
-        .unique()
-        .tolist()
     )
-    all_lists = sorted(all_lists)
+    all_lists = sorted(df_wl["list_name"].unique().tolist())
 
-    # Riepilogo per lista
     summary = (
-        df_wl.assign(list_name=df_wl["list_name"].fillna("DEFAULT").astype(str).str.strip().replace("", "DEFAULT"))
-        .groupby("list_name")["id"]
+        df_wl.groupby("list_name")["id"]
         .count()
         .reset_index(name="N_titoli")
         .sort_values("list_name")
     )
+
     st.markdown("**Riepilogo watchlist (numero titoli per lista):**")
     st.dataframe(
         summary,
@@ -2302,7 +2301,9 @@ with tab_watch:
 
     st.markdown("---")
 
-    # Selezione lista da visualizzare (indipendente dalla sidebar)
+    # =======================
+    # Selezione lista da visualizzare
+    # =======================
     col_l1, col_l2 = st.columns([2, 1])
     with col_l1:
         default_list = st.session_state.get("current_list_name", all_lists[0])
@@ -2319,24 +2320,22 @@ with tab_watch:
             f"Lista attiva sidebar: **{st.session_state.get('current_list_name', 'DEFAULT')}**"
         )
 
-    # Filtro per lista selezionata
-    df_wl = df_wl[df_wl["list_name"].fillna("DEFAULT").astype(str).str.strip().replace("", "DEFAULT") == current_list]
+    df_wl_list = df_wl[df_wl["list_name"] == current_list].copy()
 
-    if df_wl.empty:
+    if df_wl_list.empty:
         st.caption(f"Questa lista è vuota: '{current_list}'.")
         st.stop()
 
     # =======================
-    # Dati di mercato Yahoo
+    # Dati di mercato da Yahoo
     # =======================
-    tickers_wl = df_wl["ticker"].dropna().unique().tolist()
+    tickers_wl = df_wl_list["ticker"].dropna().unique().tolist()
     records_mkt = []
     for tkr in tickers_wl:
         try:
             yt = yf.Ticker(tkr)
             info = yt.info
             hist = yt.history(period="7d")
-
             if hist.empty:
                 continue
 
@@ -2346,7 +2345,6 @@ with tab_watch:
             price = float(close.iloc[-1])
             vol_today = float(vol.iloc[-1])
             vol_7d_avg = float(vol.mean())
-
             marketcap = info.get("marketCap", np.nan)
             currency = info.get("currency", "USD")
 
@@ -2365,20 +2363,23 @@ with tab_watch:
 
     df_mkt = pd.DataFrame(records_mkt)
 
-    df_wl_filt = df_wl.copy()
+    df_wl_filt = df_wl_list.copy()
     if not df_mkt.empty:
         df_wl_filt = df_wl_filt.merge(df_mkt, on="ticker", how="left")
 
     df_wl_filt = add_formatted_cols(df_wl_filt)
     df_wl_filt = add_links(df_wl_filt)
 
-    # label per selezioni (ID – Nome (Ticker))
+    # Label per selezioni
     df_wl_filt["label"] = df_wl_filt.apply(
         lambda r: f"{r['id']} – {r.get('name', '')} ({r['ticker']})",
         axis=1,
     )
 
-    # Ordino per nome e ticker
+    # (se vuoi i Top N ultimi inseriti, decommenta queste righe)
+    # df_wl_filt = df_wl_filt.sort_values("created_at", ascending=False).head(top)
+
+    # Ordine tabella (alfabetico, o cambia qui se vuoi un ranking diverso)
     df_wl_filt = df_wl_filt.sort_values(["name", "ticker"], na_position="last")
 
     # =======================
@@ -2419,7 +2420,7 @@ with tab_watch:
     st.markdown("---")
 
     # =======================
-    # Modifica note
+    # Modifica nota singola
     # =======================
     st.subheader("📝 Modifica nota per una riga")
 
@@ -2446,7 +2447,7 @@ with tab_watch:
     st.markdown("---")
 
     # =======================
-    # Spostamento tra liste (N righe)
+    # Spostamento N righe tra liste
     # =======================
     st.subheader("📂 Sposta righe tra watchlist")
 
@@ -2498,7 +2499,7 @@ with tab_watch:
     st.markdown("---")
 
     # =======================
-    # Cancellazione righe (N righe)
+    # Cancellazione N righe
     # =======================
     st.subheader("🗑️ Cancella righe dalla lista corrente")
 
@@ -2516,5 +2517,6 @@ with tab_watch:
             delete_from_watchlist(ids_to_del)
             st.success(f"Eliminate {len(ids_to_del)} righe dalla lista '{current_list}'.")
             st.rerun()
+
 
 
