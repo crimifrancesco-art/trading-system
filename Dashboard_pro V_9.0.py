@@ -2055,9 +2055,9 @@ with tab_mtf:
                     st.rerun()
 
 # =============================================================================
-# FINVIZ‑LIKE SCREENER
+# FINVIZ‑LIKE
 # =============================================================================
-with tabfinviz:
+with tab_finviz:
     st.subheader("📊 Screener stile Finviz")
     st.markdown(
         "Filtraggio **fondamentale + quantitativo** (EPS Growth, volume medio, prezzo) "
@@ -2076,18 +2076,14 @@ with tabfinviz:
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile per il filtro Finviz‑like.")
     else:
-        # ci aspettiamo che df_ep contenga già queste colonne (calcolate a monte):
-        # EPSnextY, EPS5Y, AvgVolmln, Prezzo
         dffinviz = df_ep.copy()
 
-        # applica i filtri della sidebar (già definiti a monte)
-        # epsnexty_min, epsnext5y_min, avgvol_min_mln, pricemin_finviz
         if all(col in dffinviz.columns for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]):
             dffinviz = dffinviz[
-                (dffinviz["EPSnextY"] >= epsnexty_min)
-                & (dffinviz["EPS5Y"] >= epsnext5y_min)
-                & (dffinviz["AvgVolmln"] >= avgvol_min_mln)
-                & (dffinviz["Prezzo"] >= pricemin_finviz)
+                (dffinviz["EPSnextY"] >= eps_next_y_min)
+                & (dffinviz["EPS5Y"] >= eps_next_5y_min)
+                & (dffinviz["AvgVolmln"] >= avg_vol_min_mln)
+                & (dffinviz["Prezzo"] >= price_min_finviz)
             ]
 
         if dffinviz.empty:
@@ -2116,7 +2112,6 @@ with tabfinviz:
             ]
             dffinviz = dffinviz[[c for c in cols_order if c in dffinviz.columns]]
 
-            # ordino per MarketCap discendente (titoli più grandi e liquidi in cima)
             dffinviz_view = dffinviz.sort_values("MarketCap", ascending=False).head(top)
 
             dffinviz_show = dffinviz_view[
@@ -2152,15 +2147,10 @@ with tabfinviz:
                     "EPS5Y": "EPS Next 5Y %",
                     "AvgVolmln": "Avg Vol (mln)",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn(
-                        "TradingView", display_text="Apri"
-                    ),
+                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                 },
             )
 
-            # ==========================
-            # EXPORT FINVIZ‑LIKE
-            # ==========================
             csv_data = dffinviz_view.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export Finviz‑like CSV",
@@ -2185,9 +2175,6 @@ with tabfinviz:
                 key="dl_finviz_xlsx",
             )
 
-            # ==========================
-            # Watchlist Finviz‑like (con seleziona tutti) – key wl_finviz
-            # ==========================
             options_finviz = sorted(
                 f"{row['Nome']} – {row['Ticker']}"
                 for _, row in dffinviz_view.iterrows()
@@ -2223,7 +2210,6 @@ with tabfinviz:
                 )
                 st.success("Finviz‑like salvati in watchlist.")
                 st.rerun()
-
 # =============================================================================
 # 📌 WATCHLIST & NOTE
 # =============================================================================
