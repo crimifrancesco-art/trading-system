@@ -1822,7 +1822,7 @@ with tab_regime:
 # =============================================================================
 # MULTI‑TIMEFRAME
 # =============================================================================
-with tab_multitime:
+with tab_mtf:
     st.subheader("⏱️ Multi‑Timeframe (D / W / M)")
     st.markdown(
         "Vista congiunta **daily / weekly / monthly** sugli stessi titoli, "
