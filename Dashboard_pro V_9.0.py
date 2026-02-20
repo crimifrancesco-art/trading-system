@@ -2232,7 +2232,7 @@ with tab_watch:
         st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
         st.stop()
 
-    # filtro per lista (multi‑lista)
+    # filtro per lista (multi-lista)
     listnames = sorted(
         df_wl["list_name"].dropna().unique().tolist()
         if "list_name" in df_wl.columns
@@ -2296,7 +2296,7 @@ with tab_watch:
     if not df_mkt.empty:
         df_wl_filt = df_wl_filt.merge(df_mkt, on="ticker", how="left")
 
-    # arricchisco con formattazione e link
+    # formattazione + link
     df_wl_filt = add_formatted_cols(df_wl_filt)
     df_wl_filt = add_links(df_wl_filt)
 
@@ -2339,33 +2339,37 @@ with tab_watch:
         },
     )
 
-   # ==========================
-# Modifica note
-# ==========================
-st.subheader("📝 Modifica nota per una riga")
+    # ==========================
+    # Modifica note
+    # ==========================
+    st.subheader("📝 Modifica nota per una riga")
 
-id_options = df_wl_filt["id"].astype(str).tolist()
-labels = df_wl_filt["label"].tolist()
-id_map = dict(zip(labels, id_options))
+    id_options = df_wl_filt["id"].astype(str).tolist()
+    labels = df_wl_filt["label"].tolist()
+    id_map = dict(zip(labels, id_options))
 
-if not labels:
-    st.caption("Nessuna riga in watchlist per modificare le note.")
-else:
-    selected_row = st.selectbox(
-        "Seleziona riga da modificare", options=labels, key="wl_edit_row"
-    )
-    row_id = id_map[selected_row]
+    if not labels:
+        st.caption("Nessuna riga in watchlist per modificare le note.")
+    else:
+        selected_row = st.selectbox(
+            "Seleziona riga da modificare", options=labels, key="wl_edit_row"
+        )
+        row_id = id_map[selected_row]
 
-    # prendo la nota, forzando a stringa ed evitando nan
-    note_series = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"]
-    current_note = "" if note_series.empty else str(note_series.values[0] or "")
+        # prendo la nota, forzando sempre a stringa ed evitando NaN / None
+        note_series = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"]
+        if note_series.empty:
+            current_note = ""
+        else:
+            val = note_series.values[0]
+            current_note = "" if val is None or (isinstance(val, float) and np.isnan(val)) else str(val)
 
-    new_note = st.textarea("Nota", value=current_note, key="wl_edit_note")
+        new_note = st.textarea("Nota", value=current_note, key="wl_edit_note")
 
-    if st.button("💾 Salva nota"):
-        update_watchlist_note(row_id, new_note)
-        st.success("Nota aggiornata.")
-        st.rerun()
+        if st.button("💾 Salva nota"):
+            update_watchlist_note(row_id, new_note)
+            st.success("Nota aggiornata.")
+            st.rerun()
 
     # ==========================
     # Eliminazione righe
@@ -2389,7 +2393,6 @@ else:
     # ==========================
     st.subheader("📤 Export Watchlist")
 
-    # solo ticker per TradingView
     tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
     csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
     st.download_button(
