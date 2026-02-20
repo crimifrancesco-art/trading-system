@@ -1432,6 +1432,211 @@ with tab_serafini:
                     )
                     st.success("Serafini salvati in watchlist.")
                     st.rerun()
+# =============================================================================
+# REGIME & MOMENTUM
+# =============================================================================
+with tab_regime:
+    st.subheader("🧊 Regime & Momentum multi‑mercato")
+    st.markdown(
+        "Regime: % PRO vs EARLY sul totale segnali.\n"
+        "Momentum: ranking per Pro_Score×10 + RSI su tutti i titoli scansionati."
+    )
+
+    with st.expander("📘 Legenda Regime & Momentum"):
+        st.markdown(
+            "- **Regime**: quota segnali PRO vs EARLY.\n"
+            "- **Momentum**: Pro_Score×10 + RSI.\n"
+            "- **MarketCap / Volumi**: per contestualizzare i top momentum.\n"
+            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+        )
+
+    if df_ep.empty or "Stato" not in df_ep.columns:
+        st.caption("Nessun dato scanner disponibile.")
+    else:
+        df_all = df_ep.copy().dropna(subset=["Pro_Score", "RSI"])
+
+        n_tot_signals = len(df_all)
+        n_pro_tot = (df_all["Stato"] == "PRO").sum()
+        n_early_tot = (df_all["Stato"] == "EARLY").sum()
+
+        c1r, c2r, c3r = st.columns(3)
+        c1r.metric("Totale segnali (EARLY+PRO)", int(n_tot_signals))
+        c2r.metric(
+            "% PRO",
+            f"{(n_pro_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%",
+        )
+        c3r.metric(
+            "% EARLY",
+            f"{(n_early_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%",
+        )
+
+        st.markdown("**Top N momentum (Pro_Score×10 + RSI)**")
+
+        # calcolo Momentum
+        df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
+
+        # applico filtro minimo da sidebar (può restare 0 per vedere tutto)
+        df_all = df_all[df_all["Momentum"] >= momentum_min]
+
+        if df_all.empty:
+            st.caption("Nessun titolo soddisfa il filtro Momentum minimo.")
+        else:
+            # Top N dal df_all filtrato
+            df_mom = df_all.sort_values("Momentum", ascending=False).head(top)
+
+            cols_order = [
+                "Nome",
+                "Ticker",
+                "Prezzo",
+                "MarketCap",
+                "Vol_Today",
+                "Vol_7d_Avg",
+                "Pro_Score",
+                "RSI",
+                "Vol_Ratio",
+                "OBV_Trend",
+                "ATR",
+                "Stato",
+                "Momentum",
+            ]
+            df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
+            df_mom = add_formatted_cols(df_mom)
+            df_mom = add_links(df_mom)
+
+            df_mom_show = df_mom[
+                [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo_fmt",
+                    "MarketCap_fmt",
+                    "Vol_Today_fmt",
+                    "Vol_7d_Avg_fmt",
+                    "Pro_Score",
+                    "RSI",
+                    "Vol_Ratio",
+                    "OBV_Trend",
+                    "ATR",
+                    "Stato",
+                    "Momentum",
+                    "Yahoo",
+                    "Finviz",
+                ]
+            ]
+
+            st.dataframe(
+                df_mom_show,
+                use_container_width=True,
+                column_config={
+                    "Prezzo_fmt": "Prezzo",
+                    "MarketCap_fmt": "Market Cap",
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn(
+                        "TradingView", display_text="Apri"
+                    ),
+                },
+            )
+
+            # EXPORT Momentum
+            csv_data = df_mom.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export Momentum CSV",
+                data=csv_data,
+                file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_mom_csv",
+            )
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_mom.to_excel(writer, index=False, sheet_name="MOMENTUM")
+            data_xlsx = output.getvalue()
+
+            st.download_button(
+                "⬇️ Export Momentum XLSX",
+                data=data_xlsx,
+                file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
+                use_container_width=True,
+                key="dl_mom_xlsx",
+            )
+
+            # EXPORT Momentum TradingView (solo ticker)
+            df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
+            csv_mom_tv = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
+            st.download_button(
+                "⬇️ CSV Top Momentum (solo ticker)",
+                data=csv_mom_tv,
+                file_name=(
+                    f"signals_momentum_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+                ),
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_tv_mom",
+            )
+
+            # Sintesi per mercato
+            def detect_market_simple(t):
+                if t.endswith(".MI"):
+                    return "FTSE"
+                if t.endswith(".PA") or t.endswith(".AS") or t.endswith(".SW"):
+                    return "Eurostoxx"
+                if t in ["SPY", "QQQ", "IWM", "VTI", "EEM"]:
+                    return "USA ETF"
+                if t.endswith("-USD"):
+                    return "Crypto"
+                return "Altro"
+
+            df_all["Mercato"] = df_all["Ticker"].apply(detect_market_simple)
+
+            heat = df_all.groupby("Mercato").agg(
+                Momentum_med=("Momentum", "mean"),
+                N=("Ticker", "count"),
+                MarketCap_med=("MarketCap", "mean"),
+                Vol_Today_med=("Vol_Today", "mean"),
+            ).reset_index()
+
+            st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
+            if not heat.empty:
+                st.dataframe(
+                    heat.sort_values("Momentum_med", ascending=False),
+                    use_container_width=True,
+                )
+            else:
+                st.caption("Nessun dato sufficiente per la sintesi per mercato.")
+
+            # Watchlist Top Momentum (con seleziona tutti) – key wl_regime
+            options_regime = sorted(
+                f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
+            )
+
+            col_sel_all_regime, _ = st.columns([1, 3])
+            with col_sel_all_regime:
+                if st.button("✅ Seleziona tutti (Top Momentum)", key="btn_sel_all_regime"):
+                    st.session_state["wl_regime"] = options_regime
+
+            selection_regime = st.multiselect(
+                "Aggiungi alla Watchlist (Top Momentum):",
+                options=options_regime,
+                key="wl_regime",
+            )
+            note_regime = st.text_input(
+                "Note comuni per questi ticker Momentum", key="note_wl_regime"
+            )
+            if st.button("📌 Salva in Watchlist (Regime/Momentum)"):
+                tickers = [s.split(" – ")[1] for s in selection_regime]
+                names = [s.split(" – ")[0] for s in selection_regime]
+                add_to_watchlist(
+                    tickers, names, "REGIME_MOMENTUM", note_regime, trend="LONG"
+                )
+                st.success("Regime/Momentum salvati in watchlist.")
+                st.rerun()
+
 
 # =============================================================================
 # MULTI‑TIMEFRAME
