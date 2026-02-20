@@ -1169,9 +1169,10 @@ with tab_rea:
         df_rea = add_formatted_cols(df_rea)
         df_rea = add_links(df_rea)
 
-        # Assicuro la presenza della distanza POC in formato %/decimale
-        if "Distanza_POC" not in df_rea.columns and "Dist_POC_%\" in df_rea.columns:
+                # Assicuro la presenza della distanza POC in formato %/decimale
+        if "Distanza_POC" not in df_rea.columns and "Dist_POC_%" in df_rea.columns:
             df_rea["Distanza_POC"] = df_rea["Dist_POC_%"]
+
 
         # Filtra solo i veri HOT in stile Rea:
         # vicino al POC e con Vol_Ratio sopra la soglia scelta in sidebar
