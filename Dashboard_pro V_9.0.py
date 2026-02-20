@@ -295,81 +295,27 @@ if "current_list_name" not in st.session_state:
 st.sidebar.title("⚙️ Configurazione")
 
 # ---------------- Selezione Mercati (persistente) ----------------
-st.sidebar.subheader("📈 Selezione mercati")
-
-col_m1, col_m2 = st.sidebar.columns(2)
-
-with col_m1:
-    m_eurostoxx = st.checkbox(
-        "🇪🇺 Eurostoxx 600",
-        value=st.session_state.get("m_Eurostoxx", False),
-        key="m_Eurostoxx",
-    )
-    m_ftse = st.checkbox(
-        "🇮🇹 FTSE MIB",
-        value=st.session_state.get("m_FTSE", True),
-        key="m_FTSE",
-    )
-    m_sp500 = st.checkbox(
-        "🇺🇸 S&P 500",
-        value=st.session_state.get("m_SP500", True),
-        key="m_SP500",
-    )
-    m_nasdaq = st.checkbox(
-        "🇺🇸 Nasdaq 100",
-        value=st.session_state.get("m_Nasdaq", True),
-        key="m_Nasdaq",
-    )
-
-with col_m2:
-    m_dow = st.checkbox(
-        "🇺🇸 Dow Jones",
-        value=st.session_state.get("m_Dow", False),
-        key="m_Dow",
-    )
-    m_russell = st.checkbox(
-        "🇺🇸 Russell 2000",
-        value=st.session_state.get("m_Russell", False),
-        key="m_Russell",
-    )
-    m_commodities = st.checkbox(
-        "🛢️ Materie prime",
-        value=st.session_state.get("m_Commodities", False),
-        key="m_Commodities",
-    )
-    m_etf = st.checkbox(
-        "📦 ETF",
-        value=st.session_state.get("m_ETF", False),
-        key="m_ETF",
-    )
-    m_crypto = st.checkbox(
-        "₿ Crypto",
-        value=st.session_state.get("m_Crypto", False),
-        key="m_Crypto",
-    )
-    m_emerging = st.checkbox(
-        "🌍 Emergenti",
-        value=st.session_state.get("m_Emerging", False),
-        key="m_Emerging",
-    )
-
+st.sidebar.subheader("📈 Selezione Mercati")
 m = {
-    "Eurostoxx": m_eurostoxx,
-    "FTSE": m_ftse,
-    "SP500": m_sp500,
-    "Nasdaq": m_nasdaq,
-    "Dow": m_dow,
-    "Russell": m_russell,
-    "Commodities": m_commodities,
-    "ETF": m_etf,
-    "Crypto": m_crypto,
-    "Emerging": m_emerging,
+    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
+    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
+    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
+    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
+    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones", False),
+    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", False),
+    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
+    "ETF": st.sidebar.checkbox("📦 ETF", False),
+    "Crypto": st.sidebar.checkbox("₿ Crypto", False),
+    "Emerging": st.sidebar.checkbox("🌍 Emergenti", False),
 }
-
 sel = [k for k, v in m.items() if v]
 
-st.sidebar.divider()
+# aggiorno stato mercati
+st.session_state["m_FTSE"] = m["FTSE"]
+st.session_state["m_SP500"] = m["SP500"]
+st.session_state["m_Nasdaq"] = m["Nasdaq"]
 
+st.sidebar.divider()
 
 # ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
