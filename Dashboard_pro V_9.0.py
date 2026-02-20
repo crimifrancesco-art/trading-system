@@ -300,18 +300,58 @@ st.sidebar.subheader("📈 Selezione mercati")
 col_m1, col_m2 = st.sidebar.columns(2)
 
 with col_m1:
-    m_eurostoxx = st.checkbox("🇪🇺 Eurostoxx 600", False, key="m_Eurostoxx")
-    m_ftse = st.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"], key="m_FTSE_cb")
-    m_sp500 = st.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"], key="m_SP500_cb")
-    m_nasdaq = st.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"], key="m_Nasdaq_cb")
+    m_eurostoxx = st.checkbox(
+        "🇪🇺 Eurostoxx 600",
+        value=st.session_state.get("m_Eurostoxx", False),
+        key="m_Eurostoxx",
+    )
+    m_ftse = st.checkbox(
+        "🇮🇹 FTSE MIB",
+        value=st.session_state.get("m_FTSE", True),
+        key="m_FTSE",
+    )
+    m_sp500 = st.checkbox(
+        "🇺🇸 S&P 500",
+        value=st.session_state.get("m_SP500", True),
+        key="m_SP500",
+    )
+    m_nasdaq = st.checkbox(
+        "🇺🇸 Nasdaq 100",
+        value=st.session_state.get("m_Nasdaq", True),
+        key="m_Nasdaq",
+    )
 
 with col_m2:
-    m_dow = st.checkbox("🇺🇸 Dow Jones", False, key="m_Dow")
-    m_russell = st.checkbox("🇺🇸 Russell 2000", False, key="m_Russell")
-    m_commodities = st.checkbox("🛢️ Materie prime", False, key="m_Commodities")
-    m_etf = st.checkbox("📦 ETF", False, key="m_ETF")
-    m_crypto = st.checkbox("₿ Crypto", False, key="m_Crypto")
-    m_emerging = st.checkbox("🌍 Emergenti", False, key="m_Emerging")
+    m_dow = st.checkbox(
+        "🇺🇸 Dow Jones",
+        value=st.session_state.get("m_Dow", False),
+        key="m_Dow",
+    )
+    m_russell = st.checkbox(
+        "🇺🇸 Russell 2000",
+        value=st.session_state.get("m_Russell", False),
+        key="m_Russell",
+    )
+    m_commodities = st.checkbox(
+        "🛢️ Materie prime",
+        value=st.session_state.get("m_Commodities", False),
+        key="m_Commodities",
+    )
+    m_etf = st.checkbox(
+        "📦 ETF",
+        value=st.session_state.get("m_ETF", False),
+        key="m_ETF",
+    )
+    m_crypto = st.checkbox(
+        "₿ Crypto",
+        value=st.session_state.get("m_Crypto", False),
+        key="m_Crypto",
+    )
+    m_emerging = st.checkbox(
+        "🌍 Emergenti",
+        value=st.session_state.get("m_Emerging", False),
+        key="m_Emerging",
+    )
 
 m = {
     "Eurostoxx": m_eurostoxx,
@@ -328,12 +368,13 @@ m = {
 
 sel = [k for k, v in m.items() if v]
 
-# aggiorno stato mercati principali
+# aggiorno stato mercati principali (coerente con le checkbox)
 st.session_state["m_FTSE"] = m_ftse
 st.session_state["m_SP500"] = m_sp500
 st.session_state["m_Nasdaq"] = m_nasdaq
 
 st.sidebar.divider()
+
 
 
 # ---------------- Parametri Scanner (persistenti) ----------------
