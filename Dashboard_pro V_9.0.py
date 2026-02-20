@@ -2124,7 +2124,7 @@ with tab_finviz:
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile per il filtro Finviz‑like.")
     else:
-                dffinviz = df_ep.copy()
+        dffinviz = df_ep.copy()
 
         if all(col in dffinviz.columns for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]):
             # 1) rimuovo righe con valori mancanti sulle colonne fondamentali
