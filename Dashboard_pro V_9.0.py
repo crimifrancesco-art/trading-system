@@ -834,13 +834,15 @@ with tab_e:
     if df_early_all.empty:
         st.caption("Nessun segnale EARLY.")
     else:
-        # copia e formattazione
+        # 1) copia base
         df_early = df_early_all.copy()
+
+        # 2) formattazione e link
         df_early = add_formatted_cols(df_early)
         df_early = add_links(df_early)
 
-        # mantengo solo le colonne utili
-        cols_order = [
+        # 3) colonne standard (schema fisso)
+        base_cols = [
             "Nome",
             "Ticker",
             "Prezzo",
@@ -862,43 +864,38 @@ with tab_e:
             "Yahoo",
             "Finviz",
         ]
-        df_early = df_early[[c for c in cols_order if c in df_early.columns]]
+        df_early = df_early[[c for c in base_cols if c in df_early.columns]]
 
-        # Top N ordinati per Early_Score, poi RSI, poi Vol_Ratio
+        # 4) ordinamento per ranking (metrica principale + metriche di supporto)
         sort_cols = [c for c in ["Early_Score", "RSI", "Vol_Ratio"] if c in df_early.columns]
         if sort_cols:
-            df_early_view = df_early.sort_values(
+            df_early_top = df_early.sort_values(
                 by=sort_cols,
                 ascending=[False] * len(sort_cols),
             ).head(top)
         else:
-            df_early_view = df_early.head(top)
+            df_early_top = df_early.head(top)
 
-        # tabella: metriche prima del Nome, per evidenziare il ranking
-        df_early_show = df_early_view[
-            [
-                c
-                for c in [
-                    "Early_Score",
-                    "Pro_Score",
-                    "RSI",
-                    "Vol_Ratio",
-                    "Nome",
-                    "Ticker",
-                    "Prezzo_fmt",
-                    "MarketCap_fmt",
-                    "Vol_Today_fmt",
-                    "Vol_7d_Avg_fmt",
-                    "OBV_Trend",
-                    "ATR",
-                    "ATR_Exp",
-                    "Stato",
-                    "Yahoo",
-                    "Finviz",
-                ]
-                if c in df_early_view.columns
-            ]
+        # 5) view per tabella: Nome, Ticker, poi il resto
+        view_cols = [
+            "Nome",
+            "Ticker",
+            "Prezzo_fmt",
+            "MarketCap_fmt",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg_fmt",
+            "Early_Score",
+            "Pro_Score",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
+            "Stato",
+            "Yahoo",
+            "Finviz",
         ]
+        df_early_show = df_early_top[[c for c in view_cols if c in df_early_top.columns]]
 
         st.dataframe(
             df_early_show,
@@ -913,10 +910,8 @@ with tab_e:
             },
         )
 
-        # ==========================
-        # EXPORT EARLY
-        # ==========================
-        csv_data = df_early_view.to_csv(index=False).encode("utf-8")
+        # 6) EXPORT (sempre stesso schema)
+        csv_data = df_early_top.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export EARLY CSV",
             data=csv_data,
@@ -928,7 +923,7 @@ with tab_e:
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_early_view.to_excel(writer, index=False, sheet_name="EARLY")
+            df_early_top.to_excel(writer, index=False, sheet_name="EARLY")
         data_xlsx = output.getvalue()
 
         st.download_button(
@@ -940,8 +935,7 @@ with tab_e:
             key="dl_early_xlsx",
         )
 
-        # EXPORT TradingView (solo ticker)
-        tv_data = df_early_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        tv_data = df_early_top[["Ticker"]].drop_duplicates().rename(columns={"Ticker": "symbol"})
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
         st.download_button(
             "⬇️ Export EARLY TradingView (solo ticker)",
@@ -952,11 +946,9 @@ with tab_e:
             key="dl_tv_early",
         )
 
-        # ==========================
-        # Watchlist EARLY
-        # ==========================
+        # 7) Watchlist (stesso pattern che usi negli altri tab)
         options_early = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_top.iterrows()
         )
 
         col_sel_all_early, _ = st.columns([1, 3])
