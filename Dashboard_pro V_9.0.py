@@ -1,12 +1,15 @@
 import io
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from datetime import datetime
 import time
 import sqlite3
+import locale
 from pathlib import Path
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import streamlit as st
+import yfinance as yf
+
 from fpdf import FPDF  # pip install fpdf2
 
 # -----------------------------------------------------------------------------
@@ -15,7 +18,7 @@ from fpdf import FPDF  # pip install fpdf2
 st.set_page_config(
     page_title="Trading Scanner – Versione PRO 9.0",
     layout="wide",
-    page_icon="📊"
+    page_icon="📊",
 )
 
 st.title("📊 Trading Scanner – Versione PRO 9.0")
@@ -26,44 +29,67 @@ st.caption(
 )
 
 # -----------------------------------------------------------------------------
-# DB WATCHLIST (SQLite) + MIGRAZIONE TREND
+# FORMATTAZIONE NUMERICA
 # -----------------------------------------------------------------------------
-import locale
 locale.setlocale(locale.LC_ALL, "")
+
 
 def fmt_currency(value, symbol="€"):
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
-    return f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return (
+        f"{symbol}{value:,.2f}"
+        .replace(",", "X")
+        .replace(".", ",")
+        .replace("X", ".")
+    )
+
 
 def fmt_int(value):
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
     return f"{int(value):,}".replace(",", ".")
 
+
 def fmt_marketcap(value, symbol="€"):
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
     v = float(value)
     if v >= 1_000_000_000:
-        return f"{symbol}{v/1_000_000_000:,.2f}B".replace(",", "X").replace(".", ",").replace("X", ".")
+        return (
+            f"{symbol}{v / 1_000_000_000:,.2f}B"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
     if v >= 1_000_000:
-        return f"{symbol}{v/1_000_000:,.2f}M".replace(",", "X").replace(".", ",").replace("X", ".")
+        return (
+            f"{symbol}{v / 1_000_000:,.2f}M"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
     if v >= 1_000:
-        return f"{symbol}{v/1_000:,.2f}K".replace(",", "X").replace(".", ",").replace("X", ".")
+        return (
+            f"{symbol}{v / 1_000:,.2f}K"
+            .replace(",", "X")
+            .replace(".", ",")
+            .replace("X", ".")
+        )
     return fmt_currency(v, symbol)
 
-def add_formatted_cols(df):
+
+def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
     # se manca Currency, default USD
     if "Currency" not in df.columns:
         df["Currency"] = "USD"
 
-    # Prezzo: crea Prezzo_fmt solo se la colonna esiste
+    # Prezzo
     if "Prezzo" in df.columns:
         df["Prezzo_fmt"] = df.apply(
             lambda r: fmt_currency(
                 r["Prezzo"],
-                "€" if r["Currency"] == "EUR" else "$"
+                "€" if r["Currency"] == "EUR" else "$",
             ),
             axis=1,
         )
@@ -73,7 +99,7 @@ def add_formatted_cols(df):
         df["MarketCap_fmt"] = df.apply(
             lambda r: fmt_marketcap(
                 r["MarketCap"],
-                "€" if r["Currency"] == "EUR" else "$"
+                "€" if r["Currency"] == "EUR" else "$",
             ),
             axis=1,
         )
@@ -88,39 +114,28 @@ def add_formatted_cols(df):
     return df
 
 
-#########################################################
-#######          VECCHIO CODICE FINVIZ        ###########
-#########################################################
-#def add_links(df):
-#    df["Yahoo"] = df["Ticker"].apply(
-#        lambda t: f"https://finance.yahoo.com/quote/{t}"
-#    )
-#    df["Finviz"] = df["Ticker"].apply(
-#        lambda t: f"https://finviz.com/quote.ashx?t={t.split('.')[0]}"
-#   )
-#    return df
-#########################################################
-#######          NUOVO CODICE TRADINGVIEW     ###########
-#########################################################
-def add_links(df):
+# -----------------------------------------------------------------------------
+# LINK YAHOO + TRADINGVIEW
+# -----------------------------------------------------------------------------
+def add_links(df: pd.DataFrame) -> pd.DataFrame:
     # usa 'Ticker' se c'è, altrimenti 'ticker'
-    if "Ticker" in df.columns:
-        col = "Ticker"
-    else:
-        col = "ticker"
+    col = "Ticker" if "Ticker" in df.columns else "ticker"
 
     df["Yahoo"] = df[col].apply(
         lambda t: f"https://finance.yahoo.com/quote/{t}"
     )
-    # link TradingView nella colonna Finviz
+    # link TradingView nella colonna Finviz (mantengo il nome per compatibilità)
     df["Finviz"] = df[col].apply(
         lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
     )
     return df
 
 
-
+# -----------------------------------------------------------------------------
+# DB WATCHLIST (SQLite)
+# -----------------------------------------------------------------------------
 DB_PATH = Path("watchlist.db")
+
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -164,7 +179,10 @@ def reset_watchlist_db():
     conn.close()
     init_db()
 
-def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
+
+def add_to_watchlist(
+    tickers, names, origine, note, trend="LONG", list_name="DEFAULT"
+):
     if not tickers:
         return
     conn = sqlite3.connect(DB_PATH)
@@ -172,42 +190,71 @@ def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEF
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for t, n in zip(tickers, names):
         c.execute(
-            "INSERT INTO watchlist (ticker, name, trend, origine, note, list_name, created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
+            """
+            INSERT INTO watchlist
+            (ticker, name, trend, origine, note, list_name, created_at)
+            VALUES (?,?,?,?,?,?,?)
+            """,
             (t, n, trend, origine, note, list_name, now),
         )
     conn.commit()
     conn.close()
 
 
-def load_watchlist():
+def load_watchlist() -> pd.DataFrame:
     if not DB_PATH.exists():
         return pd.DataFrame(
-            columns=["id", "ticker", "name", "trend", "origine", "note", "list_name", "created_at"]
+            columns=[
+                "id",
+                "ticker",
+                "name",
+                "trend",
+                "origine",
+                "note",
+                "list_name",
+                "created_at",
+            ]
         )
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
+    df = pd.read_sql_query(
+        "SELECT * FROM watchlist ORDER BY created_at DESC", conn
+    )
     conn.close()
-    for col in ["ticker", "name", "trend", "origine", "note", "list_name", "created_at"]:
+    for col in [
+        "ticker",
+        "name",
+        "trend",
+        "origine",
+        "note",
+        "list_name",
+        "created_at",
+    ]:
         if col not in df.columns:
             df[col] = ""
     return df
 
+
 def update_watchlist_note(row_id, new_note):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
+    c.execute(
+        "UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id))
+    )
     conn.commit()
     conn.close()
+
 
 def delete_from_watchlist(ids):
     if not ids:
         return
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
+    c.executemany(
+        "DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids]
+    )
     conn.commit()
     conn.close()
+
 
 init_db()
 
@@ -235,16 +282,16 @@ if "sidebar_init" not in st.session_state:
 # ---------------- Selezione Mercati (persistente) ----------------
 st.sidebar.subheader("📈 Selezione Mercati")
 m = {
-    "Eurostoxx":   st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
-    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
-    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
-    "Dow":         st.sidebar.checkbox("🇺🇸 Dow Jones", False),
-    "Russell":     st.sidebar.checkbox("🇺🇸 Russell 2000", False),
+    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
+    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
+    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
+    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
+    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones", False),
+    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", False),
     "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
-    "ETF":         st.sidebar.checkbox("📦 ETF", False),
-    "Crypto":      st.sidebar.checkbox("₿ Crypto", False),
-    "Emerging":    st.sidebar.checkbox("🌍 Emergenti", False),
+    "ETF": st.sidebar.checkbox("📦 ETF", False),
+    "Crypto": st.sidebar.checkbox("₿ Crypto", False),
+    "Emerging": st.sidebar.checkbox("🌍 Emergenti", False),
 }
 sel = [k for k, v in m.items() if v]
 
@@ -258,12 +305,16 @@ st.sidebar.divider()
 # ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
 
-e_h = st.sidebar.slider(
-    "EARLY - Distanza EMA20 (%)",
-    0.0, 10.0,
-    float(st.session_state["e_h"] * 100),
-    0.5,
-) / 100
+e_h = (
+    st.sidebar.slider(
+        "EARLY - Distanza EMA20 (%)",
+        0.0,
+        10.0,
+        float(st.session_state["e_h"] * 100),
+        0.5,
+    )
+    / 100
+)
 st.session_state["e_h"] = e_h
 
 p_rmin = st.sidebar.slider(
@@ -276,15 +327,19 @@ p_rmax = st.sidebar.slider(
 )
 st.session_state["p_rmax"] = p_rmax
 
-r_poc = st.sidebar.slider(
-    "REA - Distanza POC (%)",
-    0.0, 10.0,
-    float(st.session_state["r_poc"] * 100),
-    0.5,
-) / 100
+r_poc = (
+    st.sidebar.slider(
+        "REA - Distanza POC (%)",
+        0.0,
+        10.0,
+        float(st.session_state["r_poc"] * 100),
+        0.5,
+    )
+    / 100
+)
 st.session_state["r_poc"] = r_poc
 
-# ---------------- Filtri avanzati (come prima) ----------------
+# ---------------- Filtri avanzati ----------------
 st.sidebar.subheader("🔎 Filtri avanzati")
 
 # Finviz-like
@@ -308,7 +363,7 @@ vol_ratio_hot = st.sidebar.number_input(
 
 # Momentum
 momentum_min = st.sidebar.number_input(
-    "Momentum minimo (Pro_Score*10+RSI)", 0.0, 2000.0, 0.0, 10.0
+    "Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0
 )
 
 # ---------------- Output (persistente) ----------------
@@ -318,10 +373,12 @@ top = st.sidebar.number_input(
 )
 st.session_state["top"] = top
 
+# ---------------- Lista Watchlist attiva ----------------
 st.sidebar.subheader("📁 Lista Watchlist attiva")
-
 existing_lists = load_watchlist()
-list_options = sorted(existing_lists["list_name"].dropna().unique().tolist())
+list_options = sorted(
+    existing_lists["list_name"].dropna().unique().tolist()
+) if not existing_lists.empty else []
 list_options = [ln for ln in list_options if ln]
 default_list = list_options[0] if list_options else "DEFAULT"
 
@@ -331,14 +388,12 @@ current_list = st.sidebar.text_input(
 )
 st.session_state["current_list_name"] = current_list
 
-
 # ---------------- Controllo mercati selezionati ----------------
 if not sel:
     st.warning("⚠️ Seleziona almeno un mercato dalla sidebar.")
     st.stop()
 
 st.info(f"Mercati selezionati: **{', '.join(sel)}**")
-
 
 # =============================================================================
 # FUNZIONI DI SUPPORTO
@@ -355,14 +410,40 @@ def load_universe(markets):
 
     if "Nasdaq" in markets:
         t += [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO",
-            "NFLX", "ADBE", "COST", "PEP", "CSCO", "INTC", "AMD"
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "META",
+            "TSLA",
+            "AVGO",
+            "NFLX",
+            "ADBE",
+            "COST",
+            "PEP",
+            "CSCO",
+            "INTC",
+            "AMD",
         ]
 
     if "Dow" in markets:
         t += [
-            "AAPL", "MSFT", "JPM", "V", "UNH", "JNJ", "WMT", "PG", "HD",
-            "DIS", "KO", "MCD", "BA", "CAT", "GS"
+            "AAPL",
+            "MSFT",
+            "JPM",
+            "V",
+            "UNH",
+            "JNJ",
+            "WMT",
+            "PG",
+            "HD",
+            "DIS",
+            "KO",
+            "MCD",
+            "BA",
+            "CAT",
+            "GS",
         ]
 
     if "Russell" in markets:
@@ -370,14 +451,28 @@ def load_universe(markets):
 
     if "FTSE" in markets:
         t += [
-            "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
-            "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI"
+            "UCG.MI",
+            "ISP.MI",
+            "ENEL.MI",
+            "ENI.MI",
+            "LDO.MI",
+            "PRY.MI",
+            "STM.MI",
+            "TEN.MI",
+            "A2A.MI",
+            "AMP.MI",
         ]
 
     if "Eurostoxx" in markets:
         t += [
-            "ASML.AS", "NESN.SW", "SAN.PA", "TTE.PA",
-            "AIR.PA", "MC.PA", "OR.PA", "SU.PA"
+            "ASML.AS",
+            "NESN.SW",
+            "SAN.PA",
+            "TTE.PA",
+            "AIR.PA",
+            "MC.PA",
+            "OR.PA",
+            "SU.PA",
         ]
 
     if "Commodities" in markets:
@@ -394,9 +489,11 @@ def load_universe(markets):
 
     return list(dict.fromkeys(t))
 
+
 def calc_obv(close, volume):
     direction = np.sign(close.diff().fillna(0))
     return (direction * volume).cumsum()
+
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     try:
@@ -446,25 +543,36 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         obv_slope = obv.diff().rolling(5).mean().iloc[-1]
         obv_trend = "UP" if obv_slope > 0 else "DOWN"
 
-        tr = np.maximum(h - l, np.maximum(abs(h - c.shift()), abs(l - c.shift())))
+        tr = np.maximum(
+            h - l, np.maximum(abs(h - c.shift()), abs(l - c.shift()))
+        )
         atr = tr.rolling(14).mean()
         atr_val = float(atr.iloc[-1])
 
         atr_ratio = float(atr.iloc[-1] / atr.rolling(50).mean().iloc[-1])
         atr_expansion = atr_ratio > 1.2
 
-        stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
+        stato_ep = (
+            "PRO"
+            if pro_score >= 8
+            else ("EARLY" if early_score >= 8 else "-")
+        )
 
         # REA‑QUANT
         tp = (h + l + c) / 3
         bins = np.linspace(float(l.min()), float(h.max()), 50)
         price_bins = pd.cut(tp, bins, labels=bins[:-1])
-        vp = pd.DataFrame({"P": price_bins, "V": v}).groupby("P")["V"].sum()
+        vp = (
+            pd.DataFrame({"P": price_bins, "V": v})
+            .groupby("P")["V"]
+            .sum()
+        )
         poc = float(vp.idxmax())
         dist_poc = abs(price - poc) / poc
 
-        rea_score = 7 if (dist_poc < r_poc and vol_ratio > vol_ratio_hot) else 0
-
+        rea_score = (
+            7 if (dist_poc < r_poc and vol_ratio > vol_ratio_hot) else 0
+        )
         stato_rea = "HOT" if rea_score >= 7 else "-"
 
         res_ep = {
@@ -504,6 +612,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
 
     except Exception:
         return None, None
+
 
 # =============================================================================
 # SCAN
@@ -551,10 +660,10 @@ df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 # =============================================================================
 if "Stato" in df_ep.columns:
     df_early_all = df_ep[df_ep["Stato"] == "EARLY"].copy()
-    df_pro_all   = df_ep[df_ep["Stato"] == "PRO"].copy()
+    df_pro_all = df_ep[df_ep["Stato"] == "PRO"].copy()
 else:
     df_early_all = pd.DataFrame()
-    df_pro_all   = pd.DataFrame()
+    df_pro_all = pd.DataFrame()
 
 if "Stato" in df_rea.columns:
     df_rea_all = df_rea[df_rea["Stato"] == "HOT"].copy()
@@ -562,9 +671,9 @@ else:
     df_rea_all = pd.DataFrame()
 
 n_early = len(df_early_all)
-n_pro   = len(df_pro_all)
-n_rea   = len(df_rea_all)
-n_tot   = n_early + n_pro + n_rea
+n_pro = len(df_pro_all)
+n_rea = len(df_rea_all)
+n_tot = n_early + n_pro + n_rea
 
 st.header("Panoramica segnali")
 
@@ -780,7 +889,7 @@ with tab_p:
             "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
             "- **OBV_Trend**: UP/DOWN in base alla pendenza media OBV 5 periodi.\n"
             "- **Stato = PRO**: trend avanzato con conferme.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_pro_all.empty:
@@ -815,9 +924,6 @@ with tab_p:
         df_pro = df_pro[[c for c in cols_order if c in df_pro.columns]]
 
         df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
-        df_pro_view["OBV_Trend"] = df_pro_view["OBV_Trend"].replace(
-            {"UP": "UP (flusso in ingresso)", "DOWN": "DOWN (flusso in uscita)"}
-        )
 
         df_pro_show = df_pro_view[
             [
@@ -880,7 +986,7 @@ with tab_p:
             key="dl_pro_xlsx",
         )
 
-        # EXPORT PRO TradingView (solo ticker)
+        # EXPORT TradingView (solo ticker) PRO
         tv_data = df_pro_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
@@ -893,29 +999,8 @@ with tab_p:
             key="dl_tv_pro",
         )
 
-        # CSV PRO arricchito per TradingView
-        df_pro_tv = df_pro_view.rename(
-            columns={
-                "Ticker": "symbol",
-                "Prezzo": "price",
-                "RSI": "rsi",
-                "Vol_Ratio": "volume_ratio",
-                "OBV_Trend": "obv_trend",
-            }
-        )[[ "symbol", "price", "rsi", "volume_ratio", "obv_trend" ]]
-        csv_pro = df_pro_tv.to_csv(index=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ CSV PRO per TradingView (dettagliato)",
-            data=csv_pro,
-            file_name=f"signals_pro_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_pro_tv_full",
-        )
-
         # ==========================
-        # Watchlist PRO (con seleziona tutti) – key wl_pro
+        # Watchlist PRO (con seleziona tutti)
         # ==========================
         options_pro = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
@@ -931,42 +1016,47 @@ with tab_p:
             options=options_pro,
             key="wl_pro",
         )
+
         note_pro = st.text_input(
             "Note comuni per questi ticker PRO", key="note_wl_pro"
         )
+
         if st.button("📌 Salva in Watchlist (PRO)"):
             tickers = [s.split(" – ")[1] for s in selection_pro]
             names = [s.split(" – ")[0] for s in selection_pro]
             add_to_watchlist(
-    tickers, names, "PRO", note_early, trend="LONG",
-    list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+                tickers,
+                names,
+                "PRO",
+                note_pro,
+                trend="LONG",
+                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            )
+            st.success("PRO salvati in watchlist.")
             st.rerun()
+
 
 # =============================================================================
 # REA‑QUANT (segnali)
 # =============================================================================
 with tab_r:
-    st.subheader("🟠 Segnali REA‑QUANT")
+    st.subheader("🟠 Segnali REA‑QUANT (HOT)")
     st.markdown(
-        f"Filtro REA‑QUANT: titoli con **Stato = HOT** "
-        f"(distanza dal POC < {r_poc*100:.1f}%, Vol_Ratio > {vol_ratio_hot})."
+        f"Filtro REA‑QUANT HOT: titoli con **Stato = HOT** e Vol_Ratio ≥ {vol_ratio_hot:.1f}, "
+        f"vicini al POC (distanza ≤ {r_poc*100:.1f}%)."
     )
 
-    with st.expander("📘 Legenda REA‑QUANT (segnali)"):
+    with st.expander("📘 Legenda REA‑QUANT"):
         st.markdown(
-            "- **Rea_Score**: 7 quando prezzo vicino al POC e volume molto sopra la media.\n"
-            "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
-            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media 7 giorni.\n"
-            "- **POC**: livello di prezzo con il massimo volume scambiato.\n"
-            "- **Dist_POC_%**: distanza % tra prezzo e POC.\n"
-            "- **Stato = HOT**: area di forte decisione.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- **REA‑QUANT HOT**: pressione volumetrica significativa vicino al POC.\n"
+            "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
+            "- **Distanza POC**: distanza percentuale prezzo–POC.\n"
+            "- **Market Cap / Volumi**: per contestualizzare la forza dello swing.\n"
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_rea_all.empty:
-        st.caption("Nessun segnale REA‑QUANT.")
+        st.caption("Nessun segnale REA‑QUANT HOT.")
     else:
         df_rea = df_rea_all.copy()
         df_rea = add_formatted_cols(df_rea)
@@ -983,33 +1073,50 @@ with tab_r:
             "Vol_Today_fmt",
             "Vol_7d_Avg",
             "Vol_7d_Avg_fmt",
-            "Rea_Score",
-            "POC",
-            "Dist_POC_%",
+            "Pro_Score",
+            "RSI",
             "Vol_Ratio",
+            "Distanza_POC",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
             "Stato",
             "Yahoo",
             "Finviz",
         ]
         df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
 
-        df_rea_view = df_rea.sort_values("Rea_Score", ascending=False).head(top)
+        # ordino per Vol_Ratio e vicinanza al POC
+        sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC"] if c in df_rea.columns]
+        if sort_cols:
+            df_rea_view = df_rea.sort_values(
+                by=sort_cols, ascending=[False, True][: len(sort_cols)]
+            ).head(top)
+        else:
+            df_rea_view = df_rea.head(top)
 
         df_rea_show = df_rea_view[
             [
-                "Nome",
-                "Ticker",
-                "Prezzo_fmt",
-                "MarketCap_fmt",
-                "Vol_Today_fmt",
-                "Vol_7d_Avg_fmt",
-                "Rea_Score",
-                "POC",
-                "Dist_POC_%",
-                "Vol_Ratio",
-                "Stato",
-                "Yahoo",
-                "Finviz",
+                c
+                for c in [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo_fmt",
+                    "MarketCap_fmt",
+                    "Vol_Today_fmt",
+                    "Vol_7d_Avg_fmt",
+                    "Pro_Score",
+                    "RSI",
+                    "Vol_Ratio",
+                    "Distanza_POC",
+                    "OBV_Trend",
+                    "ATR",
+                    "ATR_Exp",
+                    "Stato",
+                    "Yahoo",
+                    "Finviz",
+                ]
+                if c in df_rea_view.columns
             ]
         ]
 
@@ -1021,6 +1128,7 @@ with tab_r:
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Distanza_POC": "Dist POC (%)",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
@@ -1033,7 +1141,7 @@ with tab_r:
         st.download_button(
             "⬇️ Export REA‑QUANT CSV",
             data=csv_data,
-            file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
             key="dl_rea_csv",
@@ -1041,54 +1149,33 @@ with tab_r:
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rea_view.to_excel(writer, index=False, sheet_name="REA")
+            df_rea_view.to_excel(writer, index=False, sheet_name="REA_HOT")
         data_xlsx = output.getvalue()
 
         st.download_button(
             "⬇️ Export REA‑QUANT XLSX",
             data=data_xlsx,
-            file_name=f"REA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            file_name=f"REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
             key="dl_rea_xlsx",
         )
 
-        # EXPORT REA‑QUANT TradingView (solo ticker)
+        # EXPORT TradingView (solo ticker)
         tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
         st.download_button(
             "⬇️ Export REA‑QUANT TradingView (solo ticker)",
             data=csv_tv,
-            file_name=f"TV_REA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"TV_REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
             key="dl_tv_rea",
         )
 
-        # CSV REA‑QUANT per TradingView (dettagliato)
-        df_rea_tv = df_rea_view.rename(
-            columns={
-                "Ticker": "symbol",
-                "Prezzo": "price",
-                "POC": "poc",
-                "Dist_POC_%": "dist_poc_percent",
-                "Vol_Ratio": "volume_ratio",
-            }
-        )[[ "symbol", "price", "poc", "dist_poc_percent", "volume_ratio" ]]
-        csv_rea = df_rea_tv.to_csv(index=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ CSV REA‑QUANT per TradingView (dettagliato)",
-            data=csv_rea,
-            file_name=f"signals_rea_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_rea_tv_full",
-        )
-
         # ==========================
-        # Watchlist REA‑QUANT (con seleziona tutti) – key wl_rea
+        # Watchlist REA‑QUANT (con seleziona tutti)
         # ==========================
         options_rea = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
@@ -1100,196 +1187,203 @@ with tab_r:
                 st.session_state["wl_rea"] = options_rea
 
         selection_rea = st.multiselect(
-            "Aggiungi alla Watchlist (REA‑QUANT HOT):",
+            "Aggiungi alla Watchlist (REA‑QUANT):",
             options=options_rea,
             key="wl_rea",
         )
+
         note_rea = st.text_input(
             "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
         )
+
         if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
             tickers = [s.split(" – ")[1] for s in selection_rea]
             names = [s.split(" – ")[0] for s in selection_rea]
-    add_to_watchlist(
-        tickers, names, "REA_HOT", note_early, trend="LONG",
-        list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+            add_to_watchlist(
+                tickers,
+                names,
+                "REA_HOT",
+                note_rea,
+                trend="LONG",
+                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            )
+            st.success("REA‑QUANT salvati in watchlist.")
             st.rerun()
+
 # =============================================================================
 # MASSIMO REA – ANALISI QUANT
 # =============================================================================
 with tab_rea_q:
-    st.subheader("🧮 Rea Quant – Top N e analisi avanzata")
+    st.subheader("🧮 Massimo Rea – Analisi Quantitativa")
+    st.markdown(
+        "Analisi volumetrica e quantitativa sui titoli scansionati, con focus su "
+        "pressione volumetrica (Vol_Ratio), vicinanza al POC e forza di trend."
+    )
 
-    if df_rea_all.empty:
-        st.caption("Nessun dato REA‑QUANT disponibile.")
-        df_rea_q = pd.DataFrame()
+    with st.expander("📘 Legenda Rea Quant"):
+        st.markdown(
+            "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
+            "- **Distanza_POC**: distanza percentuale prezzo–POC (più è bassa, più il prezzo è sul volume point of control).\n"
+            "- **Pro_Score**: forza trend.\n"
+            "- **RSI**: momentum di breve.\n"
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
+        )
+
+    if df_rea_q.empty:
+        st.caption("Nessun dato disponibile per l’analisi Rea Quant.")
     else:
-        df_rea_q = df_rea_all.copy()
+        df_rq = df_rea_q.copy()
+        df_rq = add_formatted_cols(df_rq)
+        df_rq = add_links(df_rq)
 
-        # porto dentro il prezzo dal dataframe principale, se disponibile
-        if "Prezzo" in df_ep.columns:
-            df_rea_q = df_rea_q.merge(
-                df_ep[["Ticker", "Prezzo", "Currency"]],
-                on="Ticker",
-                how="left",
-            )
-
-        # ==========================
-        # 1) TOP N per pressione volumetrica (sempre visibile)
-        # ==========================
-        st.markdown("**Top N per pressione volumetrica (Vol_Ratio)**")
-
-        df_rea_top = df_rea_q.sort_values("Vol_Ratio", ascending=False).head(top)
-        df_rea_top = add_formatted_cols(df_rea_top)
-        df_rea_top = add_links(df_rea_top)
-
-        # costruisco la vista, usando Prezzo_fmt se esiste, altrimenti Prezzo
-        if "Prezzo_fmt" in df_rea_top.columns:
-            prezzo_col = "Prezzo_fmt"
-        elif "Prezzo" in df_rea_top.columns:
-            prezzo_col = "Prezzo"
-        else:
-            prezzo_col = None
-
-        cols = ["Nome", "Ticker"]
-        if prezzo_col is not None:
-            cols.append(prezzo_col)
-        cols += [
+        cols_order = [
+            "Nome",
+            "Ticker",
+            "Prezzo",
+            "Prezzo_fmt",
+            "MarketCap",
             "MarketCap_fmt",
+            "Vol_Today",
             "Vol_Today_fmt",
+            "Vol_7d_Avg",
             "Vol_7d_Avg_fmt",
-            "POC",
-            "Dist_POC_%",
+            "Pro_Score",
+            "RSI",
             "Vol_Ratio",
+            "Distanza_POC",
+            "OBV_Trend",
+            "ATR",
+            "ATR_Exp",
             "Stato",
             "Yahoo",
             "Finviz",
         ]
+        df_rq = df_rq[[c for c in cols_order if c in df_rq.columns]]
 
-        df_rea_top_show = df_rea_top[[c for c in cols if c in df_rea_top.columns]]
+        # ordino per combinazione Vol_Ratio alta + distanza POC bassa + Pro_Score
+        sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC", "Pro_Score"] if c in df_rq.columns]
+        ascending = [False, True, False][: len(sort_cols)]
+        if sort_cols:
+            df_rq_view = df_rq.sort_values(by=sort_cols, ascending=ascending).head(top)
+        else:
+            df_rq_view = df_rq.head(top)
 
-        if prezzo_col == "Prezzo_fmt":
-            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo_fmt": "Prezzo"})
-        elif prezzo_col == "Prezzo":
-            df_rea_top_show = df_rea_top_show.rename(columns={"Prezzo": "Prezzo"})
+        df_rq_show = df_rq_view[
+            [
+                c
+                for c in [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo_fmt",
+                    "MarketCap_fmt",
+                    "Vol_Today_fmt",
+                    "Vol_7d_Avg_fmt",
+                    "Pro_Score",
+                    "RSI",
+                    "Vol_Ratio",
+                    "Distanza_POC",
+                    "OBV_Trend",
+                    "ATR",
+                    "ATR_Exp",
+                    "Stato",
+                    "Yahoo",
+                    "Finviz",
+                ]
+                if c in df_rq_view.columns
+            ]
+        ]
 
         st.dataframe(
-            df_rea_top_show,
+            df_rq_show,
             use_container_width=True,
             column_config={
-                "Prezzo": "Prezzo",
+                "Prezzo_fmt": "Prezzo",
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
                 "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Distanza_POC": "Dist POC (%)",
                 "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn(
-                    "TradingView", display_text="Apri"
-                ),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
         )
 
-        # EXPORT REA TOP N
-        csv_data = df_rea_top.to_csv(index=False).encode("utf-8")
+        # ==========================
+        # EXPORT Rea Quant
+        # ==========================
+        csv_data = df_rq_view.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Export REA TopN CSV",
+            "⬇️ Export Rea Quant CSV",
             data=csv_data,
-            file_name=f"REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            file_name=f"REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
             mime="text/csv",
             use_container_width=True,
-            key="dl_rea_topn_csv",
-        )
-
-        tv_data = df_rea_top["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export REA TopN TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_tv_rea_topn",
+            key="dl_rea_q_csv",
         )
 
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rea_top.to_excel(writer, index=False, sheet_name="REA_TOPN")
+            df_rq_view.to_excel(writer, index=False, sheet_name="REA_QUANT")
         data_xlsx = output.getvalue()
 
         st.download_button(
-            "⬇️ Export REA TopN XLSX",
+            "⬇️ Export Rea Quant XLSX",
             data=data_xlsx,
-            file_name=f"REA_TOPN_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet"
-            ),
+            file_name=f"REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
-            key="dl_rea_topn_xlsx",
+            key="dl_rea_q_xlsx",
+        )
+
+        # EXPORT TradingView (solo ticker)
+        tv_data = df_rq_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+        st.download_button(
+            "⬇️ Export Rea Quant TradingView (solo ticker)",
+            data=csv_tv,
+            file_name=f"TV_REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="dl_tv_rea_q",
         )
 
         # ==========================
-        # Watchlist Rea Quant TopN (con seleziona tutti) – key wl_rea_q
+        # Watchlist Rea Quant (con seleziona tutti)
         # ==========================
         options_rea_q = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_top.iterrows()
+            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rq_view.iterrows()
         )
 
         col_sel_all_rea_q, _ = st.columns([1, 3])
         with col_sel_all_rea_q:
-            if st.button("✅ Seleziona tutti (Rea Quant TopN)", key="btn_sel_all_rea_q"):
+            if st.button(
+                "✅ Seleziona tutti (Top Rea Quant)", key="btn_sel_all_rea_q"
+            ):
                 st.session_state["wl_rea_q"] = options_rea_q
 
         selection_rea_q = st.multiselect(
-            "Aggiungi alla Watchlist (Rea Quant TopN):",
+            "Aggiungi alla Watchlist (Rea Quant):",
             options=options_rea_q,
             key="wl_rea_q",
         )
 
         note_rea_q = st.text_input(
-            "Note comuni per questi ticker (Rea Quant)", key="note_wl_rea_q"
+            "Note comuni per questi ticker Rea Quant", key="note_wl_rea_q"
         )
 
         if st.button("📌 Salva in Watchlist (Rea Quant)"):
             tickers = [s.split(" – ")[1] for s in selection_rea_q]
             names = [s.split(" – ")[0] for s in selection_rea_q]
             add_to_watchlist(
-        tickers, names, "REA_QUANT", note_early, trend="LONG",
-        list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+                tickers,
+                names,
+                "REA_QUANT",
+                note_rea_q,
+                trend="LONG",
+                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            )
+            st.success("Rea Quant salvati in watchlist.")
             st.rerun()
-
-        # ==========================
-        # 2) Analisi per mercato (AVANZATA, nascosta)
-        # ==========================
-        with st.expander("📊 Analisi Rea Quant per mercato (avanzata)", expanded=False):
-
-            def detect_market_rea(t):
-                if t.endswith(".MI"):
-                    return "FTSE"
-                if t.endswith(".PA") or t.endswith(".AS") or t.endswith(".SW"):
-                    return "Eurostoxx"
-                if t in ["SPY", "QQQ", "IWM", "VTI"]:
-                    return "USA ETF"
-                if t.endswith("-USD"):
-                    return "Crypto"
-                return "Altro"
-
-            df_rea_q["Mercato"] = df_rea_q["Ticker"].apply(detect_market_rea)
-
-            agg = df_rea_q.groupby("Mercato").agg(
-                N=("Ticker", "count"),
-                Vol_Ratio_med=("Vol_Ratio", "mean"),
-                Rea_Score_med=("Rea_Score", "mean"),
-                MarketCap_med=("MarketCap", "mean"),
-                Vol_Today_med=("Vol_Today", "mean"),
-            ).reset_index()
-
-            st.dataframe(agg, use_container_width=True)
-
 
 # =============================================================================
 # STEFANO SERAFINI – SYSTEMS
@@ -1307,7 +1401,7 @@ with tab_serafini:
             "- **Breakout_Up/Down**: rottura massimi/minimi.\n"
             "- **Market Cap / Volumi**: info di contesto.\n"
             "- Ordinamento per Pro_Score per privilegiare i breakout in trend forti.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_ep.empty:
@@ -1470,12 +1564,16 @@ with tab_serafini:
                     tickers = [s.split(" – ")[1] for s in selection_seraf]
                     names = [s.split(" – ")[0] for s in selection_seraf]
                     add_to_watchlist(
-                        add_to_watchlist(
-            tickers, names, "SERAFINI", note_early, trend="LONG",
-            list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+                        tickers,
+                        names,
+                        "SERAFINI",
+                        note_seraf,
+                        trend="LONG",
+                        list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                    )
+                    st.success("Serafini salvati in watchlist.")
                     st.rerun()
+
 # =============================================================================
 # REGIME & MOMENTUM
 # =============================================================================
@@ -1688,7 +1786,9 @@ with tab_regime:
 
             col_sel_all_regime, _ = st.columns([1, 3])
             with col_sel_all_regime:
-                if st.button("✅ Seleziona tutti (Top Momentum)", key="btn_sel_all_regime"):
+                if st.button(
+                    "✅ Seleziona tutti (Top Momentum)", key="btn_sel_all_regime"
+                ):
                     st.session_state["wl_regime"] = options_regime
 
             selection_regime = st.multiselect(
@@ -1703,201 +1803,302 @@ with tab_regime:
                 tickers = [s.split(" – ")[1] for s in selection_regime]
                 names = [s.split(" – ")[0] for s in selection_regime]
                 add_to_watchlist(
-            tickers, names, "REGIME_MOMENTUM", note_early, trend="LONG",
-            list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+                    tickers,
+                    names,
+                    "REGIME_MOMENTUM",
+                    note_regime,
+                    trend="LONG",
+                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                )
+                st.success("Regime/Momentum salvati in watchlist.")
                 st.rerun()
 
 # =============================================================================
 # MULTI‑TIMEFRAME
 # =============================================================================
-with tab_mtf:
-    st.subheader("🕒 Analisi Multi‑Timeframe")
+with tab_multitime:
+    st.subheader("⏱️ Multi‑Timeframe (D / W / M)")
     st.markdown(
-        "Vista sintetica dei segnali su più timeframe, usando i risultati PRO/EARLY "
-        "come base (es. daily con supporto di segnali su timeframe maggiori/minori)."
+        "Vista congiunta **daily / weekly / monthly** sugli stessi titoli, "
+        "per verificare allineamento di trend e momentum."
     )
 
     with st.expander("📘 Legenda Multi‑Timeframe"):
         st.markdown(
-            "- Usa i segnali PRO/EARLY come base.\n"
-            "- Mostra metriche di trend/momentum utili su più orizzonti.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- Timeframe: **D** (giornaliero), **W** (settimanale), **M** (mensile).\n"
+            "- **Trend_TF**: direzione trend per timeframe (UP / DOWN / SIDE).\n"
+            "- **RSI_TF**: RSI calcolato sul timeframe.\n"
+            "- **Momentum_TF**: punteggio sintetico (tipo Pro_Score×10 + RSI) per timeframe.\n"
+            "- Filtriamo solo i titoli presenti nello scanner principale."
         )
 
     if df_ep.empty:
-        st.caption("Nessun dato scanner disponibile per la vista Multi‑Timeframe.")
+        st.caption("Nessun dato scanner disponibile.")
     else:
-        # per semplicità usiamo df_ep così com'è; puoi arricchirlo con altre logiche MTF
-        df_mtf = df_ep.copy()
-        df_mtf = add_formatted_cols(df_mtf)
-        df_mtf = add_links(df_mtf)
+        universe = df_ep["Ticker"].unique().tolist()
 
-        cols_order = [
-            "Nome",
-            "Ticker",
-            "Prezzo",
-            "Prezzo_fmt",
-            "MarketCap",
-            "MarketCap_fmt",
-            "Vol_Today",
-            "Vol_Today_fmt",
-            "Vol_7d_Avg",
-            "Vol_7d_Avg_fmt",
-            "Early_Score",
-            "Pro_Score",
-            "RSI",
-            "Vol_Ratio",
-            "OBV_Trend",
-            "ATR",
-            "ATR_Exp",
-            "Stato",
-            "Yahoo",
-            "Finviz",
-        ]
-        df_mtf = df_mtf[[c for c in cols_order if c in df_mtf.columns]]
+        @st.cache_data(show_spinner=False)
+        def fetch_mt_data(tickers):
+            records = []
+            for tkr in tickers:
+                try:
+                    # daily, weekly, monthly da yfinance
+                    df_d = yf.Ticker(tkr).history(period="6mo", interval="1d")
+                    df_w = yf.Ticker(tkr).history(period="2y", interval="1wk")
+                    df_m = yf.Ticker(tkr).history(period="5y", interval="1mo")
 
-        # ordino per Pro_Score + Early_Score come proxy di forza multi‑timeframe
-        df_mtf["MTF_Score"] = df_mtf.get("Pro_Score", 0) + df_mtf.get("Early_Score", 0)
-        df_mtf_view = df_mtf.sort_values("MTF_Score", ascending=False).head(top)
+                    if len(df_d) < 30 or len(df_w) < 30 or len(df_m) < 30:
+                        continue
 
-        df_mtf_show = df_mtf_view[
-            [
-                "Nome",
+                    def mk_row(df, tf_label):
+                        close = df["Close"]
+                        rsi = ta.momentum.rsi(close, window=14).iloc[-1]
+
+                        ma_fast = close.rolling(20).mean().iloc[-1]
+                        ma_slow = close.rolling(50).mean().iloc[-1]
+                        if ma_fast > ma_slow:
+                            trend = "UP"
+                        elif ma_fast < ma_slow:
+                            trend = "DOWN"
+                        else:
+                            trend = "SIDE"
+
+                        last = close.iloc[-1]
+                        momentum_tf = (1 if trend == "UP" else -1 if trend == "DOWN" else 0) * 10 + rsi
+
+                        return {
+                            "Ticker": tkr,
+                            "TF": tf_label,
+                            f"Close_{tf_label}": round(last, 2),
+                            f"RSI_{tf_label}": round(rsi, 1),
+                            f"Trend_{tf_label}": trend,
+                            f"Momentum_{tf_label}": round(momentum_tf, 1),
+                        }
+
+                    row_d = mk_row(df_d, "D")
+                    row_w = mk_row(df_w, "W")
+                    row_m = mk_row(df_m, "M")
+
+                    merged = {"Ticker": tkr}
+                    merged.update(row_d)
+                    merged.update(row_w)
+                    merged.update(row_m)
+                    records.append(merged)
+                except Exception:
+                    continue
+
+            return pd.DataFrame(records)
+
+        with st.spinner("Calcolo multi‑timeframe..."):
+            df_mt = fetch_mt_data(universe)
+
+        if df_mt.empty:
+            st.caption("Nessun dato multi‑timeframe disponibile.")
+        else:
+            # unisco con df_ep per Nome, MarketCap, Pro_Score ecc.
+            base_cols = [
                 "Ticker",
-                "Prezzo_fmt",
-                "MarketCap_fmt",
-                "Vol_Today_fmt",
-                "Vol_7d_Avg_fmt",
-                "Early_Score",
+                "Nome",
+                "Prezzo",
+                "MarketCap",
                 "Pro_Score",
                 "RSI",
-                "Vol_Ratio",
-                "OBV_Trend",
-                "ATR",
-                "ATR_Exp",
+                "Vol_Today",
+                "Vol_7d_Avg",
                 "Stato",
-                "MTF_Score",
-                "Yahoo",
-                "Finviz",
             ]
-        ]
+            df_base = df_ep[base_cols].drop_duplicates(subset=["Ticker"])
+            df_mt_full = df_mt.merge(df_base, on="Ticker", how="left")
 
-        st.dataframe(
-            df_mtf_show,
-            use_container_width=True,
-            column_config={
-                "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "MTF_Score": "MTF Score",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn(
-                    "TradingView", display_text="Apri"
-                ),
-            },
-        )
+            # filtro opzionale: solo titoli con trend UP su almeno 2 timeframe
+            df_mt_full["UP_count"] = (
+                (df_mt_full["Trend_D"] == "UP").astype(int)
+                + (df_mt_full["Trend_W"] == "UP").astype(int)
+                + (df_mt_full["Trend_M"] == "UP").astype(int)
+            )
+            tf_min_up = st.slider(
+                "Minimo n° timeframe in UP",
+                min_value=0,
+                max_value=3,
+                value=2,
+                step=1,
+            )
+            df_mt_full = df_mt_full[df_mt_full["UP_count"] >= tf_min_up]
 
-        # ==========================
-        # EXPORT MTF
-        # ==========================
-        csv_data = df_mtf_view.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export MTF CSV",
-            data=csv_data,
-            file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_mtf_csv",
-        )
+            if df_mt_full.empty:
+                st.caption("Nessun titolo con i criteri selezionati.")
+            else:
+                df_mt_full = add_formatted_cols(df_mt_full)
+                df_mt_full = add_links(df_mt_full)
 
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_mtf_view.to_excel(writer, index=False, sheet_name="MTF")
-        data_xlsx = output.getvalue()
+                cols_show = [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo_fmt",
+                    "MarketCap_fmt",
+                    "Pro_Score",
+                    "RSI",
+                    "Stato",
+                    # Daily
+                    "Close_D",
+                    "RSI_D",
+                    "Trend_D",
+                    "Momentum_D",
+                    # Weekly
+                    "Close_W",
+                    "RSI_W",
+                    "Trend_W",
+                    "Momentum_W",
+                    # Monthly
+                    "Close_M",
+                    "RSI_M",
+                    "Trend_M",
+                    "Momentum_M",
+                    "Yahoo",
+                    "Finviz",
+                ]
+                cols_show = [c for c in cols_show if c in df_mt_full.columns]
 
-        st.download_button(
-            "⬇️ Export MTF XLSX",
-            data=data_xlsx,
-            file_name=f"MTF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_mtf_xlsx",
-        )
+                df_mt_view = df_mt_full.sort_values(
+                    ["UP_count", "Momentum_W", "Momentum_M"],
+                    ascending=[False, False, False],
+                ).head(top)
 
-        # ==========================
-        # Watchlist Multi‑Timeframe (con seleziona tutti) – key wl_mtf
-        # ==========================
-        options_mtf = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_mtf_view.iterrows()
-        )
+                st.dataframe(
+                    df_mt_view[cols_show],
+                    use_container_width=True,
+                    column_config={
+                        "Prezzo_fmt": "Prezzo",
+                        "MarketCap_fmt": "Market Cap",
+                        "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                        "Finviz": st.column_config.LinkColumn(
+                            "TradingView", display_text="Apri"
+                        ),
+                    },
+                )
 
-        col_sel_all_mtf, _ = st.columns([1, 3])
-        with col_sel_all_mtf:
-            if st.button("✅ Seleziona tutti (Top MTF)", key="btn_sel_all_mtf"):
-                st.session_state["wl_mtf"] = options_mtf
+                # ==========================
+                # EXPORT MULTI‑TIMEFRAME
+                # ==========================
+                csv_data = df_mt_view.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "⬇️ Export Multi‑Timeframe CSV",
+                    data=csv_data,
+                    file_name=f"MULTITF_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_mt_csv",
+                )
 
-        selection_mtf = st.multiselect(
-            "Aggiungi alla Watchlist (Multi‑Timeframe):",
-            options=options_mtf,
-            key="wl_mtf",
-        )
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                    df_mt_view.to_excel(writer, index=False, sheet_name="MULTI_TF")
+                data_xlsx = output.getvalue()
 
-        note_mtf = st.text_input(
-            "Note comuni per questi ticker Multi‑Timeframe", key="note_wl_mtf"
-        )
+                st.download_button(
+                    "⬇️ Export Multi‑Timeframe XLSX",
+                    data=data_xlsx,
+                    file_name=f"MULTITF_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                    use_container_width=True,
+                    key="dl_mt_xlsx",
+                )
 
-        if st.button("📌 Salva in Watchlist (Multi‑Timeframe)"):
-            tickers = [s.split(" – ")[1] for s in selection_mtf]
-            names = [s.split(" – ")[0] for s in selection_mtf]
-            add_to_watchlist(
-            tickers, names, "MTF", note_early, trend="LONG",
-            list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
+                # EXPORT Multi‑TF TradingView (solo ticker)
+                df_mt_tv = df_mt_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
+                csv_mt_tv = df_mt_tv.to_csv(index=False, header=False).encode("utf-8")
+                st.download_button(
+                    "⬇️ CSV Multi‑TF (solo ticker)",
+                    data=csv_mt_tv,
+                    file_name=(
+                        f"signals_multitf_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+                    ),
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_tv_mt",
+                )
 
-            st.rerun()
+                # ==========================
+                # Watchlist Multi‑TF (con seleziona tutti) – key wl_multitf
+                # ==========================
+                options_mt = sorted(
+                    f"{row['Nome']} – {row['Ticker']}"
+                    for _, row in df_mt_view.iterrows()
+                )
+
+                col_sel_all_mt, _ = st.columns([1, 3])
+                with col_sel_all_mt:
+                    if st.button(
+                        "✅ Seleziona tutti (Top Multi‑TF)", key="btn_sel_all_mt"
+                    ):
+                        st.session_state["wl_multitf"] = options_mt
+
+                selection_mt = st.multiselect(
+                    "Aggiungi alla Watchlist (Multi‑TF):",
+                    options=options_mt,
+                    key="wl_multitf",
+                )
+                note_mt = st.text_input(
+                    "Note comuni per questi ticker Multi‑TF", key="note_wl_multitf"
+                )
+                if st.button("📌 Salva in Watchlist (Multi‑TF)"):
+                    tickers = [s.split(" – ")[1] for s in selection_mt]
+                    names = [s.split(" – ")[0] for s in selection_mt]
+                    add_to_watchlist(
+                        tickers,
+                        names,
+                        "MULTI_TF",
+                        note_mt,
+                        trend="LONG",
+                        list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                    )
+                    st.success("Multi‑TF salvati in watchlist.")
+                    st.rerun()
 
 # =============================================================================
 # FINVIZ‑LIKE SCREENER
 # =============================================================================
-with tab_finviz:
+with tabfinviz:
     st.subheader("📊 Screener stile Finviz")
     st.markdown(
-        "Filtraggio fondamentale/quantitativo (EPS Growth, volume medio, prezzo) "
-        "per individuare titoli di qualità e liquidità adeguata."
+        "Filtraggio **fondamentale + quantitativo** (EPS Growth, volume medio, prezzo) "
+        "per individuare titoli di qualità con liquidità adeguata."
     )
 
-    with st.expander("📘 Legenda Finviz"):
+    with st.expander("📘 Legenda Finviz‑like"):
         st.markdown(
-            "- Filtri EPS Next Year / Next 5Y, volume medio e prezzo minimo.\n"
-            "- I dati sono derivati dall'universo scansionato.\n"
-            "- Colonne **Yahoo** e **Finviz**: pulsanti link per ogni ticker."
+            "- **EPSnextY / EPS5Y**: crescita utili attesa a 1 anno e 5 anni.\n"
+            "- **AvgVolmln**: volume medio giornaliero (milioni di pezzi).\n"
+            "- **Prezzo minimo**: filtro per evitare penny stock.\n"
+            "- Dati derivati dall’universo già scansionato (df_ep).\n"
+            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
     if df_ep.empty:
-        st.caption("Nessun dato scanner disponibile per il filtro Finviz.")
+        st.caption("Nessun dato scanner disponibile per il filtro Finviz‑like.")
     else:
-        # qui assumo che tu abbia già creato df_finviz a partire da df_ep
-        # se non c'è, puoi partire da df_ep e aggiungere colonne fondamentali a modo tuo
-        df_finviz = df_ep.copy()
+        # ci aspettiamo che df_ep contenga già queste colonne (calcolate a monte):
+        # EPSnextY, EPS5Y, AvgVolmln, Prezzo
+        dffinviz = df_ep.copy()
 
-        # ESEMPIO: se hai già colonne EPS_nextY, EPS_5Y, Avg_Vol_mln, Price
-        # applica i filtri della sidebar
-        if all(col in df_finviz.columns for col in ["EPS_nextY", "EPS_5Y", "Avg_Vol_mln", "Prezzo"]):
-            df_finviz = df_finviz[
-                (df_finviz["EPS_nextY"] >= eps_next_y_min)
-                & (df_finviz["EPS_5Y"] >= eps_next_5y_min)
-                & (df_finviz["Avg_Vol_mln"] >= avg_vol_min_mln)
-                & (df_finviz["Prezzo"] >= price_min_finviz)
+        # applica i filtri della sidebar (già definiti a monte)
+        # epsnexty_min, epsnext5y_min, avgvol_min_mln, pricemin_finviz
+        if all(col in dffinviz.columns for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]):
+            dffinviz = dffinviz[
+                (dffinviz["EPSnextY"] >= epsnexty_min)
+                & (dffinviz["EPS5Y"] >= epsnext5y_min)
+                & (dffinviz["AvgVolmln"] >= avgvol_min_mln)
+                & (dffinviz["Prezzo"] >= pricemin_finviz)
             ]
 
-        if df_finviz.empty:
-            st.caption("Nessun titolo soddisfa i filtri Finviz.")
+        if dffinviz.empty:
+            st.caption("Nessun titolo soddisfa i filtri Finviz‑like.")
         else:
-            df_finviz = add_formatted_cols(df_finviz)
-            df_finviz = add_links(df_finviz)
+            dffinviz = add_formatted_cols(dffinviz)
+            dffinviz = add_links(dffinviz)
 
             cols_order = [
                 "Nome",
@@ -1910,18 +2111,19 @@ with tab_finviz:
                 "Vol_Today_fmt",
                 "Vol_7d_Avg",
                 "Vol_7d_Avg_fmt",
-                "EPS_nextY",
-                "EPS_5Y",
-                "Avg_Vol_mln",
+                "EPSnextY",
+                "EPS5Y",
+                "AvgVolmln",
                 "Stato",
                 "Yahoo",
                 "Finviz",
             ]
-            df_finviz = df_finviz[[c for c in cols_order if c in df_finviz.columns]]
+            dffinviz = dffinviz[[c for c in cols_order if c in dffinviz.columns]]
 
-            df_finviz_view = df_finviz.sort_values("MarketCap", ascending=False).head(top)
+            # ordino per MarketCap discendente (titoli più grandi e liquidi in cima)
+            dffinviz_view = dffinviz.sort_values("MarketCap", ascending=False).head(top)
 
-            df_finviz_show = df_finviz_view[
+            dffinviz_show = dffinviz_view[
                 [
                     c
                     for c in [
@@ -1931,28 +2133,28 @@ with tab_finviz:
                         "MarketCap_fmt",
                         "Vol_Today_fmt",
                         "Vol_7d_Avg_fmt",
-                        "EPS_nextY",
-                        "EPS_5Y",
-                        "Avg_Vol_mln",
+                        "EPSnextY",
+                        "EPS5Y",
+                        "AvgVolmln",
                         "Stato",
                         "Yahoo",
                         "Finviz",
                     ]
-                    if c in df_finviz_view.columns
+                    if c in dffinviz_view.columns
                 ]
             ]
 
             st.dataframe(
-                df_finviz_show,
+                dffinviz_show,
                 use_container_width=True,
                 column_config={
                     "Prezzo_fmt": "Prezzo",
                     "MarketCap_fmt": "Market Cap",
                     "Vol_Today_fmt": "Vol giorno",
                     "Vol_7d_Avg_fmt": "Vol medio 7g",
-                    "EPS_nextY": "EPS Next Y (%)",
-                    "EPS_5Y": "EPS Next 5Y (%)",
-                    "Avg_Vol_mln": "Avg Vol (mln)",
+                    "EPSnextY": "EPS Next Y %",
+                    "EPS5Y": "EPS Next 5Y %",
+                    "AvgVolmln": "Avg Vol (mln)",
                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                     "Finviz": st.column_config.LinkColumn(
                         "TradingView", display_text="Apri"
@@ -1961,11 +2163,11 @@ with tab_finviz:
             )
 
             # ==========================
-            # EXPORT FINVIZ
+            # EXPORT FINVIZ‑LIKE
             # ==========================
-            csv_data = df_finviz_view.to_csv(index=False).encode("utf-8")
+            csv_data = dffinviz_view.to_csv(index=False).encode("utf-8")
             st.download_button(
-                "⬇️ Export Finviz CSV",
+                "⬇️ Export Finviz‑like CSV",
                 data=csv_data,
                 file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
@@ -1975,59 +2177,61 @@ with tab_finviz:
 
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_finviz_view.to_excel(writer, index=False, sheet_name="FINVIZ")
+                dffinviz_view.to_excel(writer, index=False, sheet_name="FINVIZ")
             data_xlsx = output.getvalue()
 
             st.download_button(
-                "⬇️ Export Finviz XLSX",
+                "⬇️ Export Finviz‑like XLSX",
                 data=data_xlsx,
                 file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
                 key="dl_finviz_xlsx",
             )
 
             # ==========================
-            # Watchlist Finviz (con seleziona tutti) – key wl_finviz
+            # Watchlist Finviz‑like (con seleziona tutti) – key wl_finviz
             # ==========================
             options_finviz = sorted(
                 f"{row['Nome']} – {row['Ticker']}"
-                for _, row in df_finviz_view.iterrows()
+                for _, row in dffinviz_view.iterrows()
             )
 
             col_sel_all_finviz, _ = st.columns([1, 3])
             with col_sel_all_finviz:
-                if st.button("✅ Seleziona tutti (Top Finviz)", key="btn_sel_all_finviz"):
+                if st.button(
+                    "✅ Seleziona tutti (Top Finviz‑like)", key="btn_sel_all_finviz"
+                ):
                     st.session_state["wl_finviz"] = options_finviz
 
             selection_finviz = st.multiselect(
-                "Aggiungi alla Watchlist (Finviz):",
+                "Aggiungi alla Watchlist (Finviz‑like):",
                 options=options_finviz,
                 key="wl_finviz",
             )
 
             note_finviz = st.text_input(
-                "Note comuni per questi ticker Finviz", key="note_wl_finviz"
+                "Note comuni per questi ticker Finviz‑like", key="note_wl_finviz"
             )
 
-            if st.button("📌 Salva in Watchlist (Finviz)"):
+            if st.button("📌 Salva in Watchlist (Finviz‑like)"):
                 tickers = [s.split(" – ")[1] for s in selection_finviz]
                 names = [s.split(" – ")[0] for s in selection_finviz]
                 add_to_watchlist(
-                tickers, names, "FINVIZ", note_early, trend="LONG",
-                list_name=st.session_state.get("current_list_name", "DEFAULT"),
-)
-
+                    tickers,
+                    names,
+                    "FINVIZ",
+                    note_finviz,
+                    trend="LONG",
+                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                )
+                st.success("Finviz‑like salvati in watchlist.")
                 st.rerun()
 
 # =============================================================================
 # 📌 WATCHLIST & NOTE
 # =============================================================================
 with tab_watch:
-    # titolo + pulsanti sulla stessa riga
     col_title, col_refresh, col_reset = st.columns([4, 1, 2])
     with col_title:
         st.subheader("📌 Watchlist & Note")
@@ -2035,75 +2239,48 @@ with tab_watch:
         if st.button("🔄 Refresh"):
             st.rerun()
     with col_reset:
-        current_list = st.session_state.get("current_list_name", "DEFAULT")
-        if st.button(f"🧨 Reset lista '{current_list}'"):
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("DELETE FROM watchlist WHERE list_name = ?", (current_list,))
-            conn.commit()
-            conn.close()
-            st.success(f"Lista '{current_list}' azzerata.")
-            st.rerun()
-        if st.button("🧨 Reset DB (tutte le liste)"):
+        if st.button("🧹 Reset DB"):
             reset_watchlist_db()
-            st.success("Watchlist COMPLETAMENTE azzerata.")
+            st.success("Watchlist azzerata.")
             st.rerun()
 
     # carico il DB
     df_wl = load_watchlist()
     if df_wl.empty:
-        st.caption("Watchlist vuota. Aggiungi titoli dai tab scanner.")
+        st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
         st.stop()
 
-    # ---------------- Filtro per lista multipla ----------------
-    list_names = sorted(df_wl["list_name"].dropna().unique().tolist())
-    list_names = [ln for ln in list_names if ln]
-    if not list_names:
-        list_names = ["DEFAULT"]
+    # filtro per lista (multi‑lista)
+    listnames = sorted(
+        df_wl["list_name"].dropna().unique().tolist()
+        if "list_name" in df_wl.columns
+        else []
+    )
+    listnames = [ln for ln in listnames if ln]
+    if not listnames:
+        listnames = ["DEFAULT"]
 
     list_filter = st.selectbox(
-        "Lista watchlist:",
-        options=list_names,
-        index=list_names.index(
-            st.session_state.get("current_list_name", list_names[0])
-        ) if st.session_state.get("current_list_name") in list_names else 0,
+        "Lista watchlist",
+        options=listnames,
+        index=(
+            listnames.index(st.session_state.get("current_list_name", listnames[0]))
+            if st.session_state.get("current_list_name", listnames[0]) in listnames
+            else 0
+        ),
         key="wl_filter_list",
     )
+    st.session_state["current_list_name"] = list_filter
 
-    df_wl = df_wl[df_wl["list_name"] == list_filter]
+    if "list_name" in df_wl.columns:
+        df_wl = df_wl[df_wl["list_name"] == list_filter]
+
     if df_wl.empty:
         st.caption("Questa lista è vuota.")
         st.stop()
 
-    # ---------------- Filtri rapidi origine / trend ----------------
-    col_f1, col_f2 = st.columns(2)
-    with col_f1:
-        origine_filter = st.selectbox(
-            "Filtro origine:",
-            options=["Tutte"] + sorted(df_wl["origine"].unique().tolist()),
-            index=0,
-            key="wl_filter_origine",
-        )
-    with col_f2:
-        trend_filter = st.selectbox(
-            "Filtro trend:",
-            options=["Tutti"] + sorted(df_wl["trend"].unique().tolist()),
-            index=0,
-            key="wl_filter_trend",
-        )
-
-    df_wl_filt = df_wl.copy()
-    if origine_filter != "Tutte":
-        df_wl_filt = df_wl_filt[df_wl_filt["origine"] == origine_filter]
-    if trend_filter != "Tutti":
-        df_wl_filt = df_wl_filt[df_wl_filt["trend"] == trend_filter]
-
-    if df_wl_filt.empty:
-        st.caption("Nessuna riga corrisponde ai filtri selezionati.")
-        st.stop()
-
-    # ---------------- Dati di mercato da Yahoo per i ticker filtrati ----------------
-    tickers_wl = df_wl_filt["ticker"].unique().tolist()
+    # dati di mercato da Yahoo per i ticker in watchlist
+    tickers_wl = df_wl["ticker"].unique().tolist()
     records_mkt = []
     for tkr in tickers_wl:
         try:
@@ -2114,18 +2291,16 @@ with tab_watch:
                 continue
             close = hist["Close"]
             vol = hist["Volume"]
-
             price = float(close.iloc[-1])
-            market_cap = info.get("marketCap", np.nan)
+            marketcap = info.get("marketCap", np.nan)
             vol_today = float(vol.iloc[-1])
             vol_7d_avg = float(vol.mean())
             currency = info.get("currency", "USD")
-
             records_mkt.append(
                 {
                     "ticker": tkr,
                     "Prezzo": price,
-                    "MarketCap": market_cap,
+                    "MarketCap": marketcap,
                     "Vol_Today": vol_today,
                     "Vol_7d_Avg": vol_7d_avg,
                     "Currency": currency,
@@ -2135,33 +2310,24 @@ with tab_watch:
             continue
 
     df_mkt = pd.DataFrame(records_mkt)
-
+    df_wl_filt = df_wl.copy()
     if not df_mkt.empty:
         df_wl_filt = df_wl_filt.merge(df_mkt, on="ticker", how="left")
 
-    # formatto prezzo / market cap / volumi e aggiungo link Yahoo + TradingView
+    # arricchisco con formattazione e link
     df_wl_filt = add_formatted_cols(df_wl_filt)
     df_wl_filt = add_links(df_wl_filt)
 
-    # ---------------- Tabella principale watchlist ----------------
-    df_wl_filt["label"] = (
-        df_wl_filt["id"].astype(str)
-        + " | "
-        + df_wl_filt["name"].fillna("")
-        + " | "
-        + df_wl_filt["ticker"].fillna("")
+    # colonna label "ID – Nome (Ticker)"
+    df_wl_filt["label"] = df_wl_filt.apply(
+        lambda r: f"{r['id']} – {r.get('name', '')} ({r['ticker']})", axis=1
     )
 
+    # ordino alfabeticamente per nome e ticker
     df_wl_filt = df_wl_filt.sort_values(["name", "ticker"])
 
-    cols_show = [
-        "label",
-        "trend",
-        "origine",
-        "note",
-        "created_at",
-    ]
-
+    # colonne da mostrare
+    cols_show = ["label", "trend", "origine", "note", "created_at"]
     if "Prezzo_fmt" in df_wl_filt.columns:
         cols_show.insert(1, "Prezzo_fmt")
     if "MarketCap_fmt" in df_wl_filt.columns:
@@ -2170,7 +2336,6 @@ with tab_watch:
         cols_show.insert(3, "Vol_Today_fmt")
     if "Vol_7d_Avg_fmt" in df_wl_filt.columns:
         cols_show.insert(4, "Vol_7d_Avg_fmt")
-
     if "Yahoo" in df_wl_filt.columns:
         cols_show.append("Yahoo")
     if "Finviz" in df_wl_filt.columns:
@@ -2182,21 +2347,74 @@ with tab_watch:
         df_wl_view,
         use_container_width=True,
         column_config={
-            "label": "ID | Nome | Ticker",
+            "label": "ID – Nome (Ticker)",
             "Prezzo_fmt": "Prezzo",
             "MarketCap_fmt": "Market Cap",
             "Vol_Today_fmt": "Vol giorno",
             "Vol_7d_Avg_fmt": "Vol medio 7g",
             "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-            "Finviz": st.column_config.LinkColumn(
-                "TradingView", display_text="Apri"
-            ),
+            "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
         },
     )
 
     # ==========================
-    # EXPORT WATCHLIST
+    # Modifica note
     # ==========================
+    st.subheader("📝 Modifica nota per una riga")
+
+    id_options = df_wl_filt["id"].astype(str).tolist()
+    labels = df_wl_filt["label"].tolist()
+    id_map = dict(zip(labels, id_options))
+
+    selected_row = st.selectbox(
+        "Seleziona riga da modificare", options=labels, key="wl_edit_row"
+    )
+    row_id = id_map[selected_row]
+    current_note = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"].values[0]
+
+    new_note = st.textarea("Nota", value=current_note, key="wl_edit_note")
+
+    if st.button("💾 Salva nota"):
+        update_watchlist_note(row_id, new_note)
+        st.success("Nota aggiornata.")
+        st.rerun()
+
+    # ==========================
+    # Eliminazione righe
+    # ==========================
+    st.subheader("🗑️ Elimina righe dalla Watchlist")
+
+    del_rows = st.multiselect(
+        "Seleziona righe da eliminare", options=labels, key="wl_delete_rows"
+    )
+    del_ids = [id_map[label] for label in del_rows]
+
+    col_del1, col_del2 = st.columns(2)
+    with col_del1:
+        if st.button("❌ Elimina selezionate"):
+            delete_from_watchlist(del_ids)
+            st.success("Righe eliminate dalla watchlist.")
+            st.rerun()
+
+    # ==========================
+    # Export Watchlist
+    # ==========================
+    st.subheader("📤 Export Watchlist")
+
+    # solo ticker per TradingView
+    tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
+    csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Export Watchlist TradingView (solo ticker)",
+        data=csv_tv,
+        file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="dl_tv_watch",
+    )
+
+    st.markdown("---")
+
     csv_data = df_wl_view.to_csv(index=False).encode("utf-8")
     st.download_button(
         "⬇️ Export Watchlist CSV",
@@ -2221,56 +2439,11 @@ with tab_watch:
         key="dl_watch_xlsx",
     )
 
-    # EXPORT TradingView (solo ticker)
-    tv_data = df_wl_filt["ticker"].drop_duplicates().to_frame(name="symbol")
-    csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-    st.download_button(
-        "⬇️ Export Watchlist TradingView (solo ticker)",
-        data=csv_tv,
-        file_name=f"TV_WATCHLIST_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-        mime="text/csv",
-        use_container_width=True,
-        key="dl_tv_watch",
-    )
-
-    st.markdown("---")
-
-    # ---------------- Modifica note ----------------
-    st.subheader("✏️ Modifica nota per una riga")
-
-    id_options = df_wl_filt["id"].astype(str).tolist()
-    labels = df_wl_filt["label"].tolist()
-    id_map = dict(zip(labels, id_options))
-
-    selected_row = st.selectbox(
-        "Seleziona riga da modificare:",
-        options=labels,
-        key="wl_edit_row",
-    )
-    row_id = id_map[selected_row]
-
-    current_note = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"].values[0]
-    new_note = st.text_area("Nota", value=current_note, key="wl_edit_note")
-
-    if st.button("💾 Salva nota"):
-        update_watchlist_note(row_id, new_note)
-        st.success("Nota aggiornata.")
+    # ==========================
+    # Reset completo DB
+    # ==========================
+    st.subheader("⚠️ Reset completo Watchlist DB")
+    if st.button("🔥 Elimina TUTTO il DB Watchlist e riparti da zero"):
+        reset_watchlist_db()
+        st.success("Watchlist azzerata completamente.")
         st.rerun()
-
-    # ---------------- Eliminazione righe ----------------
-    st.subheader("🗑️ Elimina righe dalla Watchlist")
-
-    del_rows = st.multiselect(
-        "Seleziona righe da eliminare:",
-        options=labels,
-        key="wl_delete_rows",
-    )
-    del_ids = [id_map[label] for label in del_rows]
-
-    col_del1, col_del2 = st.columns(2)
-    with col_del1:
-        if st.button("❌ Elimina selezionate"):
-            delete_from_watchlist(del_ids)
-            st.success("Righe eliminate dalla watchlist.")
-            st.rerun()
