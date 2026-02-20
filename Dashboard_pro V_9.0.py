@@ -2339,20 +2339,26 @@ with tab_watch:
         },
     )
 
-    # ==========================
-    # Modifica note
-    # ==========================
-    st.subheader("📝 Modifica nota per una riga")
+   # ==========================
+# Modifica note
+# ==========================
+st.subheader("📝 Modifica nota per una riga")
 
-    id_options = df_wl_filt["id"].astype(str).tolist()
-    labels = df_wl_filt["label"].tolist()
-    id_map = dict(zip(labels, id_options))
+id_options = df_wl_filt["id"].astype(str).tolist()
+labels = df_wl_filt["label"].tolist()
+id_map = dict(zip(labels, id_options))
 
+if not labels:
+    st.caption("Nessuna riga in watchlist per modificare le note.")
+else:
     selected_row = st.selectbox(
         "Seleziona riga da modificare", options=labels, key="wl_edit_row"
     )
     row_id = id_map[selected_row]
-    current_note = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"].values[0]
+
+    # prendo la nota, forzando a stringa ed evitando nan
+    note_series = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"]
+    current_note = "" if note_series.empty else str(note_series.values[0] or "")
 
     new_note = st.textarea("Nota", value=current_note, key="wl_edit_note")
 
