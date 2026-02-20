@@ -2310,6 +2310,48 @@ with tab_watch:
                 delete_from_watchlist(ids_del)
                 st.success(f"{len(ids_del)} righe cancellate dalla watchlist.")
                 st.rerun()
+        st.markdown("---")
+
+        # ==============================
+        # Gestione DB Watchlist
+        # ==============================
+        st.markdown("### 🧹 Gestione DB Watchlist")
+
+        col_ref, col_reset_list, col_reset_all = st.columns(3)
+
+        # 1) Refresh DB (riload da disco)
+        with col_ref:
+            if st.button("🔄 Refresh DB"):
+                st.experimental_rerun()
+
+        # 2) Reset di UNA watchlist (solo list_name scelto)
+        with col_reset_list:
+            wl_to_reset = st.selectbox(
+                "Watchlist da resettare",
+                options=list_options,
+                index=list_options.index(active_list)
+                if active_list in list_options
+                else 0,
+                key="wl_to_reset",
+            )
+            if st.button("⚠️ Reset watchlist selezionata"):
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                c.execute(
+                    "DELETE FROM watchlist WHERE list_name = ?",
+                    (wl_to_reset,),
+                )
+                conn.commit()
+                conn.close()
+                st.success(f"Watchlist '{wl_to_reset}' azzerata.")
+                st.rerun()
+
+        # 3) Reset DB completo (tutte le watchlist)
+        with col_reset_all:
+            if st.button("🔥 Reset DB completo"):
+                reset_watchlist_db()
+                st.success("DB watchlist completamente resettato.")
+                st.rerun()
 
 
 
