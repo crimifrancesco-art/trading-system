@@ -203,6 +203,7 @@ init_db()
 # SIDEBAR – MERCATI E PARAMETRI
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
+
 # inizializzazione una sola volta
 if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
@@ -219,12 +220,13 @@ if "sidebar_init" not in st.session_state:
     st.session_state.setdefault("r_poc", 0.02)
     st.session_state.setdefault("top", 15)
 
+# ---------------- Selezione Mercati (persistente) ----------------
 st.sidebar.subheader("📈 Selezione Mercati")
 m = {
     "Eurostoxx":   st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", True),
-    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", True),
-    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", True),
+    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
+    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
+    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
     "Dow":         st.sidebar.checkbox("🇺🇸 Dow Jones", False),
     "Russell":     st.sidebar.checkbox("🇺🇸 Russell 2000", False),
     "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
@@ -234,37 +236,83 @@ m = {
 }
 sel = [k for k, v in m.items() if v]
 
+# aggiorno lo stato mercati
+st.session_state["m_FTSE"] = m["FTSE"]
+st.session_state["m_SP500"] = m["SP500"]
+st.session_state["m_Nasdaq"] = m["Nasdaq"]
+
 st.sidebar.divider()
+
+# ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
 
-e_h    = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0, 2.0, 0.5) / 100
-p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, 40, 5)
-p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, 70, 5)
-r_poc  = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 10.0, 2.0, 0.5) / 100
+e_h = st.sidebar.slider(
+    "EARLY - Distanza EMA20 (%)",
+    0.0, 10.0,
+    float(st.session_state["e_h"] * 100),
+    0.5,
+) / 100
+st.session_state["e_h"] = e_h
 
+p_rmin = st.sidebar.slider(
+    "PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5
+)
+st.session_state["p_rmin"] = p_rmin
+
+p_rmax = st.sidebar.slider(
+    "PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5
+)
+st.session_state["p_rmax"] = p_rmax
+
+r_poc = st.sidebar.slider(
+    "REA - Distanza POC (%)",
+    0.0, 10.0,
+    float(st.session_state["r_poc"] * 100),
+    0.5,
+) / 100
+st.session_state["r_poc"] = r_poc
+
+# ---------------- Filtri avanzati (come prima) ----------------
 st.sidebar.subheader("🔎 Filtri avanzati")
 
 # Finviz-like
-eps_next_y_min = st.sidebar.number_input("EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0)
-eps_next_5y_min = st.sidebar.number_input("EPS Growth Next 5Y min (%)", 0.0, 100.0, 15.0, 1.0)
-avg_vol_min_mln = st.sidebar.number_input("Avg Volume min (milioni)", 0.0, 100.0, 1.0, 0.5)
-price_min_finviz = st.sidebar.number_input("Prezzo min per filtro Finviz", 0.0, 5000.0, 10.0, 1.0)
+eps_next_y_min = st.sidebar.number_input(
+    "EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0
+)
+eps_next_5y_min = st.sidebar.number_input(
+    "EPS Growth Next 5Y min (%)", 0.0, 100.0, 15.0, 1.0
+)
+avg_vol_min_mln = st.sidebar.number_input(
+    "Avg Volume min (milioni)", 0.0, 100.0, 1.0, 0.5
+)
+price_min_finviz = st.sidebar.number_input(
+    "Prezzo min per filtro Finviz", 0.0, 5000.0, 10.0, 1.0
+)
 
 # Rea-Quant
-vol_ratio_hot = st.sidebar.number_input("Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1)
+vol_ratio_hot = st.sidebar.number_input(
+    "Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1
+)
 
 # Momentum
-momentum_min = st.sidebar.number_input("Momentum minimo (Pro_Score*10+RSI)", 0.0, 2000.0, 0.0, 10.0)
+momentum_min = st.sidebar.number_input(
+    "Momentum minimo (Pro_Score*10+RSI)", 0.0, 2000.0, 0.0, 10.0
+)
 
+# ---------------- Output (persistente) ----------------
 st.sidebar.subheader("📤 Output")
-top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, 15, 5)
+top = st.sidebar.number_input(
+    "TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5
+)
+st.session_state["top"] = top
 
-
+# ---------------- Controllo mercati selezionati ----------------
 if not sel:
     st.warning("⚠️ Seleziona almeno un mercato dalla sidebar.")
     st.stop()
 
 st.info(f"Mercati selezionati: **{', '.join(sel)}**")
+
 
 # =============================================================================
 # FUNZIONI DI SUPPORTO
@@ -1712,9 +1760,10 @@ with tab_watch:
             st.success("Watchlist azzerata.")
             st.rerun()
 
+    # carico il DB
     df_wl = load_watchlist()
     if df_wl.empty:
-        st.caption("Watchlist vuota.")
+        st.caption("Watchlist vuota. Aggiungi titoli dai tab scanner.")
         st.stop()
 
     # ---------------- Filtri rapidi origine / trend ----------------
