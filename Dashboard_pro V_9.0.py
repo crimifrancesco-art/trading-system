@@ -2456,6 +2456,46 @@ with tab_watch:
     st.markdown("---")
 
     # =======================
+    # Export Watchlist corrente
+    # =======================
+    csv_wl = df_wl_filt.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Export Watchlist corrente CSV",
+        data=csv_wl,
+        file_name=f"WATCHLIST_{current_list}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="dl_wl_csv",
+    )
+
+    output_wl = io.BytesIO()
+    with pd.ExcelWriter(output_wl, engine="xlsxwriter") as writer:
+        df_wl_filt.to_excel(writer, index=False, sheet_name=str(current_list)[:31])
+    xlsx_wl = output_wl.getvalue()
+
+    st.download_button(
+        "⬇️ Export Watchlist corrente XLSX",
+        data=xlsx_wl,
+        file_name=f"WATCHLIST_{current_list}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="dl_wl_xlsx",
+    )
+
+    # Solo ticker, utile per TradingView
+    wl_tv = df_wl_filt[["ticker"]].drop_duplicates().rename(columns={"ticker": "symbol"})
+    csv_wl_tv = wl_tv.to_csv(index=False, header=False).encode("utf-8")
+    st.download_button(
+        "⬇️ CSV Watchlist corrente (solo ticker)",
+        data=csv_wl_tv,
+        file_name=f"WATCHLIST_{current_list}_TICKER_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        key="dl_wl_tv",
+    )
+
+    
+    # =======================
     # Modifica nota singola
     # =======================
     st.subheader("📝 Modifica nota per una riga")
