@@ -2263,6 +2263,42 @@ with tab_watch:
     # Carico l'intera tabella dal DB
     df_wl = load_watchlist()
 
+    # =======================
+    # Azioni globali DB Watchlist
+    # =======================
+    st.markdown("### ⚙️ Azioni rapide Watchlist")
+
+    col_a1, col_a2, col_a3 = st.columns(3)
+
+    # 1) Refresh semplice (rilegge il DB)
+    with col_a1:
+        if st.button("🔄 Refresh watchlist"):
+            st.experimental_rerun()
+
+    # 2) Reset COMPLETO DB (tutte le liste)
+    with col_a2:
+        if st.button("🧨 RESET COMPLETO DB", type="secondary"):
+            reset_watchlist_db()
+            st.success("DB watchlist azzerato (tutte le liste).")
+            st.experimental_rerun()
+
+    # 3) Reset SOLO lista corrente (verrà definita poco dopo)
+    with col_a3:
+        # uso il valore in sessione, se non c'è metto DEFAULT
+        wl_to_reset = st.session_state.get("current_list_name", "DEFAULT")
+        if st.button(f"🗑️ Svuota lista corrente ({wl_to_reset})"):
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute(
+                "DELETE FROM watchlist WHERE list_name = ?",
+                (wl_to_reset,),
+            )
+            conn.commit()
+            conn.close()
+            st.success(f"Watchlist '{wl_to_reset}' svuotata.")
+            st.experimental_rerun()
+
+    
     if df_wl.empty:
         st.caption("Watchlist vuota. Aggiungi titoli dai tab dello scanner.")
         st.stop()
