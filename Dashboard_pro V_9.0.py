@@ -748,6 +748,11 @@ else:
     df_ep = st.session_state.get("df_ep_pro", pd.DataFrame())
     df_rea = st.session_state.get("df_rea_pro", pd.DataFrame())
 
+# pulizia righe con NaN sulle colonne chiave
+if not df_ep.empty:
+    df_ep = df_ep.dropna(subset=["Pro_Score", "RSI", "Vol_Ratio"])
+if not df_rea.empty:
+    df_rea = df_rea.dropna(subset=["Vol_Ratio", "Distanza_POC"])
 
 # =============================================================================
 # RISULTATI SCANNER – METRICHE
