@@ -800,6 +800,23 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
 )
 
 # =============================================================================
+# TABS
+# =============================================================================
+tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch = st.tabs(
+    [
+        "🟢 EARLY",
+        "🟣 PRO",
+        "🟠 REA‑QUANT",
+        "🧮 Rea Quant",
+        "📈 Serafini Systems",
+        "🧊 Regime & Momentum",
+        "🕒 Multi‑Timeframe",
+        "📊 Finviz",
+        "📌 Watchlist & Note",
+    ]
+)
+
+# =============================================================================
 # EARLY – Top N per Early_Score
 # =============================================================================
 with tab_e:
@@ -2253,6 +2270,7 @@ with tab_finviz:
                 )
                 st.success("Finviz‑like salvati in watchlist.")
                 st.rerun()
+
 # =============================================================================
 # WATCHLIST & NOTE – gestione completa con spostamento N righe
 # =============================================================================
@@ -2515,4 +2533,5 @@ with tab_watch:
             delete_from_watchlist(ids_to_del)
             st.success(f"Eliminate {len(ids_to_del)} righe dalla lista '{current_list}'.")
             st.rerun()
+
 
