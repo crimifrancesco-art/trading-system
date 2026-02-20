@@ -295,27 +295,46 @@ if "current_list_name" not in st.session_state:
 st.sidebar.title("⚙️ Configurazione")
 
 # ---------------- Selezione Mercati (persistente) ----------------
-st.sidebar.subheader("📈 Selezione Mercati")
+st.sidebar.subheader("📈 Selezione mercati")
+
+col_m1, col_m2 = st.sidebar.columns(2)
+
+with col_m1:
+    m_eurostoxx = st.checkbox("🇪🇺 Eurostoxx 600", False, key="m_Eurostoxx")
+    m_ftse = st.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"], key="m_FTSE_cb")
+    m_sp500 = st.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"], key="m_SP500_cb")
+    m_nasdaq = st.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"], key="m_Nasdaq_cb")
+
+with col_m2:
+    m_dow = st.checkbox("🇺🇸 Dow Jones", False, key="m_Dow")
+    m_russell = st.checkbox("🇺🇸 Russell 2000", False, key="m_Russell")
+    m_commodities = st.checkbox("🛢️ Materie prime", False, key="m_Commodities")
+    m_etf = st.checkbox("📦 ETF", False, key="m_ETF")
+    m_crypto = st.checkbox("₿ Crypto", False, key="m_Crypto")
+    m_emerging = st.checkbox("🌍 Emergenti", False, key="m_Emerging")
+
 m = {
-    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
-    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
-    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
-    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones", False),
-    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", False),
-    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
-    "ETF": st.sidebar.checkbox("📦 ETF", False),
-    "Crypto": st.sidebar.checkbox("₿ Crypto", False),
-    "Emerging": st.sidebar.checkbox("🌍 Emergenti", False),
+    "Eurostoxx": m_eurostoxx,
+    "FTSE": m_ftse,
+    "SP500": m_sp500,
+    "Nasdaq": m_nasdaq,
+    "Dow": m_dow,
+    "Russell": m_russell,
+    "Commodities": m_commodities,
+    "ETF": m_etf,
+    "Crypto": m_crypto,
+    "Emerging": m_emerging,
 }
+
 sel = [k for k, v in m.items() if v]
 
-# aggiorno stato mercati
-st.session_state["m_FTSE"] = m["FTSE"]
-st.session_state["m_SP500"] = m["SP500"]
-st.session_state["m_Nasdaq"] = m["Nasdaq"]
+# aggiorno stato mercati principali
+st.session_state["m_FTSE"] = m_ftse
+st.session_state["m_SP500"] = m_sp500
+st.session_state["m_Nasdaq"] = m_nasdaq
 
 st.sidebar.divider()
+
 
 # ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
