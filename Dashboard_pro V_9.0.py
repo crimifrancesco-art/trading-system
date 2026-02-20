@@ -706,30 +706,22 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
 )
 
 # =============================================================================
-# REA QUANT – PREPARAZIONE DF_REA_Q
-# (da usare nel blocco con `with tab_rea_q:` che hai già incollato prima)
-# =============================================================================
-if df_rea_all.empty:
-    df_rea_q = pd.DataFrame()
-else:
-    df_rea_q = df_rea_all.copy()
-# =============================================================================
 # EARLY
 # =============================================================================
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
     st.markdown(
-        f"Filtro EARLY: titoli con **Stato = EARLY** (distanza prezzo–EMA20 < {e_h*100:.1f}%), "
-        "punteggio Early_Score ≥ 8."
+        f"Filtro EARLY: titoli con **Stato = EARLY** "
+        f"(distanza prezzo–EMA20 ≤ {e_h*100:.1f}%, punteggio Early_Score ≥ 8)."
     )
 
     with st.expander("📘 Legenda EARLY"):
         st.markdown(
-            "- **Early_Score**: 8 se il prezzo è entro la soglia percentuale dalla EMA20; 0 altrimenti.\n"
+            "- **Early_Score**: 8 se il prezzo è entro la soglia percentuale dalla EMA20, 0 altrimenti.\n"
             "- **RSI**: RSI a 14 periodi.\n"
             "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
             "- **Market Cap**: capitalizzazione abbreviata (K/M/B) con valuta.\n"
-            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media degli ultimi 7 giorni.\n"
+            "- **Vol_Today / Vol_7d_Avg**: volume odierno e media ultimi 7 giorni.\n"
             "- **Stato = EARLY**: setup in formazione vicino alla media.\n"
             "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
@@ -741,7 +733,6 @@ with tab_e:
         df_early = add_formatted_cols(df_early)
         df_early = add_links(df_early)
 
-        # mantengo anche le colonne numeriche Prezzo/MarketCap/Vol per CSV
         cols_order = [
             "Nome",
             "Ticker",
@@ -768,7 +759,6 @@ with tab_e:
 
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
 
-        # Tabella: uso solo le colonne formattate + pulsanti link
         df_early_show = df_early_view[
             [
                 "Nome",
@@ -803,9 +793,6 @@ with tab_e:
             },
         )
 
-        # ==========================
-        # EXPORT EARLY
-        # ==========================
         csv_data = df_early_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export EARLY CSV",
@@ -830,10 +817,8 @@ with tab_e:
             key="dl_early_xlsx",
         )
 
-        # EXPORT TradingView (solo ticker) EARLY
         tv_data = df_early_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
         st.download_button(
             "⬇️ Export EARLY TradingView (solo ticker)",
             data=csv_tv,
@@ -843,9 +828,6 @@ with tab_e:
             key="dl_tv_early",
         )
 
-        # ==========================
-        # Watchlist EARLY (con seleziona tutti)
-        # ==========================
         options_early = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_early_view.iterrows()
         )
