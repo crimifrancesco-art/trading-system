@@ -2280,7 +2280,7 @@ with tab_watch:
         if st.button("🧨 RESET COMPLETO DB", type="secondary"):
             reset_watchlist_db()
             st.success("DB watchlist azzerato (tutte le liste).")
-            st.experimental_rerun()
+            st.rerun()
 
     # 3) Reset SOLO lista corrente (verrà definita poco dopo)
     with col_a3:
@@ -2296,7 +2296,7 @@ with tab_watch:
             conn.commit()
             conn.close()
             st.success(f"Watchlist '{wl_to_reset}' svuotata.")
-            st.experimental_rerun()
+            st.rerun()
 
     
     if df_wl.empty:
