@@ -134,6 +134,7 @@ def init_db():
             trend TEXT,
             origine TEXT,
             note TEXT,
+            list_name TEXT,
             created_at TEXT
         )
         """
@@ -143,8 +144,16 @@ def init_db():
         c.execute("ALTER TABLE watchlist ADD COLUMN trend TEXT")
     except sqlite3.OperationalError:
         pass
+
+    # Migrazione: aggiungi colonna list_name se DB vecchio
+    try:
+        c.execute("ALTER TABLE watchlist ADD COLUMN list_name TEXT")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
+
 
 def reset_watchlist_db():
     """Elimina completamente la tabella watchlist e la ricrea vuota."""
