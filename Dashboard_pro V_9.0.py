@@ -796,12 +796,11 @@ st.caption(
 # =============================================================================
 # TABS
 # =============================================================================
-tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch = st.tabs(
+tab_e, tab_p, tab_rea, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch = st.tabs(
     [
         "🟢 EARLY",
         "🟣 PRO",
-        "🟠 REA‑QUANT",
-        "🧮 Rea Quant",
+        "🟠 REA‑QUANT / Rea Quant",
         "📈 Serafini Systems",
         "🧊 Regime & Momentum",
         "🕒 Multi‑Timeframe",
@@ -809,6 +808,7 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
         "📌 Watchlist & Note",
     ]
 )
+
 
 # =============================================================================
 # EARLY – Top N per Early_Score / RSI / Vol_Ratio
@@ -1142,344 +1142,190 @@ with tab_p:
             st.rerun()
 
 # =============================================================================
-# REA‑QUANT (HOT) – Top N Vol_Ratio / distanza POC
+# REA‑QUANT / Rea Quant – Ranking unico HOT volumetrico
 # =============================================================================
-with tab_r:
-    st.subheader("🟠 Segnali REA‑QUANT (HOT)")
+with tab_rea:
+    st.subheader("🟠 REA‑QUANT / Rea Quant")
     st.markdown(
-        f"Filtro REA‑QUANT HOT: titoli con **Stato = HOT** e Vol_Ratio ≥ {vol_ratio_hot:.1f}, "
-        f"vicini al POC (distanza ≤ {r_poc*100:.1f}%)."
+        f"Ranking unico in stile **Massimo Rea**: titoli con forte pressione volumetrica "
+        f"(Vol_Ratio elevato) e prezzo **vicino al POC** (≤ {r_poc*100:.1f}%), "
+        f"ordinati per combinazione di volume, distanza POC e qualità tecnica (RSI / Pro_Score)."
     )
 
-    with st.expander("📘 Legenda REA‑QUANT"):
+    with st.expander("📘 Legenda REA‑QUANT / Rea Quant"):
         st.markdown(
-            "- **REA‑QUANT HOT**: pressione volumetrica significativa vicino al POC.\n"
             "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
-            "- **Distanza POC**: distanza percentuale prezzo–POC.\n"
-            "- **Market Cap / Volumi**: per contestualizzare la forza dello swing.\n"
-            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
+            "- **Dist_POC_%**: distanza percentuale prezzo–POC (più è bassa, meglio è).\n"
+            "- **Rea_Score**: ranking combinato che privilegia Vol_Ratio alto, "
+            "distanza POC bassa e buoni valori di Pro_Score / RSI.\n"
+            "- **HOT**: titoli che soddisfano i requisiti volumetrici vicino al POC.\n"
+            "- Colonne **Yahoo** e **TradingView**: link rapidi per l’analisi grafica."
         )
 
     if df_rea_all.empty:
-        st.caption("Nessun segnale REA‑QUANT HOT.")
+        st.caption("Nessun segnale REA‑QUANT disponibile.")
     else:
         df_rea = df_rea_all.copy()
         df_rea = add_formatted_cols(df_rea)
         df_rea = add_links(df_rea)
 
-        cols_order = [
-            "Nome",
-            "Ticker",
-            "Prezzo",
-            "Prezzo_fmt",
-            "MarketCap",
-            "MarketCap_fmt",
-            "Vol_Today",
-            "Vol_Today_fmt",
-            "Vol_7d_Avg",
-            "Vol_7d_Avg_fmt",
-            "Pro_Score",
-            "RSI",
-            "Vol_Ratio",
-            "Distanza_POC",
-            "OBV_Trend",
-            "ATR",
-            "ATR_Exp",
-            "Stato",
-            "Yahoo",
-            "Finviz",
-        ]
-        df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
+        # Assicuro la presenza della distanza POC in formato %/decimale
+        if "Distanza_POC" not in df_rea.columns and "Dist_POC_%\" in df_rea.columns:
+            df_rea["Distanza_POC"] = df_rea["Dist_POC_%"]
 
-        sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC"] if c in df_rea.columns]
-        if sort_cols:
-            df_rea_view = df_rea.sort_values(
-                by=sort_cols, ascending=[False, True][: len(sort_cols)]
-            ).head(top)
+        # Filtra solo i veri HOT in stile Rea:
+        # vicino al POC e con Vol_Ratio sopra la soglia scelta in sidebar
+        df_rea = df_rea[
+            (df_rea["Vol_Ratio"] >= vol_ratio_hot)
+            & (df_rea["Distanza_POC"] <= r_poc * 100)
+        ].copy()
+
+        if df_rea.empty:
+            st.caption("Nessun titolo soddisfa i criteri HOT (Vol_Ratio e distanza POC).")
         else:
-            df_rea_view = df_rea.head(top)
+            # ---------------------------
+            # Rea_Score: ranking combinato
+            # ---------------------------
+            # 1) Volumi relativi (più alto è meglio)
+            rank_vol = df_rea["Vol_Ratio"].rank(ascending=False)
 
-        df_rea_show = df_rea_view[
-            [
-                c
-                for c in [
-                    "Nome",
-                    "Ticker",
-                    "Prezzo_fmt",
-                    "MarketCap_fmt",
-                    "Vol_Today_fmt",
-                    "Vol_7d_Avg_fmt",
-                    "Pro_Score",
-                    "RSI",
-                    "Vol_Ratio",
-                    "Distanza_POC",
-                    "OBV_Trend",
-                    "ATR",
-                    "ATR_Exp",
-                    "Stato",
-                    "Yahoo",
-                    "Finviz",
-                ]
-                if c in df_rea_view.columns
-            ]
-        ]
+            # 2) distanza POC (più vicino è meglio)
+            rank_poc = df_rea["Distanza_POC"].rank(ascending=True)
 
-        st.dataframe(
-            df_rea_show,
-            use_container_width=True,
-            column_config={
-                "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Distanza_POC": "Dist POC (%)",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-            },
-        )
+            # 3) componente tecnica: Pro_Score e RSI (se presenti)
+            if "Pro_Score" in df_rea.columns:
+                rank_pro = df_rea["Pro_Score"].rank(ascending=False)
+            else:
+                rank_pro = 0
 
-        # EXPORT REA‑QUANT
-        csv_data = df_rea_view.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export REA‑QUANT CSV",
-            data=csv_data,
-            file_name=f"REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_rea_csv",
-        )
+            if "RSI" in df_rea.columns:
+                # privilegio RSI medi (evito estremi overbought/oversold)
+                rsi_mid = (df_rea["RSI"] - 50).abs()
+                rank_rsi = rsi_mid.rank(ascending=True)
+            else:
+                rank_rsi = 0
 
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rea_view.to_excel(writer, index=False, sheet_name="REA_HOT")
-        data_xlsx = output.getvalue()
-
-        st.download_button(
-            "⬇️ Export REA‑QUANT XLSX",
-            data=data_xlsx,
-            file_name=f"REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_rea_xlsx",
-        )
-
-        tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export REA‑QUANT TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_REA_HOT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_tv_rea",
-        )
-
-        options_rea = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
-        )
-
-        col_sel_all_rea, _ = st.columns([1, 3])
-        with col_sel_all_rea:
-            if st.button("✅ Seleziona tutti (Top N REA‑QUANT)", key="btn_sel_all_rea"):
-                st.session_state["wl_rea"] = options_rea
-
-        selection_rea = st.multiselect(
-            "Aggiungi alla Watchlist (REA‑QUANT):",
-            options=options_rea,
-            key="wl_rea",
-        )
-
-        note_rea = st.text_input(
-            "Note comuni per questi ticker REA‑QUANT", key="note_wl_rea"
-        )
-
-        if st.button("📌 Salva in Watchlist (REA‑QUANT)"):
-            tickers = [s.split(" – ")[1] for s in selection_rea]
-            names = [s.split(" – ")[0] for s in selection_rea]
-            add_to_watchlist(
-                tickers,
-                names,
-                "REA_HOT",
-                note_rea,
-                trend="LONG",
-                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            # combinazione pesata (puoi regolare i pesi se vuoi)
+            df_rea["Rea_Score"] = (
+                rank_vol * 0.5
+                + rank_poc * 0.3
+                + rank_pro * 0.1
+                + rank_rsi * 0.1
             )
-            st.success("REA‑QUANT salvati in watchlist.")
-            st.rerun()
 
-# =============================================================================
-# Rea Quant – Top N combinazione Vol_Ratio / Distanza_POC / Pro_Score
-# =============================================================================
-with tab_rea_q:
-    st.subheader("🧮 Massimo Rea – Analisi Quantitativa")
-    st.markdown(
-        "Analisi volumetrica e quantitativa sui titoli scansionati, con focus su "
-        "pressione volumetrica (Vol_Ratio), vicinanza al POC e forza di trend."
-    )
+            # Top N in stile Rea: punteggi più bassi = combinazione migliore
+            df_rea_view = df_rea.sort_values("Rea_Score", ascending=True).head(top)
 
-    with st.expander("📘 Legenda Rea Quant"):
-        st.markdown(
-            "- **Vol_Ratio**: volume odierno / media 20 giorni.\n"
-            "- **Distanza_POC**: distanza percentuale prezzo–POC (più è bassa, più il prezzo è sul volume point of control).\n"
-            "- **Pro_Score**: forza trend.\n"
-            "- **RSI**: momentum di breve.\n"
-            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
-        )
-
-    if df_rea_all.empty:
-        df_rea_q = pd.DataFrame()
-    else:
-        df_rea_q = df_rea_all.copy()
-
-    if df_rea_q.empty:
-        st.caption("Nessun dato disponibile per l’analisi Rea Quant.")
-    else:
-        df_rq = df_rea_q.copy()
-        df_rq = add_formatted_cols(df_rq)
-        df_rq = add_links(df_rq)
-
-        cols_order = [
-            "Nome",
-            "Ticker",
-            "Prezzo",
-            "Prezzo_fmt",
-            "MarketCap",
-            "MarketCap_fmt",
-            "Vol_Today",
-            "Vol_Today_fmt",
-            "Vol_7d_Avg",
-            "Vol_7d_Avg_fmt",
-            "Pro_Score",
-            "RSI",
-            "Vol_Ratio",
-            "Distanza_POC",
-            "OBV_Trend",
-            "ATR",
-            "ATR_Exp",
-            "Stato",
-            "Yahoo",
-            "Finviz",
-        ]
-        df_rq = df_rq[[c for c in cols_order if c in df_rq.columns]]
-
-        sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC", "Pro_Score"] if c in df_rq.columns]
-        ascending = [False, True, False][: len(sort_cols)]
-        if sort_cols:
-            df_rq_view = df_rq.sort_values(by=sort_cols, ascending=ascending).head(top)
-        else:
-            df_rq_view = df_rq.head(top)
-
-        df_rq_show = df_rq_view[
-            [
-                c
-                for c in [
-                    "Nome",
-                    "Ticker",
-                    "Prezzo_fmt",
-                    "MarketCap_fmt",
-                    "Vol_Today_fmt",
-                    "Vol_7d_Avg_fmt",
-                    "Pro_Score",
-                    "RSI",
-                    "Vol_Ratio",
-                    "Distanza_POC",
-                    "OBV_Trend",
-                    "ATR",
-                    "ATR_Exp",
-                    "Stato",
-                    "Yahoo",
-                    "Finviz",
-                ]
-                if c in df_rq_view.columns
+            # View tabellare – Nome e Ticker davanti
+            cols_show = [
+                "Nome",
+                "Ticker",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Vol_Ratio",
+                "Distanza_POC",
+                "Pro_Score",
+                "RSI",
+                "Rea_Score",
+                "OBV_Trend",
+                "ATR",
+                "ATR_Exp",
+                "Stato",
+                "Yahoo",
+                "Finviz",
             ]
-        ]
+            df_rea_show = df_rea_view[[c for c in cols_show if c in df_rea_view.columns]]
 
-        st.dataframe(
-            df_rq_show,
-            use_container_width=True,
-            column_config={
-                "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Distanza_POC": "Dist POC (%)",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-            },
-        )
-
-        # EXPORT Rea Quant
-        csv_data = df_rq_view.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Export Rea Quant CSV",
-            data=csv_data,
-            file_name=f"REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_rea_q_csv",
-        )
-
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_rq_view.to_excel(writer, index=False, sheet_name="REA_QUANT")
-        data_xlsx = output.getvalue()
-
-        st.download_button(
-            "⬇️ Export Rea Quant XLSX",
-            data=data_xlsx,
-            file_name=f"REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            key="dl_rea_q_xlsx",
-        )
-
-        tv_data = df_rq_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
-
-        st.download_button(
-            "⬇️ Export Rea Quant TradingView (solo ticker)",
-            data=csv_tv,
-            file_name=f"TV_REA_QUANT_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="dl_tv_rea_q",
-        )
-
-        options_rea_q = sorted(
-            f"{row['Nome']} – {row['Ticker']}" for _, row in df_rq_view.iterrows()
-        )
-
-        col_sel_all_rea_q, _ = st.columns([1, 3])
-        with col_sel_all_rea_q:
-            if st.button(
-                "✅ Seleziona tutti (Top Rea Quant)", key="btn_sel_all_rea_q"
-            ):
-                st.session_state["wl_rea_q"] = options_rea_q
-
-        selection_rea_q = st.multiselect(
-            "Aggiungi alla Watchlist (Rea Quant):",
-            options=options_rea_q,
-            key="wl_rea_q",
-        )
-
-        note_rea_q = st.text_input(
-            "Note comuni per questi ticker Rea Quant", key="note_wl_rea_q"
-        )
-
-        if st.button("📌 Salva in Watchlist (Rea Quant)"):
-            tickers = [s.split(" – ")[1] for s in selection_rea_q]
-            names = [s.split(" – ")[0] for s in selection_rea_q]
-            add_to_watchlist(
-                tickers,
-                names,
-                "REA_QUANT",
-                note_rea_q,
-                trend="LONG",
-                list_name=st.session_state.get("current_list_name", "DEFAULT"),
+            st.dataframe(
+                df_rea_show,
+                use_container_width=True,
+                column_config={
+                    "Prezzo_fmt": "Prezzo",
+                    "MarketCap_fmt": "Market Cap",
+                    "Vol_Today_fmt": "Vol giorno",
+                    "Vol_7d_Avg_fmt": "Vol medio 7g",
+                    "Distanza_POC": "Dist POC (%)",
+                    "Rea_Score": "Rea_Rank",
+                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                },
             )
-            st.success("Rea Quant salvati in watchlist.")
-            st.rerun()
+
+            # ======================
+            # Export CSV/XLSX + TV
+            # ======================
+            csv_data = df_rea_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export REA‑QUANT / Rea Quant CSV",
+                data=csv_data,
+                file_name=f"REA_COMBINED_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_rea_combined_csv",
+            )
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_rea_view.to_excel(writer, index=False, sheet_name="REA_COMBINED")
+            data_xlsx = output.getvalue()
+
+            st.download_button(
+                "⬇️ Export REA‑QUANT / Rea Quant XLSX",
+                data=data_xlsx,
+                file_name=f"REA_COMBINED_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="dl_rea_combined_xlsx",
+            )
+
+            tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+            st.download_button(
+                "⬇️ Export REA‑QUANT / Rea Quant TradingView (solo ticker)",
+                data=csv_tv,
+                file_name=f"TV_REA_COMBINED_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_rea_combined_tv",
+            )
+
+            # ======================
+            # Watchlist in stile Rea
+            # ======================
+            options_rea = sorted(
+                f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
+            )
+
+            col_sel_all_rea, _ = st.columns([1, 3])
+            with col_sel_all_rea:
+                if st.button("✅ Seleziona tutti (Top N REA‑QUANT / Rea Quant)", key="btn_sel_all_rea_combined"):
+                    st.session_state["wl_rea_combined"] = options_rea
+
+            selection_rea = st.multiselect(
+                "Aggiungi alla Watchlist (REA‑QUANT / Rea Quant):",
+                options=options_rea,
+                key="wl_rea_combined",
+            )
+
+            note_rea = st.text_input(
+                "Note comuni per questi ticker REA‑QUANT / Rea Quant", key="note_wl_rea_combined"
+            )
+
+            if st.button("📌 Salva in Watchlist (REA‑QUANT / Rea Quant)"):
+                tickers = [s.split(" – ")[1] for s in selection_rea]
+                names = [s.split(" – ")[0] for s in selection_rea]
+                add_to_watchlist(
+                    tickers,
+                    names,
+                    "REA_COMBINED",
+                    note_rea,
+                    trend="LONG",
+                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                )
+                st.success("REA‑QUANT / Rea Quant salvati in watchlist.")
+                st.rerun()
 
 # =============================================================================
 # SERAFINI – Top N per Pro_Score su breakout UP
