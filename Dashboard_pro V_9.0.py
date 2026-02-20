@@ -750,9 +750,15 @@ else:
 
 # pulizia righe con NaN sulle colonne chiave
 if not df_ep.empty:
-    df_ep = df_ep.dropna(subset=["Pro_Score", "RSI", "Vol_Ratio"])
+    cols_ep = [c for c in ["Pro_Score", "RSI", "Vol_Ratio"] if c in df_ep.columns]
+    if cols_ep:
+        df_ep = df_ep.dropna(subset=cols_ep)
+
 if not df_rea.empty:
-    df_rea = df_rea.dropna(subset=["Vol_Ratio", "Distanza_POC"])
+    cols_rea = [c for c in ["Vol_Ratio", "Distanza_POC"] if c in df_rea.columns]
+    if cols_rea:
+        df_rea = df_rea.dropna(subset=cols_rea)
+
 
 # =============================================================================
 # RISULTATI SCANNER – METRICHE
