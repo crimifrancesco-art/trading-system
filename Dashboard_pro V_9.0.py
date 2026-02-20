@@ -1524,7 +1524,7 @@ with tab_regime:
         df_mom = add_formatted_cols(df_mom)
         df_mom = add_links(df_mom)
 
-        # calcolo Momentum combinato (già definito in sidebar: momentum_min)
+        # Momentum combinato (slider momentum_min in sidebar)
         df_mom["Momentum"] = df_mom["Pro_Score"] * 10 + df_mom["RSI"]
         df_mom = df_mom[df_mom["Momentum"] >= momentum_min]
 
@@ -1619,6 +1619,40 @@ with tab_regime:
                     key="dl_mom_tv",
                 )
 
+            # ---------- Blocchi Watchlist (come in EARLY/PRO) ----------
+            options_mom = sorted(
+                f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom_view.iterrows()
+            )
+
+            col_sel_all_mom, _ = st.columns([1, 3])
+            with col_sel_all_mom:
+                if st.button("✅ Seleziona tutti (Top N Momentum)", key="btn_sel_all_mom"):
+                    st.session_state["wl_mom"] = options_mom
+
+            selection_mom = st.multiselect(
+                "Aggiungi alla Watchlist (Momentum):",
+                options=options_mom,
+                key="wl_mom",
+            )
+
+            note_mom = st.text_input(
+                "Note comuni per questi ticker Momentum", key="note_wl_mom"
+            )
+
+            if st.button("📌 Salva in Watchlist (Momentum)"):
+                tickers = [s.split(" – ")[1] for s in selection_mom]
+                names = [s.split(" – ")[0] for s in selection_mom]
+                add_to_watchlist(
+                    tickers,
+                    names,
+                    "MOMENTUM",
+                    note_mom,
+                    trend="LONG",
+                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                )
+                st.success("Ticker Momentum salvati in watchlist.")
+                st.rerun()
+
             # ---------- Sintesi per mercato in expander ----------
             if "Market" in df_mom.columns:
                 df_mom_summary = (
@@ -1632,7 +1666,6 @@ with tab_regime:
                     .reset_index()
                 )
 
-                # formatto numeri
                 df_mom_summary["MktCap_mean_fmt"] = df_mom_summary["MktCap_mean"].apply(
                     fmt_marketcap
                 )
@@ -1662,6 +1695,7 @@ with tab_regime:
                             "Vol_mean_fmt": "Vol medio giorno",
                         },
                     )
+
 
 # =============================================================================
 # MULTI‑TIMEFRAME – Top N per UP_count / Momentum_W / Momentum_M
