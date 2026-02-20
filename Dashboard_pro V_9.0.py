@@ -800,7 +800,7 @@ tab_e, tab_p, tab_r, tab_rea_q, tab_serafini, tab_regime, tab_mtf, tab_finviz, t
 )
 
 # =============================================================================
-# EARLY
+# EARLY – Top N per Early_Score
 # =============================================================================
 with tab_e:
     st.subheader("🟢 Segnali EARLY")
@@ -851,6 +851,7 @@ with tab_e:
         ]
         df_early = df_early[[c for c in cols_order if c in df_early.columns]]
 
+        # Top N per Early_Score
         df_early_view = df_early.sort_values("Early_Score", ascending=False).head(top)
 
         df_early_show = df_early_view[
@@ -956,7 +957,7 @@ with tab_e:
             st.rerun()
 
 # =============================================================================
-# PRO
+# PRO – Top N per Pro_Score
 # =============================================================================
 with tab_p:
     st.subheader("🟣 Segnali PRO")
@@ -1007,6 +1008,7 @@ with tab_p:
         ]
         df_pro = df_pro[[c for c in cols_order if c in df_pro.columns]]
 
+        # Top N per Pro_Score
         df_pro_view = df_pro.sort_values("Pro_Score", ascending=False).head(top)
 
         df_pro_show = df_pro_view[
@@ -1043,9 +1045,7 @@ with tab_p:
             },
         )
 
-        # ==========================
         # EXPORT PRO
-        # ==========================
         csv_data = df_pro_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export PRO CSV",
@@ -1083,9 +1083,7 @@ with tab_p:
             key="dl_tv_pro",
         )
 
-        # ==========================
-        # Watchlist PRO (con seleziona tutti)
-        # ==========================
+        # Watchlist PRO
         options_pro = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_pro_view.iterrows()
         )
@@ -1119,9 +1117,8 @@ with tab_p:
             st.success("PRO salvati in watchlist.")
             st.rerun()
 
-
 # =============================================================================
-# REA‑QUANT (segnali)
+# REA‑QUANT (HOT) – Top N Vol_Ratio / distanza POC
 # =============================================================================
 with tab_r:
     st.subheader("🟠 Segnali REA‑QUANT (HOT)")
@@ -1170,7 +1167,6 @@ with tab_r:
         ]
         df_rea = df_rea[[c for c in cols_order if c in df_rea.columns]]
 
-        # ordino per Vol_Ratio e vicinanza al POC
         sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC"] if c in df_rea.columns]
         if sort_cols:
             df_rea_view = df_rea.sort_values(
@@ -1218,9 +1214,7 @@ with tab_r:
             },
         )
 
-        # ==========================
         # EXPORT REA‑QUANT
-        # ==========================
         csv_data = df_rea_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export REA‑QUANT CSV",
@@ -1245,7 +1239,6 @@ with tab_r:
             key="dl_rea_xlsx",
         )
 
-        # EXPORT TradingView (solo ticker)
         tv_data = df_rea_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
@@ -1258,9 +1251,6 @@ with tab_r:
             key="dl_tv_rea",
         )
 
-        # ==========================
-        # Watchlist REA‑QUANT (con seleziona tutti)
-        # ==========================
         options_rea = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_rea_view.iterrows()
         )
@@ -1295,7 +1285,7 @@ with tab_r:
             st.rerun()
 
 # =============================================================================
-# MASSIMO REA – ANALISI QUANT
+# Rea Quant – Top N combinazione Vol_Ratio / Distanza_POC / Pro_Score
 # =============================================================================
 with tab_rea_q:
     st.subheader("🧮 Massimo Rea – Analisi Quantitativa")
@@ -1313,7 +1303,6 @@ with tab_rea_q:
             "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
         )
 
-        # all'inizio del tab Rea Quant (subito dentro with tab_rea_q:)
     if df_rea_all.empty:
         df_rea_q = pd.DataFrame()
     else:
@@ -1350,7 +1339,6 @@ with tab_rea_q:
         ]
         df_rq = df_rq[[c for c in cols_order if c in df_rq.columns]]
 
-        # ordino per combinazione Vol_Ratio alta + distanza POC bassa + Pro_Score
         sort_cols = [c for c in ["Vol_Ratio", "Distanza_POC", "Pro_Score"] if c in df_rq.columns]
         ascending = [False, True, False][: len(sort_cols)]
         if sort_cols:
@@ -1397,9 +1385,7 @@ with tab_rea_q:
             },
         )
 
-        # ==========================
         # EXPORT Rea Quant
-        # ==========================
         csv_data = df_rq_view.to_csv(index=False).encode("utf-8")
         st.download_button(
             "⬇️ Export Rea Quant CSV",
@@ -1424,7 +1410,6 @@ with tab_rea_q:
             key="dl_rea_q_xlsx",
         )
 
-        # EXPORT TradingView (solo ticker)
         tv_data = df_rq_view["Ticker"].drop_duplicates().to_frame(name="symbol")
         csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
@@ -1437,9 +1422,6 @@ with tab_rea_q:
             key="dl_tv_rea_q",
         )
 
-        # ==========================
-        # Watchlist Rea Quant (con seleziona tutti)
-        # ==========================
         options_rea_q = sorted(
             f"{row['Nome']} – {row['Ticker']}" for _, row in df_rq_view.iterrows()
         )
@@ -1476,7 +1458,7 @@ with tab_rea_q:
             st.rerun()
 
 # =============================================================================
-# STEFANO SERAFINI – SYSTEMS
+# SERAFINI – Top N per Pro_Score su breakout UP
 # =============================================================================
 with tab_serafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
@@ -1532,7 +1514,6 @@ with tab_serafini:
         if df_break.empty:
             st.caption("Nessun breakout rilevato.")
         else:
-            # unisco con df_ep per avere Nome, MarketCap, Volumi, Pro_Score, ecc.
             df_seraf = df_break.merge(
                 df_ep[
                     [
@@ -1554,7 +1535,6 @@ with tab_serafini:
             df_seraf = add_formatted_cols(df_seraf)
             df_seraf = add_links(df_seraf)
 
-            # preferisco i breakout LONG, ordinati per Pro_Score
             df_seraf = df_seraf[df_seraf["Breakout_Up"]].copy()
             df_seraf_view = df_seraf.sort_values("Pro_Score", ascending=False).head(top)
 
@@ -1595,9 +1575,7 @@ with tab_serafini:
                     },
                 )
 
-                # ==========================
                 # EXPORT SERAFINI
-                # ==========================
                 csv_data = df_seraf_view.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ Export Serafini CSV",
@@ -1625,9 +1603,6 @@ with tab_serafini:
                     key="dl_seraf_xlsx",
                 )
 
-                # ==========================
-                # Watchlist Serafini (con seleziona tutti) – key wl_seraf
-                # ==========================
                 options_seraf = sorted(
                     f"{row['Nome']} – {row['Ticker']}"
                     for _, row in df_seraf_view.iterrows()
@@ -1665,7 +1640,7 @@ with tab_serafini:
                     st.rerun()
 
 # =============================================================================
-# REGIME & MOMENTUM
+# REGIME & MOMENTUM – Top N per Momentum
 # =============================================================================
 with tab_regime:
     st.subheader("🧊 Regime & Momentum multi‑mercato")
@@ -1685,7 +1660,6 @@ with tab_regime:
     if df_ep.empty or "Stato" not in df_ep.columns:
         st.caption("Nessun dato scanner disponibile.")
     else:
-        # uso solo righe con Pro_Score e RSI validi
         df_all = df_ep.copy().dropna(subset=["Pro_Score", "RSI"])
 
         n_tot_signals = len(df_all)
@@ -1705,16 +1679,13 @@ with tab_regime:
 
         st.markdown("**Top N momentum (Pro_Score×10 + RSI)**")
 
-        # calcolo Momentum
         df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
 
-        # applico filtro minimo da sidebar (momentum_min)
         df_all = df_all[df_all["Momentum"] >= momentum_min]
 
         if df_all.empty:
             st.caption("Nessun titolo soddisfa il filtro Momentum minimo.")
         else:
-            # Top N dal df_all filtrato
             df_mom = df_all.sort_values("Momentum", ascending=False).head(top)
 
             cols_order = [
@@ -1771,9 +1742,6 @@ with tab_regime:
                 },
             )
 
-            # ==========================
-            # EXPORT MOMENTUM
-            # ==========================
             csv_data = df_mom.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "⬇️ Export Momentum CSV",
@@ -1801,7 +1769,6 @@ with tab_regime:
                 key="dl_mom_xlsx",
             )
 
-            # EXPORT Momentum TradingView (solo ticker)
             df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
             csv_mom_tv = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
             st.download_button(
@@ -1815,9 +1782,6 @@ with tab_regime:
                 key="dl_tv_mom",
             )
 
-            # ==========================
-            # Sintesi Regime & Momentum per mercato
-            # ==========================
             def detect_market_simple(t):
                 if t.endswith(".MI"):
                     return "FTSE"
@@ -1838,7 +1802,6 @@ with tab_regime:
                 Vol_Today_med=("Vol_Today", "mean"),
             ).reset_index()
 
-            # formatto MarketCap_med e Vol_Today_med
             heat["MarketCap_med_fmt"] = heat["MarketCap_med"].apply(
                 lambda v: fmt_marketcap(v, "€")
             )
@@ -1867,9 +1830,6 @@ with tab_regime:
             else:
                 st.caption("Nessun dato sufficiente per la sintesi per mercato.")
 
-            # ==========================
-            # Watchlist Top Momentum (con seleziona tutti) – key wl_regime
-            # ==========================
             options_regime = sorted(
                 f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
             )
@@ -1904,7 +1864,7 @@ with tab_regime:
                 st.rerun()
 
 # =============================================================================
-# MULTI‑TIMEFRAME
+# MULTI‑TIMEFRAME – Top N per UP_count / Momentum_W / Momentum_M
 # =============================================================================
 with tab_mtf:
     st.subheader("⏱️ Multi‑Timeframe (D / W / M)")
@@ -1932,7 +1892,6 @@ with tab_mtf:
             records = []
             for tkr in tickers:
                 try:
-                    # daily, weekly, monthly da yfinance
                     df_d = yf.Ticker(tkr).history(period="6mo", interval="1d")
                     df_w = yf.Ticker(tkr).history(period="2y", interval="1wk")
                     df_m = yf.Ticker(tkr).history(period="5y", interval="1mo")
@@ -1954,7 +1913,10 @@ with tab_mtf:
                             trend = "SIDE"
 
                         last = close.iloc[-1]
-                        momentum_tf = (1 if trend == "UP" else -1 if trend == "DOWN" else 0) * 10 + rsi
+                        momentum_tf = (
+                            (1 if trend == "UP" else -1 if trend == "DOWN" else 0) * 10
+                            + rsi
+                        )
 
                         return {
                             "Ticker": tkr,
@@ -1985,7 +1947,6 @@ with tab_mtf:
         if df_mt.empty:
             st.caption("Nessun dato multi‑timeframe disponibile.")
         else:
-            # unisco con df_ep per Nome, MarketCap, Pro_Score ecc.
             base_cols = [
                 "Ticker",
                 "Nome",
@@ -2000,7 +1961,6 @@ with tab_mtf:
             df_base = df_ep[base_cols].drop_duplicates(subset=["Ticker"])
             df_mt_full = df_mt.merge(df_base, on="Ticker", how="left")
 
-            # filtro opzionale: solo titoli con trend UP su almeno 2 timeframe
             df_mt_full["UP_count"] = (
                 (df_mt_full["Trend_D"] == "UP").astype(int)
                 + (df_mt_full["Trend_W"] == "UP").astype(int)
@@ -2029,17 +1989,14 @@ with tab_mtf:
                     "Pro_Score",
                     "RSI",
                     "Stato",
-                    # Daily
                     "Close_D",
                     "RSI_D",
                     "Trend_D",
                     "Momentum_D",
-                    # Weekly
                     "Close_W",
                     "RSI_W",
                     "Trend_W",
                     "Momentum_W",
-                    # Monthly
                     "Close_M",
                     "RSI_M",
                     "Trend_M",
@@ -2067,9 +2024,6 @@ with tab_mtf:
                     },
                 )
 
-                # ==========================
-                # EXPORT MULTI‑TIMEFRAME
-                # ==========================
                 csv_data = df_mt_view.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "⬇️ Export Multi‑Timeframe CSV",
@@ -2084,7 +2038,6 @@ with tab_mtf:
                 with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                     df_mt_view.to_excel(writer, index=False, sheet_name="MULTI_TF")
                 data_xlsx = output.getvalue()
-
                 st.download_button(
                     "⬇️ Export Multi‑Timeframe XLSX",
                     data=data_xlsx,
@@ -2097,7 +2050,6 @@ with tab_mtf:
                     key="dl_mt_xlsx",
                 )
 
-                # EXPORT Multi‑TF TradingView (solo ticker)
                 df_mt_tv = df_mt_view[["Ticker"]].rename(columns={"Ticker": "symbol"})
                 csv_mt_tv = df_mt_tv.to_csv(index=False, header=False).encode("utf-8")
                 st.download_button(
@@ -2111,9 +2063,6 @@ with tab_mtf:
                     key="dl_tv_mt",
                 )
 
-                # ==========================
-                # Watchlist Multi‑TF (con seleziona tutti) – key wl_multitf
-                # ==========================
                 options_mt = sorted(
                     f"{row['Nome']} – {row['Ticker']}"
                     for _, row in df_mt_view.iterrows()
@@ -2149,7 +2098,7 @@ with tab_mtf:
                     st.rerun()
 
 # =============================================================================
-# FINVIZ‑LIKE
+# FINVIZ‑LIKE – Top N per MarketCap dopo filtri fondamentali
 # =============================================================================
 with tab_finviz:
     st.subheader("📊 Screener stile Finviz")
