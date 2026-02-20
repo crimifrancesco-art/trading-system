@@ -1512,95 +1512,53 @@ with tab_serafini:
                     st.rerun()
 
 # =============================================================================
-# REGIME & MOMENTUM – Top N per Momentum
+# REGIME & MOMENTUM
 # =============================================================================
 with tab_regime:
-    st.subheader("🧊 Regime & Momentum multi‑mercato")
-    st.markdown(
-        "Regime: % PRO vs EARLY sul totale segnali.\n"
-        "Momentum: ranking per Pro_Score×10 + RSI su tutti i titoli scansionati."
-    )
+    st.subheader("🧊 Regime & Momentum")
 
-    with st.expander("📘 Legenda Regime & Momentum"):
-        st.markdown(
-            "- **Regime**: quota segnali PRO vs EARLY.\n"
-            "- **Momentum**: Pro_Score×10 + RSI.\n"
-            "- **MarketCap / Volumi**: per contestualizzare i top momentum.\n"
-            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
-        )
-
-    if df_ep.empty or "Stato" not in df_ep.columns:
-        st.caption("Nessun dato scanner disponibile.")
+    if df_ep.empty:
+        st.caption("Nessun dato scanner disponibile per il Regime & Momentum.")
     else:
-        df_all = df_ep.copy().dropna(subset=["Pro_Score", "RSI"])
+        df_mom = df_ep.copy()
+        df_mom = add_formatted_cols(df_mom)
+        df_mom = add_links(df_mom)
 
-        n_tot_signals = len(df_all)
-        n_pro_tot = (df_all["Stato"] == "PRO").sum()
-        n_early_tot = (df_all["Stato"] == "EARLY").sum()
+        # calcolo Momentum combinato (già definito in sidebar: momentum_min)
+        df_mom["Momentum"] = df_mom["Pro_Score"] * 10 + df_mom["RSI"]
+        df_mom = df_mom[df_mom["Momentum"] >= momentum_min]
 
-        c1r, c2r, c3r = st.columns(3)
-        c1r.metric("Totale segnali (EARLY+PRO)", int(n_tot_signals))
-        c2r.metric(
-            "% PRO",
-            f"{(n_pro_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%",
-        )
-        c3r.metric(
-            "% EARLY",
-            f"{(n_early_tot / n_tot_signals * 100):.1f}%" if n_tot_signals else "0.0%",
-        )
-
-        st.markdown("**Top N momentum (Pro_Score×10 + RSI)**")
-
-        df_all["Momentum"] = df_all["Pro_Score"] * 10 + df_all["RSI"]
-
-        df_all = df_all[df_all["Momentum"] >= momentum_min]
-
-        if df_all.empty:
-            st.caption("Nessun titolo soddisfa il filtro Momentum minimo.")
+        if df_mom.empty:
+            st.caption(
+                "Nessun titolo con Momentum sufficiente per i criteri impostati."
+            )
         else:
-            df_mom = df_all.sort_values("Momentum", ascending=False).head(top)
+            df_mom = df_mom.sort_values("Momentum", ascending=False)
+            df_mom_view = df_mom.head(top)
 
-            cols_order = [
+            cols_show = [
                 "Nome",
                 "Ticker",
-                "Prezzo",
-                "MarketCap",
-                "Vol_Today",
-                "Vol_7d_Avg",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Early_Score",
                 "Pro_Score",
                 "RSI",
                 "Vol_Ratio",
+                "Momentum",
                 "OBV_Trend",
                 "ATR",
+                "ATR_Exp",
                 "Stato",
-                "Momentum",
+                "Yahoo",
+                "Finviz",
             ]
-            df_mom = df_mom[[c for c in cols_order if c in df_mom.columns]]
-            df_mom = add_formatted_cols(df_mom)
-            df_mom = add_links(df_mom)
-
-            df_mom_show = df_mom[
-                [
-                    "Nome",
-                    "Ticker",
-                    "Prezzo_fmt",
-                    "MarketCap_fmt",
-                    "Vol_Today_fmt",
-                    "Vol_7d_Avg_fmt",
-                    "Pro_Score",
-                    "RSI",
-                    "Vol_Ratio",
-                    "OBV_Trend",
-                    "ATR",
-                    "Stato",
-                    "Momentum",
-                    "Yahoo",
-                    "Finviz",
-                ]
-            ]
+            cols_show = [c for c in cols_show if c in df_mom_view.columns]
 
             st.dataframe(
-                df_mom_show,
+                df_mom_view[cols_show],
                 use_container_width=True,
                 column_config={
                     "Prezzo_fmt": "Prezzo",
@@ -1614,126 +1572,96 @@ with tab_regime:
                 },
             )
 
-            csv_data = df_mom.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇️ Export Momentum CSV",
-                data=csv_data,
-                file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_mom_csv",
+            # ---------- Export in una riga ----------
+            csv_data = df_mom_view.to_csv(index=False).encode("utf-8")
+
+            out = io.BytesIO()
+            with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
+                df_mom_view.to_excel(writer, index=False, sheet_name="MOMENTUM")
+            data_xlsx = out.getvalue()
+
+            tv_data = (
+                df_mom_view["Ticker"]
+                .drop_duplicates()
+                .to_frame(name="symbol")
             )
+            csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
 
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                df_mom.to_excel(writer, index=False, sheet_name="MOMENTUM")
-            data_xlsx = output.getvalue()
-
-            st.download_button(
-                "⬇️ Export Momentum XLSX",
-                data=data_xlsx,
-                file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
-                use_container_width=True,
-                key="dl_mom_xlsx",
-            )
-
-            df_mom_tv = df_mom[["Ticker"]].rename(columns={"Ticker": "symbol"})
-            csv_mom_tv = df_mom_tv.to_csv(index=False, header=False).encode("utf-8")
-            st.download_button(
-                "⬇️ CSV Top Momentum (solo ticker)",
-                data=csv_mom_tv,
-                file_name=(
-                    f"signals_momentum_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-                ),
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_tv_mom",
-            )
-
-            def detect_market_simple(t):
-                if t.endswith(".MI"):
-                    return "FTSE"
-                if t.endswith(".PA") or t.endswith(".AS") or t.endswith(".SW"):
-                    return "Eurostoxx"
-                if t in ["SPY", "QQQ", "IWM", "VTI", "EEM"]:
-                    return "USA ETF"
-                if t.endswith("-USD"):
-                    return "Crypto"
-                return "Altro"
-
-            df_all["Mercato"] = df_all["Ticker"].apply(detect_market_simple)
-
-            heat = df_all.groupby("Mercato").agg(
-                Momentum_med=("Momentum", "mean"),
-                N=("Ticker", "count"),
-                MarketCap_med=("MarketCap", "mean"),
-                Vol_Today_med=("Vol_Today", "mean"),
-            ).reset_index()
-
-            heat["MarketCap_med_fmt"] = heat["MarketCap_med"].apply(
-                lambda v: fmt_marketcap(v, "€")
-            )
-            heat["Vol_Today_med_fmt"] = heat["Vol_Today_med"].apply(fmt_int)
-
-            st.markdown("**Sintesi Regime & Momentum per mercato (tabella)**")
-            if not heat.empty:
-                st.dataframe(
-                    heat[
-                        [
-                            "Mercato",
-                            "Momentum_med",
-                            "N",
-                            "MarketCap_med_fmt",
-                            "Vol_Today_med_fmt",
-                        ]
-                    ].sort_values("Momentum_med", ascending=False),
+            col_csv, col_xlsx, col_tv = st.columns(3)
+            with col_csv:
+                st.download_button(
+                    "⬇️ Export Momentum CSV",
+                    data=csv_data,
+                    file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
                     use_container_width=True,
-                    column_config={
-                        "Momentum_med": "Momentum medio",
-                        "N": "N titoli",
-                        "MarketCap_med_fmt": "Market Cap med",
-                        "Vol_Today_med_fmt": "Vol medio giorno",
-                    },
+                    key="dl_mom_csv",
                 )
-            else:
-                st.caption("Nessun dato sufficiente per la sintesi per mercato.")
+            with col_xlsx:
+                st.download_button(
+                    "⬇️ Export Momentum XLSX",
+                    data=data_xlsx,
+                    file_name=f"MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "spreadsheetml.sheet"
+                    ),
+                    use_container_width=True,
+                    key="dl_mom_xlsx",
+                )
+            with col_tv:
+                st.download_button(
+                    "⬇️ CSV Top Momentum (solo ticker)",
+                    data=csv_tv,
+                    file_name=f"TV_MOMENTUM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_mom_tv",
+                )
 
-            options_regime = sorted(
-                f"{row['Nome']} – {row['Ticker']}" for _, row in df_mom.iterrows()
-            )
+            # ---------- Sintesi per mercato in expander ----------
+            if "Market" in df_mom.columns:
+                df_mom_summary = (
+                    df_mom.groupby("Market")
+                    .agg(
+                        Momentum_mean=("Momentum", "mean"),
+                        N=("Ticker", "nunique"),
+                        MktCap_mean=("MarketCap", "mean"),
+                        Vol_mean=("Vol_Today", "mean"),
+                    )
+                    .reset_index()
+                )
 
-            col_sel_all_regime, _ = st.columns([1, 3])
-            with col_sel_all_regime:
-                if st.button(
-                    "✅ Seleziona tutti (Top Momentum)", key="btn_sel_all_regime"
+                # formatto numeri
+                df_mom_summary["MktCap_mean_fmt"] = df_mom_summary["MktCap_mean"].apply(
+                    fmt_marketcap
+                )
+                df_mom_summary["Vol_mean_fmt"] = df_mom_summary["Vol_mean"].apply(
+                    fmt_int
+                )
+
+                with st.expander(
+                    "📊 Sintesi Regime & Momentum per mercato (tabella)", expanded=False
                 ):
-                    st.session_state["wl_regime"] = options_regime
-
-            selection_regime = st.multiselect(
-                "Aggiungi alla Watchlist (Top Momentum):",
-                options=options_regime,
-                key="wl_regime",
-            )
-            note_regime = st.text_input(
-                "Note comuni per questi ticker Momentum", key="note_wl_regime"
-            )
-            if st.button("📌 Salva in Watchlist (Regime/Momentum)"):
-                tickers = [s.split(" – ")[1] for s in selection_regime]
-                names = [s.split(" – ")[0] for s in selection_regime]
-                add_to_watchlist(
-                    tickers,
-                    names,
-                    "REGIME_MOMENTUM",
-                    note_regime,
-                    trend="LONG",
-                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
-                )
-                st.success("Regime/Momentum salvati in watchlist.")
-                st.rerun()
+                    st.dataframe(
+                        df_mom_summary[
+                            [
+                                "Market",
+                                "Momentum_mean",
+                                "N",
+                                "MktCap_mean_fmt",
+                                "Vol_mean_fmt",
+                            ]
+                        ],
+                        use_container_width=True,
+                        column_config={
+                            "Market": "Mercato",
+                            "Momentum_mean": "Momentum medio",
+                            "N": "N titoli",
+                            "MktCap_mean_fmt": "Market Cap med",
+                            "Vol_mean_fmt": "Vol medio giorno",
+                        },
+                    )
 
 # =============================================================================
 # MULTI‑TIMEFRAME – Top N per UP_count / Momentum_W / Momentum_M
@@ -1970,34 +1898,26 @@ with tab_mtf:
                     st.rerun()
 
 # =============================================================================
-# FINVIZ‑LIKE – Top N per MarketCap dopo filtri fondamentali
+# FINVIZ-LIKE
 # =============================================================================
 with tab_finviz:
-    st.subheader("📊 Screener stile Finviz")
-    st.markdown(
-        "Filtraggio **fondamentale + quantitativo** (EPS Growth, volume medio, prezzo) "
-        "per individuare titoli di qualità con liquidità adeguata."
-    )
-
-    with st.expander("📘 Legenda Finviz‑like"):
-        st.markdown(
-            "- **EPSnextY / EPS5Y**: crescita utili attesa a 1 anno e 5 anni.\n"
-            "- **AvgVolmln**: volume medio giornaliero (milioni di pezzi).\n"
-            "- **Prezzo minimo**: filtro per evitare penny stock.\n"
-            "- Dati derivati dall’universo già scansionato (df_ep).\n"
-            "- Colonne **Yahoo** e **TradingView**: pulsanti link per ogni ticker."
-        )
+    st.subheader("📊 Finviz‑like")
 
     if df_ep.empty:
         st.caption("Nessun dato scanner disponibile per il filtro Finviz‑like.")
     else:
         dffinviz = df_ep.copy()
 
-        if all(col in dffinviz.columns for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]):
-            # 1) rimuovo righe con valori mancanti sulle colonne fondamentali
-            dffinviz = dffinviz.dropna(subset=["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"])
+        if all(
+            col in dffinviz.columns
+            for col in ["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]
+        ):
+            # rimuovo righe con NaN sulle colonne fondamentali
+            dffinviz = dffinviz.dropna(
+                subset=["EPSnextY", "EPS5Y", "AvgVolmln", "Prezzo"]
+            )
 
-            # 2) applico i filtri numerici
+            # filtri stile Finviz
             dffinviz = dffinviz[
                 (dffinviz["EPSnextY"] >= eps_next_y_min)
                 & (dffinviz["EPS5Y"] >= eps_next_5y_min)
@@ -2005,39 +1925,46 @@ with tab_finviz:
                 & (dffinviz["Prezzo"] >= price_min_finviz)
             ]
 
+            if dffinviz.empty:
+                st.caption("Nessun titolo soddisfa i filtri fondamentali Finviz‑like.")
+            else:
+                dffinviz = add_formatted_cols(dffinviz)
+                dffinviz = add_links(dffinviz)
 
-        if dffinviz.empty:
-            st.caption("Nessun titolo soddisfa i filtri Finviz‑like.")
-        else:
-            dffinviz = add_formatted_cols(dffinviz)
-            dffinviz = add_links(dffinviz)
+                cols_order = [
+                    "Nome",
+                    "Ticker",
+                    "Prezzo",
+                    "Prezzo_fmt",
+                    "MarketCap",
+                    "MarketCap_fmt",
+                    "Vol_Today",
+                    "Vol_Today_fmt",
+                    "Vol_7d_Avg",
+                    "Vol_7d_Avg_fmt",
+                    "EPSnextY",
+                    "EPS5Y",
+                    "AvgVolmln",
+                    "Early_Score",
+                    "Pro_Score",
+                    "RSI",
+                    "Vol_Ratio",
+                    "Stato",
+                    "Yahoo",
+                    "Finviz",
+                ]
+                dffinviz = dffinviz[[c for c in cols_order if c in dffinviz.columns]]
 
-            cols_order = [
-                "Nome",
-                "Ticker",
-                "Prezzo",
-                "Prezzo_fmt",
-                "MarketCap",
-                "MarketCap_fmt",
-                "Vol_Today",
-                "Vol_Today_fmt",
-                "Vol_7d_Avg",
-                "Vol_7d_Avg_fmt",
-                "EPSnextY",
-                "EPS5Y",
-                "AvgVolmln",
-                "Stato",
-                "Yahoo",
-                "Finviz",
-            ]
-            dffinviz = dffinviz[[c for c in cols_order if c in dffinviz.columns]]
+                # ordino per MarketCap decrescente
+                if "MarketCap" in dffinviz.columns:
+                    dffinviz_view = dffinviz.sort_values(
+                        "MarketCap", ascending=False
+                    ).head(top)
+                else:
+                    dffinviz_view = dffinviz.head(top)
 
-            dffinviz_view = dffinviz.sort_values("MarketCap", ascending=False).head(top)
-
-            dffinviz_show = dffinviz_view[
-                [
-                    c
-                    for c in [
+                dffinviz_show = dffinviz_view[
+                    [
                         "Nome",
                         "Ticker",
                         "Prezzo_fmt",
@@ -2047,89 +1974,85 @@ with tab_finviz:
                         "EPSnextY",
                         "EPS5Y",
                         "AvgVolmln",
+                        "Early_Score",
+                        "Pro_Score",
+                        "RSI",
+                        "Vol_Ratio",
                         "Stato",
                         "Yahoo",
                         "Finviz",
                     ]
-                    if c in dffinviz_view.columns
                 ]
-            ]
 
-            st.dataframe(
-                dffinviz_show,
-                use_container_width=True,
-                column_config={
-                    "Prezzo_fmt": "Prezzo",
-                    "MarketCap_fmt": "Market Cap",
-                    "Vol_Today_fmt": "Vol giorno",
-                    "Vol_7d_Avg_fmt": "Vol medio 7g",
-                    "EPSnextY": "EPS Next Y %",
-                    "EPS5Y": "EPS Next 5Y %",
-                    "AvgVolmln": "Avg Vol (mln)",
-                    "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                    "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-                },
-            )
-
-            csv_data = dffinviz_view.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "⬇️ Export Finviz‑like CSV",
-                data=csv_data,
-                file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_finviz_csv",
-            )
-
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-                dffinviz_view.to_excel(writer, index=False, sheet_name="FINVIZ")
-            data_xlsx = output.getvalue()
-
-            st.download_button(
-                "⬇️ Export Finviz‑like XLSX",
-                data=data_xlsx,
-                file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="dl_finviz_xlsx",
-            )
-
-            options_finviz = sorted(
-                f"{row['Nome']} – {row['Ticker']}"
-                for _, row in dffinviz_view.iterrows()
-            )
-
-            col_sel_all_finviz, _ = st.columns([1, 3])
-            with col_sel_all_finviz:
-                if st.button(
-                    "✅ Seleziona tutti (Top Finviz‑like)", key="btn_sel_all_finviz"
-                ):
-                    st.session_state["wl_finviz"] = options_finviz
-
-            selection_finviz = st.multiselect(
-                "Aggiungi alla Watchlist (Finviz‑like):",
-                options=options_finviz,
-                key="wl_finviz",
-            )
-
-            note_finviz = st.text_input(
-                "Note comuni per questi ticker Finviz‑like", key="note_wl_finviz"
-            )
-
-            if st.button("📌 Salva in Watchlist (Finviz‑like)"):
-                tickers = [s.split(" – ")[1] for s in selection_finviz]
-                names = [s.split(" – ")[0] for s in selection_finviz]
-                add_to_watchlist(
-                    tickers,
-                    names,
-                    "FINVIZ",
-                    note_finviz,
-                    trend="LONG",
-                    list_name=st.session_state.get("current_list_name", "DEFAULT"),
+                st.dataframe(
+                    dffinviz_show,
+                    use_container_width=True,
+                    column_config={
+                        "Prezzo_fmt": "Prezzo",
+                        "MarketCap_fmt": "Market Cap",
+                        "Vol_Today_fmt": "Vol giorno",
+                        "Vol_7d_Avg_fmt": "Vol medio 7g",
+                        "Yahoo": st.column_config.LinkColumn(
+                            "Yahoo", display_text="Apri"
+                        ),
+                        "Finviz": st.column_config.LinkColumn(
+                            "TradingView", display_text="Apri"
+                        ),
+                    },
                 )
-                st.success("Finviz‑like salvati in watchlist.")
-                st.rerun()
+
+                # ---------- Export in una riga ----------
+                csv_data = dffinviz_view.to_csv(index=False).encode("utf-8")
+
+                out = io.BytesIO()
+                with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
+                    dffinviz_view.to_excel(writer, index=False, sheet_name="FINVIZ")
+                data_xlsx = out.getvalue()
+
+                tv_data = (
+                    dffinviz_view["Ticker"]
+                    .drop_duplicates()
+                    .to_frame(name="symbol")
+                )
+                csv_tv = tv_data.to_csv(index=False, header=False).encode("utf-8")
+
+                col_csv, col_xlsx, col_tv = st.columns(3)
+                with col_csv:
+                    st.download_button(
+                        "⬇️ Export Finviz‑like CSV",
+                        data=csv_data,
+                        file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="dl_finviz_csv",
+                    )
+                with col_xlsx:
+                    st.download_button(
+                        "⬇️ Export Finviz‑like XLSX",
+                        data=data_xlsx,
+                        file_name=f"FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                        mime=(
+                            "application/vnd.openxmlformats-officedocument."
+                            "spreadsheetml.sheet"
+                        ),
+                        use_container_width=True,
+                        key="dl_finviz_xlsx",
+                    )
+                with col_tv:
+                    st.download_button(
+                        "⬇️ Export Finviz‑like TradingView (solo ticker)",
+                        data=csv_tv,
+                        file_name=f"TV_FINVIZ_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                        mime="text/csv",
+                        use_container_width=True,
+                        key="dl_finviz_tv",
+                    )
+
+        else:
+            st.caption(
+                "Mancano alcune colonne fondamentali (EPSnextY, EPS5Y, AvgVolmln, Prezzo) per il filtro Finviz‑like."
+            )
+
 
 # =============================================================================
 # WATCHLIST & NOTE
@@ -2145,8 +2068,31 @@ with tab_watch:
     if df_wl_filt.empty:
         st.caption("La watchlist attiva è vuota.")
     else:
+        # -------- merge con df_ep per aggiungere dati tecnici correnti --------
+        if not df_ep.empty:
+            cols_merge = [
+                "Ticker",
+                "Prezzo",
+                "MarketCap",
+                "Vol_Today",
+                "Vol_7d_Avg",
+                "Stato",
+            ]
+            df_merge = df_ep[cols_merge].drop_duplicates(subset=["Ticker"])
+            df_merge.rename(columns={"Ticker": "ticker", "Stato": "Stato_scan"}, inplace=True)
+            df_wl_filt = df_wl_filt.merge(df_merge, on="ticker", how="left")
+        else:
+            df_wl_filt["Prezzo"] = np.nan
+            df_wl_filt["MarketCap"] = np.nan
+            df_wl_filt["Vol_Today"] = np.nan
+            df_wl_filt["Vol_7d_Avg"] = np.nan
+            df_wl_filt["Stato_scan"] = ""
+
         # ordina e crea etichetta: Nome – Ticker – Origine
         df_wl_filt = df_wl_filt.sort_values(["name", "ticker"], na_position="last")
+
+        df_wl_filt = add_formatted_cols(df_wl_filt)
+
         df_wl_filt["label"] = (
             df_wl_filt["name"].fillna("")
             + " – "
@@ -2163,6 +2109,11 @@ with tab_watch:
                 "ticker",
                 "trend",
                 "origine",
+                "Prezzo_fmt",
+                "MarketCap_fmt",
+                "Vol_Today_fmt",
+                "Vol_7d_Avg_fmt",
+                "Stato_scan",
                 "note",
                 "list_name",
                 "created_at",
@@ -2173,6 +2124,11 @@ with tab_watch:
                 "ticker": "Ticker",
                 "trend": "Trend",
                 "origine": "Origine",
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "Stato_scan": "Stato",
                 "note": "Note",
                 "list_name": "Lista",
                 "created_at": "Creato il",
@@ -2217,7 +2173,10 @@ with tab_watch:
                 "⬇️ Export Watchlist corrente XLSX",
                 data=xlsx_wl,
                 file_name=f"WATCHLIST_{active_list}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                ),
                 use_container_width=True,
                 key="dl_wl_xlsx",
             )
@@ -2317,5 +2276,6 @@ with tab_watch:
                 delete_from_watchlist(ids_del)
                 st.success(f"{len(ids_del)} righe cancellate dalla watchlist.")
                 st.rerun()
+
 
 
