@@ -2339,37 +2339,45 @@ with tab_watch:
         },
     )
 
-    # ==========================
-    # Modifica note
-    # ==========================
-    st.subheader("📝 Modifica nota per una riga")
+# ==========================
+# Modifica note
+# ==========================
+st.subheader("📝 Modifica nota per una riga")
 
-    id_options = df_wl_filt["id"].astype(str).tolist()
-    labels = df_wl_filt["label"].tolist()
-    id_map = dict(zip(labels, id_options))
+id_options = df_wl_filt["id"].astype(str).tolist()
+labels = df_wl_filt["label"].tolist()
+id_map = dict(zip(labels, id_options))
 
-    if not labels:
-        st.caption("Nessuna riga in watchlist per modificare le note.")
+if not labels:
+    st.caption("Nessuna riga in watchlist per modificare le note.")
+else:
+    selected_row = st.selectbox(
+        "Seleziona riga da modificare", options=labels, key="wl_edit_row"
+    )
+    row_id = int(id_map[selected_row])
+
+    # estraggo il valore grezzo della nota
+    note_series = df_wl_filt.loc[df_wl_filt["id"] == row_id, "note"]
+    if note_series.empty:
+        current_note_raw = ""
     else:
-        selected_row = st.selectbox(
-            "Seleziona riga da modificare", options=labels, key="wl_edit_row"
-        )
-        row_id = id_map[selected_row]
+        current_note_raw = note_series.values[0]
 
-        # prendo la nota, forzando sempre a stringa ed evitando NaN / None
-        note_series = df_wl_filt.loc[df_wl_filt["id"] == int(row_id), "note"]
-        if note_series.empty:
-            current_note = ""
-        else:
-            val = note_series.values[0]
-            current_note = "" if val is None or (isinstance(val, float) and np.isnan(val)) else str(val)
+    # normalizzo SEMPRE a stringa semplice
+    if current_note_raw is None:
+        current_note = ""
+    elif isinstance(current_note_raw, float) and np.isnan(current_note_raw):
+        current_note = ""
+    else:
+        current_note = str(current_note_raw)
 
-        new_note = st.textarea("Nota", value=current_note, key="wl_edit_note")
+    # uso la versione base di textarea (nessun altro parametro)
+    new_note = st.text_area("Nota", current_note, key="wl_edit_note")
 
-        if st.button("💾 Salva nota"):
-            update_watchlist_note(row_id, new_note)
-            st.success("Nota aggiornata.")
-            st.rerun()
+    if st.button("💾 Salva nota"):
+        update_watchlist_note(row_id, new_note)
+        st.success("Nota aggiornata.")
+        st.rerun()
 
     # ==========================
     # Eliminazione righe
