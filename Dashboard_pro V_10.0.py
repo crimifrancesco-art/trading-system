@@ -524,34 +524,40 @@ def calc_obv(close, volume):
 
 
 @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
     """
-    CSV con colonne:
+    Carica dati VMDM da CSV (se presente nel repo).
+    Se il file non esiste restituisce un DataFrame vuoto strutturato,
+    così il tab DIY mostra comunque i titoli filtrati (senza colonne VMDM).
+    
+    Colonne attese nel CSV:
     Ticker, Mode, Regime, Pressure, Vol_RSI,
     Footprint, SessionEvents, Confluence,
     StudiedPatterns, RiskReward, VolRatio, LastInfo
     """
+    rename_map = {
+        "Mode":           "VMDM_Mode",
+        "Regime":         "VMDM_Regime",
+        "Pressure":       "VMDM_Pressure",
+        "Vol_RSI":        "VMDM_Vol_RSI",
+        "Footprint":      "VMDM_Footprint",
+        "SessionEvents":  "VMDM_Events",
+        "Confluence":     "VMDM_Confluence",
+        "StudiedPatterns":"VMDM_Patterns",
+        "RiskReward":     "VMDM_RiskReward",
+        "VolRatio":       "VMDM_VolRatio",
+        "LastInfo":       "VMDM_LastInfo",
+    }
+
     try:
         df = pd.read_csv(path)
-
-        rename_map = {
-            "Mode": "VMDM_Mode",
-            "Regime": "VMDM_Regime",
-            "Pressure": "VMDM_Pressure",
-            "Vol_RSI": "VMDM_Vol_RSI",
-            "Footprint": "VMDM_Footprint",
-            "SessionEvents": "VMDM_Events",
-            "Confluence": "VMDM_Confluence",
-            "StudiedPatterns": "VMDM_Patterns",
-            "RiskReward": "VMDM_RiskReward",
-            "VolRatio": "VMDM_VolRatio",
-            "LastInfo": "VMDM_LastInfo",
-        }
         df = df.rename(columns=rename_map)
 
         if "Ticker" in df.columns:
             df["Ticker"] = df["Ticker"].astype(str).str.strip().str.upper()
 
+        # split "0.9x | RSI 53" → VMDM_RelVolume + VMDM_RSI
         if "VMDM_Vol_RSI" in df.columns:
             parts = df["VMDM_Vol_RSI"].astype(str).str.split("|", expand=True)
             if parts.shape[1] >= 2:
@@ -570,9 +576,30 @@ def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
                 df["VMDM_RSI"] = pd.to_numeric(df["VMDM_RSI"], errors="coerce")
 
         return df
-    except Exception:
-        return pd.DataFrame()
 
+    except FileNotFoundError:
+        # file non presente: restituisco struttura vuota ma valida
+        return pd.DataFrame(
+            columns=[
+                "Ticker",
+                "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
+                "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
+                "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
+                "VMDM_Patterns", "VMDM_RiskReward",
+                "VMDM_VolRatio", "VMDM_LastInfo",
+            ]
+        )
+    except Exception:
+        return pd.DataFrame(
+            columns=[
+                "Ticker",
+                "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
+                "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
+                "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
+                "VMDM_Patterns", "VMDM_RiskReward",
+                "VMDM_VolRatio", "VMDM_LastInfo",
+            ]
+        )
 
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     try:
@@ -636,11 +663,19 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
             else ("EARLY" if early_score >= 8 else "-")
         )
 
-        # DIY filter: prezzo > EMA20, RSI nel range, Vol_Ratio >= 1.2
+        # ------------------------------------------------------------------
+        # DIY_Long: logica robusta ispirata al DIY Custom Strategy Builder
+        # Condizione 1: prezzo sopra EMA20 (trend rialzista)
+        # Condizione 2: RSI nel range scelto in sidebar
+        # Condizione 3: Vol_Ratio >= 0.8 (abbassato da 1.2 → più inclusivo)
+        #               oppure OBV in salita (segnale alternativo di volume)
+        # ------------------------------------------------------------------
         price_above_ema = price > ema20
-        rsi_in_range = (p_rmin <= rsi_val <= p_rmax)
-        vol_ok = vol_ratio >= 1.2
-        DIY_Long = bool(price_above_ema and rsi_in_range and vol_ok)
+        rsi_in_range    = (p_rmin <= rsi_val <= p_rmax)
+        vol_ok          = (vol_ratio >= 0.8) or (obv_trend == "UP")
+        DIY_Long        = bool(price_above_ema and rsi_in_range and vol_ok)
+        "DIY_Long": DIY_Long,
+
 
         # REA‑QUANT
         tp = (h + l + c) / 3
@@ -777,6 +812,33 @@ if "Stato" in df_rea.columns:
 else:
     df_rea_all = pd.DataFrame()
 
+# =============================================================================
+# DIY-VMDM: filtro su DIY_Long + merge con dati VMDM (opzionale)
+# =============================================================================
+if not df_ep.empty and "DIY_Long" in df_ep.columns:
+    df_diy_base = df_ep[df_ep["DIY_Long"] == True].copy()
+else:
+    df_diy_base = pd.DataFrame()
+
+df_vmdm = load_vmdm_data()  # DataFrame vuoto strutturato se CSV mancante
+
+if not df_diy_base.empty:
+    df_diy_base["Ticker"] = (
+        df_diy_base["Ticker"].astype(str).str.strip().str.upper()
+    )
+
+    if not df_vmdm.empty and len(df_vmdm.columns) > 1:
+        # merge solo se il CSV esiste ed è davvero popolato
+        df_vmdm["Ticker"] = df_vmdm["Ticker"].astype(str).str.strip().str.upper()
+        df_diy_vmdm = df_diy_base.merge(df_vmdm, on="Ticker", how="left")
+    else:
+        # nessun dato VMDM: mostro comunque i titoli con DIY_Long=True
+        df_diy_vmdm = df_diy_base.copy()
+else:
+    df_diy_vmdm = pd.DataFrame()
+
+n_diy = len(df_diy_vmdm)
+
 # --- DIY-VMDM base DF ---
 if not df_ep.empty and "DIY_Long" in df_ep.columns:
     df_diy_base = df_ep[df_ep["DIY_Long"] == True].copy()
@@ -792,17 +854,19 @@ else:
     df_diy_vmdm = pd.DataFrame()
 
 n_early = len(df_early_all)
-n_pro = len(df_pro_all)
-n_rea = len(df_rea_all)
-n_tot = n_early + n_pro + n_rea
+n_pro   = len(df_pro_all)
+n_rea   = len(df_rea_all)
+n_tot   = n_early + n_pro + n_rea
 
 st.header("Panoramica segnali")
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Segnali EARLY", n_early)
-c2.metric("Segnali PRO", n_pro)
-c3.metric("Segnali REA‑QUANT", n_rea)
-c4.metric("Totale segnali scanner", n_tot)
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Segnali EARLY",    n_early)
+c2.metric("Segnali PRO",      n_pro)
+c3.metric("Segnali REA‑QUANT",n_rea)
+c4.metric("Segnali DIY‑VMDM", n_diy)
+c5.metric("Totale segnali",   n_tot)
+
 
 st.caption(
     "Legenda generale: EARLY = vicinanza alla EMA20; PRO = trend consolidato con RSI e Vol_Ratio favorevoli; "
@@ -1166,37 +1230,64 @@ with tabp:
 # =============================================================================
 
 
-with tabdiyvmdm:
+with tab_diyvmdm:
     st.subheader("Segnali DIY‑VMDM")
 
     st.markdown(
         "Tab dedicato ai titoli con **DIY_Long = True** "
-        "(tutti i criteri della strategia DIY in stato verde) "
-        "integrato con le metriche dell'indicatore **VMDM [BullByte]**."
+        "(prezzo > EMA20 + RSI nel range + volume confermato) "
+        "integrato con le metriche dell'indicatore **VMDM [BullByte]** "
+        "se il file `vmdm_data.csv` è presente nel repository."
     )
 
     with st.expander("Legenda DIY‑VMDM"):
         st.markdown(
-            "- **DIY_Long**: prezzo > EMA20, RSI nel range scelto e Vol_Ratio ≥ 1.2.\n"
+            "- **DIY_Long**: prezzo > EMA20, RSI nel range scelto, "
+            "Vol_Ratio ≥ 0.8 oppure OBV in salita.\n"
             "- **VMDM_Mode**: stato principale del VMDM.\n"
             "- **VMDM_Regime**: regime di mercato (Ranging, Trending Bull/Bear...).\n"
-            "- **VMDM_Pressure**: pressione BUYING/SELLING/NEUTRAL.\n"
+            "- **VMDM_Pressure**: pressione BUYING / SELLING / NEUTRAL.\n"
             "- **VMDM_RelVolume**: volume relativo (x volte la media).\n"
             "- **VMDM_RSI**: RSI collegato al pannello VMDM.\n"
             "- **VMDM_Confluence**: grado di confluence 0–100.\n"
-            "- **VMDM_LastInfo**: ultimo evento (es. SELL EXHAUST)."
+            "- **VMDM_LastInfo**: ultimo evento (es. SELL EXHAUST, BUY CLIMAX)."
         )
 
+    # --- debug info (puoi commentare in produzione) ---
+    with st.expander("Info diagnostica filtro"):
+        if df_ep.empty:
+            st.warning("df_ep è vuoto: avvia prima lo scanner.")
+        elif "DIY_Long" not in df_ep.columns:
+            st.error(
+                "Colonna DIY_Long non trovata in df_ep. "
+                "Controlla che scan_ticker restituisca il campo DIY_Long."
+            )
+        else:
+            n_diy_raw = int(df_ep["DIY_Long"].sum())
+            st.info(
+                f"Titoli scansionati: {len(df_ep)} | "
+                f"DIY_Long = True: {n_diy_raw} | "
+                f"File VMDM presente: {'Sì' if not df_vmdm.empty else 'No (colonne solo struttura)'}"
+            )
+            st.markdown(
+                f"- RSI range: {p_rmin}–{p_rmax}  \n"
+                f"- Vol_Ratio soglia: ≥ 0.8 (oppure OBV UP)  \n"
+                f"- Titoli con prezzo > EMA20: "
+                f"{int((df_ep['Pro_Score'] >= 3).sum()) if 'Pro_Score' in df_ep.columns else 'n/d'}  \n"
+            )
+
     if df_diy_vmdm.empty:
-        st.caption(
-            "Nessun titolo soddisfa il filtro DIY_Long oppure il file `vmdm_data.csv` non contiene dati."
+        st.warning(
+            "Nessun titolo soddisfa il filtro DIY_Long. "
+            "Prova ad allargare il range RSI in sidebar oppure avvia lo scanner."
         )
     else:
         df_diy = df_diy_vmdm.copy()
         df_diy = add_formatted_cols(df_diy)
         df_diy = add_links(df_diy)
 
-        viewcols = [
+        # colonne base sempre presenti
+        viewcols_base = [
             "Nome",
             "Ticker",
             "Prezzo_fmt",
@@ -1204,6 +1295,14 @@ with tabdiyvmdm:
             "Vol_Today_fmt",
             "Vol_7d_Avg_fmt",
             "DIY_Long",
+            "RSI",
+            "Vol_Ratio",
+            "OBV_Trend",
+            "Pro_Score",
+        ]
+
+        # colonne VMDM (presenti solo se CSV caricato)
+        viewcols_vmdm = [
             "VMDM_Mode",
             "VMDM_Regime",
             "VMDM_Pressure",
@@ -1216,72 +1315,33 @@ with tabdiyvmdm:
             "VMDM_RiskReward",
             "VMDM_VolRatio",
             "VMDM_LastInfo",
-            "Yahoo",
-            "Finviz",
         ]
+
+        viewcols_links = ["Yahoo", "Finviz"]
+
+        viewcols = viewcols_base + viewcols_vmdm + viewcols_links
         viewcols = [c for c in viewcols if c in df_diy.columns]
 
-        sortcols = [c for c in ["Pro_Score", "VMDM_Confluence"] if c in df_diy.columns]
+        sortcols = [
+            c for c in ["Pro_Score", "VMDM_Confluence", "Vol_Ratio"]
+            if c in df_diy.columns
+        ]
         if sortcols:
             df_diy_view = df_diy.sort_values(
                 by=sortcols,
                 ascending=[False] * len(sortcols),
-            ).head(top)
+            ).head(int(top))
         else:
-            df_diy_view = df_diy.head(top)
+            df_diy_view = df_diy.head(int(top))
 
         st.dataframe(
             df_diy_view[viewcols],
             use_container_width=True,
             column_config={
-                "Prezzo_fmt": "Prezzo",
+                "Prezzo_fmt":   "Prezzo",
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "DIY_Long": "DIY Long",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-            },
-            hide_index=True,
-        )
-
-        csvdata = df_diy_view.to_csv(index=False).encode("utf-8")
-        out = io.BytesIO()
-        with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
-            df_diy_view.to_excel(writer, index=False, sheet_name="DIY-VMDM")
-        dataxlsx = out.getvalue()
-
-        tvdata = df_diy_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csvtv = tvdata.to_csv(index=False, header=False).encode("utf-8")
-
-        colcsv, colxlsx, coltv = st.columns(3)
-        with colcsv:
-            st.downloadbutton(
-                "Export DIY‑VMDM CSV",
-                data=csvdata,
-                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_diyvmdm_csv",
-            )
-        with colxlsx:
-            st.downloadbutton(
-                "Export DIY‑VMDM XLSX",
-                data=dataxlsx,
-                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="dl_diyvmdm_xlsx",
-            )
-        with coltv:
-            st.downloadbutton(
-                "Export DIY‑VMDM TradingView (solo ticker)",
-                data=csvtv,
-                file_name=f"TVDIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_diyvmdm_tv",
-            )
+                "Vol_
 
 
 # =============================================================================
