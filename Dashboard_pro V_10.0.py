@@ -15,12 +15,13 @@ from fpdf import FPDF  # pip install fpdf2
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 9.0",
+    page_title="Trading Scanner – Versione PRO 10.0",
     layout="wide",
     page_icon="📊",
 )
 
-st.title("📊 Trading Scanner – Versione PRO 9.0")
+
+st.title("📊 Trading Scanner – Versione PRO 10.0")
 
 st.caption(
     "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
@@ -426,8 +427,95 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
-    # (come tuo codice originale: SP500, Nasdaq, FTSE, ecc.)
-    # ...
+
+    if "SP500" in markets:
+        sp = pd.read_csv(
+            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
+        )["Symbol"].tolist()
+        t += sp
+
+    if "Nasdaq" in markets:
+        t += [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "NVDA",
+            "META",
+            "TSLA",
+            "AVGO",
+            "NFLX",
+            "ADBE",
+            "COST",
+            "PEP",
+            "CSCO",
+            "INTC",
+            "AMD",
+        ]
+
+    if "Dow" in markets:
+        t += [
+            "AAPL",
+            "MSFT",
+            "JPM",
+            "V",
+            "UNH",
+            "JNJ",
+            "WMT",
+            "PG",
+            "HD",
+            "DIS",
+            "KO",
+            "MCD",
+            "BA",
+            "CAT",
+            "GS",
+        ]
+
+    if "Russell" in markets:
+        t += ["IWM", "VTWO"]
+
+    if "FTSE" in markets:
+        t += [
+            "UCG.MI",
+            "ISP.MI",
+            "ENEL.MI",
+            "ENI.MI",
+            "LDO.MI",
+            "PRY.MI",
+            "STM.MI",
+            "TEN.MI",
+            "A2A.MI",
+            "AMP.MI",
+        ]
+
+    if "Eurostoxx" in markets:
+        t += [
+            "ASML.AS",
+            "NESN.SW",
+            "SAN.PA",
+            "TTE.PA",
+            "AIR.PA",
+            "MC.PA",
+            "OR.PA",
+            "SU.PA",
+        ]
+
+    if "Commodities" in markets:
+        t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
+
+    if "ETF" in markets:
+        t += ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"]
+
+    if "Crypto" in markets:
+        t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
+
+    if "Emerging" in markets:
+        t += ["EEM", "EWZ", "INDA", "FXI"]
+
+    # rimuovo duplicati mantenendo l'ordine
+    return list(dict.fromkeys(t))
+
 
 
 def calc_obv(close, volume):
@@ -629,7 +717,7 @@ else:
     if "done_pro" not in st.session_state:
         st.session_state["done_pro"] = False
 
-    if st.button("🚀 AVVIA SCANNER PRO 9.0", type="primary", use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 10.0", type="primary", use_container_width=True):
         universe = load_universe(sel)
         st.info(f"Scansione in corso su {len(universe)} titoli...")
 
