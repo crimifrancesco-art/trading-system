@@ -90,9 +90,6 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# =============================================================================
-# LINK YAHOO + TRADINGVIEW
-# =============================================================================
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
     col = "Ticker" if "Ticker" in df.columns else "ticker"
     if col not in df.columns:
@@ -107,7 +104,7 @@ def add_links(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # =============================================================================
-# DB WATCHLIST (SQLite)
+# DB WATCHLIST
 # =============================================================================
 DB_PATH = Path("watchlist.db")
 
@@ -147,7 +144,9 @@ def reset_watchlist_db():
     init_db()
 
 
-def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
+def add_to_watchlist(
+    tickers, names, origine, note, trend="LONG", list_name="DEFAULT"
+):
     if not tickers:
         return
     conn = sqlite3.connect(DB_PATH)
@@ -155,7 +154,8 @@ def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEF
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for t, n in zip(tickers, names):
         c.execute(
-            "INSERT INTO watchlist (ticker,name,trend,origine,note,list_name,created_at) "
+            "INSERT INTO watchlist "
+            "(ticker,name,trend,origine,note,list_name,created_at) "
             "VALUES (?,?,?,?,?,?,?)",
             (t, n, trend, origine, note, list_name, now),
         )
@@ -166,12 +166,20 @@ def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEF
 def load_watchlist() -> pd.DataFrame:
     if not DB_PATH.exists():
         return pd.DataFrame(
-            columns=["id","ticker","name","trend","origine","note","list_name","created_at"]
+            columns=[
+                "id", "ticker", "name", "trend",
+                "origine", "note", "list_name", "created_at",
+            ]
         )
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
+    df = pd.read_sql_query(
+        "SELECT * FROM watchlist ORDER BY created_at DESC", conn
+    )
     conn.close()
-    for col in ["id","ticker","name","trend","origine","note","list_name","created_at"]:
+    for col in [
+        "id", "ticker", "name", "trend",
+        "origine", "note", "list_name", "created_at",
+    ]:
         if col not in df.columns:
             df[col] = "" if col != "id" else np.nan
     return df
@@ -180,7 +188,10 @@ def load_watchlist() -> pd.DataFrame:
 def update_watchlist_note(row_id, new_note):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
+    c.execute(
+        "UPDATE watchlist SET note = ? WHERE id = ?",
+        (new_note, int(row_id))
+    )
     conn.commit()
     conn.close()
 
@@ -190,7 +201,9 @@ def delete_from_watchlist(ids):
         return
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
+    c.executemany(
+        "DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids]
+    )
     conn.commit()
     conn.close()
 
@@ -202,14 +215,14 @@ init_db()
 # =============================================================================
 if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
-    st.session_state.setdefault("m_FTSE", True)
-    st.session_state.setdefault("m_SP500", True)
+    st.session_state.setdefault("m_FTSE",   True)
+    st.session_state.setdefault("m_SP500",  True)
     st.session_state.setdefault("m_Nasdaq", True)
-    st.session_state.setdefault("e_h", 0.02)
-    st.session_state.setdefault("p_rmin", 40)
-    st.session_state.setdefault("p_rmax", 70)
-    st.session_state.setdefault("r_poc", 0.02)
-    st.session_state.setdefault("top", 15)
+    st.session_state.setdefault("e_h",    0.02)
+    st.session_state.setdefault("p_rmin",   40)
+    st.session_state.setdefault("p_rmax",   70)
+    st.session_state.setdefault("r_poc",  0.02)
+    st.session_state.setdefault("top",      15)
 
 if "current_list_name" not in st.session_state:
     st.session_state["current_list_name"] = "DEFAULT"
@@ -218,19 +231,19 @@ if "current_list_name" not in st.session_state:
 # SIDEBAR
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
-
 st.sidebar.subheader("📈 Selezione Mercati")
+
 m = {
-    "Eurostoxx":  st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE":       st.sidebar.checkbox("🇮🇹 FTSE MIB",      st.session_state["m_FTSE"]),
-    "SP500":      st.sidebar.checkbox("🇺🇸 S&P 500",        st.session_state["m_SP500"]),
-    "Nasdaq":     st.sidebar.checkbox("🇺🇸 Nasdaq 100",     st.session_state["m_Nasdaq"]),
-    "Dow":        st.sidebar.checkbox("🇺🇸 Dow Jones",      False),
-    "Russell":    st.sidebar.checkbox("🇺🇸 Russell 2000",   False),
-    "Commodities":st.sidebar.checkbox("🛢️ Materie Prime",  False),
-    "ETF":        st.sidebar.checkbox("📦 ETF",             False),
-    "Crypto":     st.sidebar.checkbox("₿ Crypto",           False),
-    "Emerging":   st.sidebar.checkbox("🌍 Emergenti",       False),
+    "Eurostoxx":   st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
+    "FTSE":        st.sidebar.checkbox("🇮🇹 FTSE MIB",      st.session_state["m_FTSE"]),
+    "SP500":       st.sidebar.checkbox("🇺🇸 S&P 500",        st.session_state["m_SP500"]),
+    "Nasdaq":      st.sidebar.checkbox("🇺🇸 Nasdaq 100",     st.session_state["m_Nasdaq"]),
+    "Dow":         st.sidebar.checkbox("🇺🇸 Dow Jones",      False),
+    "Russell":     st.sidebar.checkbox("🇺🇸 Russell 2000",   False),
+    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime",   False),
+    "ETF":         st.sidebar.checkbox("📦 ETF",              False),
+    "Crypto":      st.sidebar.checkbox("₿ Crypto",            False),
+    "Emerging":    st.sidebar.checkbox("🌍 Emergenti",        False),
 }
 sel = [k for k, v in m.items() if v]
 st.session_state["m_FTSE"]   = m["FTSE"]
@@ -240,37 +253,51 @@ st.session_state["m_Nasdaq"] = m["Nasdaq"]
 st.sidebar.divider()
 st.sidebar.subheader("🎛️ Parametri Scanner")
 
-e_h = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0,
-                         float(st.session_state["e_h"] * 100), 0.5) / 100
+e_h = st.sidebar.slider(
+    "EARLY - Distanza EMA20 (%)", 0.0, 10.0,
+    float(st.session_state["e_h"] * 100), 0.5
+) / 100
 st.session_state["e_h"] = e_h
 
-p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5)
+p_rmin = st.sidebar.slider(
+    "PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5
+)
 st.session_state["p_rmin"] = p_rmin
 
-p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5)
+p_rmax = st.sidebar.slider(
+    "PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5
+)
 st.session_state["p_rmax"] = p_rmax
 
-r_poc = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 10.0,
-                            float(st.session_state["r_poc"] * 100), 0.5) / 100
+r_poc = st.sidebar.slider(
+    "REA - Distanza POC (%)", 0.0, 10.0,
+    float(st.session_state["r_poc"] * 100), 0.5
+) / 100
 st.session_state["r_poc"] = r_poc
 
 st.sidebar.subheader("🔎 Filtri avanzati")
 eps_next_y_min   = st.sidebar.number_input("EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0)
 eps_next_5y_min  = st.sidebar.number_input("EPS Growth Next 5Y min (%)",   0.0, 100.0, 15.0, 1.0)
 avg_vol_min_mln  = st.sidebar.number_input("Avg Volume min (milioni)",      0.0, 100.0,  1.0, 0.5)
-price_min_finviz = st.sidebar.number_input("Prezzo min per filtro Finviz",  0.0, 5000.0, 10.0, 1.0)
+price_min_finviz = st.sidebar.number_input("Prezzo min per filtro Finviz",  0.0, 5000.0,10.0, 1.0)
 vol_ratio_hot    = st.sidebar.number_input("Vol_Ratio minimo REA‑HOT",      0.0,  10.0,  1.5, 0.1)
-momentum_min     = st.sidebar.number_input("Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0)
+momentum_min     = st.sidebar.number_input(
+    "Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0
+)
 
 st.sidebar.subheader("📤 Output")
-top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5)
+top = st.sidebar.number_input(
+    "TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5
+)
 st.session_state["top"] = top
 
 st.sidebar.subheader("📁 Lista Watchlist attiva")
 df_wl_sidebar = load_watchlist()
 if not df_wl_sidebar.empty and "list_name" in df_wl_sidebar.columns:
     list_options = sorted({
-        ln for ln in df_wl_sidebar["list_name"].dropna().astype(str).str.strip().tolist() if ln
+        ln for ln in
+        df_wl_sidebar["list_name"].dropna().astype(str).str.strip().tolist()
+        if ln
     })
 else:
     list_options = []
@@ -296,8 +323,8 @@ rename_target = st.sidebar.selectbox(
     index=list_options.index(selected_list), key="sb_wl_rename_target",
 )
 new_name_for_rename = st.sidebar.text_input(
-    "Nuovo nome per la lista selezionata", value="", key="sb_wl_rename_new",
-    placeholder="Nuovo nome...",
+    "Nuovo nome per la lista selezionata", value="",
+    key="sb_wl_rename_new", placeholder="Nuovo nome...",
 )
 
 if st.sidebar.button("🔤 Applica rinomina"):
@@ -306,7 +333,10 @@ if st.sidebar.button("🔤 Applica rinomina"):
         new = new_name_for_rename.strip()
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute("UPDATE watchlist SET list_name = ? WHERE list_name = ?", (new, old))
+        c.execute(
+            "UPDATE watchlist SET list_name = ? WHERE list_name = ?",
+            (new, old),
+        )
         conn.commit()
         conn.close()
         st.sidebar.success(f"Lista '{old}' rinominata in '{new}'.")
@@ -323,80 +353,6 @@ st.sidebar.subheader("🧠 Modalità")
 only_watchlist = st.sidebar.checkbox(
     "Mostra solo Watchlist (salta scanner)", value=False, key="only_watchlist"
 )
-
-# =============================================================================
-# FUNZIONI DI SUPPORTO
-# =============================================================================
-@st.cache_data(ttl=3600)
-def load_universe(markets):
-    t = []
-    if "SP500" in markets:
-        sp = pd.read_csv(
-            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/"
-            "master/data/constituents.csv"
-        )
-
-
-
-
-def calc_obv(close, volume):
-    direction = np.sign(close.diff().fillna(0))
-    return (direction * volume).cumsum()
-
-
-@st.cache_data(ttl=3600)
-@st.cache_data(ttl=3600)
-def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
-    """
-    Carica dati VMDM da CSV (se presente nel repo).
-    Se il file non esiste restituisce un DataFrame vuoto strutturato,
-    così il tab DIY mostra comunque i titoli filtrati (senza colonne VMDM).
-    
-    Colonne attese nel CSV:
-    Ticker, Mode, Regime, Pressure, Vol_RSI,
-    Footprint, SessionEvents, Confluence,
-    StudiedPatterns, RiskReward, VolRatio, LastInfo
-    """
-    rename_map = {
-        "Mode":           "VMDM_Mode",
-        "Regime":         "VMDM_Regime",
-        "Pressure":       "VMDM_Pressure",
-        "Vol_RSI":        "VMDM_Vol_RSI",
-        "Footprint":      "VMDM_Footprint",
-        "SessionEvents":  "VMDM_Events",
-        "Confluence":     "VMDM_Confluence",
-        "StudiedPatterns":"VMDM_Patterns",
-        "RiskReward":     "VMDM_RiskReward",
-        "VolRatio":       "VMDM_VolRatio",
-        "LastInfo":       "VMDM_LastInfo",
-    }
-
-    try:
-        df = pd.read_csv(path)
-        df = df.rename(columns=rename_map)
-
-        if "Ticker" in df.columns:
-            df["Ticker"] = df["Ticker"].astype(str).str.strip().str.upper()
-
-        # split "0.9x | RSI 53" → VMDM_RelVolume + VMDM_RSI
-        if "VMDM_Vol_RSI" in df.columns:
-            parts = df["VMDM_Vol_RSI"].astype(str).str.split("|", expand=True)
-            if parts.shape[1] >= 2:
-                df["VMDM_RelVolume"] = (
-                    parts[0].str.replace("x", "", regex=False).str.strip()
-                )
-                df["VMDM_RelVolume"] = pd.to_numeric(
-                    df["VMDM_RelVolume"], errors="coerce"
-                )
-                df["VMDM_RSI"] = (
-                    parts[1]
-                    .str.upper()
-                    .str.replace("RSI", "", regex=False)
-                    .str.strip()
-                )
-                df["VMDM_RSI"] = pd.to_numeric(df["VMDM_RSI"], errors="coerce")
-
-        return df
 
     except FileNotFoundError:
         # file non presente: restituisco struttura vuota ma valida
