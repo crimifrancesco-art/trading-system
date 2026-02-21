@@ -1842,7 +1842,7 @@ with tabregime:
 # =============================================================================
 # MULTI‑TIMEFRAME – Top N per UP_count / Momentum_W / Momentum_M
 # =============================================================================
-with tab_mtf:
+with tabmtf:
     st.subheader("⏱️ Multi‑Timeframe (D / W / M)")
     st.markdown(
         "Vista congiunta **daily / weekly / monthly** sugli stessi titoli, "
