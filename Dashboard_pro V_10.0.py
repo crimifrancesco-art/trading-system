@@ -355,6 +355,48 @@ only_watchlist = st.sidebar.checkbox(
 )
 
     except FileNotFoundError:
+@st.cache_data(ttl=3600)
+def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
+    _empty = pd.DataFrame(
+        columns=[
+            "Ticker",
+            "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
+            "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
+            "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
+            "VMDM_Patterns", "VMDM_RiskReward",
+            "VMDM_VolRatio", "VMDM_LastInfo",
+        ]
+    )
+    rename_map = {
+        "Mode": "VMDM_Mode", "Regime": "VMDM_Regime",
+        "Pressure": "VMDM_Pressure", "Vol_RSI": "VMDM_Vol_RSI",
+        "Footprint": "VMDM_Footprint", "SessionEvents": "VMDM_Events",
+        "Confluence": "VMDM_Confluence", "StudiedPatterns": "VMDM_Patterns",
+        "RiskReward": "VMDM_RiskReward", "VolRatio": "VMDM_VolRatio",
+        "LastInfo": "VMDM_LastInfo",
+    }
+    try:
+        df = pd.read_csv(path)
+        df = df.rename(columns=rename_map)
+        if "Ticker" in df.columns:
+            df["Ticker"] = df["Ticker"].astype(str).str.strip().str.upper()
+        if "VMDM_Vol_RSI" in df.columns:
+            parts = df["VMDM_Vol_RSI"].astype(str).str.split("|", expand=True)
+            if parts.shape[1] >= 2:
+                df["VMDM_RelVolume"] = pd.to_numeric(
+                    parts[0].str.replace("x", "", regex=False).str.strip(),
+                    errors="coerce"
+                )
+                df["VMDM_RSI"] = pd.to_numeric(
+                    parts[1].str.upper().str.replace("RSI", "", regex=False).str.strip(),
+                    errors="coerce"
+                )
+        return df
+    except FileNotFoundError:
+        return _empty
+    except Exception:
+        return _empty
+
         # file non presente: restituisco struttura vuota ma valida
         return pd.DataFrame(
             columns=[
@@ -424,6 +466,10 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
         obv = calc_obv(c, v)
         obv_slope = obv.diff().rolling(5).mean().iloc[-1]
         obv_trend = "UP" if obv_slope > 0 else "DOWN"
+        price_above_ema = price > ema20
+        rsi_in_range    = (p_rmin <= rsi_val <= p_rmax)
+        vol_ok          = (vol_ratio >= 0.8) or (obv_trend == "UP")
+        DIY_Long        = bool(price_above_ema and rsi_in_range and vol_ok)
 
         tr = np.maximum(
             h - l, np.maximum(abs(h - c.shift()), abs(l - c.shift()))
@@ -750,18 +796,47 @@ with tabe:
         ]
         df_early_show = df_early_view[[c for c in view_cols if c in df_early_view.columns]]
 
-        st.dataframe(
-            df_early_show,
+                st.dataframe(
+            df_diy_view[viewcols],
             use_container_width=True,
             column_config={
-                "Prezzo_fmt": "Prezzo",
+                "Prezzo_fmt":    "Prezzo",
                 "MarketCap_fmt": "Market Cap",
                 "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Vol_7d_Avg_fmt":"Vol medio 7g",
+                "DIY_Long":      "DIY Long",
+                "Yahoo":  st.column_config.LinkColumn("Yahoo", display_text="Apri"),
                 "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
             },
+            hide_index=True,
         )
+
+        csvdata  = df_diy_view.to_csv(index=False).encode("utf-8")
+        out      = io.BytesIO()
+        with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
+            df_diy_view.to_excel(writer, index=False, sheet_name="DIY-VMDM")
+        dataxlsx = out.getvalue()
+        csvtv = (
+            df_diy_view["Ticker"].drop_duplicates()
+            .to_frame(name="symbol")
+            .to_csv(index=False, header=False)
+            .encode("utf-8")
+        )
+        colcsv, colxlsx, coltv = st.columns(3)
+        with colcsv:
+            st.download_button("Export DIY-VMDM CSV", data=csvdata,
+                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv", use_container_width=True, key="dl_diyvmdm_csv")
+        with colxlsx:
+            st.download_button("Export DIY-VMDM XLSX", data=dataxlsx,
+                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True, key="dl_diyvmdm_xlsx")
+        with coltv:
+            st.download_button("Export TradingView (solo ticker)", data=csvtv,
+                file_name=f"TVDIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv", use_container_width=True, key="dl_diyvmdm_tv")
+
 
         # -------- Export su una riga --------
         csv_data = df_early_view.to_csv(index=False).encode("utf-8")
