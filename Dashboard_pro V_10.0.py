@@ -825,132 +825,13 @@ tabe, tabp, tabdiyvmdm, tabrea, tabserafini, tabregime, tabmtf, tabfinviz, tabwa
         "📌 Watchlist & Note",
     ]
 )
-
 # -------------------------------------------------------------------------
 # QUI AGGIUNGERAI (o hai già) il codice tab EARLY, PRO, REA, ecc.
 # -------------------------------------------------------------------------
-
-with tabdiyvmdm:
-    st.subheader("Segnali DIY‑VMDM")
-
-    st.markdown(
-        "Tab dedicato ai titoli con **DIY_Long = True** "
-        "(tutti i criteri della strategia DIY in stato verde) "
-        "integrato con le metriche dell'indicatore **VMDM [BullByte]**."
-    )
-
-    with st.expander("Legenda DIY‑VMDM"):
-        st.markdown(
-            "- **DIY_Long**: prezzo > EMA20, RSI nel range scelto e Vol_Ratio ≥ 1.2.\n"
-            "- **VMDM_Mode**: stato principale del VMDM.\n"
-            "- **VMDM_Regime**: regime di mercato (Ranging, Trending Bull/Bear...).\n"
-            "- **VMDM_Pressure**: pressione BUYING/SELLING/NEUTRAL.\n"
-            "- **VMDM_RelVolume**: volume relativo (x volte la media).\n"
-            "- **VMDM_RSI**: RSI collegato al pannello VMDM.\n"
-            "- **VMDM_Confluence**: grado di confluence 0–100.\n"
-            "- **VMDM_LastInfo**: ultimo evento (es. SELL EXHAUST)."
-        )
-
-    if df_diy_vmdm.empty:
-        st.caption(
-            "Nessun titolo soddisfa il filtro DIY_Long oppure il file `vmdm_data.csv` non contiene dati."
-        )
-    else:
-        df_diy = df_diy_vmdm.copy()
-        df_diy = add_formatted_cols(df_diy)
-        df_diy = add_links(df_diy)
-
-        viewcols = [
-            "Nome",
-            "Ticker",
-            "Prezzo_fmt",
-            "MarketCap_fmt",
-            "Vol_Today_fmt",
-            "Vol_7d_Avg_fmt",
-            "DIY_Long",
-            "VMDM_Mode",
-            "VMDM_Regime",
-            "VMDM_Pressure",
-            "VMDM_RelVolume",
-            "VMDM_RSI",
-            "VMDM_Footprint",
-            "VMDM_Events",
-            "VMDM_Confluence",
-            "VMDM_Patterns",
-            "VMDM_RiskReward",
-            "VMDM_VolRatio",
-            "VMDM_LastInfo",
-            "Yahoo",
-            "Finviz",
-        ]
-        viewcols = [c for c in viewcols if c in df_diy.columns]
-
-        sortcols = [c for c in ["Pro_Score", "VMDM_Confluence"] if c in df_diy.columns]
-        if sortcols:
-            df_diy_view = df_diy.sort_values(
-                by=sortcols,
-                ascending=[False] * len(sortcols),
-            ).head(top)
-        else:
-            df_diy_view = df_diy.head(top)
-
-        st.dataframe(
-            df_diy_view[viewcols],
-            use_container_width=True,
-            column_config={
-                "Prezzo_fmt": "Prezzo",
-                "MarketCap_fmt": "Market Cap",
-                "Vol_Today_fmt": "Vol giorno",
-                "Vol_7d_Avg_fmt": "Vol medio 7g",
-                "DIY_Long": "DIY Long",
-                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-            },
-            hide_index=True,
-        )
-
-        csvdata = df_diy_view.to_csv(index=False).encode("utf-8")
-        out = io.BytesIO()
-        with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
-            df_diy_view.to_excel(writer, index=False, sheet_name="DIY-VMDM")
-        dataxlsx = out.getvalue()
-
-        tvdata = df_diy_view["Ticker"].drop_duplicates().to_frame(name="symbol")
-        csvtv = tvdata.to_csv(index=False, header=False).encode("utf-8")
-
-        colcsv, colxlsx, coltv = st.columns(3)
-        with colcsv:
-            st.downloadbutton(
-                "Export DIY‑VMDM CSV",
-                data=csvdata,
-                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_diyvmdm_csv",
-            )
-        with colxlsx:
-            st.downloadbutton(
-                "Export DIY‑VMDM XLSX",
-                data=dataxlsx,
-                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-                key="dl_diyvmdm_xlsx",
-            )
-        with coltv:
-            st.downloadbutton(
-                "Export DIY‑VMDM TradingView (solo ticker)",
-                data=csvtv,
-                file_name=f"TVDIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-                key="dl_diyvmdm_tv",
-            )
-
 # =============================================================================
 # EARLY – Top N per Early_Score / RSI / Vol_Ratio
 # =============================================================================
-with tab_e:
+with tabe:
     st.subheader("🟢 Segnali EARLY")
     st.markdown(
         f"Filtro EARLY: titoli con **Stato = EARLY** "
@@ -1117,7 +998,7 @@ with tab_e:
 # =============================================================================
 # PRO – Top N per Pro_Score / RSI / Vol_Ratio
 # =============================================================================
-with tab_p:
+with tabp:
     st.subheader("🟣 Segnali PRO")
     st.markdown(
         f"Filtro PRO: titoli con **Stato = PRO** "
@@ -1281,9 +1162,132 @@ with tab_p:
 
 
 # =============================================================================
+# TAB IYVMDM
+# =============================================================================
+
+
+with tabdiyvmdm:
+    st.subheader("Segnali DIY‑VMDM")
+
+    st.markdown(
+        "Tab dedicato ai titoli con **DIY_Long = True** "
+        "(tutti i criteri della strategia DIY in stato verde) "
+        "integrato con le metriche dell'indicatore **VMDM [BullByte]**."
+    )
+
+    with st.expander("Legenda DIY‑VMDM"):
+        st.markdown(
+            "- **DIY_Long**: prezzo > EMA20, RSI nel range scelto e Vol_Ratio ≥ 1.2.\n"
+            "- **VMDM_Mode**: stato principale del VMDM.\n"
+            "- **VMDM_Regime**: regime di mercato (Ranging, Trending Bull/Bear...).\n"
+            "- **VMDM_Pressure**: pressione BUYING/SELLING/NEUTRAL.\n"
+            "- **VMDM_RelVolume**: volume relativo (x volte la media).\n"
+            "- **VMDM_RSI**: RSI collegato al pannello VMDM.\n"
+            "- **VMDM_Confluence**: grado di confluence 0–100.\n"
+            "- **VMDM_LastInfo**: ultimo evento (es. SELL EXHAUST)."
+        )
+
+    if df_diy_vmdm.empty:
+        st.caption(
+            "Nessun titolo soddisfa il filtro DIY_Long oppure il file `vmdm_data.csv` non contiene dati."
+        )
+    else:
+        df_diy = df_diy_vmdm.copy()
+        df_diy = add_formatted_cols(df_diy)
+        df_diy = add_links(df_diy)
+
+        viewcols = [
+            "Nome",
+            "Ticker",
+            "Prezzo_fmt",
+            "MarketCap_fmt",
+            "Vol_Today_fmt",
+            "Vol_7d_Avg_fmt",
+            "DIY_Long",
+            "VMDM_Mode",
+            "VMDM_Regime",
+            "VMDM_Pressure",
+            "VMDM_RelVolume",
+            "VMDM_RSI",
+            "VMDM_Footprint",
+            "VMDM_Events",
+            "VMDM_Confluence",
+            "VMDM_Patterns",
+            "VMDM_RiskReward",
+            "VMDM_VolRatio",
+            "VMDM_LastInfo",
+            "Yahoo",
+            "Finviz",
+        ]
+        viewcols = [c for c in viewcols if c in df_diy.columns]
+
+        sortcols = [c for c in ["Pro_Score", "VMDM_Confluence"] if c in df_diy.columns]
+        if sortcols:
+            df_diy_view = df_diy.sort_values(
+                by=sortcols,
+                ascending=[False] * len(sortcols),
+            ).head(top)
+        else:
+            df_diy_view = df_diy.head(top)
+
+        st.dataframe(
+            df_diy_view[viewcols],
+            use_container_width=True,
+            column_config={
+                "Prezzo_fmt": "Prezzo",
+                "MarketCap_fmt": "Market Cap",
+                "Vol_Today_fmt": "Vol giorno",
+                "Vol_7d_Avg_fmt": "Vol medio 7g",
+                "DIY_Long": "DIY Long",
+                "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                "Finviz": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+            },
+            hide_index=True,
+        )
+
+        csvdata = df_diy_view.to_csv(index=False).encode("utf-8")
+        out = io.BytesIO()
+        with pd.ExcelWriter(out, engine="xlsxwriter") as writer:
+            df_diy_view.to_excel(writer, index=False, sheet_name="DIY-VMDM")
+        dataxlsx = out.getvalue()
+
+        tvdata = df_diy_view["Ticker"].drop_duplicates().to_frame(name="symbol")
+        csvtv = tvdata.to_csv(index=False, header=False).encode("utf-8")
+
+        colcsv, colxlsx, coltv = st.columns(3)
+        with colcsv:
+            st.downloadbutton(
+                "Export DIY‑VMDM CSV",
+                data=csvdata,
+                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_diyvmdm_csv",
+            )
+        with colxlsx:
+            st.downloadbutton(
+                "Export DIY‑VMDM XLSX",
+                data=dataxlsx,
+                file_name=f"DIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="dl_diyvmdm_xlsx",
+            )
+        with coltv:
+            st.downloadbutton(
+                "Export DIY‑VMDM TradingView (solo ticker)",
+                data=csvtv,
+                file_name=f"TVDIYVMDM_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="dl_diyvmdm_tv",
+            )
+
+
+# =============================================================================
 # REA‑QUANT / Rea Quant – Ranking unico HOT volumetrico
 # =============================================================================
-with tab_rea:
+with tabrea:
     st.subheader("🟠 REA‑QUANT / Rea Quant")
     st.markdown(
         f"Ranking unico in stile **Massimo Rea**: titoli con forte pressione volumetrica "
@@ -1470,7 +1474,7 @@ with tab_rea:
 # =============================================================================
 # SERAFINI – Top N per Pro_Score su breakout UP
 # =============================================================================
-with tab_serafini:
+with tabserafini:
     st.subheader("📈 Approccio Trend‑Following stile Stefano Serafini")
     st.markdown(
         "Sistema Donchian‑style su 20 giorni: breakout su massimi/minimi 20 giorni "
@@ -1652,7 +1656,7 @@ with tab_serafini:
 # =============================================================================
 # REGIME & MOMENTUM
 # =============================================================================
-with tab_regime:
+with tabregime:
     st.subheader("🧊 Regime & Momentum")
 
     if df_ep.empty:
@@ -2072,7 +2076,7 @@ with tab_mtf:
 # =============================================================================
 # FINVIZ-LIKE
 # =============================================================================
-with tab_finviz:
+with tabfinviz:
     st.subheader("📊 Finviz‑like")
 
     if df_ep.empty:
@@ -2229,7 +2233,7 @@ with tab_finviz:
 # =============================================================================
 # WATCHLIST & NOTE
 # =============================================================================
-with tab_watch:
+with tabwatch:
     st.subheader("📌 Watchlist & Note")
 
     df_wl = load_watchlist()
