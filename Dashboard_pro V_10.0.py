@@ -354,72 +354,6 @@ only_watchlist = st.sidebar.checkbox(
     "Mostra solo Watchlist (salta scanner)", value=False, key="only_watchlist"
 )
 
-    except FileNotFoundError:
-@st.cache_data(ttl=3600)
-def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
-    _empty = pd.DataFrame(
-        columns=[
-            "Ticker",
-            "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
-            "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
-            "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
-            "VMDM_Patterns", "VMDM_RiskReward",
-            "VMDM_VolRatio", "VMDM_LastInfo",
-        ]
-    )
-    rename_map = {
-        "Mode": "VMDM_Mode", "Regime": "VMDM_Regime",
-        "Pressure": "VMDM_Pressure", "Vol_RSI": "VMDM_Vol_RSI",
-        "Footprint": "VMDM_Footprint", "SessionEvents": "VMDM_Events",
-        "Confluence": "VMDM_Confluence", "StudiedPatterns": "VMDM_Patterns",
-        "RiskReward": "VMDM_RiskReward", "VolRatio": "VMDM_VolRatio",
-        "LastInfo": "VMDM_LastInfo",
-    }
-    try:
-        df = pd.read_csv(path)
-        df = df.rename(columns=rename_map)
-        if "Ticker" in df.columns:
-            df["Ticker"] = df["Ticker"].astype(str).str.strip().str.upper()
-        if "VMDM_Vol_RSI" in df.columns:
-            parts = df["VMDM_Vol_RSI"].astype(str).str.split("|", expand=True)
-            if parts.shape[1] >= 2:
-                df["VMDM_RelVolume"] = pd.to_numeric(
-                    parts[0].str.replace("x", "", regex=False).str.strip(),
-                    errors="coerce"
-                )
-                df["VMDM_RSI"] = pd.to_numeric(
-                    parts[1].str.upper().str.replace("RSI", "", regex=False).str.strip(),
-                    errors="coerce"
-                )
-        return df
-    except FileNotFoundError:
-        return _empty
-    except Exception:
-        return _empty
-
-        # file non presente: restituisco struttura vuota ma valida
-        return pd.DataFrame(
-            columns=[
-                "Ticker",
-                "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
-                "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
-                "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
-                "VMDM_Patterns", "VMDM_RiskReward",
-                "VMDM_VolRatio", "VMDM_LastInfo",
-            ]
-        )
-    except Exception:
-        return pd.DataFrame(
-            columns=[
-                "Ticker",
-                "VMDM_Mode", "VMDM_Regime", "VMDM_Pressure",
-                "VMDM_Vol_RSI", "VMDM_RelVolume", "VMDM_RSI",
-                "VMDM_Footprint", "VMDM_Events", "VMDM_Confluence",
-                "VMDM_Patterns", "VMDM_RiskReward",
-                "VMDM_VolRatio", "VMDM_LastInfo",
-            ]
-        )
-
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc):
     try:
         data = yf.Ticker(ticker).history(period="6mo")
@@ -1775,38 +1709,70 @@ with tabmtf:
     else:
         universe = df_ep["Ticker"].unique().tolist()
 
-        @st.cache_data(show_spinner=False)
-        def fetch_mt_data(tickers):
-            records = []
-            for tkr in tickers:
-                try:
-                    df_d = yf.Ticker(tkr).history(period="6mo", interval="1d")
-                    df_w = yf.Ticker(tkr).history(period="2y", interval="1wk")
-                    df_m = yf.Ticker(tkr).history(period="5y", interval="1mo")
+       @st.cache_data(ttl=3600)
+def load_vmdm_data(path: str = "vmdm_data.csv") -> pd.DataFrame:
+    _empty = pd.DataFrame(
+        columns=[
+            "Ticker",
+            "VMDM_Mode",
+            "VMDM_Regime",
+            "VMDM_Pressure",
+            "VMDM_Vol_RSI",
+            "VMDM_RelVolume",
+            "VMDM_RSI",
+            "VMDM_Footprint",
+            "VMDM_Events",
+            "VMDM_Confluence",
+            "VMDM_Patterns",
+            "VMDM_RiskReward",
+            "VMDM_VolRatio",
+            "VMDM_LastInfo",
+        ]
+    )
+    rename_map = {
+        "Mode":            "VMDM_Mode",
+        "Regime":          "VMDM_Regime",
+        "Pressure":        "VMDM_Pressure",
+        "Vol_RSI":         "VMDM_Vol_RSI",
+        "Footprint":       "VMDM_Footprint",
+        "SessionEvents":   "VMDM_Events",
+        "Confluence":      "VMDM_Confluence",
+        "StudiedPatterns": "VMDM_Patterns",
+        "RiskReward":      "VMDM_RiskReward",
+        "VolRatio":        "VMDM_VolRatio",
+        "LastInfo":        "VMDM_LastInfo",
+    }
+    try:
+        df = pd.read_csv(path)
+        df = df.rename(columns=rename_map)
+        if "Ticker" in df.columns:
+            df["Ticker"] = (
+                df["Ticker"].astype(str).str.strip().str.upper()
+            )
+        if "VMDM_Vol_RSI" in df.columns:
+            parts = (
+                df["VMDM_Vol_RSI"].astype(str).str.split("|", expand=True)
+            )
+            if parts.shape[1] >= 2:
+                df["VMDM_RelVolume"] = pd.to_numeric(
+                    parts[0]
+                    .str.replace("x", "", regex=False)
+                    .str.strip(),
+                    errors="coerce",
+                )
+                df["VMDM_RSI"] = pd.to_numeric(
+                    parts[1]
+                    .str.upper()
+                    .str.replace("RSI", "", regex=False)
+                    .str.strip(),
+                    errors="coerce",
+                )
+        return df
+    except FileNotFoundError:
+        return _empty
+    except Exception:
+        return _empty
 
-                    if len(df_d) < 30 or len(df_w) < 30 or len(df_m) < 30:
-                        continue
-
-                    def mk_row(df, tf_label):
-                        close = df["Close"]
-                        rsi = ta.momentum.rsi(close, window=14).iloc[-1]
-
-                        ma_fast = close.rolling(20).mean().iloc[-1]
-                        ma_slow = close.rolling(50).mean().iloc[-1]
-                        if ma_fast > ma_slow:
-                            trend = "UP"
-                        elif ma_fast < ma_slow:
-                            trend = "DOWN"
-                        else:
-                            trend = "SIDE"
-
-                        last = close.iloc[-1]
-                        momentum_tf = (
-                            (1 if trend == "UP" else -1 if trend == "DOWN" else 0) * 10
-                            + rsi
-                        )
-
-                        return {
                             "Ticker": tkr,
                             "TF": tf_label,
                             f"Close_{tf_label}": round(last, 2),
