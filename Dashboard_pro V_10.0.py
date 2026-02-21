@@ -9,43 +9,38 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import yfinance as yf
-from fpdf import FPDF  # pip install fpdf2
+from fpdf import FPDF
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # CONFIGURAZIONE BASE PAGINA
-# -----------------------------------------------------------------------------
+# =============================================================================
 st.set_page_config(
     page_title="Trading Scanner – Versione PRO 10.0",
     layout="wide",
     page_icon="📊",
 )
 
-
 st.title("📊 Trading Scanner – Versione PRO 10.0")
-
 st.caption(
-    "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
-    "Multi‑Timeframe • Finviz • Watchlist DB"
+    "EARLY • PRO • DIY-VMDM • REA‑QUANT • Serafini • "
+    "Regime & Momentum • Multi‑Timeframe • Finviz • Watchlist DB"
 )
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # FORMATTAZIONE NUMERICA
-# -----------------------------------------------------------------------------
+# =============================================================================
 try:
     locale.setlocale(locale.LC_ALL, "")
 except locale.Error:
     pass
 
 
-def fmt_currency(value, symbol="€"):
+def fmt_currency(value, symbol="$"):
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
     return (
-        f"{value:,.2f}"
-        .replace(",", "X")
-        .replace(".", ",")
-        .replace("X", ".")
-        .join([symbol, ""])[0:-1]
+        f"{symbol}{value:,.2f}"
+        .replace(",", "X").replace(".", ",").replace("X", ".")
     )
 
 
@@ -55,7 +50,7 @@ def fmt_int(value):
     return f"{int(value):,}".replace(",", ".")
 
 
-def fmt_marketcap(value, symbol="€"):
+def fmt_marketcap(value, symbol="$"):
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return ""
     v = float(value)
@@ -69,51 +64,39 @@ def fmt_marketcap(value, symbol="€"):
         return fmt_currency(v, symbol)
     return (
         f"{symbol}{s}"
-        .replace(",", "X")
-        .replace(".", ",")
-        .replace("X", ".")
+        .replace(",", "X").replace(".", ",").replace("X", ".")
     )
 
 
 def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
     if "Currency" not in df.columns:
         df["Currency"] = "USD"
-
     if "Prezzo" in df.columns:
         df["Prezzo_fmt"] = df.apply(
             lambda r: fmt_currency(
-                r["Prezzo"],
-                "€" if r["Currency"] == "EUR" else "$",
-            ),
-            axis=1,
+                r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"
+            ), axis=1,
         )
-
     if "MarketCap" in df.columns:
         df["MarketCap_fmt"] = df.apply(
             lambda r: fmt_marketcap(
-                r["MarketCap"],
-                "€" if r["Currency"] == "EUR" else "$",
-            ),
-            axis=1,
+                r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"
+            ), axis=1,
         )
-
     if "Vol_Today" in df.columns:
         df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
-
     if "Vol_7d_Avg" in df.columns:
         df["Vol_7d_Avg_fmt"] = df["Vol_7d_Avg"].apply(fmt_int)
-
     return df
 
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # LINK YAHOO + TRADINGVIEW
-# -----------------------------------------------------------------------------
+# =============================================================================
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
     col = "Ticker" if "Ticker" in df.columns else "ticker"
     if col not in df.columns:
         return df
-
     df["Yahoo"] = df[col].astype(str).apply(
         lambda t: f"https://finance.yahoo.com/quote/{t}"
     )
@@ -123,9 +106,9 @@ def add_links(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # DB WATCHLIST (SQLite)
-# -----------------------------------------------------------------------------
+# =============================================================================
 DB_PATH = Path("watchlist.db")
 
 
@@ -146,6 +129,11 @@ def init_db():
         )
         """
     )
+    for col in ["trend", "list_name"]:
+        try:
+            c.execute(f"ALTER TABLE watchlist ADD COLUMN {col} TEXT")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
 
@@ -159,9 +147,7 @@ def reset_watchlist_db():
     init_db()
 
 
-def add_to_watchlist(
-    tickers, names, origine, note, trend="LONG", list_name="DEFAULT"
-):
+def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
     if not tickers:
         return
     conn = sqlite3.connect(DB_PATH)
@@ -169,11 +155,8 @@ def add_to_watchlist(
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     for t, n in zip(tickers, names):
         c.execute(
-            """
-            INSERT INTO watchlist
-            (ticker, name, trend, origine, note, list_name, created_at)
-            VALUES (?,?,?,?,?,?,?)
-            """,
+            "INSERT INTO watchlist (ticker,name,trend,origine,note,list_name,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
             (t, n, trend, origine, note, list_name, now),
         )
     conn.commit()
@@ -183,32 +166,12 @@ def add_to_watchlist(
 def load_watchlist() -> pd.DataFrame:
     if not DB_PATH.exists():
         return pd.DataFrame(
-            columns=[
-                "id",
-                "ticker",
-                "name",
-                "trend",
-                "origine",
-                "note",
-                "list_name",
-                "created_at",
-            ]
+            columns=["id","ticker","name","trend","origine","note","list_name","created_at"]
         )
     conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query(
-        "SELECT * FROM watchlist ORDER BY created_at DESC", conn
-    )
+    df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
     conn.close()
-    for col in [
-        "id",
-        "ticker",
-        "name",
-        "trend",
-        "origine",
-        "note",
-        "list_name",
-        "created_at",
-    ]:
+    for col in ["id","ticker","name","trend","origine","note","list_name","created_at"]:
         if col not in df.columns:
             df[col] = "" if col != "id" else np.nan
     return df
@@ -217,9 +180,7 @@ def load_watchlist() -> pd.DataFrame:
 def update_watchlist_note(row_id, new_note):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute(
-        "UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id))
-    )
+    c.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
     conn.commit()
     conn.close()
 
@@ -229,9 +190,7 @@ def delete_from_watchlist(ids):
         return
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.executemany(
-        "DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids]
-    )
+    c.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
     conn.commit()
     conn.close()
 
@@ -256,108 +215,65 @@ if "current_list_name" not in st.session_state:
     st.session_state["current_list_name"] = "DEFAULT"
 
 # =============================================================================
-# SIDEBAR – MERCATI E PARAMETRI
+# SIDEBAR
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
 
 st.sidebar.subheader("📈 Selezione Mercati")
 m = {
-    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
-    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
-    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
-    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones", False),
-    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", False),
-    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
-    "ETF": st.sidebar.checkbox("📦 ETF", False),
-    "Crypto": st.sidebar.checkbox("₿ Crypto", False),
-    "Emerging": st.sidebar.checkbox("🌍 Emergenti", False),
+    "Eurostoxx":  st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
+    "FTSE":       st.sidebar.checkbox("🇮🇹 FTSE MIB",      st.session_state["m_FTSE"]),
+    "SP500":      st.sidebar.checkbox("🇺🇸 S&P 500",        st.session_state["m_SP500"]),
+    "Nasdaq":     st.sidebar.checkbox("🇺🇸 Nasdaq 100",     st.session_state["m_Nasdaq"]),
+    "Dow":        st.sidebar.checkbox("🇺🇸 Dow Jones",      False),
+    "Russell":    st.sidebar.checkbox("🇺🇸 Russell 2000",   False),
+    "Commodities":st.sidebar.checkbox("🛢️ Materie Prime",  False),
+    "ETF":        st.sidebar.checkbox("📦 ETF",             False),
+    "Crypto":     st.sidebar.checkbox("₿ Crypto",           False),
+    "Emerging":   st.sidebar.checkbox("🌍 Emergenti",       False),
 }
 sel = [k for k, v in m.items() if v]
-
-st.session_state["m_FTSE"] = m["FTSE"]
-st.session_state["m_SP500"] = m["SP500"]
+st.session_state["m_FTSE"]   = m["FTSE"]
+st.session_state["m_SP500"]  = m["SP500"]
 st.session_state["m_Nasdaq"] = m["Nasdaq"]
 
 st.sidebar.divider()
-
 st.sidebar.subheader("🎛️ Parametri Scanner")
 
-e_h = (
-    st.sidebar.slider(
-        "EARLY - Distanza EMA20 (%)",
-        0.0,
-        10.0,
-        float(st.session_state["e_h"] * 100),
-        0.5,
-    )
-    / 100
-)
+e_h = st.sidebar.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0,
+                         float(st.session_state["e_h"] * 100), 0.5) / 100
 st.session_state["e_h"] = e_h
 
-p_rmin = st.sidebar.slider(
-    "PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5
-)
+p_rmin = st.sidebar.slider("PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5)
 st.session_state["p_rmin"] = p_rmin
 
-p_rmax = st.sidebar.slider(
-    "PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5
-)
+p_rmax = st.sidebar.slider("PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5)
 st.session_state["p_rmax"] = p_rmax
 
-r_poc = (
-    st.sidebar.slider(
-        "REA - Distanza POC (%)",
-        0.0,
-        10.0,
-        float(st.session_state["r_poc"] * 100),
-        0.5,
-    )
-    / 100
-)
+r_poc = st.sidebar.slider("REA - Distanza POC (%)", 0.0, 10.0,
+                            float(st.session_state["r_poc"] * 100), 0.5) / 100
 st.session_state["r_poc"] = r_poc
 
 st.sidebar.subheader("🔎 Filtri avanzati")
-eps_next_y_min = st.sidebar.number_input(
-    "EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0
-)
-eps_next_5y_min = st.sidebar.number_input(
-    "EPS Growth Next 5Y min (%)", 0.0, 100.0, 15.0, 1.0
-)
-avg_vol_min_mln = st.sidebar.number_input(
-    "Avg Volume min (milioni)", 0.0, 100.0, 1.0, 0.5
-)
-price_min_finviz = st.sidebar.number_input(
-    "Prezzo min per filtro Finviz", 0.0, 5000.0, 10.0, 1.0
-)
-vol_ratio_hot = st.sidebar.number_input(
-    "Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1
-)
-momentum_min = st.sidebar.number_input(
-    "Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0
-)
+eps_next_y_min   = st.sidebar.number_input("EPS Growth Next Year min (%)", 0.0, 100.0, 10.0, 1.0)
+eps_next_5y_min  = st.sidebar.number_input("EPS Growth Next 5Y min (%)",   0.0, 100.0, 15.0, 1.0)
+avg_vol_min_mln  = st.sidebar.number_input("Avg Volume min (milioni)",      0.0, 100.0,  1.0, 0.5)
+price_min_finviz = st.sidebar.number_input("Prezzo min per filtro Finviz",  0.0, 5000.0, 10.0, 1.0)
+vol_ratio_hot    = st.sidebar.number_input("Vol_Ratio minimo REA‑HOT",      0.0,  10.0,  1.5, 0.1)
+momentum_min     = st.sidebar.number_input("Momentum minimo (Pro_Score×10 + RSI)", 0.0, 2000.0, 0.0, 10.0)
 
 st.sidebar.subheader("📤 Output")
-top = st.sidebar.number_input(
-    "TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5
-)
+top = st.sidebar.number_input("TOP N titoli per tab", 5, 50, int(st.session_state["top"]), 5)
 st.session_state["top"] = top
 
 st.sidebar.subheader("📁 Lista Watchlist attiva")
 df_wl_sidebar = load_watchlist()
-
 if not df_wl_sidebar.empty and "list_name" in df_wl_sidebar.columns:
-    list_options = (
-        df_wl_sidebar["list_name"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .tolist()
-    )
-    list_options = sorted({ln for ln in list_options if ln})
+    list_options = sorted({
+        ln for ln in df_wl_sidebar["list_name"].dropna().astype(str).str.strip().tolist() if ln
+    })
 else:
     list_options = []
-
 if not list_options:
     list_options = ["DEFAULT"]
 
@@ -368,31 +284,19 @@ default_list = (
 )
 
 selected_list = st.sidebar.selectbox(
-    "Lista esistente",
-    options=list_options,
-    index=list_options.index(default_list),
-    key="sb_wl_select",
-    help="Seleziona una watchlist già presente.",
+    "Lista esistente", options=list_options,
+    index=list_options.index(default_list), key="sb_wl_select",
 )
-
 new_list_name = st.sidebar.text_input(
-    "Crea nuova lista",
-    value="",
-    key="sb_wl_new",
+    "Crea nuova lista", value="", key="sb_wl_new",
     placeholder="Es. Swing, LT, Crypto...",
 )
-
 rename_target = st.sidebar.selectbox(
-    "Rinomina lista",
-    options=list_options,
-    index=list_options.index(selected_list),
-    key="sb_wl_rename_target",
+    "Rinomina lista", options=list_options,
+    index=list_options.index(selected_list), key="sb_wl_rename_target",
 )
-
 new_name_for_rename = st.sidebar.text_input(
-    "Nuovo nome per la lista selezionata",
-    value="",
-    key="sb_wl_rename_new",
+    "Nuovo nome per la lista selezionata", value="", key="sb_wl_rename_new",
     placeholder="Nuovo nome...",
 )
 
@@ -402,10 +306,7 @@ if st.sidebar.button("🔤 Applica rinomina"):
         new = new_name_for_rename.strip()
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-        c.execute(
-            "UPDATE watchlist SET list_name = ? WHERE list_name = ?",
-            (new, old),
-        )
+        c.execute("UPDATE watchlist SET list_name = ? WHERE list_name = ?", (new, old))
         conn.commit()
         conn.close()
         st.sidebar.success(f"Lista '{old}' rinominata in '{new}'.")
@@ -414,12 +315,14 @@ if st.sidebar.button("🔤 Applica rinomina"):
     else:
         st.sidebar.warning("Inserisci un nuovo nome per rinominare.")
 
-active_list = selected_list
-if new_list_name.strip():
-    active_list = new_list_name.strip()
-
+active_list = new_list_name.strip() if new_list_name.strip() else selected_list
 st.session_state["current_list_name"] = active_list
 st.sidebar.caption(f"Lista attiva: **{active_list}**")
+
+st.sidebar.subheader("🧠 Modalità")
+only_watchlist = st.sidebar.checkbox(
+    "Mostra solo Watchlist (salta scanner)", value=False, key="only_watchlist"
+)
 
 # =============================================================================
 # FUNZIONI DI SUPPORTO
@@ -427,94 +330,12 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
-
     if "SP500" in markets:
         sp = pd.read_csv(
-            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-        )["Symbol"].tolist()
-        t += sp
+            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/"
+            "master/data/constituents.csv"
+        )
 
-    if "Nasdaq" in markets:
-        t += [
-            "AAPL",
-            "MSFT",
-            "GOOGL",
-            "AMZN",
-            "NVDA",
-            "META",
-            "TSLA",
-            "AVGO",
-            "NFLX",
-            "ADBE",
-            "COST",
-            "PEP",
-            "CSCO",
-            "INTC",
-            "AMD",
-        ]
-
-    if "Dow" in markets:
-        t += [
-            "AAPL",
-            "MSFT",
-            "JPM",
-            "V",
-            "UNH",
-            "JNJ",
-            "WMT",
-            "PG",
-            "HD",
-            "DIS",
-            "KO",
-            "MCD",
-            "BA",
-            "CAT",
-            "GS",
-        ]
-
-    if "Russell" in markets:
-        t += ["IWM", "VTWO"]
-
-    if "FTSE" in markets:
-        t += [
-            "UCG.MI",
-            "ISP.MI",
-            "ENEL.MI",
-            "ENI.MI",
-            "LDO.MI",
-            "PRY.MI",
-            "STM.MI",
-            "TEN.MI",
-            "A2A.MI",
-            "AMP.MI",
-        ]
-
-    if "Eurostoxx" in markets:
-        t += [
-            "ASML.AS",
-            "NESN.SW",
-            "SAN.PA",
-            "TTE.PA",
-            "AIR.PA",
-            "MC.PA",
-            "OR.PA",
-            "SU.PA",
-        ]
-
-    if "Commodities" in markets:
-        t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
-
-    if "ETF" in markets:
-        t += ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"]
-
-    if "Crypto" in markets:
-        t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
-
-    if "Emerging" in markets:
-        t += ["EEM", "EWZ", "INDA", "FXI"]
-
-    # rimuovo duplicati mantenendo l'ordine
-    return list(dict.fromkeys(t))
 
 
 
