@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 import json
 import io
+import numpy as np
 from pathlib import Path
 from datetime import datetime
 from run_scan import run_scan
@@ -21,12 +22,36 @@ st.set_page_config(
 st.title("📊 Trading Scanner — V11 Professional")
 
 # ----------------------------------------------------------
-# MARKET UNIVERSES (Sync with V9 and run_scan)
+# UTILITIES & FORMATTING
+# ----------------------------------------------------------
+def fmt_currency(value, currency="USD"):
+    if value is None or np.isnan(value): return ""
+    symbol = "$" if currency == "USD" else "€"
+    # Format: $1.234,56 or €1.234,56 (European style)
+    return f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def fmt_int(value):
+    if value is None or np.isnan(value): return ""
+    return f"{int(value):,}".replace(",", ".")
+
+def fmt_marketcap(value, currency="USD"):
+    if value is None or value == 0 or np.isnan(value): return ""
+    symbol = "$" if currency == "USD" else "€"
+    if value >= 1_000_000_000_000:
+        return f"{symbol}{value / 1_000_000_000_000:,.2f}T".replace(",", "X").replace(".", ",").replace("X", ".")
+    if value >= 1_000_000_000:
+        return f"{symbol}{value / 1_000_000_000:,.2f}B".replace(",", "X").replace(".", ",").replace("X", ".")
+    if value >= 1_000_000:
+        return f"{symbol}{value / 1_000_000:,.2f}M".replace(",", "X").replace(".", ",").replace("X", ".")
+    return fmt_currency(value, currency)
+
+# ----------------------------------------------------------
+# MARKET UNIVERSES
 # ----------------------------------------------------------
 MARKETS = {
     "FTSE": ["ENI.MI", "ISP.MI", "UCG.MI", "STM.MI", "ENEL.MI", "LDO.MI", "PRY.MI", "TEN.MI", "A2A.MI", "AMP.MI", "BAMI.MI", "BMED.MI", "FBK.MI", "MONC.MI", "PST.MI"],
-    "SP500": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "V", "TSLA", "WMT", "JPM", "UNH", "MA"],
-    "Nasdaq": ["TSLA", "AMD", "AVGO", "INTC", "NFLX", "ADBE", "COST", "PEP", "CSCO", "AZN", "QCOM", "AMGN", "TMUS", "TXN", "AMAT"],
+    "SP500": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "V", "TSLA", "WMT", "JPM", "UNH", "MA", "ORCL", "COST", "HD", "PG", "CVX"],
+    "Nasdaq": ["TSLA", "AMD", "AVGO", "INTC", "NFLX", "ADBE", "COST", "PEP", "CSCO", "AZN", "QCOM", "AMGN", "TMUS", "TXN", "AMAT", "SBUX", "ISRG", "MDLZ", "LRCX", "ADI"],
     "ETF": ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM", "VXX", "SOXX", "XLE"],
     "Crypto": ["BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD"],
     "Eurostoxx": ["ASML.AS", "MC.PA", "OR.PA", "TTE.PA", "AIR.PA", "SAN.PA", "SAP.DE", "SIE.DE", "IBE.MC", "NESN.SW"]
@@ -81,14 +106,13 @@ if run_scan_btn:
     
     with st.spinner("Scansione mercati in corso..."):
         try:
-            # Chiamata alla funzione run_scan() importata da run_scan.py
             run_scan()
             st.success("Scan completato ✅")
         except Exception as e:
             st.error(f"Errore durante lo scan: {e}")
 
 # ----------------------------------------------------------
-# LOAD RESULTS & TABS
+# LOAD RESULTS & DISPLAY
 # ----------------------------------------------------------
 result_path = Path("data/scan_results.json")
 tab_results, tab_legend = st.tabs(["📊 Risultati Scan", "📘 Legenda Filtri"])
@@ -104,6 +128,13 @@ with tab_results:
                 df['Yahoo'] = df['ticker'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}")
                 df['TradingView'] = df['ticker'].apply(lambda x: f"https://www.tradingview.com/chart/?symbol={x.split('.')[0]}")
                 
+                # Apply Formatting for Display
+                df_display = df.copy()
+                df_display['Prezzo'] = df.apply(lambda r: fmt_currency(r['price'], r.get('currency', 'USD')), axis=1)
+                df_display['Market Cap'] = df.apply(lambda r: fmt_marketcap(r.get('market_cap', 0), r.get('currency', 'USD')), axis=1)
+                df_display['Vol giorno'] = df['vol_today'].apply(fmt_int)
+                df_display['Vol medio 7g'] = df['vol_7d_avg'].apply(fmt_int)
+                
                 # Metrics
                 c1, c2, c3 = st.columns(3)
                 n_strong = (df["signal"] == "STRONG BUY").sum()
@@ -113,40 +144,43 @@ with tab_results:
                 c2.metric("BUY", int(n_buy))
                 c3.metric("Assets scansionati", len(df))
 
-                # Table formatting
+                # Table styling
                 def color_signal(val):
-                    if val == "STRONG BUY":
-                        return "background-color:#0f5132;color:white"
-                    if val == "BUY":
-                        return "background-color:#664d03;color:white"
+                    if val == "STRONG BUY": return "background-color:#0f5132;color:white"
+                    if val == "BUY": return "background-color:#664d03;color:white"
                     return ""
 
                 st.subheader("Tabella Segnali")
                 
-                # Column Configuration
+                # Define columns to show (sync with image)
+                cols_to_show = [
+                    "name", "ticker", "Prezzo", "Market Cap", "Vol giorno", "Vol medio 7g", 
+                    "score", "rsi", "vol_ratio", "obv_trend", "atr", "atr_exp", "signal", 
+                    "Yahoo", "TradingView"
+                ]
+                
+                # Rename for UI
+                df_final = df_display[cols_to_show].rename(columns={
+                    "name": "Nome", "ticker": "Ticker", "score": "Early_Score", 
+                    "rsi": "RSI", "vol_ratio": "Vol_Ratio", "obv_trend": "OBV_Trend",
+                    "atr": "ATR", "atr_exp": "ATR_Exp", "signal": "Stato"
+                })
+
                 st.dataframe(
-                    df.style.applymap(color_signal, subset=["signal"]),
+                    df_final.style.applymap(color_signal, subset=["Stato"]),
                     use_container_width=True,
                     column_config={
                         "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                        "TradingView": st.column_config.LinkColumn("TV Chart", display_text="Grafico")
+                        "TradingView": st.column_config.LinkColumn("TradingView", display_text="Apri"),
+                        "ATR_Exp": st.column_config.CheckboxColumn("ATR_Exp")
                     }
                 )
                 
-                # Export buttons
+                # Export
                 st.divider()
                 st.subheader("📥 Esporta Risultati")
-                col_csv, col_xlsx = st.columns(2)
-                
                 csv = df.to_csv(index=False).encode('utf-8')
-                with col_csv:
-                    st.download_button("⬇️ Scarica CSV", data=csv, file_name=f"scan_v11_{datetime.now().strftime('%Y%m%d')}.csv", mime='text/csv', use_container_width=True)
-                
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Signals')
-                with col_xlsx:
-                    st.download_button("⬇️ Scarica Excel", data=output.getvalue(), file_name=f"scan_v11_{datetime.now().strftime('%Y%m%d')}.xlsx", use_container_width=True)
+                st.download_button("⬇️ Scarica Risultati CSV", data=csv, file_name=f"scan_v11_{datetime.now().strftime('%Y%m%d')}.csv", use_container_width=True)
 
             else:
                 st.info("Nessun segnale trovato. Prova a cambiare mercati o avviare un nuovo scan.")
@@ -159,23 +193,12 @@ with tab_legend:
     st.subheader("Spiegazione Filtri V11")
     st.markdown("""
     Lo scanner V11 utilizza un sistema a **punteggio (score)** basato su 5 criteri tecnici:
-    
-    1. **Trend EMA50**: Punteggio se la media mobile a 50 giorni è sopra il prezzo di 5 giorni fa (Trend Rialzista).
-    2. **RSI Momentum**: Punteggio se l'RSI(14) sta salendo e non è ancora in ipercomprato (>70).
-    3. **MACD Cross**: Punteggio se la linea MACD è sopra la Signal Line.
-    4. **Volume Confirm**: Punteggio se il volume odierno è superiore alla media degli ultimi 20 giorni.
-    5. **Volatility (ATR)**: Punteggio se la volatilità (ATR/Prezzo) è contenuta (tra 0.5% e 10%), evitando titoli troppo piatti o troppo nervosi.
-
-    **Livelli di Segnale:**
-    * 🔴 **NONE** (Score < 3): Nessuna configurazione interessante.
-    * 🟡 **BUY** (Score 3-4): Configurazione rialzista in formazione.
-    * 🟢 **STRONG BUY** (Score 5): Tutti i criteri tecnici sono allineati al rialzo.
+    1. **Trend EMA50**: Rialzo EMA50 vs prezzo 5 giorni fa.
+    2. **RSI Momentum**: RSI in salita e < 70.
+    3. **MACD Cross**: MACD sopra la Signal Line.
+    4. **Volume Confirm**: Volume odierno > media 20 giorni.
+    5. **Volatility (ATR)**: Volatilità percentuale tra 0.5% e 10%.
     """)
 
-# ----------------------------------------------------------
-# FOOTER
-# ----------------------------------------------------------
 st.divider()
-st.caption(
-    f"Ultimo aggiornamento interfaccia: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-)
+st.caption(f"Ultimo aggiornamento interfaccia: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
