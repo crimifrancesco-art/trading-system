@@ -44,7 +44,7 @@ def load_watchlists():
 def save_watchlists(data):
     WATCHLIST_FILE.write_text(json.dumps(data, indent=2))
 
-def fmt_market_cap(value):
+def fmt_compact(value):
     if not value: return "N/A"
     try:
         v = float(value)
@@ -150,9 +150,9 @@ with tab_results:
                     disp["Nome"] = filtered_df["name"]
                     disp["Ticker"] = filtered_df["ticker"]
                     disp["Prezzo"] = filtered_df["price"]
-                    disp["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
-                    disp["Vol Giorno"] = filtered_df["vol_today"]
-                    disp["Vol Medio 7g"] = filtered_df["vol_7d_avg"]
+                    disp["Market Cap"] = filtered_df["market_cap"].apply(fmt_compact)
+                    disp["Vol Giorno"] = filtered_df["vol_today"].apply(fmt_compact)
+                    disp["Vol Medio 7g"] = filtered_df["vol_7d_avg"].apply(fmt_compact)
                     disp["RSI"] = filtered_df["rsi"]
                     disp["Score"] = filtered_df["score"]
                     disp["Segnale"] = filtered_df["signal"]
@@ -167,27 +167,72 @@ with tab_results:
                         disp.style.applymap(color_signal, subset=["Segnale"]),
                         column_config={
                             "Prezzo": st.column_config.NumberColumn("Prezzo", format="$ %.2f"),
-                            "Vol Giorno": st.column_config.NumberColumn("Vol Giorno", format="%d"),
-                            "Vol Medio 7g": st.column_config.NumberColumn("Vol Medio 7g", format="%d"),
                             "RSI": st.column_config.NumberColumn("RSI", format="%.2f"),
-                            "Yahoo": st.column_config.LinkColumn(
-                                "Yahoo", display_text="Apri"
-                            ),
-                            "TV": st.column_config.LinkColumn(
-                                "TradingView", display_text="Apri"
-                            ),
+                            "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
+                            "TV": st.column_config.LinkColumn("TradingView", display_text="Apri"),
                         },
                         use_container_width=True,
                         hide_index=True
                     )
+                    
+                    # --- EXPORT SECTION ---
+                    st.markdown("### 📥 Export Risultati")
+                    col_ex1, col_ex2, col_ex3 = st.columns(3)
+                    
+                    # CSV Export
+                    csv = filtered_df.to_csv(index=False).encode('utf-8')
+                    col_ex1.download_button(
+                        label="📥 Export CSV",
+                        data=csv,
+                        file_name=f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime='text/csv',
+                        use_container_width=True
+                    )
+                    
+                    # Excel Export
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                        filtered_df.to_excel(writer, index=False, sheet_name='ScanResults')
+                    col_ex2.download_button(
+                        label="📥 Export XLSX",
+                        data=buffer.getvalue(),
+                        file_name=f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        use_container_width=True
+                    )
+                    
+                    # TradingView Export (Ticker Only)
+                    tv_list = ",".join(filtered_df["ticker"].tolist())
+                    col_ex3.download_button(
+                        label="📥 Export TV (Ticker)",
+                        data=tv_list,
+                        file_name=f"tv_watchlist_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime='text/plain',
+                        use_container_width=True
+                    )
 
+                    # --- WATCHLIST ADDITION ---
+                    st.markdown("---")
                     st.markdown("### ➕ Aggiungi a Watchlist")
-                    to_add = st.selectbox("Seleziona Ticker", filtered_df["ticker"].tolist())
-                    if st.button(f"Aggiungi {to_add} a {active_list}"):
-                        if to_add not in watchlists[active_list]:
-                            watchlists[active_list].append(to_add)
+                    
+                    # Multi-selection for tickers
+                    tickers_to_save = st.multiselect("Seleziona uno o più Ticker", filtered_df["ticker"].tolist(), default=filtered_df["ticker"].tolist()[:1])
+                    common_note = st.text_input("Note comuni per questi ticker (opzionale)", placeholder="Es: Swing trade, entry point...")
+                    
+                    if st.button(f"Salva {len(tickers_to_save)} titoli in {active_list}", use_container_width=True):
+                        if not tickers_to_save:
+                            st.warning("Seleziona almeno un ticker.")
+                        else:
+                            added_count = 0
+                            for t in tickers_to_save:
+                                if t not in watchlists[active_list]:
+                                    # We could extend the data structure to include notes, 
+                                    # but for now we keep it simple or store as a dict if needed.
+                                    watchlists[active_list].append(t)
+                                    added_count += 1
                             save_watchlists(watchlists)
-                            st.success(f"{to_add} aggiunto!")
+                            st.success(f"Aggiunti {added_count} nuovi titoli a {active_list}!")
+
                 else:
                     st.info("Nessun risultato trovato.")
         except Exception as e:
@@ -231,7 +276,4 @@ with tab_legend:
     - **MACD**: Linea MACD > Linea Segnale.
     - **Volume**: Volume odierno > Media mobile volumi a 20gg.
     - **ATR**: Volatilità (ATR/Prezzo) tra 0.5% e 10%.
-
-    **Links:**
-    - **Yahoo / TV**: Clicca su “Apri” per accedere alla pagina del titolo su Yahoo Finance o TradingView.
     """)
