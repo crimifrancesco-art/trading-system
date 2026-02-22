@@ -115,11 +115,7 @@ def analyze_ticker(ticker):
 
 def run_scan():
     results = []
-    import sys
-print("run_scan() chiamata, TICKERS:", TICKERS, file=sys.stderr)
 
-
-    # DEBUG: prova con pochi ticker noti
     tickers_to_scan = TICKERS or ["AAPL", "MSFT"]
 
     for t in tickers_to_scan:
