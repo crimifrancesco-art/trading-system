@@ -55,6 +55,13 @@ def fmt_market_cap(value):
         return f"{int(v):,}"
     except: return "N/A"
 
+def color_signal(val):
+    if val == "STRONG BUY":
+        return "background-color: #0f5132; color: white;"
+    if val == "BUY":
+        return "background-color: #664d03; color: white;"
+    return ""
+
 # ----------------------------------------------------------
 # SIDEBAR - CONFIGURAZIONE
 # ----------------------------------------------------------
@@ -94,7 +101,6 @@ if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
     all_tickers = []
     for m in selected_markets:
         all_tickers.extend(MARKETS_DICT[m])
-    
     if not all_tickers:
         st.warning("Seleziona almeno un mercato.")
     else:
@@ -124,36 +130,57 @@ with tab_results:
             df = pd.DataFrame(data)
             if not df.empty:
                 c1, c2 = st.columns(2)
-                with c1: min_score = st.slider("Min Score", 0, 5, 3)
-                with c2: signal_filter = st.multiselect("Segnale", ["STRONG BUY", "BUY", "NONE"], default=["STRONG BUY", "BUY"])
-                
-                filtered_df = df[(df['score'] >= min_score) & (df['signal'].isin(signal_filter))].head(top_n).copy()
-                
+                with c1:
+                    min_score = st.slider("Min Score", 0, 5, 3)
+                with c2:
+                    signal_filter = st.multiselect(
+                        "Segnale",
+                        ["STRONG BUY", "BUY", "NONE"],
+                        default=["STRONG BUY", "BUY"]
+                    )
+
+                filtered_df = df[
+                    (df['score'] >= min_score) &
+                    (df['signal'].isin(signal_filter))
+                ].head(top_n).copy()
+
                 if not filtered_df.empty:
-                    # Formatting
-                    filtered_df["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
-                    filtered_df["Yahoo"] = filtered_df["ticker"].apply(lambda t: f"https://finance.yahoo.com/quote/{t}")
-                    filtered_df["TV"] = filtered_df["ticker"].apply(lambda t: f"https://www.tradingview.com/symbols/{t.replace('-', '').replace('.', '')}/")
-                    
-                    # Columns to display
-                    COLS_DISPLAY = ["name", "ticker", "price", "Market Cap", "vol_today", "vol_7d_avg", "rsi", "score", "signal", "Yahoo", "TV"]
-                    
+                    # Build display dataframe
+                    disp = pd.DataFrame()
+                    disp["Nome"] = filtered_df["name"]
+                    disp["Ticker"] = filtered_df["ticker"]
+                    disp["Prezzo"] = filtered_df["price"]
+                    disp["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
+                    disp["Vol Giorno"] = filtered_df["vol_today"]
+                    disp["Vol Medio 7g"] = filtered_df["vol_7d_avg"]
+                    disp["RSI"] = filtered_df["rsi"]
+                    disp["Score"] = filtered_df["score"]
+                    disp["Segnale"] = filtered_df["signal"]
+                    disp["Yahoo"] = filtered_df["ticker"].apply(
+                        lambda t: f"https://finance.yahoo.com/quote/{t}"
+                    )
+                    disp["TV"] = filtered_df["ticker"].apply(
+                        lambda t: f"https://www.tradingview.com/symbols/{t.replace('-','').replace('.','')}/"
+                    )
+
                     st.dataframe(
-                        filtered_df[COLS_DISPLAY],
+                        disp.style.applymap(color_signal, subset=["Segnale"]),
                         column_config={
-                            "name": "Nome",
-                            "ticker": "Ticker",
-                            "price": st.column_config.NumberColumn("Prezzo", format="$ %.2f"),
-                            "vol_today": st.column_config.NumberColumn("Vol Giorno", format="%d"),
-                            "vol_7d_avg": st.column_config.NumberColumn("Vol Medio 7g", format="%d"),
-                            "rsi": st.column_config.NumberColumn("RSI", format="%.2f"),
-                            "Yahoo": st.column_config.LinkColumn("Yahoo"),
-                            "TV": st.column_config.LinkColumn("TV")
+                            "Prezzo": st.column_config.NumberColumn("Prezzo", format="$ %.2f"),
+                            "Vol Giorno": st.column_config.NumberColumn("Vol Giorno", format="%d"),
+                            "Vol Medio 7g": st.column_config.NumberColumn("Vol Medio 7g", format="%d"),
+                            "RSI": st.column_config.NumberColumn("RSI", format="%.2f"),
+                            "Yahoo": st.column_config.LinkColumn(
+                                "Yahoo", display_text="Apri"
+                            ),
+                            "TV": st.column_config.LinkColumn(
+                                "TradingView", display_text="Apri"
+                            ),
                         },
                         use_container_width=True,
                         hide_index=True
                     )
-                    
+
                     st.markdown("### ➕ Aggiungi a Watchlist")
                     to_add = st.selectbox("Seleziona Ticker", filtered_df["ticker"].tolist())
                     if st.button(f"Aggiungi {to_add} a {active_list}"):
@@ -178,10 +205,13 @@ with tab_watchlist:
             full_data = pd.DataFrame(json.loads(results_file.read_text()))
             w_df = full_data[full_data["ticker"].isin(current_tickers)]
             if not w_df.empty:
-                st.dataframe(w_df[["ticker", "price", "signal", "score"]], use_container_width=True, hide_index=True)
+                st.dataframe(
+                    w_df[["ticker", "price", "signal", "score"]],
+                    use_container_width=True,
+                    hide_index=True
+                )
             else:
                 st.write(f"Titoli: {', '.join(current_tickers)}")
-        
         if st.button("Svuota Watchlist"):
             watchlists[active_list] = []
             save_watchlists(watchlists)
@@ -201,7 +231,7 @@ with tab_legend:
     - **MACD**: Linea MACD > Linea Segnale.
     - **Volume**: Volume odierno > Media mobile volumi a 20gg.
     - **ATR**: Volatilità (ATR/Prezzo) tra 0.5% e 10%.
-    
+
     **Links:**
-    - I link puntano direttamente a Yahoo Finance e TradingView per analisi approfondita nelle colonne corrispondenti.
+    - **Yahoo / TV**: Clicca su “Apri” per accedere alla pagina del titolo su Yahoo Finance o TradingView.
     """)
