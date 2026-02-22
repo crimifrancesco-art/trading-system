@@ -44,23 +44,21 @@ def atr(df, period=14):
 # --------------------------------------------------
 def analyze_ticker(ticker):
     try:
-        # Aggiungo auto_adjust=True per coerenza e info per il nome
         yt = yf.Ticker(ticker)
         df = yt.history(period="6mo")
-        
+
         if df.empty or len(df) < 50:
             return None
-            
+
         info = yt.info
         name = info.get("longName", ticker)
         market_cap = info.get("marketCap", 0)
         currency = info.get("currency", "USD")
-        
+
         close = df["Close"].squeeze()
         high = df["High"].squeeze()
         low = df["Low"].squeeze()
         volume = df["Volume"].squeeze()
-
         df["EMA50"] = ema(close, 50)
         df["RSI"] = rsi(close)
         df["MACD"], df["MACD_SIGNAL"] = macd(close)
@@ -85,14 +83,13 @@ def analyze_ticker(ticker):
         # 5. Volatility (ATR)
         atr_pct = float(df["ATR"].iloc[-1]) / float(close.iloc[-1])
         volatility_ok = bool(0.005 < atr_pct < 0.10)
-        
+
         # OBV Trend simplified
         obv = (np.sign(close.diff().fillna(0)) * volume).cumsum()
         obv_trend = "UP" if obv.iloc[-1] > obv.iloc[-5] else "DOWN"
 
         checks = [trend, rsi_sig, macd_ok, volume_ok, volatility_ok]
         score = sum(checks)
-
         signal = "NONE"
         if score >= 3:
             signal = "BUY"
@@ -108,11 +105,11 @@ def analyze_ticker(ticker):
             "market_cap": market_cap,
             "vol_today": int(volume.iloc[-1]),
             "vol_7d_avg": int(vol_7d_avg),
-            "rsi": round(rsi_val, 1),
+            "rsi": round(rsi_val, 2),
             "vol_ratio": round(float(volume.iloc[-1] / vol_mean), 2),
             "obv_trend": obv_trend,
             "atr": round(float(df["ATR"].iloc[-1]), 2),
-            "atr_exp": bool(atr_pct > 0.03), # Example expansion threshold
+            "atr_exp": bool(atr_pct > 0.03),
             "currency": currency,
             "timestamp": datetime.utcnow().isoformat()
         }
