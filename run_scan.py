@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime
 
 # --------------------------------------------------
-# LOAD RUNTIME UNIVERSE (tickers scelti sidebar)
+# LOAD RUNTIME UNIVERSE
 # --------------------------------------------------
 
 runtime = Path("data/runtime_universe.json")
@@ -21,7 +21,7 @@ else:
     TICKERS = ["AAPL", "MSFT"]
 
 RESULT_PATH = Path("data/scan_results.json")
-RESULT_PATH.parent.mkdir(exist_ok=True)
+RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # --------------------------------------------------
 # INDICATORS
@@ -30,12 +30,14 @@ RESULT_PATH.parent.mkdir(exist_ok=True)
 def ema(series, period):
     return series.ewm(span=period, adjust=False).mean()
 
+
 def rsi(series, period=14):
     delta = series.diff()
     gain = delta.clip(lower=0).rolling(period).mean()
     loss = (-delta.clip(upper=0)).rolling(period).mean()
     rs = gain / loss
     return 100 - (100 / (1 + rs))
+
 
 def macd(series):
     ema12 = ema(series, 12)
@@ -44,59 +46,54 @@ def macd(series):
     signal = ema(macd_line, 9)
     return macd_line, signal
 
+
 def atr(df, period=14):
     tr = pd.concat([
-        df.High - df.Low,
-        abs(df.High - df.Close.shift()),
-        abs(df.Low - df.Close.shift())
+        df["High"] - df["Low"],
+        abs(df["High"] - df["Close"].shift()),
+        abs(df["Low"] - df["Close"].shift())
     ], axis=1).max(axis=1)
     return tr.rolling(period).mean()
 
 # --------------------------------------------------
-# FILTERS (AFFIDABILITÀ ↑)
+# ANALYZE TICKER
 # --------------------------------------------------
 
 def analyze_ticker(ticker):
     df = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
-    if df.empty or len(df) < 200:
+    if df.empty or len(df) < 50:
         return None
 
-    df["EMA50"] = ema(df.Close, 50)
-    df["EMA200"] = ema(df.Close, 200)
-    df["RSI"] = rsi(df.Close)
-    df["MACD"], df["MACD_SIGNAL"] = macd(df.Close)
+    close = df["Close"].squeeze()
+    high = df["High"].squeeze()
+    low = df["Low"].squeeze()
+    volume = df["Volume"].squeeze()
+
+    df["EMA50"] = ema(close, 50)
+    df["RSI"] = rsi(close)
+    df["MACD"], df["MACD_SIGNAL"] = macd(close)
     df["ATR"] = atr(df)
 
-    trend = df.EMA50.iloc[-1] > df.EMA200.iloc[-1]
+    trend = bool(df["EMA50"].iloc[-1] > close.iloc[-5])
 
-    rsi_sig = (
-        df.RSI.iloc[-2] < 35
-        and df.RSI.iloc[-1] > df.RSI.iloc[-2]
-    )
+    rsi_val = float(df["RSI"].iloc[-1])
+    rsi_prev = float(df["RSI"].iloc[-2])
+    rsi_sig = rsi_val > rsi_prev
 
-    macd_ok = df.MACD.iloc[-1] > df.MACD_SIGNAL.iloc[-1]
+    macd_ok = bool(df["MACD"].iloc[-1] > df["MACD_SIGNAL"].iloc[-1])
 
-    volume_ok = (
-        df.Volume.iloc[-1] >
-        df.Volume.rolling(20).mean().iloc[-1]
-    )
+    vol_mean = float(volume.rolling(20).mean().iloc[-1])
+    volume_ok = bool(float(volume.iloc[-1]) > vol_mean)
 
-    atr_pct = df.ATR.iloc[-1] / df.Close.iloc[-1]
-    volatility_ok = 0.01 < atr_pct < 0.08
+    atr_pct = float(df["ATR"].iloc[-1]) / float(close.iloc[-1])
+    volatility_ok = 0.005 < atr_pct < 0.10
 
-    checks = [
-        trend,
-        rsi_sig,
-        macd_ok,
-        volume_ok,
-        volatility_ok
-    ]
-
+    checks = [trend, rsi_sig, macd_ok, volume_ok, volatility_ok]
     score = sum(checks)
 
     signal = "NONE"
-    if score >= 4:
+    if score >= 3:
         signal = "BUY"
     if score >= 5:
         signal = "STRONG BUY"
@@ -105,7 +102,8 @@ def analyze_ticker(ticker):
         "ticker": ticker,
         "signal": signal,
         "score": int(score),
-        "price": float(df.Close.iloc[-1]),
+        "price": round(float(close.iloc[-1]), 2),
+        "rsi": round(rsi_val, 1),
         "timestamp": datetime.utcnow().isoformat()
     }
 
@@ -115,8 +113,7 @@ def analyze_ticker(ticker):
 
 def run_scan():
     results = []
-
-    tickers_to_scan = TICKERS or ["AAPL", "MSFT"]
+    tickers_to_scan = TICKERS if TICKERS else ["AAPL", "MSFT"]
 
     for t in tickers_to_scan:
         try:
@@ -124,14 +121,13 @@ def run_scan():
             if r:
                 results.append(r)
         except Exception as e:
-            print("Errore su ticker", t, e)
+            print(f"Errore su ticker {t}: {e}")
 
     try:
         RESULT_PATH.write_text(json.dumps(results, indent=2))
+        print(f"Scan completato. Risultati: {len(results)}")
     except Exception as e:
-        print("Errore salvataggio risultati:", e)
-
-    print("Scan completed, risultati:", len(results))
+        print(f"Errore salvataggio: {e}")
 
 # --------------------------------------------------
 
