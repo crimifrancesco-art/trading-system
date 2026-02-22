@@ -67,57 +67,114 @@ def color_signal(val):
 # ----------------------------------------------------------
 st.sidebar.title("⚙️ Configurazione")
 
-st.sidebar.markdown("### 📈 Selezione Mercati")
-MARKETS_DICT = {
-    "EU Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW", "LVMH.PA"],
-    "IT FTSE MIB": ["ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI", "G.MI", "FER.MI", "PST.MI", "A2A.MI", "PRY.MI"],
-    "US S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "JPM", "V", "UNH", "PG"],
-    "US Nasdaq 100": ["NVDA", "TSLA", "AVGO", "COST", "ADBE", "NFLX", "AMD", "PEP", "AZN", "LIN"],
-    "US Dow Jones": ["DJI", "GS", "HD", "MCD", "BA", "CRM", "TRV", "HON", "AXP", "WMT"],
-    "US Russell 2000": ["IWM"],
-    "🛢️ Materie Prime": ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"],
-    "📦 ETF": ["SPY", "QQQ", "EEM", "VTI", "AGG"],
-    "₿ Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"],
-    "🌍 Emergenti": ["BABA", "TCEHY", "JD", "VALE", "PBR"]
-}
+# --- MODALITÀ ---
+st.sidebar.markdown("### 🧠 Modalità")
+show_only_watchlist = st.sidebar.checkbox("Mostra solo Watchlist (salta scanner)", value=False)
 
-selected_markets = []
-for label in MARKETS_DICT.keys():
-    default_val = label in ["IT FTSE MIB", "US Nasdaq 100"]
-    if st.sidebar.checkbox(label, value=default_val):
-        selected_markets.append(label)
+# --- SELEZIONE MERCATI ---
+if not show_only_watchlist:
+    st.sidebar.markdown("### 📈 Selezione Mercati")
+    MARKETS_DICT = {
+        "EU Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW", "LVMH.PA"],
+        "IT FTSE MIB": ["ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI", "G.MI", "FER.MI", "PST.MI", "A2A.MI", "PRY.MI"],
+        "US S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "JPM", "V", "UNH", "PG"],
+        "US Nasdaq 100": ["NVDA", "TSLA", "AVGO", "COST", "ADBE", "NFLX", "AMD", "PEP", "AZN", "LIN"],
+        "US Dow Jones": ["DJI", "GS", "HD", "MCD", "BA", "CRM", "TRV", "HON", "AXP", "WMT"],
+        "US Russell 2000": ["IWM"],
+        "🛢️ Materie Prime": ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"],
+        "📦 ETF": ["SPY", "QQQ", "EEM", "VTI", "AGG"],
+        "₿ Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"],
+        "🌍 Emergenti": ["BABA", "TCEHY", "JD", "VALE", "PBR"]
+    }
+    selected_markets = []
+    for label in MARKETS_DICT.keys():
+        default_val = label in ["IT FTSE MIB", "US Nasdaq 100"]
+        if st.sidebar.checkbox(label, value=default_val):
+            selected_markets.append(label)
 
+    st.sidebar.markdown("---")
+    st.sidebar.title("🕹️ Output")
+    top_n = st.sidebar.number_input("TOP N titoli per tab", min_value=1, max_value=100, value=15, step=1)
+
+# --- WATCHLIST MANAGEMENT IN SIDEBAR ---
 st.sidebar.markdown("---")
-st.sidebar.title("🕹️ Output")
-top_n = st.sidebar.number_input("TOP N titoli per tab", min_value=1, max_value=100, value=15, step=1)
-
-st.sidebar.markdown("---")
-st.sidebar.title("📁 Watchlist")
+st.sidebar.title("📁 Lista Watchlist")
 watchlists = load_watchlists()
-active_list = st.sidebar.selectbox("Lista attiva", list(watchlists.keys()), index=0)
+list_names = list(watchlists.keys())
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
-    all_tickers = []
-    for m in selected_markets:
-        all_tickers.extend(MARKETS_DICT[m])
-    if not all_tickers:
-        st.warning("Seleziona almeno un mercato.")
+# Selezione e visualizzazione attiva
+active_list = st.sidebar.selectbox("Lista esistente", list_names, index=0)
+
+# Creazione nuova lista
+new_list_name = st.sidebar.text_input("Crea nuova lista", placeholder="Es. Swing, LT, Crypto...")
+if st.sidebar.button("Crea Lista") and new_list_name:
+    if new_list_name not in watchlists:
+        watchlists[new_list_name] = []
+        save_watchlists(watchlists)
+        st.rerun()
+
+# Rinominazione lista
+rename_target = st.sidebar.selectbox("Rinomina lista", list_names, index=list_names.index(active_list))
+new_rename_name = st.sidebar.text_input("Nuovo nome per la lista selezionata", placeholder="Nuovo nome...")
+if st.sidebar.button("Applica rinomina") and new_rename_name and rename_target:
+    if new_rename_name not in watchlists:
+        watchlists[new_rename_name] = watchlists.pop(rename_target)
+        save_watchlists(watchlists)
+        st.rerun()
+
+# Cancellazione lista
+if st.sidebar.button("Elimina Lista Selezionata", type="secondary"):
+    if active_list != "DEFAULT":
+        watchlists.pop(active_list)
+        save_watchlists(watchlists)
+        st.rerun()
     else:
-        runtime_path = Path("data/runtime_universe.json")
-        runtime_path.write_text(json.dumps({"tickers": list(set(all_tickers))}))
-        with st.spinner("Scansione in corso..."):
-            try:
-                run_scan()
-                st.success("Scan completato ✅")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Errore: {e}")
+        st.sidebar.warning("Non puoi eliminare la lista DEFAULT.")
+
+st.sidebar.markdown(f"**Lista attiva attuale: {active_list}**")
+
+# --- AVVIA SCANNER BUTTON ---
+if not show_only_watchlist:
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
+        all_tickers = []
+        for m in selected_markets:
+            all_tickers.extend(MARKETS_DICT[m])
+        if not all_tickers:
+            st.warning("Seleziona almeno un mercato.")
+        else:
+            runtime_path = Path("data/runtime_universe.json")
+            runtime_path.write_text(json.dumps({"tickers": list(set(all_tickers))}))
+            with st.spinner("Scansione in corso..."):
+                try:
+                    run_scan()
+                    st.success("Scan completato ✅")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Errore: {e}")
 
 # ----------------------------------------------------------
 # MAIN CONTENT
 # ----------------------------------------------------------
 st.title("📊 Trading Scanner — V11 Professional")
+
+if show_only_watchlist:
+    st.subheader(f"⭐ Visualizzazione Watchlist: {active_list}")
+    results_file = Path("data/scan_results.json")
+    current_tickers = watchlists.get(active_list, [])
+    if not current_tickers:
+        st.info("La watchlist è vuota.")
+    else:
+        if results_file.exists():
+            data = pd.DataFrame(json.loads(results_file.read_text()))
+            w_df = data[data["ticker"].isin(current_tickers)]
+            if not w_df.empty:
+                st.dataframe(w_df, use_container_width=True, hide_index=True)
+            else:
+                st.write(f"Titoli monitorati: {', '.join(current_tickers)}")
+        else:
+            st.write(f"Titoli in lista: {', '.join(current_tickers)}")
+    st.stop()
 
 tab_results, tab_watchlist, tab_legend = st.tabs(["🗓️ Risultati Scan", "⭐ Watchlist", "ℹ️ Legenda"])
 
@@ -175,63 +232,40 @@ with tab_results:
                         hide_index=True
                     )
                     
-                    # --- EXPORT SECTION ---
                     st.markdown("### 📥 Export Risultati")
                     col_ex1, col_ex2, col_ex3 = st.columns(3)
-                    
-                    # CSV Export
                     csv = filtered_df.to_csv(index=False).encode('utf-8')
-                    col_ex1.download_button(
-                        label="📥 Export CSV",
-                        data=csv,
-                        file_name=f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime='text/csv',
-                        use_container_width=True
-                    )
-                    
-                    # Excel Export
+                    col_ex1.download_button("Export CSV", csv, f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", "text/csv", use_container_width=True)
                     buffer = io.BytesIO()
                     with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                         filtered_df.to_excel(writer, index=False, sheet_name='ScanResults')
-                    col_ex2.download_button(
-                        label="📥 Export XLSX",
-                        data=buffer.getvalue(),
-                        file_name=f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                        use_container_width=True
-                    )
-                    
-                    # TradingView Export (Ticker Only)
+                    col_ex2.download_button("Export XLSX", buffer.getvalue(), f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx", use_container_width=True)
                     tv_list = ",".join(filtered_df["ticker"].tolist())
-                    col_ex3.download_button(
-                        label="📥 Export TV (Ticker)",
-                        data=tv_list,
-                        file_name=f"tv_watchlist_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                        mime='text/plain',
-                        use_container_width=True
-                    )
+                    col_ex3.download_button("Export TV", tv_list, f"tv_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt", use_container_width=True)
 
-                    # --- WATCHLIST ADDITION ---
                     st.markdown("---")
                     st.markdown("### ➕ Aggiungi a Watchlist")
                     
-                    # Multi-selection for tickers
-                    tickers_to_save = st.multiselect("Seleziona uno o più Ticker", filtered_df["ticker"].tolist(), default=filtered_df["ticker"].tolist()[:1])
-                    common_note = st.text_input("Note comuni per questi ticker (opzionale)", placeholder="Es: Swing trade, entry point...")
+                    # Prepare sorted options for multiselect: Name (Ticker)
+                    options_df = filtered_df[["name", "ticker"]].sort_values("name")
+                    ticker_options = [f"{r['name']} ({r['ticker']})" for _, r in options_df.iterrows()]
+                    
+                    selected_display_names = st.multiselect("Seleziona uno o più Ticker", ticker_options)
+                    
+                    # Map back to tickers
+                    tickers_to_save = [name.split(" (")[-1].replace(")", "") for name in selected_display_names]
                     
                     if st.button(f"Salva {len(tickers_to_save)} titoli in {active_list}", use_container_width=True):
                         if not tickers_to_save:
                             st.warning("Seleziona almeno un ticker.")
                         else:
-                            added_count = 0
+                            added = 0
                             for t in tickers_to_save:
                                 if t not in watchlists[active_list]:
-                                    # We could extend the data structure to include notes, 
-                                    # but for now we keep it simple or store as a dict if needed.
                                     watchlists[active_list].append(t)
-                                    added_count += 1
+                                    added += 1
                             save_watchlists(watchlists)
-                            st.success(f"Aggiunti {added_count} nuovi titoli a {active_list}!")
+                            st.success(f"Aggiunti {added} titoli a {active_list}!")
 
                 else:
                     st.info("Nessun risultato trovato.")
@@ -250,11 +284,7 @@ with tab_watchlist:
             full_data = pd.DataFrame(json.loads(results_file.read_text()))
             w_df = full_data[full_data["ticker"].isin(current_tickers)]
             if not w_df.empty:
-                st.dataframe(
-                    w_df[["ticker", "price", "signal", "score"]],
-                    use_container_width=True,
-                    hide_index=True
-                )
+                st.dataframe(w_df[["ticker", "price", "signal", "score"]], use_container_width=True, hide_index=True)
             else:
                 st.write(f"Titoli: {', '.join(current_tickers)}")
         if st.button("Svuota Watchlist"):
