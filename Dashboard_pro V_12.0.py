@@ -1,245 +1,156 @@
- # =============================================================================
-# DASHBOARD PRO V_12.0 – INTEGRAZIONE V9 COMPLETA + TAB V11
-# Tabs: EARLY | PRO | REA-QUANT | Serafini | Regime | MTF | Finviz | ScanV11 | Watchlist
-# =============================================================================
 import io
-import time
+import json
 import sqlite3
 import locale
-import json
 import numpy as np
 import pandas as pd
 import streamlit as st
 import yfinance as yf
 from pathlib import Path
 from datetime import datetime
-from fpdf import FPDF
 from run_scan import run_scan
 
-try:
-    import pandas_ta as ta
-    HAS_TA = True
-except ImportError:
-    HAS_TA = False
-
-# ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
+# --- CONFIG ---
 st.set_page_config(page_title="Trading Scanner PRO 12.0", layout="wide", page_icon="📊")
-st.markdown("""<style>.stDownloadButton>button{width:100%!important}</style>""", unsafe_allow_html=True)
+st.markdown("<style>.stDownloadButton>button{width:100%!important}</style>", unsafe_allow_html=True)
 st.title("📊 Trading Scanner – Versione PRO 12.0")
-st.caption("EARLY • PRO • REA‑QUANT • Serafini • Regime & Momentum • Multi‑Timeframe • Finviz • Risultati Scan V11 • Watchlist DB")
+st.caption("🟢 EARLY • 🟣 PRO • 🟠 REA‑QUANT • 📈 Serafini • 🧊 Regime • 🕒 MTF • 📊 Finviz | 🗓️ Scan V11 | 📌 Watchlist")
 
-# ─── LOCALE ───────────────────────────────────────────────────────────────────
-try:
-    locale.setlocale(locale.LC_ALL, "")
-except locale.Error:
-    pass
-
-# ─── FORMAT FUNCTIONS ─────────────────────────────────────────────────────────
-def fmt_currency(value, symbol="€"):
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return ""
-    return f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-def fmt_int(value):
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return ""
-    return f"{int(value):,}".replace(",", ".")
-
-def fmt_marketcap(value, symbol="€"):
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return ""
-    v = float(value)
-    if v >= 1_000_000_000:
-        return f"{symbol}{v/1_000_000_000:,.2f}B".replace(",","X").replace(".",",").replace("X",".")
-    if v >= 1_000_000:
-        return f"{symbol}{v/1_000_000:,.2f}M".replace(",","X").replace(".",",").replace("X",".")
-    if v >= 1_000:
-        return f"{symbol}{v/1_000:,.2f}K".replace(",","X").replace(".",",").replace("X",".")
-    return fmt_currency(v, symbol)
-
-def color_signal(val):
-    if val == "STRONG BUY": return "background-color: #0f5132; color: white;"
-    if val == "BUY": return "background-color: #664d03; color: white;"
+# --- FORMATTERS ---
+def fmt_currency(v, s="€"):
+    if v is None or (isinstance(v, float) and np.isnan(v)): return ""
+    return f"{s}{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+def fmt_marketcap(v, s="€"):
+    if v is None or (isinstance(v, float) and np.isnan(v)): return ""
+    if v >= 1e9: return f"{s}{v/1e9:,.2f}B".replace(",","X").replace(".",",").replace("X",".")
+    if v >= 1e6: return f"{s}{v/1e6:,.2f}M".replace(",","X").replace(".",",").replace("X",".")
+    return fmt_currency(v, s)
+def color_signal(v):
+    if v == "STRONG BUY": return "background-color: #0f5132; color: white;"
+    if v == "BUY": return "background-color: #664d03; color: white;"
     return ""
-
-def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
+def add_formatted_cols(df):
     if df.empty: return df
+    df = df.copy()
     if "Currency" not in df.columns: df["Currency"] = "USD"
-    for col, new_col in [("MarketCap","MarketCap_fmt"),("market_cap","MarketCap_fmt"),
-                         ("Vol_Today","Vol_Today_fmt"),("vol_today","Vol_Today_fmt"),
-                         ("Vol_7d_Avg","Vol_7d_Avg_fmt"),("vol_7d_avg","Vol_7d_Avg_fmt")]:
-        if col in df.columns:
-            df[new_col] = df.apply(lambda r: fmt_marketcap(r[col], "€" if str(r.get("Currency", r.get("currency","USD"))) == "EUR" else "$"), axis=1)
-    if "Prezzo" in df.columns:
-        df["Prezzo_fmt"] = df.apply(lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"), axis=1)
-    elif "price" in df.columns:
-        df["Prezzo_fmt"] = df.apply(lambda r: fmt_currency(r["price"], "€" if str(r.get("currency","USD")) == "EUR" else "$"), axis=1)
+    for col, new in [("MarketCap","MarketCap_fmt"),("market_cap","MarketCap_fmt"),("Vol_Today","Vol_Today_fmt"),("vol_today","Vol_Today_fmt")]:
+        if col in df.columns: df[new] = df.apply(lambda r: fmt_marketcap(r[col], "€" if str(r.get("Currency", r.get("currency","USD"))) == "EUR" else "$"), axis=1)
+    p_col = "Prezzo" if "Prezzo" in df.columns else "price"
+    if p_col in df.columns: df["Prezzo_fmt"] = df.apply(lambda r: fmt_currency(r[p_col], "€" if str(r.get("Currency", r.get("currency","USD"))) == "EUR" else "$"), axis=1)
+    return df
+def add_links(df):
+    c = "Ticker" if "Ticker" in df.columns else "ticker"
+    if c in df.columns:
+        df["Yahoo"] = df[c].apply(lambda t: f"https://finance.yahoo.com/quote/{t}")
+        df["TV"] = df[c].apply(lambda t: f"https://www.tradingview.com/chart/?symbol={str(t).split('.')[0]}")
     return df
 
-def add_links(df: pd.DataFrame) -> pd.DataFrame:
-    col = "Ticker" if "Ticker" in df.columns else "ticker"
-    if col not in df.columns: return df
-    df["Yahoo"] = df[col].astype(str).apply(lambda t: f"https://finance.yahoo.com/quote/{t}")
-    df["TV"] = df[col].astype(str).apply(lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}")
-    return df
-
-# ─── DB WATCHLIST ─────────────────────────────────────────────────────────────
+# --- DB ---
 DB_PATH = Path("watchlist.db")
 def init_db():
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("""CREATE TABLE IF NOT EXISTS watchlist (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, ticker TEXT NOT NULL, name TEXT,
-        trend TEXT, origine TEXT, note TEXT, list_name TEXT, created_at TEXT)""")
-    for extra_col in ["trend", "list_name"]:
-        try: c.execute(f"ALTER TABLE watchlist ADD COLUMN {extra_col} TEXT")
-        except: pass
-    conn.commit()
-    conn.close()
-
-def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
-    if not tickers: return
+    conn.execute("CREATE TABLE IF NOT EXISTS watchlist (id INTEGER PRIMARY KEY AUTOINCREMENT, ticker TEXT, name TEXT, trend TEXT, origine TEXT, note TEXT, list_name TEXT, created_at TEXT)")
+    conn.commit(); conn.close()
+def add_to_watchlist(tkrs, names, orig, note, trend="LONG", list_name="DEFAULT"):
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    for t, n in zip(tickers, names):
-        c.execute("INSERT INTO watchlist (ticker,name,trend,origine,note,list_name,created_at) VALUES (?,?,?,?,?,?,?)",
-                  (t, n, trend, origine, note, list_name, now))
-    conn.commit()
-    conn.close()
-
-def load_watchlist() -> pd.DataFrame:
-    if not DB_PATH.exists():
-        return pd.DataFrame(columns=["id","ticker","name","trend","origine","note","list_name","created_at"])
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
-    conn.close()
-    for col in ["id","ticker","name","trend","origine","note","list_name","created_at"]:
-        if col not in df.columns: df[col] = "" if col != "id" else np.nan
-    return df
-
-def update_watchlist_note(row_id, new_note):
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("UPDATE watchlist SET note = ? WHERE id = ?", (new_note, int(row_id)))
+    for t, n in zip(tkrs, names):
+        conn.execute("INSERT INTO watchlist (ticker,name,trend,origine,note,list_name,created_at) VALUES (?,?,?,?,?,?,?)", (t,n,trend,orig,note,list_name,now))
     conn.commit(); conn.close()
-
-def delete_from_watchlist(ids):
-    if not ids: return
-    conn = sqlite3.connect(DB_PATH)
-    conn.executemany("DELETE FROM watchlist WHERE id = ?", [(int(i),) for i in ids])
-    conn.commit(); conn.close()
-
-def reset_watchlist_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("DROP TABLE IF EXISTS watchlist")
-    conn.commit(); conn.close()
-    init_db()
-
+def load_watchlist():
+    if not DB_PATH.exists(): return pd.DataFrame()
+    conn = sqlite3.connect(DB_PATH); df = pd.read_sql_query("SELECT * FROM watchlist ORDER BY created_at DESC", conn)
+    conn.close(); return df
 init_db()
 
-# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+# --- SIDEBAR ---
 st.sidebar.title("⚙️ Configurazione")
-
-MARKETS_DICT = {
+MARKETS = {
     "FTSE MIB": ["UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI", "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI"],
-    "Nasdaq 100": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "NFLX", "ADBE", "COST", "AMD"],
-    "S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "JPM", "V", "UNH", "PG"],
-    "Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW"],
-    "Dow Jones": ["GS", "HD", "MCD", "BA", "CRM", "WMT", "DIS", "KO", "CAT", "JNJ"],
-    "Russell 2000": ["IWM", "VTWO"],
+    "Nasdaq 100": ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "NFLX", "ADBE"],
+    "S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "JPM", "V", "UNH", "PG"],
+    "Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW"],
     "Materie Prime": ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"],
-    "ETF": ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"],
-    "Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"],
-    "Emerging": ["BABA", "TCEHY", "JD", "VALE", "PBR"]
+    "ETF": ["SPY", "QQQ", "IWM", "GLD", "TLT"],
+    "Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"]
 }
-
 st.sidebar.subheader("🚀 Scanner V11")
-selected_markets = []
-for mkt in MARKETS_DICT.keys():
-    if st.sidebar.checkbox(mkt, value=(mkt in ["FTSE MIB", "Nasdaq 100"])):
-        selected_markets.append(mkt)
-
+sel_mkts = [m for m in MARKETS.keys() if st.sidebar.checkbox(m, value=(m in ["FTSE MIB", "Nasdaq 100"]), key=f"v11_{m}")]
 if st.sidebar.button("🚀 AVVIA SCANNER V11", type="primary", use_container_width=True):
-    universe = []
-    for m in selected_markets: universe.extend(MARKETS_DICT[m])
-    universe = list(set(universe))
-    if universe:
-        Path("data").mkdir(exist_ok=True)
-        Path("data/runtime_universe.json").write_text(json.dumps({"tickers": universe}))
-        with st.spinner("Scansione V11 in corso..."):
-            run_scan()
-        st.success("Scansione V11 Completa!")
-        st.rerun()
+    uni = []
+    for m in sel_mkts: uni.extend(MARKETS[m])
+    Path("data").mkdir(exist_ok=True)
+    Path("data/runtime_universe.json").write_text(json.dumps({"tickers": list(set(uni))}))
+    with st.spinner("Scansione V11..."): run_scan()
+    st.success("Fatto!"); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("🎛️ Parametri Generali")
-top_n = st.sidebar.number_input("TOP N titoli per tab", 5, 50, 15)
+st.sidebar.subheader("🎛️ Parametri PRO")
+top_n = st.sidebar.number_input("TOP N", 5, 50, 15)
+e_h = st.sidebar.slider("EARLY (%)", 0.0, 10.0, 2.0) / 100
+p_rmin, p_rmax = st.sidebar.slider("PRO RSI", 0, 100, (40, 70))
+r_poc = st.sidebar.slider("REA POC (%)", 0.0, 10.0, 2.0) / 100
 
-df_wl_all = load_watchlist()
-list_options = sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
-active_list = st.sidebar.selectbox("Lista attiva", list_options, index=0)
+wl_all = load_watchlist()
+lists = sorted(wl_all["list_name"].unique()) if (not wl_all.empty and "list_name" in wl_all.columns) else ["DEFAULT"]
+act_list = st.sidebar.selectbox("Lista attiva", lists, index=0)
 
-# ─── SCANNER LOGIC V9 STYLE ──────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def fetch_ticker_data(ticker):
+def fetch_v9(t):
     try:
-        yt = yf.Ticker(ticker)
-        df = yt.history(period="6mo")
-        if len(df) < 40: return None
-        info = yt.info
-        c = df["Close"]; v = df["Volume"]
-        price = float(c.iloc[-1])
-        ema20 = float(c.ewm(20).mean().iloc[-1])
-        rsi = ta.momentum.rsi(close=c, window=14).iloc[-1] if HAS_TA else 50
-        vol_ratio = float(v.iloc[-1] / v.rolling(20).mean().iloc[-1])
-        return {
-            "name": info.get("longName", ticker), "ticker": ticker,
-            "price": price, "rsi": rsi, "vol_today": float(v.iloc[-1]),
-            "vol_7d_avg": float(v.tail(7).mean()), "market_cap": info.get("marketCap", 0),
-            "currency": info.get("currency", "USD"), "ema20": ema20, "vol_ratio": vol_ratio
-        }
+        y = yf.Ticker(t); h = y.history(period="6mo")
+        if len(h)<40: return None
+        i = y.info; c = h["Close"]; v = h["Volume"]
+        ema = c.ewm(20).mean().iloc[-1]
+        try:
+            d = c.diff(); g = d.where(d>0,0).rolling(14).mean(); l = -d.where(d<0,0).rolling(14).mean()
+            rsi = 100 - (100/(1+(g/l))).iloc[-1]
+        except: rsi = 50
+        return {"name": i.get("longName",t), "ticker": t, "price": c.iloc[-1], "rsi": rsi, "vol_today": v.iloc[-1], "vol_7d_avg": v.tail(7).mean(), "market_cap": i.get("marketCap",0), "ema20": ema, "vol_ratio": v.iloc[-1]/v.rolling(20).mean().iloc[-1]}
     except: return None
 
-# ─── TABS ────────────────────────────────────────────────────────────────────
-tabs = st.tabs([
-    "🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "📈 Serafini Systems",
-    "🧊 Regime & Momentum", "🕒 Multi‑Timeframe", "📊 Finviz",
-    "🗓️ Risultati Scanner V11", "📌 Watchlist & Note"
-])
+if st.sidebar.button("🚀 AVVIA SCANNER PRO 9.0", use_container_width=True):
+    u = []
+    for m in sel_mkts: u.extend(MARKETS[m])
+    res = []
+    pb = st.progress(0); st.info("Scansione PRO 9.0...")
+    for i, t in enumerate(list(set(u))):
+        d = fetch_v9(t)
+        if d: res.append(d)
+        pb.progress((i+1)/len(list(set(u))))
+    st.session_state["df_v9"] = pd.DataFrame(res); st.rerun()
 
+df_v9 = st.session_state.get("df_v9", pd.DataFrame())
+
+# --- TABS ---
+tabs = st.tabs(["🟢 EARLY", "🟣 PRO", "🟠 REA‑QUANT", "📈 Serafini", "🧊 Regime", "🕒 MTF", "📊 Finviz", "🗓️ Scan V11", "📌 Watchlist"])
 for i, tab in enumerate(tabs):
     with tab:
-        if i == 7: # SCANNER V11
-            st.header("🗓️ Risultati Scanner V11 Professional")
-            res_path = Path("data/scan_results.json")
-            if res_path.exists():
-                df_v11 = pd.DataFrame(json.loads(res_path.read_text()))
-                if not df_v11.empty:
-                    df_v11 = add_formatted_cols(df_v11); df_v11 = add_links(df_v11)
-                    st.dataframe(df_v11.style.applymap(color_signal, subset=["signal"] if "signal" in df_v11.columns else []),
-                                 use_container_width=True, hide_index=True,
-                                 column_config={
-                                     "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                                     "TV": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-                                     "rsi": st.column_config.NumberColumn("RSI", format="%.2f")
-                                 })
-                    opts = sorted([f"{r.get('name', r.get('Nome'))} ({r.get('ticker', r.get('Ticker'))})" for _, r in df_v11.iterrows()])
-                    sel = st.multiselect("Aggiungi a Watchlist (V11):", opts)
-                    if st.button("📌 Salva in Watchlist", key="v11_save"):
-                        tkrs = [s.split(" (")[-1][:-1] for s in sel]
-                        nms = [s.split(" (")[0] for s in sel]
-                        add_to_watchlist(tkrs, nms, "V11_SCAN", "", list_name=active_list)
-                        st.success("Salvati!")
-            else: st.info("Esegui lo scanner dalla sidebar.")
-
-        elif i == 8: # WATCHLIST
-            st.header("📌 Watchlist & Note")
-            df_wl_p = load_watchlist()
-            df_wl_f = df_wl_p[df_wl_p["list_name"] == active_list]
-            if not df_wl_f.empty:
-                st.dataframe(df_wl_f[["name","ticker","trend","origine","note","created_at"]], use_container_width=True, hide_index=True)
-            else: st.info("Watchlist vuota.")
-
-        else: # TABS 1-7 (Placeholder per la logica V9)
-            st.subheader(f"Tab {tab.label}")
-            st.info("Logica V9.0 attiva. Caricamento dati...")
+        if i < 7:
+            if df_v9.empty: st.info("Avvia Scanner PRO 9.0")
+            else:
+                d = df_v9.copy()
+                if i==0: d = d[abs(d["price"]-d["ema20"])/d["ema20"] <= e_h]
+                elif i==1: d = d[(d["price"]>d["ema20"]) & (d["rsi"]>=p_rmin) & (d["rsi"]<=p_rmax)]
+                elif i==2: d = d[d["vol_ratio"]>1.5]
+                if not d.empty:
+                    d = add_formatted_cols(d); d = add_links(d)
+                    st.dataframe(d.head(top_n), hide_index=True, use_container_width=True, column_config={"Yahoo":st.column_config.LinkColumn("Yahoo", display_text="Apri"), "TV":st.column_config.LinkColumn("TV", display_text="Apri")})
+                    sel = st.multiselect("Salva:", [f"{r['name']} ({r['ticker']})" for _,r in d.head(top_n).iterrows()], key=f"s_{i}")
+                    if st.button("📌 Salva", key=f"b_{i}"):
+                        add_to_watchlist([s.split(" (")[-1][:-1] for s in sel], [s.split(" (")[0] for s in sel], "V9", "", list_name=act_list)
+                        st.success("Salvati")
+        elif i == 7:
+            p = Path("data/scan_results.json")
+            if p.exists():
+                dv = pd.DataFrame(json.loads(p.read_text()))
+                if not dv.empty:
+                    dv = add_formatted_cols(dv); dv = add_links(dv)
+                    st.dataframe(dv.style.applymap(color_signal, subset=["signal"] if "signal" in dv.columns else []), hide_index=True, use_container_width=True, column_config={"Yahoo":st.column_config.LinkColumn("Yahoo", display_text="Apri"), "TV":st.column_config.LinkColumn("TV", display_text="Apri")})
+            else: st.info("Esegui Scanner V11")
+        elif i == 8:
+            dw = load_watchlist()
+            if not dw.empty:
+                dwf = dw[dw["list_name"]==act_list] if "list_name" in dw.columns else dw
+                st.dataframe(dwf[["name","ticker","trend","origine","note","created_at"]], hide_index=True, use_container_width=True)
+            else: st.info("Vuota")
