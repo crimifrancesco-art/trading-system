@@ -102,11 +102,12 @@ if run_scan_btn:
     save_runtime(active_tickers)
 
     with st.spinner("Scanning markets..."):
-    try:
-        run_scan()
-        st.success("Scan completato ✅")
-    except Exception as e:
-        st.error(f"Errore durante lo scan: {e}")
+        try:
+            run_scan()
+            st.success("Scan completato ✅")
+        except Exception as e:
+            st.error(f"Errore durante lo scan: {e}")
+
 
 # ----------------------------------------------------------
 # LOAD RESULTS
