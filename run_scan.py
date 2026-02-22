@@ -35,13 +35,13 @@ def rsi(series, period=14):
     gain = delta.clip(lower=0).rolling(period).mean()
     loss = (-delta.clip(upper=0)).rolling(period).mean()
     rs = gain / loss
-    return 100 - (100/(1+rs))
+    return 100 - (100 / (1 + rs))
 
 def macd(series):
-    ema12 = ema(series,12)
-    ema26 = ema(series,26)
+    ema12 = ema(series, 12)
+    ema26 = ema(series, 26)
     macd_line = ema12 - ema26
-    signal = ema(macd_line,9)
+    signal = ema(macd_line, 9)
     return macd_line, signal
 
 def atr(df, period=14):
@@ -50,7 +50,6 @@ def atr(df, period=14):
         abs(df.High - df.Close.shift()),
         abs(df.Low - df.Close.shift())
     ], axis=1).max(axis=1)
-
     return tr.rolling(period).mean()
 
 # --------------------------------------------------
@@ -58,14 +57,13 @@ def atr(df, period=14):
 # --------------------------------------------------
 
 def analyze_ticker(ticker):
-
     df = yf.download(ticker, period="6mo", interval="1d", progress=False)
 
     if df.empty or len(df) < 200:
         return None
 
-    df["EMA50"] = ema(df.Close,50)
-    df["EMA200"] = ema(df.Close,200)
+    df["EMA50"] = ema(df.Close, 50)
+    df["EMA200"] = ema(df.Close, 200)
     df["RSI"] = rsi(df.Close)
     df["MACD"], df["MACD_SIGNAL"] = macd(df.Close)
     df["ATR"] = atr(df)
@@ -116,21 +114,25 @@ def analyze_ticker(ticker):
 # --------------------------------------------------
 
 def run_scan():
-
     results = []
 
-    for t in TICKERS:
+    # DEBUG: prova con pochi ticker noti
+    tickers_to_scan = TICKERS or ["AAPL", "MSFT"]
+
+    for t in tickers_to_scan:
         try:
             r = analyze_ticker(t)
             if r:
                 results.append(r)
-        except:
-            pass
+        except Exception as e:
+            print("Errore su ticker", t, e)
 
-    with open(RESULT_PATH,"w") as f:
-        json.dump(results,f,indent=2)
+    try:
+        RESULT_PATH.write_text(json.dumps(results, indent=2))
+    except Exception as e:
+        print("Errore salvataggio risultati:", e)
 
-    print("Scan completed")
+    print("Scan completed, risultati:", len(results))
 
 # --------------------------------------------------
 
