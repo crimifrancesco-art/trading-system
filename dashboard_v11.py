@@ -5,9 +5,11 @@
 import streamlit as st
 import pandas as pd
 import json
-import subprocess
 from pathlib import Path
 from datetime import datetime
+
+from run_scan import run_scan
+
 
 # ----------------------------------------------------------
 # PAGE CONFIG
