@@ -25,180 +25,161 @@ st.title("📊 Trading Scanner — V11 Professional")
 # UTILITIES & FORMATTING
 # ----------------------------------------------------------
 def fmt_currency(value, currency="USD"):
-    if value is None or np.isnan(value): return ""
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
     symbol = "$" if currency == "USD" else "€"
     # Format: $1.234,56 or €1.234,56 (European style)
-    return f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    try:
+        res = f"{symbol}{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return res
+    except:
+        return str(value)
 
 def fmt_int(value):
-    if value is None or np.isnan(value): return ""
-    return f"{int(value):,}".replace(",", ".")
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    try:
+        return f"{int(value):,}".replace(",", ".")
+    except:
+        return str(value)
 
-def fmt_marketcap(value, currency="USD"):
-    if value is None or value == 0 or np.isnan(value): return ""
-    symbol = "$" if currency == "USD" else "€"
-    if value >= 1_000_000_000_000:
-        return f"{symbol}{value / 1_000_000_000_000:,.2f}T".replace(",", "X").replace(".", ",").replace("X", ".")
-    if value >= 1_000_000_000:
-        return f"{symbol}{value / 1_000_000_000:,.2f}B".replace(",", "X").replace(".", ",").replace("X", ".")
-    if value >= 1_000_000:
-        return f"{symbol}{value / 1_000_000:,.2f}M".replace(",", "X").replace(".", ",").replace("X", ".")
-    return fmt_currency(value, currency)
+def fmt_market_cap(value):
+    if not value or (isinstance(value, float) and np.isnan(value)): return "N/A"
+    try:
+        if value >= 1e12: return f"{value/1e12:.2f}T".replace(".", ",")
+        if value >= 1e9: return f"{value/1e9:.2f}B".replace(".", ",")
+        if value >= 1e6: return f"{value/1e6:.2f}M".replace(".", ",")
+        return str(value)
+    except:
+        return str(value)
 
 # ----------------------------------------------------------
-# MARKET UNIVERSES
+# SIDEBAR & MARKETS
 # ----------------------------------------------------------
+st.sidebar.header("⚙️ CONFIGURAZIONE")
+
 MARKETS = {
-    "FTSE": ["ENI.MI", "ISP.MI", "UCG.MI", "STM.MI", "ENEL.MI", "LDO.MI", "PRY.MI", "TEN.MI", "A2A.MI", "AMP.MI", "BAMI.MI", "BMED.MI", "FBK.MI", "MONC.MI", "PST.MI"],
-    "SP500": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "BRK-B", "LLY", "AVGO", "V", "TSLA", "WMT", "JPM", "UNH", "MA", "ORCL", "COST", "HD", "PG", "CVX"],
-    "Nasdaq": ["TSLA", "AMD", "AVGO", "INTC", "NFLX", "ADBE", "COST", "PEP", "CSCO", "AZN", "QCOM", "AMGN", "TMUS", "TXN", "AMAT", "SBUX", "ISRG", "MDLZ", "LRCX", "ADI"],
-    "ETF": ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM", "VXX", "SOXX", "XLE"],
-    "Crypto": ["BTC-USD", "ETH-USD", "BNB-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD"],
-    "Eurostoxx": ["ASML.AS", "MC.PA", "OR.PA", "TTE.PA", "AIR.PA", "SAN.PA", "SAP.DE", "SIE.DE", "IBE.MC", "NESN.SW"]
+    "🇺🇸 USA (S&P 500)": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "BRK-B", "JPM", "V"],
+    "🇮🇹 ITALIA (FTSE MIB)": ["ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI", "G.MI", "FER.MI", "PST.MI", "A2A.MI", "PRY.MI"],
+    "🇪🇺 EUROPA": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW"],
+    "⚡ CRYPTO": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"]
 }
 
-# ----------------------------------------------------------
-# SIDEBAR
-# ----------------------------------------------------------
-st.sidebar.title("⚙️ Configurazione")
+market_choice = st.sidebar.multiselect("Seleziona Mercati", list(MARKETS.keys()), default=[list(MARKETS.keys())[0]])
+custom_tickers = st.sidebar.text_input("Tickers Manuali (separati da virgola)", "")
 
-st.sidebar.subheader("📈 Selezione Mercati")
-selected_markets = []
-for market in MARKETS:
-    if st.sidebar.checkbox(market, value=True if market in ["FTSE", "SP500", "Nasdaq"] else False):
-        selected_markets.append(market)
+tickers_to_scan = []
+for m in market_choice:
+    tickers_to_scan.extend(MARKETS[m])
+if custom_tickers:
+    tickers_to_scan.extend([t.strip().upper() for t in custom_tickers.split(",") if t.strip()])
 
-st.sidebar.divider()
-
-st.sidebar.subheader("📤 Azioni")
-run_scan_btn = st.sidebar.button("🚀 AVVIA SCANNER V11", type="primary", use_container_width=True)
-
-# ----------------------------------------------------------
-# BUILD UNIVERSE
-# ----------------------------------------------------------
-def build_universe(markets):
-    tickers = []
-    for m in markets:
-        tickers.extend(MARKETS[m])
-    return sorted(set(tickers))
-
-active_tickers = build_universe(selected_markets)
-st.sidebar.write(f"Ticker attivi: **{len(active_tickers)}**")
-
-# ----------------------------------------------------------
-# SAVE RUNTIME UNIVERSE
-# ----------------------------------------------------------
+# Save universe for scanner
 runtime_path = Path("data/runtime_universe.json")
 runtime_path.parent.mkdir(parents=True, exist_ok=True)
+runtime_path.write_text(json.dumps({"tickers": list(set(tickers_to_scan))}))
 
-def save_runtime(tickers):
-    runtime_path.write_text(json.dumps({"tickers": tickers}, indent=2))
-
-# ----------------------------------------------------------
-# RUN SCAN
-# ----------------------------------------------------------
-if run_scan_btn:
-    if not active_tickers:
-        st.warning("Seleziona almeno un mercato.")
-        st.stop()
-    
-    save_runtime(active_tickers)
-    
-    with st.spinner("Scansione mercati in corso..."):
+if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
+    with st.spinner("Scansione in corso..."):
         try:
             run_scan()
-            st.success("Scan completato ✅")
+            st.success("Scansione completata!")
+            st.rerun()
         except Exception as e:
             st.error(f"Errore durante lo scan: {e}")
 
 # ----------------------------------------------------------
-# LOAD RESULTS & DISPLAY
+# LEGENDA FILTRI
 # ----------------------------------------------------------
-result_path = Path("data/scan_results.json")
-tab_results, tab_legend = st.tabs(["📊 Risultati Scan", "📘 Legenda Filtri"])
-
-with tab_results:
-    if result_path.exists():
-        try:
-            results = json.loads(result_path.read_text())
-            df = pd.DataFrame(results)
-            
-            if not df.empty:
-                # Add links
-                df['Yahoo'] = df['ticker'].apply(lambda x: f"https://finance.yahoo.com/quote/{x}")
-                df['TradingView'] = df['ticker'].apply(lambda x: f"https://www.tradingview.com/chart/?symbol={x.split('.')[0]}")
-                
-                # Apply Formatting for Display
-                df_display = df.copy()
-                df_display['Prezzo'] = df.apply(lambda r: fmt_currency(r['price'], r.get('currency', 'USD')), axis=1)
-                df_display['Market Cap'] = df.apply(lambda r: fmt_marketcap(r.get('market_cap', 0), r.get('currency', 'USD')), axis=1)
-                df_display['Vol giorno'] = df['vol_today'].apply(fmt_int)
-                df_display['Vol medio 7g'] = df['vol_7d_avg'].apply(fmt_int)
-                
-                # Metrics
-                c1, c2, c3 = st.columns(3)
-                n_strong = (df["signal"] == "STRONG BUY").sum()
-                n_buy = (df["signal"] == "BUY").sum()
-                
-                c1.metric("STRONG BUY", int(n_strong))
-                c2.metric("BUY", int(n_buy))
-                c3.metric("Assets scansionati", len(df))
-
-                # Table styling
-                def color_signal(val):
-                    if val == "STRONG BUY": return "background-color:#0f5132;color:white"
-                    if val == "BUY": return "background-color:#664d03;color:white"
-                    return ""
-
-                st.subheader("Tabella Segnali")
-                
-                # Define columns to show (sync with image)
-                cols_to_show = [
-                    "name", "ticker", "Prezzo", "Market Cap", "Vol giorno", "Vol medio 7g", 
-                    "score", "rsi", "vol_ratio", "obv_trend", "atr", "atr_exp", "signal", 
-                    "Yahoo", "TradingView"
-                ]
-                
-                # Rename for UI
-                df_final = df_display[cols_to_show].rename(columns={
-                    "name": "Nome", "ticker": "Ticker", "score": "Early_Score", 
-                    "rsi": "RSI", "vol_ratio": "Vol_Ratio", "obv_trend": "OBV_Trend",
-                    "atr": "ATR", "atr_exp": "ATR_Exp", "signal": "Stato"
-                })
-
-                st.dataframe(
-                    df_final.style.applymap(color_signal, subset=["Stato"]),
-                    use_container_width=True,
-                    column_config={
-                        "Yahoo": st.column_config.LinkColumn("Yahoo", display_text="Apri"),
-                        "TradingView": st.column_config.LinkColumn("TradingView", display_text="Apri"),
-                        "ATR_Exp": st.column_config.CheckboxColumn("ATR_Exp")
-                    }
-                )
-                
-                # Export
-                st.divider()
-                st.subheader("📥 Esporta Risultati")
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Scarica Risultati CSV", data=csv, file_name=f"scan_v11_{datetime.now().strftime('%Y%m%d')}.csv", use_container_width=True)
-
-            else:
-                st.info("Nessun segnale trovato. Prova a cambiare mercati o avviare un nuovo scan.")
-        except Exception as e:
-            st.error(f"Errore lettura risultati: {e}")
-    else:
-        st.info("Premi 'AVVIA SCANNER' nella sidebar per vedere i risultati.")
-
-with tab_legend:
-    st.subheader("Spiegazione Filtri V11")
+with st.expander("ℹ️ LEGENDA FILTRI & SEGNALI"):
     st.markdown("""
-    Lo scanner V11 utilizza un sistema a **punteggio (score)** basato su 5 criteri tecnici:
-    1. **Trend EMA50**: Rialzo EMA50 vs prezzo 5 giorni fa.
-    2. **RSI Momentum**: RSI in salita e < 70.
-    3. **MACD Cross**: MACD sopra la Signal Line.
-    4. **Volume Confirm**: Volume odierno > media 20 giorni.
-    5. **Volatility (ATR)**: Volatilità percentuale tra 0.5% e 10%.
+    **Criteri di Selezione (Score 0-5):**
+    1.  **Trend:** EMA50 sopra il prezzo di 5 giorni fa (Trend Rialzista).
+    2.  **RSI Momentum:** RSI in crescita e sotto 70 (No Ipercomprato).
+    3.  **MACD Cross:** Linea MACD sopra la linea Signal.
+    4.  **Volume:** Volume odierno superiore alla media 20 giorni.
+    5.  **Volatility:** ATR/Price tra 0.5% e 10% (Volatilità sana).
+
+    **Segnali:**
+    - 🟢 **STRONG BUY:** Tutti i 5 criteri soddisfatti.
+    - 🟡 **BUY:** Almeno 3 criteri soddisfatti.
+    - ⚪ **NONE:** Meno di 3 criteri soddisfatti.
     """)
 
-st.divider()
-st.caption(f"Ultimo aggiornamento interfaccia: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+# ----------------------------------------------------------
+# RESULTS DASHBOARD
+# ----------------------------------------------------------
+results_file = Path("data/scan_results.json")
+
+if results_file.exists():
+    try:
+        data = json.loads(results_file.read_text())
+        if not data:
+            st.warning("Nessun titolo trovato nell'ultima scansione.")
+        else:
+            df = pd.DataFrame(data)
+            
+            # Defensive check for new columns (fix KeyError 'vol_today')
+            required_cols = ['name', 'vol_today', 'vol_7d_avg', 'market_cap']
+            missing = [c for c in required_cols if c not in df.columns]
+            if missing:
+                st.warning(f"⚠️ Dati obsoleti rilevati. Esegui 'AVVIA SCANNER' per aggiornare i risultati (Mancano: {', '.join(missing)}).")
+                for m in missing: df[m] = None
+
+            # Filters in Main Page
+            col1, col2 = st.columns(2)
+            with col1:
+                min_score = st.slider("Min Score", 0, 5, 3)
+            with col2:
+                signal_filter = st.multiselect("Segnale", ["STRONG BUY", "BUY", "NONE"], default=["STRONG BUY", "BUY"])
+            
+            # Apply Filters
+            filtered_df = df[(df['score'] >= min_score) & (df['signal'].isin(signal_filter))].copy()
+            
+            st.subheader(f"🔍 Risultati ({len(filtered_df)})")
+            
+            if not filtered_df.empty:
+                # Formatting Table
+                display_df = pd.DataFrame()
+                display_df["Nome"] = filtered_df["name"] if "name" in filtered_df.columns else "N/A"
+                display_df["Ticker"] = filtered_df["ticker"]
+                display_df["Prezzo"] = filtered_df.apply(lambda x: fmt_currency(x["price"], x.get("currency", "USD")), axis=1)
+                display_df["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
+                display_df["Vol Giorno"] = filtered_df["vol_today"].apply(fmt_int)
+                display_df["Vol Medio 7g"] = filtered_df["vol_7d_avg"].apply(fmt_int)
+                display_df["RSI"] = filtered_df["rsi"]
+                display_df["Score"] = filtered_df["score"]
+                display_df["Segnale"] = filtered_df["signal"]
+                
+                # Links column
+                display_df["Links"] = filtered_df["ticker"].apply(lambda t: 
+                    f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">Yahoo</a> | '
+                    f'<a href="https://it.tradingview.com/symbols/{t.replace("-", "")}/" target="_blank">TV</a>'
+                )
+
+                # Style
+                def color_signal(val):
+                    if val == "STRONG BUY": return "background-color: #2ecc71; color: white;"
+                    if val == "BUY": return "background-color: #f1c40f; color: black;"
+                    return ""
+
+                st.write(display_df.style.applymap(color_signal, subset=["Segnale"]).to_html(escape=False, index=False), unsafe_allow_html=True)
+                
+                # Export
+                st.markdown("---")
+                c1, c2 = st.columns(2)
+                with c1:
+                    csv = filtered_df.to_csv(index=False).encode('utf-8')
+                    st.download_button("📥 Scarica CSV", csv, "scan_results.csv", "text/csv")
+                with c2:
+                    buffer = io.BytesIO()
+                    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                        filtered_df.to_excel(writer, index=False, sheet_name='Sheet1')
+                    st.download_button("📥 Scarica Excel", buffer.getvalue(), "scan_results.xlsx", "application/vnd.ms-excel")
+            else:
+                st.info("Nessun titolo soddisfa i filtri selezionati.")
+                
+    except Exception as e:
+        st.error(f"Errore lettura risultati: {e}")
+else:
+    st.info("Benvenuto! Clicca su 'AVVIA SCANNER' nella sidebar per iniziare la prima scansione.")
