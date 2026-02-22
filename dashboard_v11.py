@@ -10,7 +10,6 @@ from datetime import datetime
 
 from run_scan import run_scan
 
-
 # ----------------------------------------------------------
 # PAGE CONFIG
 # ----------------------------------------------------------
@@ -106,7 +105,6 @@ if run_scan_btn:
         run_scan()
 
     st.success("Scan completato ✅")
-
 
 # ----------------------------------------------------------
 # LOAD RESULTS
