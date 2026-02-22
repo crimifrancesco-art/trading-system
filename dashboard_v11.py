@@ -19,12 +19,11 @@ st.set_page_config(
     page_icon="📊",
 )
 
-# Custom CSS for sidebar and alignment
+# Custom CSS
 st.markdown("""
     <style>
     .sidebar .sidebar-content { padding-top: 1rem; }
     .st-emotion-cache-16idsys p { font-weight: bold; }
-    /* Right align numerical columns in st.dataframe is handled by column_config */
     </style>
     """, unsafe_allow_html=True)
 
@@ -118,14 +117,6 @@ tab_results, tab_watchlist, tab_legend = st.tabs(["🗓️ Risultati Scan", "⭐
 
 results_file = Path("data/scan_results.json")
 
-def make_clickable(ticker):
-    # Yahoo Link
-    y_url = f"https://finance.yahoo.com/quote/{ticker}"
-    # TV Link
-    tv_ticker = ticker.replace("-", "").replace(".", "")
-    tv_url = f"https://www.tradingview.com/symbols/{tv_ticker}/"
-    return f'<a href="{y_url}" target="_blank">Yahoo</a> | <a href="{tv_url}" target="_blank">TV</a>'
-
 with tab_results:
     if results_file.exists():
         try:
@@ -139,14 +130,14 @@ with tab_results:
                 filtered_df = df[(df['score'] >= min_score) & (df['signal'].isin(signal_filter))].head(top_n).copy()
                 
                 if not filtered_df.empty:
-                    # Apply formatting for display
+                    # Formatting
                     filtered_df["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
-                    filtered_df["Links"] = filtered_df["ticker"].apply(make_clickable)
+                    filtered_df["Yahoo"] = filtered_df["ticker"].apply(lambda t: f"https://finance.yahoo.com/quote/{t}")
+                    filtered_df["TV"] = filtered_df["ticker"].apply(lambda t: f"https://www.tradingview.com/symbols/{t.replace('-', '').replace('.', '')}/")
                     
                     # Columns to display
-                    COLS_DISPLAY = ["name", "ticker", "price", "Market Cap", "vol_today", "vol_7d_avg", "rsi", "score", "signal", "Links"]
+                    COLS_DISPLAY = ["name", "ticker", "price", "Market Cap", "vol_today", "vol_7d_avg", "rsi", "score", "signal", "Yahoo", "TV"]
                     
-                    st.write("### 📈 Risultati")
                     st.dataframe(
                         filtered_df[COLS_DISPLAY],
                         column_config={
@@ -156,7 +147,8 @@ with tab_results:
                             "vol_today": st.column_config.NumberColumn("Vol Giorno", format="%d"),
                             "vol_7d_avg": st.column_config.NumberColumn("Vol Medio 7g", format="%d"),
                             "rsi": st.column_config.NumberColumn("RSI", format="%.2f"),
-                            "Links": st.column_config.HtmlColumn("Links Analysis")
+                            "Yahoo": st.column_config.LinkColumn("Yahoo"),
+                            "TV": st.column_config.LinkColumn("TV")
                         },
                         use_container_width=True,
                         hide_index=True
@@ -174,7 +166,7 @@ with tab_results:
         except Exception as e:
             st.error(f"Errore: {e}")
     else:
-        st.info("Avvia una scansione per iniziare.")
+        st.info("Avvia una scansione per caricare i dati.")
 
 with tab_watchlist:
     st.subheader(f"Watchlist: {active_list}")
@@ -211,6 +203,5 @@ with tab_legend:
     - **ATR**: Volatilità (ATR/Prezzo) tra 0.5% e 10%.
     
     **Links:**
-    - **Yahoo**: Link diretto alla pagina ticker di Yahoo Finance.
-    - **TV**: Link diretto al grafico di TradingView.
+    - I link puntano direttamente a Yahoo Finance e TradingView per analisi approfondita nelle colonne corrispondenti.
     """)
