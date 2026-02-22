@@ -19,14 +19,12 @@ st.set_page_config(
     page_icon="📊",
 )
 
-# Custom CSS
+# Custom CSS for sidebar and alignment
 st.markdown("""
     <style>
     .sidebar .sidebar-content { padding-top: 1rem; }
     .st-emotion-cache-16idsys p { font-weight: bold; }
-    /* Aligning specific columns to the right if needed via dataframe styling, 
-       but for general text we can use markdown in some cases. 
-       However, st.dataframe handles alignment better with column_config. */
+    /* Right align numerical columns in st.dataframe is handled by column_config */
     </style>
     """, unsafe_allow_html=True)
 
@@ -46,24 +44,6 @@ def load_watchlists():
 
 def save_watchlists(data):
     WATCHLIST_FILE.write_text(json.dumps(data, indent=2))
-
-def fmt_currency(value, currency="USD"):
-    if value is None: return ""
-    try:
-        v = float(value)
-        if np.isnan(v): return ""
-    except: return str(value)
-    symbol = "$" if currency == "USD" else "€"
-    # Format with 2 decimals and thousands separator
-    return f"{symbol} {v:,.2f}"
-
-def fmt_int(value):
-    if value is None: return ""
-    try:
-        v = float(value)
-        if np.isnan(v): return ""
-        return f"{int(v):,}"
-    except: return str(value)
 
 def fmt_market_cap(value):
     if not value: return "N/A"
@@ -109,12 +89,6 @@ st.sidebar.markdown("---")
 st.sidebar.title("📁 Watchlist")
 watchlists = load_watchlists()
 active_list = st.sidebar.selectbox("Lista attiva", list(watchlists.keys()), index=0)
-new_list_name = st.sidebar.text_input("Crea nuova lista", placeholder="Nome...")
-if st.sidebar.button("Crea Lista") and new_list_name:
-    if new_list_name not in watchlists:
-        watchlists[new_list_name] = []
-        save_watchlists(watchlists)
-        st.rerun()
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
@@ -144,13 +118,13 @@ tab_results, tab_watchlist, tab_legend = st.tabs(["🗓️ Risultati Scan", "⭐
 
 results_file = Path("data/scan_results.json")
 
-def get_links(ticker):
-    # Yahoo Finance Link
-    yahoo_url = f"https://finance.yahoo.com/quote/{ticker}"
-    # TradingView Link (Assuming US markets or common ones)
+def make_clickable(ticker):
+    # Yahoo Link
+    y_url = f"https://finance.yahoo.com/quote/{ticker}"
+    # TV Link
     tv_ticker = ticker.replace("-", "").replace(".", "")
     tv_url = f"https://www.tradingview.com/symbols/{tv_ticker}/"
-    return f"[Yahoo]({yahoo_url}) | [TV]({tv_url})"
+    return f'<a href="{y_url}" target="_blank">Yahoo</a> | <a href="{tv_url}" target="_blank">TV</a>'
 
 with tab_results:
     if results_file.exists():
@@ -165,24 +139,24 @@ with tab_results:
                 filtered_df = df[(df['score'] >= min_score) & (df['signal'].isin(signal_filter))].head(top_n).copy()
                 
                 if not filtered_df.empty:
-                    # Formatting
-                    filtered_df["Links"] = filtered_df["ticker"].apply(get_links)
+                    # Apply formatting for display
+                    filtered_df["Market Cap"] = filtered_df["market_cap"].apply(fmt_market_cap)
+                    filtered_df["Links"] = filtered_df["ticker"].apply(make_clickable)
                     
-                    # Display using st.dataframe with column_config for better control
+                    # Columns to display
+                    COLS_DISPLAY = ["name", "ticker", "price", "Market Cap", "vol_today", "vol_7d_avg", "rsi", "score", "signal", "Links"]
+                    
+                    st.write("### 📈 Risultati")
                     st.dataframe(
-                        filtered_df,
-                        column_order=("name", "ticker", "price", "market_cap", "vol_today", "vol_7d_avg", "rsi", "score", "signal", "Links"),
+                        filtered_df[COLS_DISPLAY],
                         column_config={
                             "name": "Nome",
                             "ticker": "Ticker",
                             "price": st.column_config.NumberColumn("Prezzo", format="$ %.2f"),
-                            "market_cap": st.column_config.TextColumn("Market Cap"), # We keep our string format
                             "vol_today": st.column_config.NumberColumn("Vol Giorno", format="%d"),
                             "vol_7d_avg": st.column_config.NumberColumn("Vol Medio 7g", format="%d"),
                             "rsi": st.column_config.NumberColumn("RSI", format="%.2f"),
-                            "score": "Score",
-                            "signal": "Segnale",
-                            "Links": st.column_config.LinkColumn("Links")
+                            "Links": st.column_config.HtmlColumn("Links Analysis")
                         },
                         use_container_width=True,
                         hide_index=True
@@ -196,11 +170,11 @@ with tab_results:
                             save_watchlists(watchlists)
                             st.success(f"{to_add} aggiunto!")
                 else:
-                    st.info("Nessun risultato con i filtri attuali.")
+                    st.info("Nessun risultato trovato.")
         except Exception as e:
-            st.error(f"Errore lettura: {e}")
+            st.error(f"Errore: {e}")
     else:
-        st.info("Avvia una scansione per caricare i dati.")
+        st.info("Avvia una scansione per iniziare.")
 
 with tab_watchlist:
     st.subheader(f"Watchlist: {active_list}")
@@ -237,5 +211,6 @@ with tab_legend:
     - **ATR**: Volatilità (ATR/Prezzo) tra 0.5% e 10%.
     
     **Links:**
-    - I link puntano direttamente a Yahoo Finance e TradingView per analisi approfondita.
+    - **Yahoo**: Link diretto alla pagina ticker di Yahoo Finance.
+    - **TV**: Link diretto al grafico di TradingView.
     """)
