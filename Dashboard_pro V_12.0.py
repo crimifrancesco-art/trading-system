@@ -13,7 +13,6 @@ import yfinance as yf
 import pandas_ta as ta
 from pathlib import Path
 from datetime import datetime
-from fpdf import FPDF
 from run_scan import run_scan
 
 # -----------------------------------------------------------------------------
@@ -96,7 +95,7 @@ def add_links(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 # -----------------------------------------------------------------------------
-# DB WATCHLIST
+# DB WATCHLIST (SQLite)
 # -----------------------------------------------------------------------------
 DB_PATH = Path("watchlist.db")
 def init_db():
