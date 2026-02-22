@@ -67,45 +67,66 @@ def color_signal(val):
 # ----------------------------------------------------------
 st.sidebar.title("⚙️ Configurazione")
 
+# --- AVVIA SCANNER BUTTON (TOP) ---
+MARKETS_DICT = {
+    "EU Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW", "LVMH.PA"],
+    "IT FTSE MIB": ["ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI", "G.MI", "FER.MI", "PST.MI", "A2A.MI", "PRY.MI"],
+    "US S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "JPM", "V", "UNH", "PG"],
+    "US Nasdaq 100": ["NVDA", "TSLA", "AVGO", "COST", "ADBE", "NFLX", "AMD", "PEP", "AZN", "LIN"],
+    "US Dow Jones": ["DJI", "GS", "HD", "MCD", "BA", "CRM", "TRV", "HON", "AXP", "WMT"],
+    "US Russell 2000": ["IWM"],
+    "🛢️ Materie Prime": ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"],
+    "📦 ETF": ["SPY", "QQQ", "EEM", "VTI", "AGG"],
+    "₿ Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"],
+    "🌍 Emergenti": ["BABA", "TCEHY", "JD", "VALE", "PBR"]
+}
+
+# we need to define selected_markets here or before the button
+st.sidebar.markdown("### 🚀 Azioni")
+
+# We create the checkbox list first to know what to scan
+st.sidebar.markdown("### 📈 Selezione Mercati")
+selected_markets = []
+for label in MARKETS_DICT.keys():
+    default_val = label in ["IT FTSE MIB", "US Nasdaq 100"]
+    if st.sidebar.checkbox(label, value=default_val, key=f"mkt_{label}"):
+        selected_markets.append(label)
+
+if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True, type="primary"):
+    all_tickers = []
+    for m in selected_markets:
+        all_tickers.extend(MARKETS_DICT[m])
+    if not all_tickers:
+        st.warning("Seleziona almeno un mercato.")
+    else:
+        runtime_path = Path("data/runtime_universe.json")
+        runtime_path.write_text(json.dumps({"tickers": list(set(all_tickers))}))
+        with st.spinner("Scansione in corso..."):
+            try:
+                run_scan()
+                st.success("Scan completato ✅")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Errore: {e}")
+
+st.sidebar.markdown("---")
+
 # --- MODALITÀ ---
 st.sidebar.markdown("### 🧠 Modalità")
 show_only_watchlist = st.sidebar.checkbox("Mostra solo Watchlist (salta scanner)", value=False)
 
-# --- SELEZIONE MERCATI ---
 if not show_only_watchlist:
-    st.sidebar.markdown("### 📈 Selezione Mercati")
-    MARKETS_DICT = {
-        "EU Eurostoxx 600": ["ASML", "MC.PA", "SAP", "OR.PA", "TTE.PA", "SIE.DE", "NESN.SW", "NOVN.SW", "ROG.SW", "LVMH.PA"],
-        "IT FTSE MIB": ["ENI.MI", "ISP.MI", "UCG.MI", "ENEL.MI", "STLAM.MI", "G.MI", "FER.MI", "PST.MI", "A2A.MI", "PRY.MI"],
-        "US S&P 500": ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "BRK-B", "JPM", "V", "UNH", "PG"],
-        "US Nasdaq 100": ["NVDA", "TSLA", "AVGO", "COST", "ADBE", "NFLX", "AMD", "PEP", "AZN", "LIN"],
-        "US Dow Jones": ["DJI", "GS", "HD", "MCD", "BA", "CRM", "TRV", "HON", "AXP", "WMT"],
-        "US Russell 2000": ["IWM"],
-        "🛢️ Materie Prime": ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"],
-        "📦 ETF": ["SPY", "QQQ", "EEM", "VTI", "AGG"],
-        "₿ Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD"],
-        "🌍 Emergenti": ["BABA", "TCEHY", "JD", "VALE", "PBR"]
-    }
-    selected_markets = []
-    for label in MARKETS_DICT.keys():
-        default_val = label in ["IT FTSE MIB", "US Nasdaq 100"]
-        if st.sidebar.checkbox(label, value=default_val):
-            selected_markets.append(label)
-
     st.sidebar.markdown("---")
     st.sidebar.title("🕹️ Output")
     top_n = st.sidebar.number_input("TOP N titoli per tab", min_value=1, max_value=100, value=15, step=1)
 
-# --- WATCHLIST MANAGEMENT IN SIDEBAR ---
+# --- WATCHLIST MANAGEMENT ---
 st.sidebar.markdown("---")
 st.sidebar.title("📁 Lista Watchlist")
 watchlists = load_watchlists()
 list_names = list(watchlists.keys())
-
-# Selezione e visualizzazione attiva
 active_list = st.sidebar.selectbox("Lista esistente", list_names, index=0)
 
-# Creazione nuova lista
 new_list_name = st.sidebar.text_input("Crea nuova lista", placeholder="Es. Swing, LT, Crypto...")
 if st.sidebar.button("Crea Lista") and new_list_name:
     if new_list_name not in watchlists:
@@ -113,7 +134,6 @@ if st.sidebar.button("Crea Lista") and new_list_name:
         save_watchlists(watchlists)
         st.rerun()
 
-# Rinominazione lista
 rename_target = st.sidebar.selectbox("Rinomina lista", list_names, index=list_names.index(active_list))
 new_rename_name = st.sidebar.text_input("Nuovo nome per la lista selezionata", placeholder="Nuovo nome...")
 if st.sidebar.button("Applica rinomina") and new_rename_name and rename_target:
@@ -122,7 +142,6 @@ if st.sidebar.button("Applica rinomina") and new_rename_name and rename_target:
         save_watchlists(watchlists)
         st.rerun()
 
-# Cancellazione lista
 if st.sidebar.button("Elimina Lista Selezionata", type="secondary"):
     if active_list != "DEFAULT":
         watchlists.pop(active_list)
@@ -132,26 +151,6 @@ if st.sidebar.button("Elimina Lista Selezionata", type="secondary"):
         st.sidebar.warning("Non puoi eliminare la lista DEFAULT.")
 
 st.sidebar.markdown(f"**Lista attiva attuale: {active_list}**")
-
-# --- AVVIA SCANNER BUTTON ---
-if not show_only_watchlist:
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🚀 AVVIA SCANNER", use_container_width=True):
-        all_tickers = []
-        for m in selected_markets:
-            all_tickers.extend(MARKETS_DICT[m])
-        if not all_tickers:
-            st.warning("Seleziona almeno un mercato.")
-        else:
-            runtime_path = Path("data/runtime_universe.json")
-            runtime_path.write_text(json.dumps({"tickers": list(set(all_tickers))}))
-            with st.spinner("Scansione in corso..."):
-                try:
-                    run_scan()
-                    st.success("Scan completato ✅")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore: {e}")
 
 # ----------------------------------------------------------
 # MAIN CONTENT
@@ -202,7 +201,6 @@ with tab_results:
                 ].head(top_n).copy()
 
                 if not filtered_df.empty:
-                    # Build display dataframe
                     disp = pd.DataFrame()
                     disp["Nome"] = filtered_df["name"]
                     disp["Ticker"] = filtered_df["ticker"]
@@ -213,12 +211,8 @@ with tab_results:
                     disp["RSI"] = filtered_df["rsi"]
                     disp["Score"] = filtered_df["score"]
                     disp["Segnale"] = filtered_df["signal"]
-                    disp["Yahoo"] = filtered_df["ticker"].apply(
-                        lambda t: f"https://finance.yahoo.com/quote/{t}"
-                    )
-                    disp["TV"] = filtered_df["ticker"].apply(
-                        lambda t: f"https://www.tradingview.com/symbols/{t.replace('-','').replace('.','')}/"
-                    )
+                    disp["Yahoo"] = filtered_df["ticker"].apply(lambda t: f"https://finance.yahoo.com/quote/{t}")
+                    disp["TV"] = filtered_df["ticker"].apply(lambda t: f"https://www.tradingview.com/symbols/{t.replace('-','').replace('.','')}/")
 
                     st.dataframe(
                         disp.style.applymap(color_signal, subset=["Segnale"]),
@@ -245,14 +239,9 @@ with tab_results:
 
                     st.markdown("---")
                     st.markdown("### ➕ Aggiungi a Watchlist")
-                    
-                    # Prepare sorted options for multiselect: Name (Ticker)
                     options_df = filtered_df[["name", "ticker"]].sort_values("name")
                     ticker_options = [f"{r['name']} ({r['ticker']})" for _, r in options_df.iterrows()]
-                    
                     selected_display_names = st.multiselect("Seleziona uno o più Ticker", ticker_options)
-                    
-                    # Map back to tickers
                     tickers_to_save = [name.split(" (")[-1].replace(")", "") for name in selected_display_names]
                     
                     if st.button(f"Salva {len(tickers_to_save)} titoli in {active_list}", use_container_width=True):
