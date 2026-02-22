@@ -27,22 +27,10 @@ st.title("📊 Trading Scanner — V11 Professional")
 # ----------------------------------------------------------
 
 MARKETS = {
-
-    "FTSE": [
-        "ENI.MI","ISP.MI","UCG.MI","STM.MI"
-    ],
-
-    "SP500": [
-        "AAPL","MSFT","NVDA","AMZN","META"
-    ],
-
-    "Nasdaq": [
-        "TSLA","AMD","AVGO","INTC"
-    ],
-
-    "ETF": [
-        "SPY","QQQ","IWM"
-    ]
+    "FTSE": ["ENI.MI", "ISP.MI", "UCG.MI", "STM.MI"],
+    "SP500": ["AAPL", "MSFT", "NVDA", "AMZN", "META"],
+    "Nasdaq": ["TSLA", "AMD", "AVGO", "INTC"],
+    "ETF": ["SPY", "QQQ", "IWM"]
 }
 
 # ----------------------------------------------------------
@@ -52,7 +40,6 @@ MARKETS = {
 st.sidebar.title("⚙️ Scanner Settings")
 
 selected_markets = []
-
 for market in MARKETS:
     if st.sidebar.checkbox(market, value=True):
         selected_markets.append(market)
@@ -60,21 +47,17 @@ for market in MARKETS:
 run_scan_btn = st.sidebar.button("▶ RUN SCAN")
 
 # ----------------------------------------------------------
-# BUILD UNIVERSE (⭐ FIX V11)
+# BUILD UNIVERSE
 # ----------------------------------------------------------
 
 def build_universe(markets):
-
     tickers = []
-
     for m in markets:
         tickers.extend(MARKETS[m])
-
     return sorted(set(tickers))
 
 
 active_tickers = build_universe(selected_markets)
-
 st.sidebar.write(f"Ticker attivi: {len(active_tickers)}")
 
 # ----------------------------------------------------------
@@ -82,12 +65,11 @@ st.sidebar.write(f"Ticker attivi: {len(active_tickers)}")
 # ----------------------------------------------------------
 
 runtime_path = Path("data/runtime_universe.json")
-runtime_path.parent.mkdir(exist_ok=True)
+runtime_path.parent.mkdir(parents=True, exist_ok=True)
+
 
 def save_runtime(tickers):
-
-    with open(runtime_path, "w") as f:
-        json.dump({"tickers": tickers}, f, indent=2)
+    runtime_path.write_text(json.dumps({"tickers": tickers}, indent=2))
 
 # ----------------------------------------------------------
 # RUN SCAN
@@ -108,7 +90,6 @@ if run_scan_btn:
         except Exception as e:
             st.error(f"Errore durante lo scan: {e}")
 
-
 # ----------------------------------------------------------
 # LOAD RESULTS
 # ----------------------------------------------------------
@@ -116,34 +97,38 @@ if run_scan_btn:
 result_path = Path("data/scan_results.json")
 
 if result_path.exists():
+    try:
+        results = json.loads(result_path.read_text())
+        df = pd.DataFrame(results)
 
-    results = json.loads(result_path.read_text())
-    df = pd.DataFrame(results)
+        if not df.empty:
+            st.subheader("📊 Risultati Scan")
 
-    if not df.empty:
+            def color_signal(val):
+                if val == "STRONG BUY":
+                    return "background-color:#0f5132;color:white"
+                if val == "BUY":
+                    return "background-color:#664d03;color:white"
+                return ""
 
-        st.subheader("📊 Risultati")
+            st.dataframe(
+                df.style.applymap(color_signal, subset=["signal"]),
+                use_container_width=True,
+            )
 
-        def color_signal(val):
-            if val == "STRONG BUY":
-                return "background-color:#0f5132;color:white"
-            if val == "BUY":
-                return "background-color:#664d03;color:white"
-            return ""
+            c1, c2, c3 = st.columns(3)
+            c1.metric("STRONG BUY", int((df["signal"] == "STRONG BUY").sum()))
+            c2.metric("BUY", int((df["signal"] == "BUY").sum()))
+            c3.metric("Assets scansionati", len(df))
 
-        st.dataframe(
-            df.style.applymap(color_signal, subset=["signal"]),
-            use_container_width=True,
-        )
+        else:
+            st.info("Scan eseguito ma nessun segnale trovato. Premi RUN SCAN di nuovo.")
 
-        c1, c2, c3 = st.columns(3)
-
-        c1.metric("STRONG BUY", (df.signal=="STRONG BUY").sum())
-        c2.metric("BUY", (df.signal=="BUY").sum())
-        c3.metric("Assets", len(df))
+    except Exception as e:
+        st.error(f"Errore lettura risultati: {e}")
 
 else:
-    st.info("Esegui uno scan.")
+    st.info("Premi RUN SCAN per avviare lo scanner.")
 
 # ----------------------------------------------------------
 # FOOTER
