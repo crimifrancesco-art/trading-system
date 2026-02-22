@@ -102,15 +102,11 @@ if run_scan_btn:
 
     save_runtime(active_tickers)
 
-
-
-    from run_scan import run_scan
-
-with st.spinner("Scanning markets..."):
-    run_scan()
-
+    with st.spinner("Scanning markets..."):
+        run_scan()
 
     st.success("Scan completato ✅")
+
 
 # ----------------------------------------------------------
 # LOAD RESULTS
