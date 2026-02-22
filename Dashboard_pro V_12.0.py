@@ -74,9 +74,15 @@ MARKETS = {
     "ETF": ["SPY", "QQQ", "IWM", "GLD", "TLT"],
     "Crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"]
 }
-st.sidebar.subheader("🚀 Scanner V11")
-sel_mkts = [m for m in MARKETS.keys() if st.sidebar.checkbox(m, value=(m in ["FTSE MIB", "Nasdaq 100"]), key=f"v11_{m}")]
-if st.sidebar.button("🚀 AVVIA SCANNER V11", type="primary", use_container_width=True):
+st.sidebar.subheader("📈 Selezione Mercati")
+sel_mkts = [m for m in MARKETS.keys() if st.sidebar.checkbox(m, value=(m in ["FTSE MIB", "Nasdaq 100"]), key=f"mkt_{m}")]
+
+st.sidebar.subheader("🚀 Scanner")
+c1, c2 = st.sidebar.columns(2)
+run_v11 = c1.button("V11", type="primary", use_container_width=True)
+run_v9 = c2.button("PRO 9.0", type="primary", use_container_width=True)
+
+if run_v11:
     uni = []
     for m in sel_mkts: uni.extend(MARKETS[m])
     Path("data").mkdir(exist_ok=True)
@@ -85,7 +91,7 @@ if st.sidebar.button("🚀 AVVIA SCANNER V11", type="primary", use_container_wid
     st.success("Fatto!"); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("🎛️ Parametri PRO")
+st.sidebar.subheader("🎛️ Parametri PRO 9.0")
 top_n = st.sidebar.number_input("TOP N", 5, 50, 15)
 e_h = st.sidebar.slider("EARLY (%)", 0.0, 10.0, 2.0) / 100
 p_rmin, p_rmax = st.sidebar.slider("PRO RSI", 0, 100, (40, 70))
@@ -100,25 +106,37 @@ def fetch_v9(t):
     try:
         y = yf.Ticker(t); h = y.history(period="6mo")
         if len(h)<40: return None
-        i = y.info; c = h["Close"]; v = h["Volume"]
+        i = y.info; c = h["Close"]; v = h["Volume"]; hi = h["High"]; lo = h["Low"]
         ema = c.ewm(20).mean().iloc[-1]
         try:
-            d = c.diff(); g = d.where(d>0,0).rolling(14).mean(); l = -d.where(d<0,0).rolling(14).mean()
+            delta = c.diff(); g = delta.where(delta>0,0).rolling(14).mean(); l = -delta.where(delta<0,0).rolling(14).mean()
             rsi = 100 - (100/(1+(g/l))).iloc[-1]
         except: rsi = 50
-        return {"name": i.get("longName",t), "ticker": t, "price": c.iloc[-1], "rsi": rsi, "vol_today": v.iloc[-1], "vol_7d_avg": v.tail(7).mean(), "market_cap": i.get("marketCap",0), "ema20": ema, "vol_ratio": v.iloc[-1]/v.rolling(20).mean().iloc[-1]}
+        
+        # POC Calculation
+        tp = (hi + lo + c) / 3
+        bins = np.linspace(float(lo.min()), float(hi.max()), 50)
+        v_bins = pd.cut(tp, bins, labels=bins[:-1])
+        poc = float(pd.DataFrame({"P": v_bins, "V": v}).groupby("P")["V"].sum().idxmax())
+        
+        return {"name": i.get("longName",t), "ticker": t, "price": c.iloc[-1], "rsi": rsi, "vol_today": v.iloc[-1], "vol_7d_avg": v.tail(7).mean(), "market_cap": i.get("marketCap",0), "ema20": ema, "vol_ratio": v.iloc[-1]/v.rolling(20).mean().iloc[-1], "poc": poc, "hi20": c.rolling(20).max().iloc[-2]}
     except: return None
 
-if st.sidebar.button("🚀 AVVIA SCANNER PRO 9.0", use_container_width=True):
+if run_v9:
     u = []
     for m in sel_mkts: u.extend(MARKETS[m])
     res = []
-    pb = st.progress(0); st.info("Scansione PRO 9.0...")
-    for i, t in enumerate(list(set(u))):
+    prog = st.sidebar.progress(0)
+    stat = st.sidebar.empty()
+    u_list = list(set(u))
+    for i, t in enumerate(u_list):
+        stat.text(f"Scanning: {t}")
         d = fetch_v9(t)
         if d: res.append(d)
-        pb.progress((i+1)/len(list(set(u))))
-    st.session_state["df_v9"] = pd.DataFrame(res); st.rerun()
+        prog.progress((i+1)/len(u_list))
+    st.session_state["df_v9"] = pd.DataFrame(res)
+    stat.text("Done!")
+    st.rerun()
 
 df_v9 = st.session_state.get("df_v9", pd.DataFrame())
 
@@ -133,12 +151,13 @@ for i, tab in enumerate(tabs):
                 if i==0: d = d[abs(d["price"]-d["ema20"])/d["ema20"] <= e_h]
                 elif i==1: d = d[(d["price"]>d["ema20"]) & (d["rsi"]>=p_rmin) & (d["rsi"]<=p_rmax)]
                 elif i==2: d = d[d["vol_ratio"]>1.5]
+                elif i==3: d = d[d["price"] >= d["hi20"]]
                 if not d.empty:
                     d = add_formatted_cols(d); d = add_links(d)
                     st.dataframe(d.head(top_n), hide_index=True, use_container_width=True, column_config={"Yahoo":st.column_config.LinkColumn("Yahoo", display_text="Apri"), "TV":st.column_config.LinkColumn("TV", display_text="Apri")})
                     sel = st.multiselect("Salva:", [f"{r['name']} ({r['ticker']})" for _,r in d.head(top_n).iterrows()], key=f"s_{i}")
                     if st.button("📌 Salva", key=f"b_{i}"):
-                        add_to_watchlist([s.split(" (")[-1][:-1] for s in sel], [s.split(" (")[0] for s in sel], "V9", "", list_name=act_list)
+                        add_to_watchlist([s.split(" (")[-1][:-1] for s in sel], [s.split(" (")[0] for s in sel], "V12", "", list_name=act_list)
                         st.success("Salvati")
         elif i == 7:
             p = Path("data/scan_results.json")
