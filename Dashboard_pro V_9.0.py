@@ -296,26 +296,31 @@ st.sidebar.title("⚙️ Configurazione")
 
 # ---------------- Selezione Mercati (persistente) ----------------
 st.sidebar.subheader("📈 Selezione Mercati")
+
 m = {
-    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", False),
-    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"]),
-    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"]),
-    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"]),
-    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones", False),
-    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", False),
-    "Commodities": st.sidebar.checkbox("🛢️ Materie Prime", False),
-    "ETF": st.sidebar.checkbox("📦 ETF", False),
-    "Crypto": st.sidebar.checkbox("₿ Crypto", False),
-    "Emerging": st.sidebar.checkbox("🌍 Emergenti", False),
+    "SP500": st.sidebar.checkbox("🇺🇸 S&P 500",  st.session_state.get("m_SP500", False)),
+    "Eurostoxx": st.sidebar.checkbox("🇪🇺 Eurostoxx 600", st.session_state.get("m_Eurostoxx", False)),
+    "FTSE": st.sidebar.checkbox("🇮🇹 FTSE MIB", st.session_state.get("m_FTSE", False)),
+    "Nasdaq": st.sidebar.checkbox("🇺🇸 Nasdaq 100", st.session_state.get("m_Nasdaq", False)),
+    "Dow": st.sidebar.checkbox("🇺🇸 Dow Jones 30", st.session_state.get("m_Dow", False)),
+    "Russell": st.sidebar.checkbox("🇺🇸 Russell 2000", st.session_state.get("m_Russell", False)),
+    "StoxxEmerging": st.sidebar.checkbox("🇪🇺 Stoxx Emerging 50", st.session_state.get("m_StoxxEmerging", False)),
+    "USSmallCap": st.sidebar.checkbox("🇺🇸 US Small Cap 2000", st.session_state.get("m_USSmallCap", False)),
 }
+
 sel = [k for k, v in m.items() if v]
 
 # aggiorno stato mercati
-st.session_state["m_FTSE"] = m["FTSE"]
 st.session_state["m_SP500"] = m["SP500"]
+st.session_state["m_Eurostoxx"] = m["Eurostoxx"]
+st.session_state["m_FTSE"] = m["FTSE"]
 st.session_state["m_Nasdaq"] = m["Nasdaq"]
+st.session_state["m_Dow"] = m["Dow"]
+st.session_state["m_Russell"] = m["Russell"]
+st.session_state["m_StoxxEmerging"] = m["StoxxEmerging"]
+st.session_state["m_USSmallCap"] =
 
-st.sidebar.divider()
+universe = load_universe(markets)
 
 # ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
@@ -481,188 +486,62 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 
 import pandas as pd
 import streamlit as st
+from pathlib import Path
 
-# ------------------------
-# URL INDICI PRINCIPALI
-# ------------------------
-SP500_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"  # [web:16]
-EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # [web:22][web:24]
+DATA_DIR = Path("data")  # cartella dove risiedono i csv
 
-# Nasdaq 100 da CSV pubblico (lista da Wikipedia/Kaggle) [web:52][web:41]
-NASDAQ100_CSV_URL = "https://raw.githubusercontent.com/azymnis/python-stocks/master/nasdaq100.csv"
-
-# FTSE MIB da MarketScreener [web:34]
-FTSEMIB_URL = "https://www.marketscreener.com/quote/index/FTSE-MIB-121229431/components/"
-
-# Russell 2000: CSV pubblico con componenti (ticker, name) [web:70]
-RUSSELL2000_CSV_URL = "https://raw.githubusercontent.com/ikoniaris/Russell2000/master/russell_2000_components.csv"
-
-
-# ------------------------
-# FUNZIONI DI CARICAMENTO
-# ------------------------
-
-def load_sp500_tickers():
-    df = pd.read_csv(SP500_URL)
-    return df["Symbol"].dropna().unique().tolist()
-
-
-def load_eurostoxx600_tickers():
-    df = pd.read_csv(EUROSTOXX600_URL)
-    date_col_candidates = ["Date", "HISTORY_DATE", "HistoryDate"]
-    comp_col_candidates = ["Ticker", "TICKER_SYMBOL", "Instrument", "ISIN"]
-
-    date_col = None
-    for c in date_col_candidates:
-        if c in df.columns:
-            date_col = c
-            break
-
-    if date_col is not None:
-        latest_date = df[date_col].max()
-        df = df[df[date_col] == latest_date]
-
-    comp_col = None
-    for c in comp_col_candidates:
-        if c in df.columns:
-            comp_col = c
-            break
-
-    if comp_col is None:
+def load_index_from_csv(filename: str):
+    """
+    Carica un universo da un CSV locale in data/.
+    Usa la colonna 'Simbolo' (o equivalenti) come ticker.
+    """
+    path = DATA_DIR / filename
+    if not path.exists():
         return []
 
-    return df[comp_col].dropna().unique().tolist()
+    df = pd.read_csv(path)
 
+    # Normalizza il nome della colonna dei ticker
+    if "ticker" not in df.columns:
+        for col in ["Simbolo", "simbolo", "Ticker", "Symbol", "symbol"]:
+            if col in df.columns:
+                df = df.rename(columns={col: "ticker"})
+                break
 
-def load_nasdaq100_tickers():
-    try:
-        df = pd.read_csv(NASDAQ100_CSV_URL)
-    except Exception:
-        return [
-            "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO",
-            "NFLX", "ADBE", "COST", "PEP", "CSCO", "INTC", "AMD"
-        ]
+    if "ticker" not in df.columns:
+        return []
 
-    for col in ["Ticker", "Symbol", "Symbols"]:
-        if col in df.columns:
-            return df[col].dropna().unique().tolist()
+    return df["ticker"].dropna().astype(str).unique().tolist()
 
-    return [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO",
-        "NFLX", "ADBE", "COST", "PEP", "CSCO", "INTC", "AMD"
-    ]
-
-
-def load_dow30_tickers():
-    """
-    Lista stabile di 30 componenti Dow Jones Industrial Average.
-    Hard-coded per evitare sorprese di scraping. [web:39]
-    """
-    return [
-        "AAPL", "AMGN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS", "DOW",
-        "GS", "HD", "HON", "IBM", "INTC", "JNJ", "JPM", "KO", "MCD", "MMM",
-        "MRK", "MSFT", "NKE", "PG", "TRV", "UNH", "V", "VZ", "WBA", "WMT",
-    ]
-
-
-def load_ftsemib_tickers():
-    """
-    Componenti FTSE MIB da MarketScreener. [web:34]
-    """
-    try:
-        tables = pd.read_html(FTSEMIB_URL)
-    except Exception:
-        return [
-            "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
-            "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI",
-        ]
-
-    df = tables[0]
-    symbol_col = None
-    for col in ["Ticker", "Symbol", "Codice", "Code"]:
-        if col in df.columns:
-            symbol_col = col
-            break
-
-    if symbol_col is None:
-        return [
-            "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
-            "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI",
-        ]
-
-    tickers = df[symbol_col].dropna().astype(str).unique().tolist()
-    norm = []
-    for tk in tickers:
-        tk = tk.strip()
-        if not tk.endswith(".MI"):
-            tk = tk + ".MI"
-        norm.append(tk)
-
-    return norm
-
-
-def load_russell2000_tickers():
-    """
-    Lista Russell 2000 completa da CSV pubblico (ticker, name). [web:70]
-    """
-    try:
-        df = pd.read_csv(RUSSELL2000_CSV_URL)
-    except Exception:
-        return ["IWM", "VTWO"]
-
-    # il CSV ha colonna 'ticker' o simile [web:70]
-    for col in ["ticker", "Ticker", "Symbol"]:
-        if col in df.columns:
-            return df[col].dropna().astype(str).unique().tolist()
-
-    return ["IWM", "VTWO"]
-
-
-# ------------------------
-# UNIVERSO MERCATI
-# ------------------------
 
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
 
-    # INDICI PRINCIPALI
+    # mapping sidebar -> file csv (tutti con stessa architettura tipo dowjones.csv) [file:78]
     if "SP500" in markets:
-        t += load_sp500_tickers()
+        t += load_index_from_csv("sp500.csv")
 
     if "Eurostoxx" in markets:
-        eu = load_eurostoxx600_tickers()
-        if not eu:
-            eu = [
-                "ASML.AS", "NESN.SW", "SAN.PA", "TTE.PA",
-                "AIR.PA", "MC.PA", "OR.PA", "SU.PA",
-            ]
-        t += eu
+        t += load_index_from_csv("eurostox600.csv")
 
-    if "Nasdaq" in markets:
-        t += load_nasdaq100_tickers()
+    if "FTSE" in markets:          # FTSE MIB
+        t += load_index_from_csv("ftsemib.csv")
 
-    if "Dow" in markets:
-        t += load_dow30_tickers()
+    if "Nasdaq" in markets:        # Nasdaq 100
+        t += load_index_from_csv("nasdaq100.csv")
 
-    if "FTSE" in markets:
-        t += load_ftsemib_tickers()
+    if "Dow" in markets:           # Dow Jones 30
+        t += load_index_from_csv("dowjones.csv")
 
-    if "Russell" in markets:
-        t += load_russell2000_tickers()
+    if "Russell" in markets:       # Russell 2000
+        t += load_index_from_csv("russell2000.csv")
 
-    # ALTRI MERCATI
-    if "Commodities" in markets:
-        t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
+    if "StoxxEmerging" in markets:
+        t += load_index_from_csv("stoxx emerging market 50.csv")
 
-    if "ETF" in markets:
-        t += ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"]
-
-    if "Crypto" in markets:
-        t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
-
-    if "Emerging" in markets:
-        t += ["EEM", "EWZ", "INDA", "FXI"]
+    if "USSmallCap" in markets:
+        t += load_index_from_csv("us small cap 2000.csv")
 
     return list(dict.fromkeys(t))
 
