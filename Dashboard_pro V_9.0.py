@@ -15,12 +15,12 @@ from fpdf import FPDF  # pip install fpdf2
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 9.0",
+    page_title="Trading Scanner – Versione PRO 9.6",
     layout="wide",
     page_icon="📊",
 )
 
-st.title("📊 Trading Scanner – Versione PRO 9.0")
+st.title("📊 Trading Scanner – Versione PRO 9.6")
 
 st.caption(
     "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
@@ -478,16 +478,86 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 # =============================================================================
 # FUNZIONI DI SUPPORTO
 # =============================================================================
+
+SP500_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"  # [web:16]
+EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # file pesi/componenti STOXX 600 [web:7][web:22]
+
+def load_sp500_tickers():
+    """
+    Ritorna la lista dei ticker S&P 500 (colonna Symbol del CSV).
+    """
+    df = pd.read_csv(SP500_URL)
+    # Il CSV ha le colonne: Symbol, Name, Sector, ecc. [web:16][web:18]
+    return df["Symbol"].dropna().unique().tolist()
+
+def load_eurostoxx600_tickers():
+    """
+    Ritorna la lista dei ticker Euro Stoxx 600 dal file storico STOXX,
+    filtrando l'ultima data disponibile.
+    """
+    df = pd.read_csv(EUROSTOXX600_URL)
+    # Il file storico contiene una colonna data (es. Date o HISTORY_DATE) e le colonne componente/ticker,
+    # l'esatto nome dipende dalla versione del file scaricata da STOXX. [web:22][web:24]
+    date_col_candidates = ["Date", "HISTORY_DATE", "HistoryDate"]
+    comp_col_candidates = ["Ticker", "TICKER_SYMBOL", "Instrument", "ISIN"]
+
+    # Trova la colonna data
+    date_col = None
+    for c in date_col_candidates:
+        if c in df.columns:
+            date_col = c
+            break
+
+    # Se troviamo la data, filtriamo l'ultima
+    if date_col is not None:
+        latest_date = df[date_col].max()
+        df = df[df[date_col] == latest_date]
+
+    # Trova la colonna ticker / identificativo
+    comp_col = None
+    for c in comp_col_candidates:
+        if c in df.columns:
+            comp_col = c
+            break
+
+    if comp_col is None:
+        # fallback brutale: nessuna colonna trovata, ritorno lista vuota
+        return []
+
+    return df[comp_col].dropna().unique().tolist()
+
 @st.cache_data(ttl=3600)
 def load_universe(markets):
     t = []
 
+    # ========================
+    # INDICI PRINCIPALI
+    # ========================
     if "SP500" in markets:
-        sp = pd.read_csv(
-            "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-        )["Symbol"].tolist()
+        # Caricamento dinamico da CSV pubblico S&P 500 [web:16][web:18]
+        sp = load_sp500_tickers()
         t += sp
 
+    if "Eurostoxx" in markets:
+        # Caricamento dinamico componenti STOXX Europe 600 [web:7][web:22][web:24]
+        eu = load_eurostoxx600_tickers()
+        # Se per qualche motivo torna vuoto (colonne non trovate), tieni anche una mini lista di backup:
+        if not eu:
+            eu = [
+                "ASML.AS",
+                "NESN.SW",
+                "SAN.PA",
+                "TTE.PA",
+                "AIR.PA",
+                "MC.PA",
+                "OR.PA",
+                "SU.PA",
+            ]
+        t += eu
+
+    # ========================
+    # ALTRI UNIVERSE (STATICI)
+    # ========================
     if "Nasdaq" in markets:
         t += [
             "AAPL",
@@ -543,18 +613,6 @@ def load_universe(markets):
             "AMP.MI",
         ]
 
-    if "Eurostoxx" in markets:
-        t += [
-            "ASML.AS",
-            "NESN.SW",
-            "SAN.PA",
-            "TTE.PA",
-            "AIR.PA",
-            "MC.PA",
-            "OR.PA",
-            "SU.PA",
-        ]
-
     if "Commodities" in markets:
         t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
 
@@ -567,6 +625,7 @@ def load_universe(markets):
     if "Emerging" in markets:
         t += ["EEM", "EWZ", "INDA", "FXI"]
 
+    # Rimuove duplicati mantenendo l'ordine
     return list(dict.fromkeys(t))
 
 
