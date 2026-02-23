@@ -518,23 +518,23 @@ def load_index_from_csv(filename: str):
 def load_universe(markets):
     t = []
 
-    # mapping sidebar -> file csv (tutti con stessa architettura tipo dowjones.csv) [file:78]
+    # mapping sidebar -> file csv (con stessa architettura tipo dowjones.csv)
     if "SP500" in markets:
         t += load_index_from_csv("sp500.csv")
 
     if "Eurostoxx" in markets:
         t += load_index_from_csv("eurostox600.csv")
 
-    if "FTSE" in markets:          # FTSE MIB
+    if "FTSE" in markets:
         t += load_index_from_csv("ftsemib.csv")
 
-    if "Nasdaq" in markets:        # Nasdaq 100
+    if "Nasdaq" in markets:
         t += load_index_from_csv("nasdaq100.csv")
 
-    if "Dow" in markets:           # Dow Jones 30
+    if "Dow" in markets:
         t += load_index_from_csv("dowjones.csv")
 
-    if "Russell" in markets:       # Russell 2000
+    if "Russell" in markets:
         t += load_index_from_csv("russell2000.csv")
 
     if "StoxxEmerging" in markets:
