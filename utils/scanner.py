@@ -29,7 +29,7 @@ def load_universe(markets: list) -> list:
     if "Eurostoxx" in markets:
         t += load_index_from_csv("eurostoxx600.csv")
     if "FTSE" in markets:
-        t += load_index_from_csv("ftse_mib.csv")
+        t += load_index_from_csv("ftsemib.csv")
     if "Nasdaq" in markets:
         t += load_index_from_csv("nasdaq100.csv")
     if "Dow" in markets:
