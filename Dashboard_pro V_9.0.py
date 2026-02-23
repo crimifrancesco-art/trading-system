@@ -460,8 +460,8 @@ tab_e, tab_p, tab_rea, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch 
 with tab_e:
     if df_early_all.empty: st.caption("Nessun segnale EARLY.")
     else:
-                df_view = add_links(add_formatted_cols(df_early_all.sort_values(["Early_Score", "RSI"], ascending=False).head(top)))
-                        st.dataframe(df_view, use_container_width=True)
+        df_view = add_links(add_formatted_cols(df_early_all.sort_values(["Early_Score", "RSI"], ascending=False).head(top)))
+        st.dataframe(df_view, use_container_width=True)
         # (Export buttons and watchlist logic omitted for brevity in this fix, can be restored from backup)
 
 # PRO
