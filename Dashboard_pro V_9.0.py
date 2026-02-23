@@ -146,10 +146,8 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
     
-    df_f = df[df["Stato"] == status_filter].copy() if "Stato" in df.columns else df.copy()
-    if status_filter == "HOT" and "Stato" in df.columns:
-         df_f = df[df["Stato"] == "HOT"].copy()
-
+    col_f = "Stato_Early" if status_filter == "EARLY" else ("Stato_Pro" if status_filter == "PRO" else "Stato")
+    df_f = df[df[col_f] == status_filter].copy() if col_f in df.columns else df.copy()
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return

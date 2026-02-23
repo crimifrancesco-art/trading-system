@@ -21,6 +21,29 @@ def load_index_from_csv(filename: str):
     return []
 
 
+def load_universe(markets: list) -> list:
+    """Costruisce la lista di ticker dai mercati selezionati."""
+    t = []
+    if "SP500" in markets:
+        t += load_index_from_csv("sp500.csv")
+    if "Eurostoxx" in markets:
+        t += load_index_from_csv("eurostoxx600.csv")
+    if "FTSE" in markets:
+        t += load_index_from_csv("ftse_mib.csv")
+    if "Nasdaq" in markets:
+        t += load_index_from_csv("nasdaq100.csv")
+    if "Dow" in markets:
+        t += load_index_from_csv("dowjones.csv")
+    if "Russell" in markets:
+        t += load_index_from_csv("russell2000.csv")
+    if "StoxxEmerging" in markets:
+        t += load_index_from_csv("stoxx emerging market 50.csv")
+    if "USSmallCap" in markets:
+        t += load_index_from_csv("us small cap 2000.csv")
+    # Rimuove duplicati mantenendo l'ordine
+    return list(dict.fromkeys(t))
+
+
 def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot=1.5):
     """Analizza un singolo ticker e restituisce (res_ep, res_rea) o (None, None)."""
     try:
@@ -43,11 +66,11 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot=1.5):
         vol_7d_avg = float(v.tail(7).mean())
         currency = info.get("currency", "USD")
 
-        # EARLY
+        # EARLY — prezzo vicino all'EMA20 (indipendente da PRO)
         dist_ema = abs(price - ema20) / ema20
         early_score = 8 if dist_ema < e_h else 0
 
-        # PRO
+        # PRO — trend + RSI nella finestra + volume sopra media
         pro_score = 3 if price > ema20 else 0
         delta = c.diff()
         gain = delta.where(delta > 0, 0).rolling(14).mean()
@@ -71,7 +94,12 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot=1.5):
         atr_val = float(atr.iloc[-1])
         atr_expansion = (atr_val / atr.rolling(50).mean().iloc[-1]) > 1.2
 
-        stato_ep = "PRO" if pro_score >= 8 else ("EARLY" if early_score >= 8 else "-")
+        # Stato EARLY e PRO sono ora INDIPENDENTI:
+        # - EARLY: prezzo vicino EMA20 (early_score >= 8)
+        # - PRO:   tutti i criteri trend+RSI+volume soddisfatti (pro_score >= 8)
+        # Un ticker puo' soddisfare entrambe le condizioni
+        stato_early = "EARLY" if early_score >= 8 else "-"
+        stato_pro = "PRO" if pro_score >= 8 else "-"
 
         # REA-QUANT (Volume Profile / POC)
         tp = (h + l + c) / 3
@@ -83,26 +111,55 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot=1.5):
         rea_score = 7 if (dist_poc < r_poc and vol_ratio > vol_ratio_hot) else 0
         stato_rea = "HOT" if rea_score >= 7 else "-"
 
-        res_ep = {
-            "Nome": name, "Ticker": ticker, "Prezzo": round(price, 2),
-            "MarketCap": market_cap, "Vol_Today": int(vol_today),
-            "Vol_7d_Avg": int(vol_7d_avg), "Currency": currency,
-            "Early_Score": early_score, "Pro_Score": pro_score,
-            "RSI": round(rsi_val, 1), "Vol_Ratio": round(vol_ratio, 2),
-            "OBV_Trend": obv_trend, "ATR": round(atr_val, 2),
-            "ATR_Exp": atr_expansion, "Stato": stato_ep,
-        }
-        res_rea = {
-            "Nome": name, "Ticker": ticker, "Prezzo": round(price, 2),
-            "MarketCap": market_cap, "Vol_Today": int(vol_today),
-            "Vol_7d_Avg": int(vol_7d_avg), "Currency": currency,
-            "Rea_Score": rea_score, "POC": round(poc, 2),
+        # res_ep: contiene sia EARLY sia PRO (usa il campo Stato per discriminare)
+        # Restituisce None se nessun segnale EARLY o PRO
+        if stato_early == "-" and stato_pro == "-":
+            res_ep = None
+        else:
+            # Se il ticker e' sia EARLY sia PRO, usa PRO come stato principale
+            # ma viene filtrato correttamente nel tab grazie a early_score e pro_score
+            stato_ep = stato_pro if stato_pro != "-" else stato_early
+            # Se e' entrambi, crea due record separati per far apparire in entrambi i tab
+            res_ep = {
+                "Nome": name,
+                "Ticker": ticker,
+                "Prezzo": round(price, 2),
+                "MarketCap": market_cap,
+                "Vol_Today": int(vol_today),
+                "Vol_7d_Avg": int(vol_7d_avg),
+                "Currency": currency,
+                "Early_Score": early_score,
+                "Pro_Score": pro_score,
+                "RSI": round(rsi_val, 1),
+                "Vol_Ratio": round(vol_ratio, 2),
+                "OBV_Trend": obv_trend,
+                "ATR": round(atr_val, 2),
+                "ATR_Exp": atr_expansion,
+                "Stato": stato_ep,
+                "Stato_Early": stato_early,
+                "Stato_Pro": stato_pro,
+            }
+
+        res_rea = None if stato_rea == "-" else {
+            "Nome": name,
+            "Ticker": ticker,
+            "Prezzo": round(price, 2),
+            "MarketCap": market_cap,
+            "Vol_Today": int(vol_today),
+            "Vol_7d_Avg": int(vol_7d_avg),
+            "Currency": currency,
+            "Rea_Score": rea_score,
+            "POC": round(poc, 2),
             "Dist_POC_%": round(dist_poc * 100, 1),
-            "Vol_Ratio": round(vol_ratio, 2), "Stato": stato_rea,
-            "Pro_Score": pro_score, "RSI": round(rsi_val, 1),
-            "OBV_Trend": obv_trend, "ATR": round(atr_val, 2),
+            "Vol_Ratio": round(vol_ratio, 2),
+            "Stato": stato_rea,
+            "Pro_Score": pro_score,
+            "RSI": round(rsi_val, 1),
+            "OBV_Trend": obv_trend,
+            "ATR": round(atr_val, 2),
             "ATR_Exp": atr_expansion,
         }
+
         return res_ep, res_rea
     except Exception:
         return None, None
