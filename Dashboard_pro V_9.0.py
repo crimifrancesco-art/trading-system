@@ -318,9 +318,9 @@ st.session_state["m_Nasdaq"] = m["Nasdaq"]
 st.session_state["m_Dow"] = m["Dow"]
 st.session_state["m_Russell"] = m["Russell"]
 st.session_state["m_StoxxEmerging"] = m["StoxxEmerging"]
-st.session_state["m_USSmallCap"] =
+st.session_state["m_USSmallCap"] = m["USSmallCap"]
 
-universe = load_universe(markets)
+st.sidebar.divider()
 
 # ---------------- Parametri Scanner (persistenti) ----------------
 st.sidebar.subheader("🎛️ Parametri Scanner")
