@@ -772,7 +772,7 @@ else:
     if "done_pro" not in st.session_state:
         st.session_state["done_pro"] = False
 
-    if st.button("🚀 AVVIA SCANNER PRO 9.0", type="primary", use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 9.6", type="primary", use_container_width=True):
         universe = load_universe(sel)
         st.info(f"Scansione in corso su {len(universe)} titoli...")
 
