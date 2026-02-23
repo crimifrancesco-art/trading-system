@@ -314,7 +314,7 @@ def load_index_from_csv(filename: str):
 def load_universe(markets):
     t = []
     if "SP500" in markets: t += load_index_from_csv("sp500.csv")
-    if "Eurostoxx" in markets: t += load_index_from_csv("eurostoxx600.csv")
+    if "Eurostoxx" in markets: t += load_index_from_csv("df_view = add_links(add_formatted_cols(df_early_all.sort_values(["Early_Score", "RSI"], ascending=False).head(top)))")
     if "FTSE" in markets: t += load_index_from_csv("ftsemib.csv")
     if "Nasdaq" in markets: t += load_index_from_csv("nasdaq100.csv")
     if "Dow" in markets: t += load_index_from_csv("dowjones.csv")
@@ -460,7 +460,7 @@ tab_e, tab_p, tab_rea, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_watch 
 with tab_e:
     if df_early_all.empty: st.caption("Nessun segnale EARLY.")
     else:
-eurostoxx600.csv        st.dataframe(df_view, use_container_width=True)
+df_view = add_links(add_formatted_cols(df_early_all.sort_values(["Early_Score", "RSI"], ascending=False).head(top)))        st.dataframe(df_view, use_container_width=True)
         # (Export buttons and watchlist logic omitted for brevity in this fix, can be restored from backup)
 
 # PRO
