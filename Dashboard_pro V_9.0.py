@@ -11,7 +11,7 @@ import yfinance as yf
 from fpdf import FPDF
 
 # Import modular functions
-from utils.formatting import fmt_currency, fmt_int, fmt_marketcap, add_formatted_cols, add_links
+from utils.formatting import fmt_currency, fmt_int, fmt_marketcap, add_formatted_cols, add_links, prepare_display_df
 from utils.db import init_db, reset_watchlist_db, add_to_watchlist, load_watchlist, update_watchlist_note, delete_from_watchlist, DB_PATH
 from utils.scanner import load_universe, scan_ticker
 
@@ -102,7 +102,6 @@ st.session_state["top"] = top
 
 st.sidebar.divider()
 st.sidebar.subheader("📁 Gestione Watchlist")
-
 df_wl_all = load_watchlist()
 list_options = sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
 if "DEFAULT" not in list_options:
@@ -111,10 +110,13 @@ if "DEFAULT" not in list_options:
 active_list = st.sidebar.selectbox("Lista Attiva", list_options, index=list_options.index(st.session_state["current_list_name"]))
 st.session_state["current_list_name"] = active_list
 
-new_list = st.sidebar.text_input("Nuova Lista (opzionale)")
-if new_list.strip():
-    active_list = new_list.strip()
-    st.session_state["current_list_name"] = active_list
+new_list = st.sidebar.text_input("📁 Crea Nuova Watchlist")
+if st.sidebar.button("➕ Crea"):
+    if new_list.strip():
+        st.session_state["current_list_name"] = new_list.strip()
+        st.success(f"Lista '{new_list.strip()}' creata!")
+        time.sleep(1)
+        st.rerun()
 
 if st.sidebar.button("🗑️ Reset DB Completo", help="Elimina tutte le watchlist!"):
     reset_watchlist_db()
@@ -160,14 +162,8 @@ df_rea = st.session_state.get("df_rea", pd.DataFrame())
 # TABS PRINCIPALI
 # =============================================================================
 tabs = st.tabs([
-    "🟢 EARLY", 
-    "🟣 PRO", 
-    "🟠 REA-QUANT", 
-    "📈 Serafini Systems", 
-    "🧊 Regime & Momentum", 
-    "🕒 Multi-Timeframe", 
-    "📊 Finviz", 
-    "📌 Watchlist & Note"
+    "🟢 EARLY", "🟣 PRO", "🟠 REA-HOT", "📈 Serafini Systems", 
+    "🧊 Regime & Momentum", "🕒 Multi-Timeframe", "📊 Finviz", "📌 Watchlist & Note"
 ])
 tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
@@ -176,17 +172,22 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     if df.empty:
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
-    
+
     col_f = "Stato_Early" if status_filter == "EARLY" else ("Stato_Pro" if status_filter == "PRO" else "Stato")
     df_f = df[df[col_f] == status_filter].copy() if col_f in df.columns else df.copy()
     
+    if status_filter == "HOT" and "Stato" in df.columns:
+        df_f = df[df["Stato"] == "HOT"].copy()
+
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return
 
     df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
-    df_v = add_links(add_formatted_cols(df_f))
     
+    # Formattazione e visualizzazione
+    df_v = add_links(prepare_display_df(add_formatted_cols(df_f)))
+
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
         get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
@@ -237,7 +238,7 @@ with tab_w:
     st.subheader(f"Watchlist: {active_list}")
     df_w_view = load_watchlist()
     df_w_view = df_w_view[df_w_view["list_name"] == active_list]
-    
+
     if df_w_view.empty:
         st.info("Watchlist vuota.")
     else:
@@ -257,9 +258,9 @@ with tab_w:
         with c3:
             if st.button("🗑️ Elimina selezionati"):
                 st.warning("Usa la checkbox della tabella se disponibile o specifica ID")
-        
-        df_w_v = add_links(add_formatted_cols(df_w_view))
+
+        df_w_v = add_links(prepare_display_df(add_formatted_cols(df_w_view)))
         st.write(df_w_v.to_html(escape=False, index=False), unsafe_allow_html=True)
-        
-        if st.button("🔄 Refresh Data"):
-            st.rerun()
+    
+    if st.button("🔄 Refresh Data"):
+        st.rerun()
