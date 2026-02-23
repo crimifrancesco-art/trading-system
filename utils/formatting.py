@@ -52,11 +52,11 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
         df["Currency"] = "USD"
     if "Prezzo" in df.columns:
         df["Prezzo_fmt"] = df.apply(
-            lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"), axis=1
+            lambda r: fmt_currency(r["Prezzo"], "\u20ac" if r["Currency"] == "EUR" else "$"), axis=1
         )
     if "MarketCap" in df.columns:
         df["MarketCap_fmt"] = df.apply(
-            lambda r: fmt_marketcap(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"), axis=1
+            lambda r: fmt_marketcap(r["MarketCap"], "\u20ac" if r["Currency"] == "EUR" else "$"), axis=1
         )
     if "Vol_Today" in df.columns:
         df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
@@ -70,9 +70,9 @@ def add_links(df: pd.DataFrame) -> pd.DataFrame:
     if col not in df.columns:
         return df
     df["Yahoo"] = df[col].astype(str).apply(
-        lambda t: f"https://finance.yahoo.com/quote/{t}"
+        lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">Apri</a>'
     )
-    df["Finviz"] = df[col].astype(str).apply(
-        lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
+    df["TradingView"] = df[col].astype(str).apply(
+        lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t.split(".")[0]}" target="_blank">Apri</a>'
     )
     return df
