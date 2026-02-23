@@ -34,13 +34,16 @@ st.caption(
 # INIZIALIZZAZIONE STATO
 # =============================================================================
 init_db()
-
 if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
     st.session_state.setdefault("m_SP500", True)
     st.session_state.setdefault("m_Nasdaq", True)
     st.session_state.setdefault("m_FTSE", True)
     st.session_state.setdefault("m_Eurostoxx", False)
+    st.session_state.setdefault("m_Dow", False)
+    st.session_state.setdefault("m_Russell", False)
+    st.session_state.setdefault("m_StoxxEmerging", False)
+    st.session_state.setdefault("m_USSmallCap", False)
     st.session_state.setdefault("e_h", 0.02)
     st.session_state.setdefault("p_rmin", 40)
     st.session_state.setdefault("p_rmax", 70)
@@ -52,23 +55,34 @@ if "sidebar_init" not in st.session_state:
 # SIDEBAR – MERCATI E PARAMETRI
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
-
 with st.sidebar.expander("📈 Selezione Mercati", expanded=True):
     m_sp500 = st.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"])
     m_nasdaq = st.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"])
     m_ftse = st.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"])
     m_euro = st.checkbox("🇪🇺 Eurostoxx 600", st.session_state["m_Eurostoxx"])
+    m_dow = st.checkbox("🇺🇸 Dow Jones", st.session_state["m_Dow"])
+    m_russell = st.checkbox("🇺🇸 Russell 2000", st.session_state["m_Russell"])
+    m_stoxxem = st.checkbox("🌍 Stoxx Emerging 50", st.session_state["m_StoxxEmerging"])
+    m_ussmall = st.checkbox("🇺🇸 US Small Cap 2000", st.session_state["m_USSmallCap"])
     
     sel = []
     if m_sp500: sel.append("SP500")
     if m_nasdaq: sel.append("Nasdaq")
     if m_ftse: sel.append("FTSE")
     if m_euro: sel.append("Eurostoxx")
+    if m_dow: sel.append("Dow")
+    if m_russell: sel.append("Russell")
+    if m_stoxxem: sel.append("StoxxEmerging")
+    if m_ussmall: sel.append("USSmallCap")
     
     st.session_state["m_SP500"] = m_sp500
     st.session_state["m_Nasdaq"] = m_nasdaq
     st.session_state["m_FTSE"] = m_ftse
     st.session_state["m_Eurostoxx"] = m_euro
+    st.session_state["m_Dow"] = m_dow
+    st.session_state["m_Russell"] = m_russell
+    st.session_state["m_StoxxEmerging"] = m_stoxxem
+    st.session_state["m_USSmallCap"] = m_ussmall
 
 with st.sidebar.expander("🎛️ Parametri Scanner", expanded=False):
     e_h = st.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0, float(st.session_state["e_h"] * 100), 0.5) / 100
@@ -86,11 +100,9 @@ with st.sidebar.expander("🎛️ Parametri Scanner", expanded=False):
 
 st.sidebar.divider()
 st.sidebar.subheader("📁 Gestione Watchlist")
-
 df_wl_all = load_watchlist()
 list_options = sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
 if "DEFAULT" not in list_options: list_options.append("DEFAULT")
-
 active_list = st.sidebar.selectbox("Lista Attiva", list_options, index=list_options.index(st.session_state["current_list_name"]))
 st.session_state["current_list_name"] = active_list
 
@@ -114,7 +126,6 @@ def get_csv_download_link(df, filename="export.csv", key=None):
 # SCANNER EXECUTION
 # =============================================================================
 only_watchlist = st.sidebar.checkbox("Mostra solo Watchlist", value=False)
-
 if not only_watchlist:
     if st.button("🚀 AVVIA SCANNER PRO 9.6", type="primary", use_container_width=True):
         universe = load_universe(sel)
@@ -162,7 +173,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return
-        
+    
     df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
     df_v = add_links(add_formatted_cols(df_f))
     
@@ -195,7 +206,6 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
 with tab_e: render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
 with tab_p: render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
 with tab_r: render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
-
 with tab_serafini: st.info("Serafini Systems: Tab in fase di implementazione...")
 with tab_regime: st.info("Regime & Momentum: Tab in fase di implementazione...")
 with tab_mtf: st.info("Multi-Timeframe: Tab in fase di implementazione...")
@@ -231,4 +241,3 @@ with tab_w:
     
     if st.button("🔄 Refresh Data"):
         st.rerun()
-
