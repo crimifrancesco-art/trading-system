@@ -26,7 +26,7 @@ st.set_page_config(
 
 st.title("📊 Trading Scanner – Versione PRO 9.6")
 st.caption(
-    "EARLY • PRO • REA‑QUANT • Rea Quant • Serafini • Regime & Momentum • "
+    "EARLY • PRO • REA‑QUANT • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz • Watchlist DB"
 )
 
@@ -39,6 +39,8 @@ if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
     st.session_state.setdefault("m_SP500", True)
     st.session_state.setdefault("m_Nasdaq", True)
+    st.session_state.setdefault("m_FTSE", True)
+    st.session_state.setdefault("m_Eurostoxx", False)
     st.session_state.setdefault("e_h", 0.02)
     st.session_state.setdefault("p_rmin", 40)
     st.session_state.setdefault("p_rmax", 70)
@@ -54,8 +56,8 @@ st.sidebar.title("⚙️ Configurazione")
 with st.sidebar.expander("📈 Selezione Mercati", expanded=True):
     m_sp500 = st.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"])
     m_nasdaq = st.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"])
-    m_ftse = st.checkbox("🇮🇹 FTSE MIB", st.session_state.get("m_FTSE", False))
-    m_euro = st.checkbox("🇪🇺 Eurostoxx 600", st.session_state.get("m_Eurostoxx", False))
+    m_ftse = st.checkbox("🇮🇹 FTSE MIB", st.session_state["m_FTSE"])
+    m_euro = st.checkbox("🇪🇺 Eurostoxx 600", st.session_state["m_Eurostoxx"])
     
     sel = []
     if m_sp500: sel.append("SP500")
@@ -84,6 +86,7 @@ with st.sidebar.expander("🎛️ Parametri Scanner", expanded=False):
 
 st.sidebar.divider()
 st.sidebar.subheader("📁 Gestione Watchlist")
+
 df_wl_all = load_watchlist()
 list_options = sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
 if "DEFAULT" not in list_options: list_options.append("DEFAULT")
@@ -103,9 +106,9 @@ if st.sidebar.button("🗑️ Reset DB Completo", help="Elimina tutte le watchli
 # =============================================================================
 # LOGICA EXPORT (Helper)
 # =============================================================================
-def get_csv_download_link(df, filename="export.csv"):
+def get_csv_download_link(df, filename="export.csv", key=None):
     csv = df.to_csv(index=False).encode('utf-8')
-    return st.download_button(label="📥 Export CSV", data=csv, file_name=filename, mime='text/csv')
+    return st.download_button(label="📥 Export CSV", data=csv, file_name=filename, mime='text/csv', key=key)
 
 # =============================================================================
 # SCANNER EXECUTION
@@ -139,38 +142,64 @@ df_rea = st.session_state.get("df_rea", pd.DataFrame())
 # =============================================================================
 # TABS PRINCIPALI
 # =============================================================================
-tab_e, tab_p, tab_r, tab_w = st.tabs(["🟢 EARLY", "🟣 PRO", "🟠 REA-QUANT", "📌 WATCHLIST"])
+tabs = st.tabs([
+    "🟢 EARLY", "🟣 PRO", "🟠 REA-QUANT", 
+    "📈 Serafini Systems", "🧊 Regime & Momentum", "🕒 Multi-Timeframe", 
+    "📊 Finviz", "📌 Watchlist & Note"
+])
+tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
 def render_scan_tab(df, status_filter, sort_cols, ascending, title):
+    st.subheader(f"Tab {title}")
+    
     if df.empty:
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
     
     col_f = "Stato_Early" if status_filter == "EARLY" else ("Stato_Pro" if status_filter == "PRO" else "Stato")
     df_f = df[df[col_f] == status_filter].copy() if col_f in df.columns else df.copy()
+    
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return
-
+        
     df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
     df_v = add_links(add_formatted_cols(df_f))
     
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
-        get_csv_download_link(df_f, f"{title.lower()}_export.csv")
+        get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
     
     with col_add:
-        tickers_to_add = st.multiselect(f"Aggiungi a {active_list}", df_f["Ticker"].tolist(), key=f"add_{title}")
+        options = [f"{row['Ticker']} - {row['Nome']}" for _, row in df_f.iterrows()]
+        mapping = {f"{row['Ticker']} - {row['Nome']}": row['Ticker'] for _, row in df_f.iterrows()}
+        
+        c1, c2 = st.columns([3, 1])
+        with c2:
+            select_all = st.checkbox("Seleziona tutti", key=f"all_{title}")
+        
+        with c1:
+            default_sel = options if select_all else []
+            selected_display = st.multiselect(f"Aggiungi a {active_list}", options, default=default_sel, key=f"add_{title}")
+        
         if st.button(f"Aggiungi selezionati", key=f"btn_{title}"):
+            tickers_to_add = [mapping[s] for s in selected_display]
             to_ins = df_f[df_f["Ticker"].isin(tickers_to_add)]
             add_to_watchlist(to_ins["Ticker"].tolist(), to_ins["Nome"].tolist(), title, "Scanner", "LONG", active_list)
-            st.success("Aggiunti!")
+            st.success(f"Aggiunti {len(tickers_to_add)} titoli!")
+            time.sleep(1)
+            st.rerun()
     
     st.dataframe(df_v, use_container_width=True)
 
 with tab_e: render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
 with tab_p: render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
 with tab_r: render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
+
+with tab_serafini: st.info("Serafini Systems: Tab in fase di implementazione...")
+with tab_regime: st.info("Regime & Momentum: Tab in fase di implementazione...")
+with tab_mtf: st.info("Multi-Timeframe: Tab in fase di implementazione...")
+with tab_finviz: st.info("Finviz: Tab in fase di implementazione...")
 
 with tab_w:
     st.subheader(f"Watchlist: {active_list}")
@@ -180,10 +209,9 @@ with tab_w:
     if df_w_view.empty:
         st.info("Watchlist vuota.")
     else:
-        # Management Row
-        c1, c2, c3 = st.columns([2, 1, 1])
+        c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
-            get_csv_download_link(df_w_view, f"watchlist_{active_list}.csv")
+            get_csv_download_link(df_w_view, f"watchlist_{active_list}.csv", key="exp_wl")
         with c2:
             move_target = st.selectbox("Sposta in:", list_options, key="move_target")
             ids_to_move = st.multiselect("Seleziona ID:", df_w_view["id"].tolist())
@@ -196,10 +224,10 @@ with tab_w:
                 st.rerun()
         with c3:
             if st.button("🗑️ Elimina selezionati"):
-                # Simplified delete for UI
-                st.warning("Usa multiselect per confermare ID")
+                # Simplified delete logic
+                st.warning("Usa la checkbox della tabella se disponibile o specifica ID")
         
         st.dataframe(df_w_view, use_container_width=True)
-        
-        if st.button("🔄 Refresh Data"):
-             st.rerun()
+    
+    if st.button("🔄 Refresh Data"):
+        st.rerun()
