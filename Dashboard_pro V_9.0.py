@@ -479,72 +479,7 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 # FUNZIONI DI SUPPORTO
 # =============================================================================
 
-SP500_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"  # [web:16]
-EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # [web:7][web:22]
-
-def load_sp500_tickers():
-    df = pd.read_csv(SP500_URL)  # contiene colonna Symbol con i ticker S&P 500 [web:16][web:18]
-    return df["Symbol"].dropna().unique().tolist()
-
-def load_eurostoxx600_tickers():
-    df = pd.read_csv(EUROSTOXX600_URL)  # file storico componenti STOXX Europe 600 [web:22][web:24]
-    date_col_candidates = ["Date", "HISTORY_DATE", "HistoryDate"]
-    comp_col_candidates = ["Ticker", "TICKER_SYMBOL", "Instrument", "ISIN"]
-
-    date_col = None
-    for c in date_col_candidates:
-        if c in df.columns:
-            date_col = c
-            break
-
-    if date_col is not None:
-        latest_date = df[date_col].max()
-        df = df[df[date_col] == latest_date]
-
-    comp_col = None
-    for c in comp_col_candidates:
-        if c in df.columns:
-            comp_col = c
-            break
-
-    if comp_col is None:
-        return []
-
-    return df[comp_col].dropna().unique().tolist()
-
-@st.cache_data(ttl=3600)
-def load_universe(markets):
-    t = []
-
-    # ========================
-    # INDICI PRINCIPALI
-    # ========================
-    if "SP500" in markets:
-        sp = load_sp500_tickers()
-        t += sp
-
-    if "Eurostoxx" in markets:
-        eu = load_eurostoxx600_tickers()
-        if not eu:
-            eu = [
-                "ASML.AS",
-                "NESN.SW",
-                "SAN.PA",
-                "TTE.PA",
-                "AIR.PA",
-                "MC.PA",
-                "OR.PA",
-                "SU.PA",
-            ]
-        t += eu
-
-# =============================================================================
-# FUNZIONI DI SUPPORTO
-# =============================================================================
-
 import pandas as pd
-import requests
-from io import StringIO
 import streamlit as st
 
 # ------------------------
@@ -553,17 +488,14 @@ import streamlit as st
 SP500_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"  # [web:16]
 EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # [web:22][web:24]
 
-# Nasdaq 100 da CSV pubblico (lista Nasdaq 100) [web:52][web:41]
+# Nasdaq 100 da CSV pubblico (lista da Wikipedia/Kaggle) [web:52][web:41]
 NASDAQ100_CSV_URL = "https://raw.githubusercontent.com/azymnis/python-stocks/master/nasdaq100.csv"
 
-# Dow Jones 30 da Slickcharts (tabella HTML) [web:39]
-DOWJONES_URL = "https://www.slickcharts.com/dowjones"
-
-# FTSE MIB da MarketScreener (tabella componenti) [web:34]
+# FTSE MIB da MarketScreener [web:34]
 FTSEMIB_URL = "https://www.marketscreener.com/quote/index/FTSE-MIB-121229431/components/"
 
-# Russell 2000: usiamo i componenti dell’ETF IWM da file CSV pubblico (proxy pratico dell’indice) [web:51]
-RUSSELL2000_CSV_URL = "https://datahub.io/core/russell-2000-companies/r/russell-2000-companies.csv"
+# Russell 2000: CSV pubblico con componenti (ticker, name) [web:70]
+RUSSELL2000_CSV_URL = "https://raw.githubusercontent.com/ikoniaris/Russell2000/master/russell_2000_components.csv"
 
 
 # ------------------------
@@ -622,29 +554,119 @@ def load_nasdaq100_tickers():
 
 
 def load_dow30_tickers():
+    """
+    Lista stabile di 30 componenti Dow Jones Industrial Average.
+    Hard-coded per evitare sorprese di scraping. [web:39]
+    """
+    return [
+        "AAPL", "AMGN", "AXP", "BA", "CAT", "CRM", "CSCO", "CVX", "DIS", "DOW",
+        "GS", "HD", "HON", "IBM", "INTC", "JNJ", "JPM", "KO", "MCD", "MMM",
+        "MRK", "MSFT", "NKE", "PG", "TRV", "UNH", "V", "VZ", "WBA", "WMT",
+    ]
+
+
+def load_ftsemib_tickers():
+    """
+    Componenti FTSE MIB da MarketScreener. [web:34]
+    """
     try:
-        tables = pd.read_html(DOWJONES_URL)
+        tables = pd.read_html(FTSEMIB_URL)
     except Exception:
         return [
-            "AAPL", "MSFT", "JPM", "V", "UNH", "JNJ", "WMT", "PG",
-            "HD", "DIS", "KO", "MCD", "BA", "CAT", "GS"
+            "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
+            "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI",
         ]
 
     df = tables[0]
     symbol_col = None
-    for col in ["Symbol", "Ticker"]:
+    for col in ["Ticker", "Symbol", "Codice", "Code"]:
         if col in df.columns:
             symbol_col = col
             break
 
     if symbol_col is None:
         return [
-            "AAPL", "MSFT", "JPM", "V", "UNH", "JNJ", "WMT", "PG",
-            "HD", "DIS", "KO", "MCD", "BA", "CAT", "GS"
+            "UCG.MI", "ISP.MI", "ENEL.MI", "ENI.MI", "LDO.MI",
+            "PRY.MI", "STM.MI", "TEN.MI", "A2A.MI", "AMP.MI",
         ]
 
-    return df[symbol_col].dropna().unique().tolist()
+    tickers = df[symbol_col].dropna().astype(str).unique().tolist()
+    norm = []
+    for tk in tickers:
+        tk = tk.strip()
+        if not tk.endswith(".MI"):
+            tk = tk + ".MI"
+        norm.append(tk)
 
+    return norm
+
+
+def load_russell2000_tickers():
+    """
+    Lista Russell 2000 completa da CSV pubblico (ticker, name). [web:70]
+    """
+    try:
+        df = pd.read_csv(RUSSELL2000_CSV_URL)
+    except Exception:
+        return ["IWM", "VTWO"]
+
+    # il CSV ha colonna 'ticker' o simile [web:70]
+    for col in ["ticker", "Ticker", "Symbol"]:
+        if col in df.columns:
+            return df[col].dropna().astype(str).unique().tolist()
+
+    return ["IWM", "VTWO"]
+
+
+# ------------------------
+# UNIVERSO MERCATI
+# ------------------------
+
+@st.cache_data(ttl=3600)
+def load_universe(markets):
+    t = []
+
+    # INDICI PRINCIPALI
+    if "SP500" in markets:
+        t += load_sp500_tickers()
+
+    if "Eurostoxx" in markets:
+        eu = load_eurostoxx600_tickers()
+        if not eu:
+            eu = [
+                "ASML.AS", "NESN.SW", "SAN.PA", "TTE.PA",
+                "AIR.PA", "MC.PA", "OR.PA", "SU.PA",
+            ]
+        t += eu
+
+    if "Nasdaq" in markets:
+        t += load_nasdaq100_tickers()
+
+    if "Dow" in markets:
+        t += load_dow30_tickers()
+
+    if "FTSE" in markets:
+        t += load_ftsemib_tickers()
+
+    if "Russell" in markets:
+        t += load_russell2000_tickers()
+
+    # ALTRI MERCATI
+    if "Commodities" in markets:
+        t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
+
+    if "ETF" in markets:
+        t += ["SPY", "QQQ", "IWM", "GLD", "TLT", "VTI", "EEM"]
+
+    if "Crypto" in markets:
+        t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
+
+    if "Emerging" in markets:
+        t += ["EEM", "EWZ", "INDA", "FXI"]
+
+    return list(dict.fromkeys(t))
+
+# ************************************************* fine codice ricerca liste ticker
 
 def load_ftsemib_tickers():
     try:
