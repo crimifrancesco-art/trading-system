@@ -480,40 +480,27 @@ st.sidebar.caption(f"Lista attiva: **{active_list}**")
 # =============================================================================
 
 SP500_URL = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"  # [web:16]
-EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # file pesi/componenti STOXX 600 [web:7][web:22]
+EUROSTOXX600_URL = "https://stoxx.com/document/Indices/Download/History/weights/sxxp_historical_components.csv"  # [web:7][web:22]
 
 def load_sp500_tickers():
-    """
-    Ritorna la lista dei ticker S&P 500 (colonna Symbol del CSV).
-    """
-    df = pd.read_csv(SP500_URL)
-    # Il CSV ha le colonne: Symbol, Name, Sector, ecc. [web:16][web:18]
+    df = pd.read_csv(SP500_URL)  # contiene colonna Symbol con i ticker S&P 500 [web:16][web:18]
     return df["Symbol"].dropna().unique().tolist()
 
 def load_eurostoxx600_tickers():
-    """
-    Ritorna la lista dei ticker Euro Stoxx 600 dal file storico STOXX,
-    filtrando l'ultima data disponibile.
-    """
-    df = pd.read_csv(EUROSTOXX600_URL)
-    # Il file storico contiene una colonna data (es. Date o HISTORY_DATE) e le colonne componente/ticker,
-    # l'esatto nome dipende dalla versione del file scaricata da STOXX. [web:22][web:24]
+    df = pd.read_csv(EUROSTOXX600_URL)  # file storico componenti STOXX Europe 600 [web:22][web:24]
     date_col_candidates = ["Date", "HISTORY_DATE", "HistoryDate"]
     comp_col_candidates = ["Ticker", "TICKER_SYMBOL", "Instrument", "ISIN"]
 
-    # Trova la colonna data
     date_col = None
     for c in date_col_candidates:
         if c in df.columns:
             date_col = c
             break
 
-    # Se troviamo la data, filtriamo l'ultima
     if date_col is not None:
         latest_date = df[date_col].max()
         df = df[df[date_col] == latest_date]
 
-    # Trova la colonna ticker / identificativo
     comp_col = None
     for c in comp_col_candidates:
         if c in df.columns:
@@ -521,7 +508,6 @@ def load_eurostoxx600_tickers():
             break
 
     if comp_col is None:
-        # fallback brutale: nessuna colonna trovata, ritorno lista vuota
         return []
 
     return df[comp_col].dropna().unique().tolist()
@@ -534,14 +520,11 @@ def load_universe(markets):
     # INDICI PRINCIPALI
     # ========================
     if "SP500" in markets:
-        # Caricamento dinamico da CSV pubblico S&P 500 [web:16][web:18]
         sp = load_sp500_tickers()
         t += sp
 
     if "Eurostoxx" in markets:
-        # Caricamento dinamico componenti STOXX Europe 600 [web:7][web:22][web:24]
         eu = load_eurostoxx600_tickers()
-        # Se per qualche motivo torna vuoto (colonne non trovate), tieni anche una mini lista di backup:
         if not eu:
             eu = [
                 "ASML.AS",
@@ -556,9 +539,23 @@ def load_universe(markets):
         t += eu
 
     # ========================
-    # ALTRI UNIVERSE (STATICI)
+    # ALTRI MERCATI IN FOTO
     # ========================
-    if "Nasdaq" in markets:
+    if "FTSE" in markets:      # FTSE MIB
+        t += [
+            "UCG.MI",
+            "ISP.MI",
+            "ENEL.MI",
+            "ENI.MI",
+            "LDO.MI",
+            "PRY.MI",
+            "STM.MI",
+            "TEN.MI",
+            "A2A.MI",
+            "AMP.MI",
+        ]
+
+    if "Nasdaq" in markets:    # Nasdaq 100 (core nomi)
         t += [
             "AAPL",
             "MSFT",
@@ -577,7 +574,7 @@ def load_universe(markets):
             "AMD",
         ]
 
-    if "Dow" in markets:
+    if "Dow" in markets:       # Dow Jones 30
         t += [
             "AAPL",
             "MSFT",
@@ -596,24 +593,10 @@ def load_universe(markets):
             "GS",
         ]
 
-    if "Russell" in markets:
+    if "Russell" in markets:   # Russell 2000 (proxy ETF)
         t += ["IWM", "VTWO"]
 
-    if "FTSE" in markets:
-        t += [
-            "UCG.MI",
-            "ISP.MI",
-            "ENEL.MI",
-            "ENI.MI",
-            "LDO.MI",
-            "PRY.MI",
-            "STM.MI",
-            "TEN.MI",
-            "A2A.MI",
-            "AMP.MI",
-        ]
-
-    if "Commodities" in markets:
+    if "Commodities" in markets:  # Materie prime
         t += ["GC=F", "CL=F", "SI=F", "NG=F", "HG=F"]
 
     if "ETF" in markets:
@@ -622,10 +605,9 @@ def load_universe(markets):
     if "Crypto" in markets:
         t += ["BTC-USD", "ETH-USD", "BNB-USD", "XRP-USD", "SOL-USD"]
 
-    if "Emerging" in markets:
+    if "Emerging" in markets:   # Mercati emergenti
         t += ["EEM", "EWZ", "INDA", "FXI"]
 
-    # Rimuove duplicati mantenendo l'ordine
     return list(dict.fromkeys(t))
 
 
