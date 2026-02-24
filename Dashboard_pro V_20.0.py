@@ -97,6 +97,7 @@ if "sidebar_init" not in st.session_state:
     st.session_state.setdefault("r_poc", 0.02)
     st.session_state.setdefault("top", 15)
     st.session_state.setdefault("current_list_name", "DEFAULT")
+    st.session_state.setdefault("last_active_tab", "EARLY")
 
 # =============================================================================
 # SIDEBAR – MERCATI E PARAMETRI
@@ -364,55 +365,19 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     with col_exp:
         get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
 
-    # Aggiunta a Watchlist tramite multiselect (niente checkbox di riga AgGrid)
+    # Aggiunta a Watchlist tramite selezione righe in AgGrid (checkbox)
     with col_add:
-        options_raw = [
-            f"{row['Ticker']} - {row['Nome']}"
-            for _, row in df_f.iterrows()
-            if "Ticker" in df_f.columns and "Nome" in df_f.columns
-        ]
-        options = sorted(list(set(options_raw)))
-        mapping = {
-            f"{row['Ticker']} - {row['Nome']}": row["Ticker"]
-            for _, row in df_f.iterrows()
-            if "Ticker" in df_f.columns and "Nome" in df_f.columns
-        }
+        st.markdown(
+            f"Seleziona righe nella tabella e clicca **Aggiungi selezionati a {st.session_state['current_list_name']}**."
+        )
 
-        c1, c2 = st.columns([3, 1])
-        with c2:
-            select_all = st.checkbox("Seleziona tutti", key=f"all_{title}")
-
-        with c1:
-            default_sel = options if select_all else []
-            selected_display = st.multiselect(
-                f"Aggiungi a {st.session_state['current_list_name']}",
-                options,
-                default=default_sel,
-                key=f"add_{title}",
-            )
-
-    if st.button(f"Aggiungi selezionati", key=f"btn_{title}"):
-        tickers_to_add = [mapping[s] for s in selected_display]
-        to_ins = df_f[df_f["Ticker"].isin(tickers_to_add)]
-        if not to_ins.empty:
-            add_to_watchlist(
-                to_ins["Ticker"].tolist(),
-                to_ins["Nome"].tolist(),
-                title,
-                "Scanner",
-                "LONG",
-                st.session_state["current_list_name"],
-            )
-            st.success(f"Aggiunti {len(tickers_to_add)} titoli alla watchlist!")
-            time.sleep(1)
-            st.rerun()
-
-    # AgGrid con auto‑resize e link "Apri"
+    # AgGrid con checkbox, auto‑resize e link "Apri"
     gb = GridOptionsBuilder.from_dataframe(df_v)
     gb.configure_default_column(
         sortable=True, resizable=True, filterable=True, editable=False
     )
     gb.configure_side_bar()
+    gb.configure_selection(selection_mode="multiple", use_checkbox=True)  # checkbox ON[web:34]
 
     # Colonne link con renderer JS "Apri"
     if "Yahoo" in df_v.columns:
@@ -430,27 +395,52 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
 
     grid_options = gb.build()
 
-    AgGrid(
+    grid_response = AgGrid(
         df_v,
         gridOptions=grid_options,
         height=600,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,  # AUTO‑RESIZE
+        fit_columns_on_grid_load=True,  # AUTO‑RESIZE[web:37]
         theme="streamlit",
         allow_unsafe_jscode=True,
     )
+
+    # Gestione selezionati per watchlist
+    selected_rows = grid_response["selected_rows"]
+    selected_df = pd.DataFrame(selected_rows)
+
+    if st.button(f"Aggiungi selezionati a {st.session_state['current_list_name']}", key=f"btn_{title}"):
+        if not selected_df.empty and "Ticker" in selected_df.columns:
+            tickers = selected_df["Ticker"].tolist()
+            names = selected_df["Nome"].tolist() if "Nome" in selected_df.columns else selected_df["Ticker"].tolist()
+            add_to_watchlist(
+                tickers,
+                names,
+                title,
+                "Scanner",
+                "LONG",
+                st.session_state["current_list_name"],
+            )
+            st.success(f"Aggiunti {len(tickers)} titoli alla watchlist!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.warning("Nessuna riga selezionata.")
 
 # =============================================================================
 # TABS SCANNER
 # =============================================================================
 with tab_e:
+    st.session_state["last_active_tab"] = "EARLY"
     render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
 
 with tab_p:
+    st.session_state["last_active_tab"] = "PRO"
     render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
 
 with tab_r:
+    st.session_state["last_active_tab"] = "REA-HOT"
     render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
 
 with tab_serafini:
@@ -512,10 +502,68 @@ with tab_w:
         st.rerun()
 
 # =============================================================================
-# TODO: QUI PUOI AGGIUNGERE I 4 EXPORT GLOBALI
-# (1) XLSX TUTTI I TAB
-# (2) CSV TV TUTTI I TAB
-# (3) XLSX TAB CORRENTE
-# (4) CSV TV TAB CORRENTE
-# usando df_ep, df_rea, df_w_view ecc. + to_excel_bytes / make_tv_csv
+# 4 EXPORT GLOBALI (SOTTO IL TODO)
 # =============================================================================
+
+st.markdown("---")
+st.subheader("⬇️ Export Globali")
+
+# Prepara dizionario tab -> dataframe grezzo (non formattato)
+all_tabs_raw = {
+    "EARLY": df_ep[df_ep["Stato_Early"] == "EARLY"] if "Stato_Early" in df_ep.columns else df_ep,
+    "PRO": df_ep[df_ep["Stato_Pro"] == "PRO"] if "Stato_Pro" in df_ep.columns else df_ep,
+    "REA-HOT": df_rea[df_rea["Stato"] == "HOT"] if "Stato" in df_rea.columns else df_rea,
+    "Watchlist": df_w_view if 'df_w_view' in locals() else pd.DataFrame(),
+}
+
+# (1) XLSX TUTTI I TAB
+xlsx_all = to_excel_bytes(all_tabs_raw)
+st.download_button(
+    label="📘 Export XLSX – Tutti i tab",
+    data=xlsx_all,
+    file_name="TradingScanner_Tutti_i_tab.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    key="xlsx_all_tabs",
+)  # [web:39][web:44]
+
+# (2) CSV TradingView TUTTI I TAB (colonne: Tab, Ticker)
+tv_rows = []
+for name, df_tab in all_tabs_raw.items():
+    if isinstance(df_tab, pd.DataFrame) and not df_tab.empty and "Ticker" in df_tab.columns:
+        tmp = df_tab[["Ticker"]].copy()
+        tmp.insert(0, "Tab", name)
+        tv_rows.append(tmp)
+
+if tv_rows:
+    df_tv_all = pd.concat(tv_rows, ignore_index=True)
+    csv_tv_all = df_tv_all.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📗 Export CSV TradingView – Tutti i tab",
+        data=csv_tv_all,
+        file_name="TradingScanner_Tutti_i_tab_TradingView.csv",
+        mime="text/csv",
+        key="csv_tv_all_tabs",
+    )
+
+# (3) XLSX TAB CORRENTE (solo EARLY / PRO / REA-HOT)
+current_tab = st.session_state.get("last_active_tab", "EARLY")
+df_current = all_tabs_raw.get(current_tab, pd.DataFrame())
+xlsx_current = to_excel_bytes({current_tab: df_current})
+st.download_button(
+    label=f"📙 Export XLSX – Tab corrente ({current_tab})",
+    data=xlsx_current,
+    file_name=f"TradingScanner_{current_tab}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    key="xlsx_current_tab",
+)
+
+# (4) CSV TradingView TAB CORRENTE
+if isinstance(df_current, pd.DataFrame) and not df_current.empty and "Ticker" in df_current.columns:
+    csv_tv_current = make_tv_csv(df_current, current_tab, ticker_col="Ticker")
+    st.download_button(
+        label=f"📒 Export CSV TradingView – Tab corrente ({current_tab})",
+        data=csv_tv_current,
+        file_name=f"TradingScanner_{current_tab}_TradingView.csv",
+        mime="text/csv",
+        key="csv_tv_current_tab",
+    )
