@@ -34,7 +34,6 @@ st.caption(
 # INIZIALIZZAZIONE STATO
 # =============================================================================
 init_db()
-
 if "sidebar_init" not in st.session_state:
     st.session_state["sidebar_init"] = True
     st.session_state.setdefault("m_SP500", True)
@@ -133,7 +132,6 @@ def get_csv_download_link(df, filename="export.csv", key=None):
 # SCANNER EXECUTION
 # =============================================================================
 only_watchlist = st.sidebar.checkbox("Mostra solo Watchlist", value=False)
-
 if not only_watchlist:
     if st.button("🚀 AVVIA SCANNER PRO 9.6", type="primary", use_container_width=True):
         universe = load_universe(sel)
@@ -159,6 +157,23 @@ df_ep = st.session_state.get("df_ep", pd.DataFrame())
 df_rea = st.session_state.get("df_rea", pd.DataFrame())
 
 # =============================================================================
+# LEGENDA (Helper)
+# =============================================================================
+def show_legend(title):
+    with st.expander(f"ℹ️ Legenda {title}", expanded=False):
+        if title == "EARLY":
+            st.write("**EARLY**: Titoli vicini alla EMA20 (trend in formazione).")
+            st.write("- *Early_Score*: Punteggio basato sulla vicinanza alla media e volumi.")
+        elif title == "PRO":
+            st.write("**PRO**: Segnali di forza con RSI in zona neutrale-rialzista.")
+            st.write("- *Pro_Score*: Punteggio basato su trend, RSI e breakout volumetrici.")
+        elif title == "REA-HOT":
+            st.write("**REA-HOT**: Titoli con volumi anomali (Volume Ratio > 1.5) e vicini al POC.")
+            st.write("- *Vol_Ratio*: Rapporto tra volume odierno e media a 7 giorni.")
+        else:
+            st.write(f"Segnali scanner per il sistema {title}.")
+
+# =============================================================================
 # TABS PRINCIPALI
 # =============================================================================
 tabs = st.tabs([
@@ -169,68 +184,67 @@ tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
 def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     st.subheader(f"Tab {title}")
+    show_legend(title)
+    
     if df.empty:
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
-
+        
     col_f = "Stato_Early" if status_filter == "EARLY" else ("Stato_Pro" if status_filter == "PRO" else "Stato")
     df_f = df[df[col_f] == status_filter].copy() if col_f in df.columns else df.copy()
     
     if status_filter == "HOT" and "Stato" in df.columns:
         df_f = df[df["Stato"] == "HOT"].copy()
-
+        
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return
-
+        
     df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
     
     # Formattazione e visualizzazione
     df_v = add_links(prepare_display_df(add_formatted_cols(df_f)))
-
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
         get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
     
     with col_add:
-        options = [f"{row['Ticker']} - {row['Nome']}" for _, row in df_f.iterrows()]
+        # 3. Nomi in ordine alfabetico nel multiselect
+        options_raw = [f"{row['Ticker']} - {row['Nome']}" for _, row in df_f.iterrows()]
+        options = sorted(list(set(options_raw)))
         mapping = {f"{row['Ticker']} - {row['Nome']}": row['Ticker'] for _, row in df_f.iterrows()}
         
         c1, c2 = st.columns([3, 1])
         with c2:
+            # 2. Fix Seleziona tutti (tramite session_state per consistenza)
             select_all = st.checkbox("Seleziona tutti", key=f"all_{title}")
+            
         with c1:
             default_sel = options if select_all else []
             selected_display = st.multiselect(f"Aggiungi a {active_list}", options, default=default_sel, key=f"add_{title}")
+    
+    if st.button(f"Aggiungi selezionati", key=f"btn_{title}"):
+        tickers_to_add = [mapping[s] for s in selected_display]
+        to_ins = df_f[df_f["Ticker"].isin(tickers_to_add)]
+        add_to_watchlist(to_ins["Ticker"].tolist(), to_ins["Nome"].tolist(), title, "Scanner", "LONG", active_list)
+        st.success(f"Aggiunti {len(tickers_to_add)} titoli!")
+        time.sleep(1)
+        st.rerun()
         
-        if st.button(f"Aggiungi selezionati", key=f"btn_{title}"):
-            tickers_to_add = [mapping[s] for s in selected_display]
-            to_ins = df_f[df_f["Ticker"].isin(tickers_to_add)]
-            add_to_watchlist(to_ins["Ticker"].tolist(), to_ins["Nome"].tolist(), title, "Scanner", "LONG", active_list)
-            st.success(f"Aggiunti {len(tickers_to_add)} titoli!")
-            time.sleep(1)
-            st.rerun()
-
     st.write(df_v.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 with tab_e:
     render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
-
 with tab_p:
     render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
-
 with tab_r:
     render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
-
 with tab_serafini:
     render_scan_tab(df_ep, "SERAFINI", ["Ticker"], [True], "Serafini Systems")
-
 with tab_regime:
     render_scan_tab(df_ep, "REGIME", ["Ticker"], [True], "Regime & Momentum")
-
 with tab_mtf:
     render_scan_tab(df_ep, "MTF", ["Ticker"], [True], "Multi-Timeframe")
-
 with tab_finviz:
     render_scan_tab(df_ep, "FINVIZ", ["Ticker"], [True], "Finviz")
 
@@ -238,7 +252,7 @@ with tab_w:
     st.subheader(f"Watchlist: {active_list}")
     df_w_view = load_watchlist()
     df_w_view = df_w_view[df_w_view["list_name"] == active_list]
-
+    
     if df_w_view.empty:
         st.info("Watchlist vuota.")
     else:
@@ -258,7 +272,7 @@ with tab_w:
         with c3:
             if st.button("🗑️ Elimina selezionati"):
                 st.warning("Usa la checkbox della tabella se disponibile o specifica ID")
-
+        
         df_w_v = add_links(prepare_display_df(add_formatted_cols(df_w_view)))
         st.write(df_w_v.to_html(escape=False, index=False), unsafe_allow_html=True)
     
