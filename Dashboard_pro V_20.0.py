@@ -34,7 +34,7 @@ function(params) {
                 🔗 Apri
             </a>`;
 }
-""")  // usa allow_unsafe_jscode=True[web:24][web:52]
+""")
 
 # -------------------------------------------------------------------------
 # IMPORT MODULI UTILS
@@ -276,7 +276,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
 
-    # Filtro per Stato (molto difensivo, non svuotare tutto)
+    # Filtro per Stato (difensivo)
     if status_filter == "EARLY":
         col_f = "Stato_Early"
     elif status_filter == "PRO":
@@ -301,10 +301,10 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     except Exception:
         pass
 
-    # Formattazione + link (crea *sempre* Yahoo_url / TradingView_url se supportato)
+    # Formattazione + link (crea Yahoo_url / TradingView_url se supportato)
     df_fmt = add_formatted_cols(df_f)
     df_v = prepare_display_df(df_fmt)
-    df_v = add_links(df_v)  # qui devono nascere Yahoo_url / TradingView_url[cite:18]
+    df_v = add_links(df_v)
 
     # Export CSV del tab (grezzo)
     col_exp, col_add = st.columns([1, 1])
@@ -325,7 +325,6 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    # Colonne URL con renderer
     if "Yahoo_url" in df_v.columns:
         gb.configure_column(
             "Yahoo_url",
@@ -472,7 +471,7 @@ st.download_button(
     file_name="TradingScanner_Tutti_i_tab.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     key="xlsx_all_tabs",
-)  # [web:44][web:53]
+)
 
 # (2) CSV TradingView TUTTI I TAB (Tab, Ticker)
 tv_rows = []
