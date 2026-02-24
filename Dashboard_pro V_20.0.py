@@ -336,7 +336,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati a {st.session_state['current_list_name']}**."
         )
 
-    # AgGrid con checkbox e link “🔗 Apri”
+       # AgGrid con checkbox e link “🔗 Apri” (columnDefs espliciti)
     gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(
         sortable=True, resizable=True, filterable=True, editable=False
@@ -344,20 +344,31 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    if "Yahoo_url" in df_disp.columns:
-        gb.configure_column(
-            "Yahoo_url",
-            headerName="Yahoo",
-            cellRenderer=link_button_renderer,
-        )
-    if "TradingView_url" in df_disp.columns:
-        gb.configure_column(
-            "TradingView_url",
-            headerName="TradingView",
-            cellRenderer=link_button_renderer,
-        )
+    # Costruisco columnDefs in modo esplicito per le colonne link
+    column_defs = []
+    for col_name in df_disp.columns:
+        if col_name == "Yahoo_url":
+            column_defs.append({
+                "field": col_name,
+                "headerName": "Yahoo",
+                "cellRenderer": "linkRenderer",
+            })
+        elif col_name == "TradingView_url":
+            column_defs.append({
+                "field": col_name,
+                "headerName": "TradingView",
+                "cellRenderer": "linkRenderer",
+            })
+        else:
+            column_defs.append({"field": col_name})
 
     grid_options = gb.build()
+    grid_options["columnDefs"] = column_defs
+
+    # Registriamo il renderer JS a livello di grid (linkRenderer)
+    grid_options["components"] = {
+        "linkRenderer": link_button_renderer.js_code
+    }
 
     grid_response = AgGrid(
         df_disp,
@@ -368,7 +379,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         fit_columns_on_grid_load=True,
         theme="streamlit",
         allow_unsafe_jscode=True,
-        key=f"grid_{title}",  # chiave univoca per tab
+        key=f"grid_{title}",
     )
 
     selected_rows = grid_response["selected_rows"]
