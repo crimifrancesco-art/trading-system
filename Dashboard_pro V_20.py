@@ -5,14 +5,14 @@ import streamlit as st
 from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, JsCode
 
-# Import moduli locali
+# Import moduli locali (nomi verificati dai tuoi file allegati)
 from utils.formatting import add_formatted_cols, add_links, prepare_display_df
 from utils.db import init_db, add_to_watchlist, load_watchlist
 from utils.scanner import load_universe, scan_ticker
 
 st.set_page_config(page_title="Trading Scanner PRO 20.0", layout="wide", page_icon="📊")
 
-# JS per rendere i link cliccabili
+# JS Code per rendere i link cliccabili
 js_link_code = JsCode("""
 function(params) {
     return params.value;
@@ -26,7 +26,7 @@ st.sidebar.title("⚙️ Configurazione")
 markets = ["SP500", "Nasdaq", "FTSE", "Eurostoxx", "Dow", "Russell"]
 selected_markets = [m for m in markets if st.sidebar.checkbox(m, value=True)]
 
-# --- FUNZIONE EXPORT (I 4 EXPORT RICHIESTI) ---
+# --- FUNZIONE EXPORT (PDF, EXCEL, JSON, HTML) ---
 def render_export_buttons(df, filename):
     if df.empty: return
     st.write("📥 **Export:**")
@@ -46,9 +46,8 @@ def render_export_buttons(df, filename):
         pdf.cell(200, 10, txt=f"Export: {filename}", ln=1, align='C')
         for i, row in df.head(30).iterrows():
             pdf.cell(200, 7, txt=str(row.tolist())[:100], ln=1)
-        # Correzione AttributeError: gestisce diverse versioni di fpdf
         pdf_out = pdf.output(dest='S')
-        if isinstance(pdf_out, str): pdf_out = pdf_out.encode('latin-1')
+        if not isinstance(pdf_out, bytes): pdf_out = pdf_out.encode('latin-1')
         st.download_button("PDF", pdf_out, f"{filename}.pdf")
 
 # --- FUNZIONE RENDER TAB (CORRETTA) ---
@@ -62,7 +61,7 @@ def render_scan_tab(df, tab_title, filter_col=None, filter_val=None):
         dff = dff[dff[filter_col] == filter_val] if not isinstance(filter_val, list) else dff[dff[filter_col].isin(filter_val)]
 
     if dff.empty:
-        st.warning("Nessun match per i filtri.")
+        st.warning(f"Nessun titolo trovato per {tab_title}")
         return
 
     # Visualizzazione
@@ -80,23 +79,24 @@ def render_scan_tab(df, tab_title, filter_col=None, filter_val=None):
         display_df, 
         gridOptions=gb.build(), 
         update_mode=GridUpdateMode.SELECTION_CHANGED,
-        fit_columns_on_grid_load=True, # RESIZE AUTOMATICO
+        fit_columns_on_grid_load=True, # RESIZE AUTO
         allow_unsafe_jscode=True,
         theme="streamlit"
     )
 
-    # Watchlist logic (senza checkbox esterno)
+    # Watchlist logic
     selected = grid_res['selected_rows']
     if st.button(f"Aggiungi selezionati ({tab_title})", key=f"btn_{tab_title}"):
         if selected is not None and len(selected) > 0:
             sel_df = pd.DataFrame(selected)
+            # Usa i nomi delle colonne dei tuoi file utils
             add_to_watchlist(sel_df["Ticker"].tolist(), sel_df["Nome"].tolist(), tab_title, "Scan")
-            st.success("Aggiunti!")
+            st.success("Aggiunti alla Watchlist!")
 
     render_export_buttons(dff, tab_title)
 
-# --- AVVIO ---
-if st.button("🚀 AVVIA SCANNER", type="primary"):
+# --- AZIONE AVVIO ---
+if st.button("🚀 AVVIA SCANNER", type="primary", use_container_width=True):
     universe = load_universe(selected_markets)
     res_ep, res_rea = [], []
     pb = st.progress(0)
@@ -111,17 +111,16 @@ if st.button("🚀 AVVIA SCANNER", type="primary"):
 df_ep = st.session_state.get("df_ep", pd.DataFrame())
 df_rea = st.session_state.get("df_rea", pd.DataFrame())
 
-# --- TAB ORIGINALI ---
-t_early, t_pro, t_rea, t_serafini, t_regime, t_mtf, t_finviz, t_w = st.tabs([
-    "🟢 EARLY", "🟣 PRO", "🟠 REA-HOT", "🏆 SERAFINI", "📊 REGIME", "⏱️ MTF", "🔍 FINVIZ", "📌 WATCHLIST"
-])
+# --- TAB ORIGINALI RIPRISTINATI ---
+tabs = st.tabs(["🟢 EARLY", "🟣 PRO", "🟠 REA-HOT", "🏆 SERAFINI", "📊 REGIME", "⏱️ MTF", "🔍 FINVIZ", "📌 WATCHLIST"])
 
-with t_early: render_scan_tab(df_ep, "EARLY", "Stato_Early", "EARLY")
-with t_pro: render_scan_tab(df_ep, "PRO", "Stato_Pro", "PRO")
-with t_rea: render_scan_tab(df_rea, "REA-HOT", "Stato", "HOT")
-with t_serafini: render_scan_tab(df_ep, "SERAFINI", "Stato", "HOT") # Filtro corretto
-with t_regime: render_scan_tab(df_ep, "REGIME", "Stato_Pro", "PRO")
-with t_mtf: render_scan_tab(df_ep, "MTF")
-with t_finviz: render_scan_tab(df_ep, "FINVIZ")
-with t_w:
+with tabs[0]: render_scan_tab(df_ep, "EARLY", "Stato_Early", "EARLY")
+with tabs[1]: render_scan_tab(df_ep, "PRO", "Stato_Pro", "PRO")
+with tabs[2]: render_scan_tab(df_rea, "REA-HOT", "Stato", "HOT")
+with tabs[3]: render_scan_tab(df_ep, "SERAFINI", "Stato", "HOT")
+with tabs[4]: render_scan_tab(df_ep, "REGIME", "Stato_Pro", "PRO")
+with tabs[5]: render_scan_tab(df_ep, "MTF")
+with tabs[6]: render_scan_tab(df_ep, "FINVIZ")
+with tabs[7]:
     st.dataframe(load_watchlist(), use_container_width=True)
+    
