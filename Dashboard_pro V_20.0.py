@@ -25,30 +25,32 @@ def make_tv_csv(df: pd.DataFrame, tab_name: str, ticker_col: str = "Ticker") -> 
     return tmp.to_csv(index=False).encode("utf-8")
 
 # -------------------------------------------------------------------------
-# HELPER: COLONNE URL PER AGGRID (Yahoo_url / TradingView_url)
+# HELPER: COLONNE LINK PER AGGRID (Yahoo / TradingView CON HTML 🔗 Apri)
 # -------------------------------------------------------------------------
 def add_link_urls(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggiunge colonne di display Yahoo / TradingView con HTML '🔗 Apri' per AgGrid.
+    """
     df = df.copy()
     col = "Ticker" if "Ticker" in df.columns else "ticker"
     if col not in df.columns:
         return df
-    df["Yahoo_url"] = df[col].astype(str).apply(
-        lambda t: f"https://finance.yahoo.com/quote/{t}"
+
+    df["Yahoo"] = df[col].astype(str).apply(
+        lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">🔗 Apri</a>'
     )
-    df["TradingView_url"] = df[col].astype(str).apply(
-        lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
+    df["TradingView"] = df[col].astype(str).apply(
+        lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t.split(".")[0]}" target="_blank">🔗 Apri</a>'
     )
     return df
 
 # -------------------------------------------------------------------------
-# RENDERER LINK "🔗 Apri" PER YAHOO / TRADINGVIEW (colonne *_url)
+# RENDERER JS: RITORNA DIRETTAMENTE L'HTML DELLA CELLA
 # -------------------------------------------------------------------------
 link_button_renderer = JsCode("""
 function(params) {
     if (!params.value) { return ''; }
-    return `<a href="${params.value}" target="_blank" style="text-decoration:none;">
-                🔗 Apri
-            </a>`;
+    return params.value;
 }
 """)
 
@@ -320,11 +322,8 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     df_fmt = add_formatted_cols(df_f)
     df_disp = prepare_display_df(df_fmt)
 
-    # Colonne URL per AgGrid (Yahoo_url, TradingView_url)
+    # Colonne link HTML Yahoo / TradingView per AgGrid
     df_disp = add_link_urls(df_disp)
-
-    # DEBUG: verifica colonne disponibili per AgGrid
-    st.write(f"DEBUG {title} columns:", list(df_disp.columns))
 
     # Export CSV del tab (grezzo)
     col_exp, col_add = st.columns([1, 1])
@@ -336,7 +335,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati a {st.session_state['current_list_name']}**."
         )
 
-       # AgGrid con checkbox e link “🔗 Apri” (columnDefs espliciti)
+    # AgGrid con checkbox e link “🔗 Apri”
     gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(
         sortable=True, resizable=True, filterable=True, editable=False
@@ -344,31 +343,20 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    # Costruisco columnDefs in modo esplicito per le colonne link
-    column_defs = []
-    for col_name in df_disp.columns:
-        if col_name == "Yahoo_url":
-            column_defs.append({
-                "field": col_name,
-                "headerName": "Yahoo",
-                "cellRenderer": "linkRenderer",
-            })
-        elif col_name == "TradingView_url":
-            column_defs.append({
-                "field": col_name,
-                "headerName": "TradingView",
-                "cellRenderer": "linkRenderer",
-            })
-        else:
-            column_defs.append({"field": col_name})
+    if "Yahoo" in df_disp.columns:
+        gb.configure_column(
+            "Yahoo",
+            headerName="Yahoo",
+            cellRenderer=link_button_renderer,
+        )
+    if "TradingView" in df_disp.columns:
+        gb.configure_column(
+            "TradingView",
+            headerName="TradingView",
+            cellRenderer=link_button_renderer,
+        )
 
     grid_options = gb.build()
-    grid_options["columnDefs"] = column_defs
-
-    # Registriamo il renderer JS a livello di grid (linkRenderer)
-    grid_options["components"] = {
-        "linkRenderer": link_button_renderer.js_code
-    }
 
     grid_response = AgGrid(
         df_disp,
