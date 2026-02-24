@@ -123,4 +123,3 @@ with tabs[5]: render_scan_tab(df_ep, "MTF")
 with tabs[6]: render_scan_tab(df_ep, "FINVIZ")
 with tabs[7]:
     st.dataframe(load_watchlist(), use_container_width=True)
-    
