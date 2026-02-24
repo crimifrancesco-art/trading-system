@@ -323,6 +323,9 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     # Colonne URL per AgGrid (Yahoo_url, TradingView_url)
     df_disp = add_link_urls(df_disp)
 
+    # DEBUG: verifica colonne disponibili per AgGrid
+    st.write(f"DEBUG {title} columns:", list(df_disp.columns))
+
     # Export CSV del tab (grezzo)
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
