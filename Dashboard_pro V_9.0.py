@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 from fpdf import FPDF
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 # Import modular functions
 from utils.formatting import fmt_currency, fmt_int, fmt_marketcap, add_formatted_cols, add_links, prepare_display_df
@@ -254,7 +255,24 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         time.sleep(1)
         st.rerun()
         
-    st.write(df_v.to_html(escape=False, index=False), unsafe_allow_html=True)
+    # Configurazione AgGrid
+    gb = GridOptionsBuilder.from_dataframe(df_v)
+    gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
+    gb.configure_side_bar()
+    gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+    grid_options = gb.build()
+    
+    AgGrid(
+        df_v,
+        gridOptions=grid_options,
+        height=600,
+        enable_enterprise_modules=False,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        fit_columns_on_grid_load=False,
+        theme="streamlit",
+        allow_unsafe_jscode=True
+    )
 
 with tab_e:
     render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
