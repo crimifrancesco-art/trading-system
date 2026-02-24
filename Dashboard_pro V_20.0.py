@@ -2,6 +2,7 @@ import io
 import time
 import sqlite3
 import locale
+import zipfile
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -9,7 +10,71 @@ import pandas as pd
 import streamlit as st
 import yfinance as yf
 from fpdf import FPDF
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
+
+
+
+def to_excel_bytes(sheets_dict: dict) -> bytes:
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        for sheet_name, df in sheets_dict.items():
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    return buffer.getvalue()
+
+def make_tv_csv(df: pd.DataFrame, tab_name: str, ticker_col: str = "Ticker") -> bytes:
+    tmp = df[[ticker_col]].copy()
+    tmp.insert(0, "Tab", tab_name)
+    return tmp.to_csv(index=False).encode("utf-8")
+
+# Renderer JS per mostrare la parola "Apri" (o una icona) con link ipertestuale
+# Se vuoi solo un’icona, cambia 🔗 Apri con ad esempio 📈 o altro.
+link_button_renderer = JsCode("""
+function(params) {
+    if (!params.value) { return ''; }
+    return `<a href="${params.value}" target="_blank" style="text-decoration:none;">
+                🔗 Apri
+            </a>`;
+}
+""")
+
+gb = GridOptionsBuilder.from_dataframe(df)
+
+# Configura le colonne link
+gb.configure_column(
+    "Yahoo_url",
+    headerName="Yahoo",
+    cellRenderer=link_button_renderer,
+)
+gb.configure_column(
+    "TradingView_url",
+    headerName="TradingView",
+    cellRenderer=link_button_renderer,
+)
+
+grid_options = gb.build()
+
+grid_response = AgGrid(
+    df,
+    gridOptions=grid_options,
+    data_return_mode=DataReturnMode.AS_INPUT,
+    update_mode=GridUpdateMode.MODEL_CHANGED,
+    fit_columns_on_grid_load=True,   # AUTO‑RESIZE
+    allow_unsafe_jscode=True,
+    height=500,
+    width='100%',
+)
+
+selected_rows = grid_response["selected_rows"]
+selected_df = pd.DataFrame(selected_rows)
+
+if st.button("➕ Aggiungi selezionati a Watchlist"):
+    for _, row in selected_df.iterrows():
+        add_to_watchlist(
+            ticker=row["Ticker"],
+            list_name=st.session_state["current_list_name"],
+        )
+    st.success("Ticker aggiunti alla watchlist corrente")
+
 
 # Import modular functions
 from utils.formatting import fmt_currency, fmt_int, fmt_marketcap, add_formatted_cols, add_links, prepare_display_df
