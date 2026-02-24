@@ -20,12 +20,12 @@ from utils.scanner import load_universe, scan_ticker
 # CONFIGURAZIONE BASE PAGINA
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="Trading Scanner – Versione PRO 9.6",
+    page_title="Trading Scanner – Versione PRO 20.0",
     layout="wide",
     page_icon="📊",
 )
 
-st.title("📊 Trading Scanner – Versione PRO 9.6")
+st.title("📊 Trading Scanner – Versione PRO 20.0")
 st.caption(
     "EARLY • PRO • REA‑QUANT • Serafini • Regime & Momentum • "
     "Multi‑Timeframe • Finviz • Watchlist DB"
@@ -134,7 +134,7 @@ def get_csv_download_link(df, filename="export.csv", key=None):
 # =============================================================================
 only_watchlist = st.sidebar.checkbox("Mostra solo Watchlist", value=False)
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 9.6", type="primary", use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 20.0", type="primary", use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
