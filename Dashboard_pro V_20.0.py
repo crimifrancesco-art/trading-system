@@ -5,6 +5,7 @@ import locale
 import zipfile
 from pathlib import Path
 from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -12,8 +13,9 @@ import yfinance as yf
 from fpdf import FPDF
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
-
-
+# -------------------------------------------------------------------------
+# FUNZIONI EXPORT SUPPORTO (4 EXPORT)
+# -------------------------------------------------------------------------
 def to_excel_bytes(sheets_dict: dict) -> bytes:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
@@ -26,8 +28,9 @@ def make_tv_csv(df: pd.DataFrame, tab_name: str, ticker_col: str = "Ticker") -> 
     tmp.insert(0, "Tab", tab_name)
     return tmp.to_csv(index=False).encode("utf-8")
 
-# Renderer JS per mostrare la parola "Apri" (o una icona) con link ipertestuale
-# Se vuoi solo un’icona, cambia 🔗 Apri con ad esempio 📈 o altro.
+# -------------------------------------------------------------------------
+# RENDERER LINK "Apri" PER YAHOO / TRADINGVIEW
+# -------------------------------------------------------------------------
 link_button_renderer = JsCode("""
 function(params) {
     if (!params.value) { return ''; }
@@ -37,53 +40,31 @@ function(params) {
 }
 """)
 
-gb = GridOptionsBuilder.from_dataframe(df)
-
-# Configura le colonne link
-gb.configure_column(
-    "Yahoo_url",
-    headerName="Yahoo",
-    cellRenderer=link_button_renderer,
+# -------------------------------------------------------------------------
+# IMPORT MODULI UTILS
+# -------------------------------------------------------------------------
+from utils.formatting import (
+    fmt_currency,
+    fmt_int,
+    fmt_marketcap,
+    add_formatted_cols,
+    add_links,
+    prepare_display_df,
 )
-gb.configure_column(
-    "TradingView_url",
-    headerName="TradingView",
-    cellRenderer=link_button_renderer,
+from utils.db import (
+    init_db,
+    reset_watchlist_db,
+    add_to_watchlist,
+    load_watchlist,
+    update_watchlist_note,
+    delete_from_watchlist,
+    DB_PATH,
 )
-
-grid_options = gb.build()
-
-grid_response = AgGrid(
-    df,
-    gridOptions=grid_options,
-    data_return_mode=DataReturnMode.AS_INPUT,
-    update_mode=GridUpdateMode.MODEL_CHANGED,
-    fit_columns_on_grid_load=True,   # AUTO‑RESIZE
-    allow_unsafe_jscode=True,
-    height=500,
-    width='100%',
-)
-
-selected_rows = grid_response["selected_rows"]
-selected_df = pd.DataFrame(selected_rows)
-
-if st.button("➕ Aggiungi selezionati a Watchlist"):
-    for _, row in selected_df.iterrows():
-        add_to_watchlist(
-            ticker=row["Ticker"],
-            list_name=st.session_state["current_list_name"],
-        )
-    st.success("Ticker aggiunti alla watchlist corrente")
-
-
-# Import modular functions
-from utils.formatting import fmt_currency, fmt_int, fmt_marketcap, add_formatted_cols, add_links, prepare_display_df
-from utils.db import init_db, reset_watchlist_db, add_to_watchlist, load_watchlist, update_watchlist_note, delete_from_watchlist, DB_PATH
 from utils.scanner import load_universe, scan_ticker
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 # CONFIGURAZIONE BASE PAGINA
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 st.set_page_config(
     page_title="Trading Scanner – Versione PRO 20.0",
     layout="wide",
@@ -152,12 +133,28 @@ st.session_state["m_StoxxEmerging"] = m_stoxxem
 st.session_state["m_USSmallCap"] = m_ussmall
 
 with st.sidebar.expander("🎛️ Parametri Scanner", expanded=False):
-    e_h = st.slider("EARLY - Distanza EMA20 (%)", 0.0, 10.0, float(st.session_state["e_h"] * 100), 0.5) / 100
+    e_h = st.slider(
+        "EARLY - Distanza EMA20 (%)",
+        0.0,
+        10.0,
+        float(st.session_state["e_h"] * 100),
+        0.5,
+    ) / 100
     p_rmin = st.slider("PRO - RSI minimo", 0, 100, int(st.session_state["p_rmin"]), 5)
     p_rmax = st.slider("PRO - RSI massimo", 0, 100, int(st.session_state["p_rmax"]), 5)
-    r_poc = st.slider("REA - Distanza POC (%)", 0.0, 10.0, float(st.session_state["r_poc"] * 100), 0.5) / 100
-    vol_ratio_hot = st.number_input("Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1)
-    top = st.number_input("TOP N titoli per tab", 5, 100, int(st.session_state["top"]), 5)
+    r_poc = st.slider(
+        "REA - Distanza POC (%)",
+        0.0,
+        10.0,
+        float(st.session_state["r_poc"] * 100),
+        0.5,
+    ) / 100
+    vol_ratio_hot = st.number_input(
+        "Vol_Ratio minimo REA‑HOT", 0.0, 10.0, 1.5, 0.1
+    )
+    top = st.number_input(
+        "TOP N titoli per tab", 5, 100, int(st.session_state["top"]), 5
+    )
 
 st.session_state["e_h"] = e_h
 st.session_state["p_rmin"] = p_rmin
@@ -168,11 +165,19 @@ st.session_state["top"] = top
 st.sidebar.divider()
 st.sidebar.subheader("📁 Gestione Watchlist")
 df_wl_all = load_watchlist()
-list_options = sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
+list_options = (
+    sorted(df_wl_all["list_name"].unique()) if not df_wl_all.empty else ["DEFAULT"]
+)
 if "DEFAULT" not in list_options:
     list_options.append("DEFAULT")
 
-active_list = st.sidebar.selectbox("Lista Attiva", list_options, index=list_options.index(st.session_state["current_list_name"]))
+active_list = st.sidebar.selectbox(
+    "Lista Attiva",
+    list_options,
+    index=list_options.index(st.session_state["current_list_name"])
+    if st.session_state["current_list_name"] in list_options
+    else 0,
+)
 st.session_state["current_list_name"] = active_list
 
 new_list = st.sidebar.text_input("📁 Crea Nuova Watchlist")
@@ -188,11 +193,17 @@ if st.sidebar.button("🗑️ Reset DB Completo", help="Elimina tutte le watchli
     st.rerun()
 
 # =============================================================================
-# LOGICA EXPORT (Helper)
+# LOGICA EXPORT (Helper CSV semplice)
 # =============================================================================
 def get_csv_download_link(df, filename="export.csv", key=None):
-    csv = df.to_csv(index=False).encode('utf-8')
-    return st.download_button(label="📥 Export CSV", data=csv, file_name=filename, mime='text/csv', key=key)
+    csv = df.to_csv(index=False).encode("utf-8")
+    return st.download_button(
+        label="📥 Export CSV",
+        data=csv,
+        file_name=filename,
+        mime="text/csv",
+        key=key,
+    )
 
 # =============================================================================
 # SCANNER EXECUTION
@@ -209,11 +220,15 @@ if not only_watchlist:
             status = st.empty()
             for i, tkr in enumerate(universe):
                 status.text(f"Analisi {i+1}/{len(universe)}: {tkr}")
-                ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot)
-                if ep: r_ep.append(ep)
-                if rea: r_rea.append(rea)
+                ep, rea = scan_ticker(
+                    tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot
+                )
+                if ep:
+                    r_ep.append(ep)
+                if rea:
+                    r_rea.append(rea)
                 pb.progress((i + 1) / len(universe))
-            
+
             st.session_state["df_ep"] = pd.DataFrame(r_ep)
             st.session_state["df_rea"] = pd.DataFrame(r_rea)
             st.session_state["last_scan"] = datetime.now().strftime("%H:%M:%S")
@@ -229,142 +244,247 @@ def show_legend(title):
     with st.expander(f"ℹ️ Legenda {title}", expanded=False):
         if title == "EARLY":
             st.write("**EARLY**: Titoli vicini alla EMA20 (trend in formazione).")
-            st.write("- *Early_Score*: Punteggio basato sulla vicinanza alla media e volumi.")
+            st.write("- Early_Score: Punteggio basato sulla vicinanza alla media e volumi.")
         elif title == "PRO":
             st.write("**PRO**: Segnali di forza con RSI in zona neutrale-rialzista.")
-            st.write("- *Pro_Score*: Punteggio basato su trend, RSI e breakout volumetrici.")
+            st.write("- Pro_Score: Punteggio basato su trend, RSI e breakout volumetrici.")
         elif title == "REA-HOT":
-            st.write("**REA-HOT**: Titoli con volumi anomali (Volume Ratio > 1.5) e vicini al POC.")
-            st.write("- *Vol_Ratio*: Rapporto tra volume odierno e media a 7 giorni.")
+            st.write(
+                "**REA-HOT**: Titoli con volumi anomali (Volume Ratio > 1.5) e vicini al POC."
+            )
+            st.write("- Vol_Ratio: Rapporto tra volume odierno e media a 7 giorni.")
         else:
             st.write(f"Segnali scanner per il sistema {title}.")
 
 # =============================================================================
 # TABS PRINCIPALI
 # =============================================================================
-tabs = st.tabs([
-    "🟢 EARLY", "🟣 PRO", "🟠 REA-HOT", "📈 Serafini Systems", 
-    "🧊 Regime & Momentum", "🕒 Multi-Timeframe", "📊 Finviz", "📌 Watchlist & Note"
-])
+tabs = st.tabs(
+    [
+        "🟢 EARLY",
+        "🟣 PRO",
+        "🟠 REA-HOT",
+        "📈 Serafini Systems",
+        "🧊 Regime & Momentum",
+        "🕒 Multi-Timeframe",
+        "📊 Finviz",
+        "📌 Watchlist & Note",
+    ]
+)
 tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
+# =============================================================================
+# FUNZIONE GENERICA PER TAB SCANNER
+# =============================================================================
 def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     st.subheader(f"Tab {title}")
     show_legend(title)
-    
+
     if df.empty:
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
-        
-    col_f = "Stato_Early" if status_filter == "EARLY" else ("Stato_Pro" if status_filter == "PRO" else "Stato")
-    df_f = df[df[col_f] == status_filter].copy() if col_f in df.columns else df.copy()
-    
-    if status_filter == "HOT" and "Stato" in df.columns:
-        df_f = df[df["Stato"] == "HOT"].copy()
-        
+
+    # Filtri per Stato
+    if status_filter == "EARLY":
+        col_f = "Stato_Early"
+    elif status_filter == "PRO":
+        col_f = "Stato_Pro"
+    elif status_filter == "HOT":
+        col_f = "Stato"
+    else:
+        col_f = "Stato"
+
+    if status_filter == "HOT":
+        df_f = df[df["Stato"] == "HOT"].copy() if "Stato" in df.columns else df.copy()
+    else:
+        if col_f in df.columns:
+            df_f = df[df[col_f] == status_filter].copy()
+        else:
+            df_f = df.copy()
+
     if df_f.empty:
         st.write(f"Nessun segnale {title} trovato.")
         return
-        
-    # === ORDINAMENTO MULTIPLO ===
-    SORT_COLUMNS_ALL = ["Nome", "Ticker", "MarketCap_fmt", "Vol_Today_fmt", "Vol_7d_Avg_fmt",
-                        "Prezzo", "Early_Score", "Pro_Score", "RSI", "Vol_Ratio",
-                        "OBV_Trend", "ATR", "ATR_Exp", "Stato", "Yahoo", "TradingView"]
+
+    # Ordinamento multiplo
+    SORT_COLUMNS_ALL = [
+        "Nome",
+        "Ticker",
+        "MarketCap_fmt",
+        "Vol_Today_fmt",
+        "Vol_7d_Avg_fmt",
+        "Prezzo",
+        "Early_Score",
+        "Pro_Score",
+        "RSI",
+        "Vol_Ratio",
+        "OBV_Trend",
+        "ATR",
+        "ATR_Exp",
+        "Stato",
+        "Yahoo",
+        "TradingView",
+    ]
     available_sort = [c for c in SORT_COLUMNS_ALL if c in df_f.columns]
+
     with st.expander("🔀 Ordinamento colonne (multiplo)", expanded=False):
         sort_sel = st.multiselect(
             "Colonne (in ordine di priorità):",
             options=available_sort,
             default=[c for c in sort_cols if c in available_sort],
-            key=f"sort_cols_{title}"
+            key=f"sort_cols_{title}",
         )
         sort_dirs = {}
         for col in sort_sel:
-            sort_dirs[col] = st.radio(
-                col, ["↑ ASC", "↓ DESC"],
-                index=0 if (ascending[sort_cols.index(col)] if col in sort_cols else True) else 1,
-                key=f"sort_dir_{title}_{col}",
-                horizontal=True
-            ) == "↑ ASC"
+            sort_dirs[col] = (
+                st.radio(
+                    col,
+                    ["↑ ASC", "↓ DESC"],
+                    index=0
+                    if (ascending[sort_cols.index(col)] if col in sort_cols else True)
+                    else 1,
+                    key=f"sort_dir_{title}_{col}",
+                    horizontal=True,
+                )
+                == "↑ ASC"
+            )
         if sort_sel:
             sort_cols = sort_sel
             ascending = [sort_dirs[c] for c in sort_sel]
-    df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
-    
-    # Formattazione e visualizzazione
+
+    df_f = df_f.sort_values(sort_cols, ascending=ascending).head(
+        st.session_state["top"]
+    )
+
+    # Formattazione e link
     df_v = add_links(prepare_display_df(add_formatted_cols(df_f)))
+
+    # EXPORT CSV semplice tab
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
         get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
-    
+
+    # Aggiunta a Watchlist tramite multiselect (niente checkbox di riga AgGrid)
     with col_add:
-        # 3. Nomi in ordine alfabetico nel multiselect
-        options_raw = [f"{row['Ticker']} - {row['Nome']}" for _, row in df_f.iterrows()]
+        options_raw = [
+            f"{row['Ticker']} - {row['Nome']}"
+            for _, row in df_f.iterrows()
+            if "Ticker" in df_f.columns and "Nome" in df_f.columns
+        ]
         options = sorted(list(set(options_raw)))
-        mapping = {f"{row['Ticker']} - {row['Nome']}": row['Ticker'] for _, row in df_f.iterrows()}
-        
+        mapping = {
+            f"{row['Ticker']} - {row['Nome']}": row["Ticker"]
+            for _, row in df_f.iterrows()
+            if "Ticker" in df_f.columns and "Nome" in df_f.columns
+        }
+
         c1, c2 = st.columns([3, 1])
         with c2:
-            # 2. Fix Seleziona tutti (tramite session_state per consistenza)
             select_all = st.checkbox("Seleziona tutti", key=f"all_{title}")
-            
+
         with c1:
             default_sel = options if select_all else []
-            selected_display = st.multiselect(f"Aggiungi a {active_list}", options, default=default_sel, key=f"add_{title}")
-    
+            selected_display = st.multiselect(
+                f"Aggiungi a {st.session_state['current_list_name']}",
+                options,
+                default=default_sel,
+                key=f"add_{title}",
+            )
+
     if st.button(f"Aggiungi selezionati", key=f"btn_{title}"):
         tickers_to_add = [mapping[s] for s in selected_display]
         to_ins = df_f[df_f["Ticker"].isin(tickers_to_add)]
-        add_to_watchlist(to_ins["Ticker"].tolist(), to_ins["Nome"].tolist(), title, "Scanner", "LONG", active_list)
-        st.success(f"Aggiunti {len(tickers_to_add)} titoli!")
-        time.sleep(1)
-        st.rerun()
-        
-    # Configurazione AgGrid
+        if not to_ins.empty:
+            add_to_watchlist(
+                to_ins["Ticker"].tolist(),
+                to_ins["Nome"].tolist(),
+                title,
+                "Scanner",
+                "LONG",
+                st.session_state["current_list_name"],
+            )
+            st.success(f"Aggiunti {len(tickers_to_add)} titoli alla watchlist!")
+            time.sleep(1)
+            st.rerun()
+
+    # AgGrid con auto‑resize e link "Apri"
     gb = GridOptionsBuilder.from_dataframe(df_v)
-    gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
+    gb.configure_default_column(
+        sortable=True, resizable=True, filterable=True, editable=False
+    )
     gb.configure_side_bar()
-    gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+
+    # Colonne link con renderer JS "Apri"
+    if "Yahoo" in df_v.columns:
+        gb.configure_column(
+            "Yahoo",
+            headerName="Yahoo",
+            cellRenderer=link_button_renderer,
+        )
+    if "TradingView" in df_v.columns:
+        gb.configure_column(
+            "TradingView",
+            headerName="TradingView",
+            cellRenderer=link_button_renderer,
+        )
+
     grid_options = gb.build()
-    
+
     AgGrid(
         df_v,
         gridOptions=grid_options,
         height=600,
-        enable_enterprise_modules=False,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=False,
+        fit_columns_on_grid_load=True,  # AUTO‑RESIZE
         theme="streamlit",
-        allow_unsafe_jscode=True
+        allow_unsafe_jscode=True,
     )
 
+# =============================================================================
+# TABS SCANNER
+# =============================================================================
 with tab_e:
     render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
+
 with tab_p:
     render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
+
 with tab_r:
     render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
+
 with tab_serafini:
     render_scan_tab(df_ep, "SERAFINI", ["Ticker"], [True], "Serafini Systems")
+
 with tab_regime:
     render_scan_tab(df_ep, "REGIME", ["Ticker"], [True], "Regime & Momentum")
+
 with tab_mtf:
     render_scan_tab(df_ep, "MTF", ["Ticker"], [True], "Multi-Timeframe")
+
 with tab_finviz:
     render_scan_tab(df_ep, "FINVIZ", ["Ticker"], [True], "Finviz")
 
+# =============================================================================
+# TAB WATCHLIST
+# =============================================================================
 with tab_w:
-    st.subheader(f"Watchlist: {active_list}")
+    st.subheader(f"Watchlist: {st.session_state['current_list_name']}")
     df_w_view = load_watchlist()
-    df_w_view = df_w_view[df_w_view["list_name"] == active_list]
-    
+    df_w_view = df_w_view[
+        df_w_view["list_name"] == st.session_state["current_list_name"]
+    ]
+
     if df_w_view.empty:
         st.info("Watchlist vuota.")
     else:
         c1, c2, c3 = st.columns([1, 1, 1])
         with c1:
-            get_csv_download_link(df_w_view, f"watchlist_{active_list}.csv", key="exp_wl")
+            get_csv_download_link(
+                df_w_view,
+                f"watchlist_{st.session_state['current_list_name']}.csv",
+                key="exp_wl",
+            )
         with c2:
             move_target = st.selectbox("Sposta in:", list_options, key="move_target")
             ids_to_move = st.multiselect("Seleziona ID:", df_w_view["id"].tolist())
@@ -372,16 +492,30 @@ with tab_w:
                 conn = sqlite3.connect(DB_PATH)
                 c = conn.cursor()
                 for i in ids_to_move:
-                    c.execute("UPDATE watchlist SET list_name = ? WHERE id = ?", (move_target, i))
-                conn.commit(); conn.close()
+                    c.execute(
+                        "UPDATE watchlist SET list_name = ? WHERE id = ?",
+                        (move_target, i),
+                    )
+                conn.commit()
+                conn.close()
                 st.rerun()
         with c3:
             if st.button("🗑️ Elimina selezionati"):
-                st.warning("Usa la checkbox della tabella se disponibile o specifica ID")
-        
+                st.warning(
+                    "Per ora elimina via DB o aggiungi una logica dedicata di delete_by_id."
+                )
+
         df_w_v = add_links(prepare_display_df(add_formatted_cols(df_w_view)))
         st.write(df_w_v.to_html(escape=False, index=False), unsafe_allow_html=True)
-    
+
     if st.button("🔄 Refresh Data"):
         st.rerun()
 
+# =============================================================================
+# TODO: QUI PUOI AGGIUNGERE I 4 EXPORT GLOBALI
+# (1) XLSX TUTTI I TAB
+# (2) CSV TV TUTTI I TAB
+# (3) XLSX TAB CORRENTE
+# (4) CSV TV TAB CORRENTE
+# usando df_ep, df_rea, df_w_view ecc. + to_excel_bytes / make_tv_csv
+# =============================================================================
