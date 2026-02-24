@@ -10,14 +10,13 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def prepare_display_df(df: pd.DataFrame) -> pd.DataFrame:
-    # Seleziona le colonne desiderate per la tabella
-    cols_to_show = ["Ticker", "Nome", "Prezzo", "RSI", "Stato"]
+    cols_to_show = ["Ticker", "Nome", "Prezzo", "RSI", "Stato_Early", "Stato_Pro"]
     existing = [c for c in cols_to_show if c in df.columns]
     return df[existing]
 
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # Link con icone e target blank per AgGrid
+    # Link con icone 🔗 e 📈
     df["Yahoo"] = df["Ticker"].apply(lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">🔗 Apri</a>')
     df["Tradingview"] = df["Ticker"].apply(lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t}" target="_blank">📈 Apri</a>')
     return df
