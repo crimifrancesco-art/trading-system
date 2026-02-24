@@ -200,6 +200,29 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         st.write(f"Nessun segnale {title} trovato.")
         return
         
+    # === ORDINAMENTO MULTIPLO ===
+    SORT_COLUMNS_ALL = ["Nome", "Ticker", "MarketCap_fmt", "Vol_Today_fmt", "Vol_7d_Avg_fmt",
+                        "Prezzo", "Early_Score", "Pro_Score", "RSI", "Vol_Ratio",
+                        "OBV_Trend", "ATR", "ATR_Exp", "Stato", "Yahoo", "TradingView"]
+    available_sort = [c for c in SORT_COLUMNS_ALL if c in df_f.columns]
+    with st.expander("🔀 Ordinamento colonne (multiplo)", expanded=False):
+        sort_sel = st.multiselect(
+            "Colonne (in ordine di priorità):",
+            options=available_sort,
+            default=[c for c in sort_cols if c in available_sort],
+            key=f"sort_cols_{title}"
+        )
+        sort_dirs = {}
+        for col in sort_sel:
+            sort_dirs[col] = st.radio(
+                col, ["↑ ASC", "↓ DESC"],
+                index=0 if (ascending[sort_cols.index(col)] if col in sort_cols else True) else 1,
+                key=f"sort_dir_{title}_{col}",
+                horizontal=True
+            ) == "↑ ASC"
+        if sort_sel:
+            sort_cols = sort_sel
+            ascending = [sort_dirs[c] for c in sort_sel]
     df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state["top"])
     
     # Formattazione e visualizzazione
