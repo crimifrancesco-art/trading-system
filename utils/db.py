@@ -3,15 +3,9 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-# -----------------------------------------------------------------------------
-# DB PATH
-# -----------------------------------------------------------------------------
 DB_PATH = Path("watchlist.db")
 
 
-# -----------------------------------------------------------------------------
-# INIT DB
-# -----------------------------------------------------------------------------
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -33,9 +27,6 @@ def init_db():
     conn.close()
 
 
-# -----------------------------------------------------------------------------
-# RESET DB
-# -----------------------------------------------------------------------------
 def reset_watchlist_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -45,9 +36,6 @@ def reset_watchlist_db():
     init_db()
 
 
-# -----------------------------------------------------------------------------
-# ADD ROWS
-# -----------------------------------------------------------------------------
 def add_to_watchlist(
     tickers,
     names,
@@ -56,6 +44,7 @@ def add_to_watchlist(
     trend="LONG",
     list_name="DEFAULT",
 ):
+
     if not tickers:
         return
 
@@ -67,7 +56,7 @@ def add_to_watchlist(
     for t, n in zip(tickers, names):
         c.execute("""
             INSERT INTO watchlist
-            (ticker, name, trend, origine, note, list_name, created_at)
+            (ticker,name,trend,origine,note,list_name,created_at)
             VALUES (?,?,?,?,?,?,?)
         """, (t, n, trend, origine, note, list_name, now))
 
@@ -75,16 +64,9 @@ def add_to_watchlist(
     conn.close()
 
 
-# -----------------------------------------------------------------------------
-# LOAD WATCHLIST
-# -----------------------------------------------------------------------------
 def load_watchlist():
-
     if not DB_PATH.exists():
-        return pd.DataFrame(columns=[
-            "id","ticker","name","trend",
-            "origine","note","list_name","created_at"
-        ])
+        return pd.DataFrame()
 
     conn = sqlite3.connect(DB_PATH)
     df = pd.read_sql(
@@ -92,31 +74,7 @@ def load_watchlist():
         conn
     )
     conn.close()
-
     return df
 
 
-# -----------------------------------------------------------------------------
-# DELETE
-# -----------------------------------------------------------------------------
-def delete_from_watchlist(ids):
-
-    if not ids:
-        return
-
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-
-    c.executemany(
-        "DELETE FROM watchlist WHERE id=?",
-        [(int(i),) for i in ids],
-    )
-
-    conn.commit()
-    conn.close()
-
-
-# -----------------------------------------------------------------------------
-# INIT ON IMPORT
-# -----------------------------------------------------------------------------
 init_db()
