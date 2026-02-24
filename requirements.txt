@@ -9,3 +9,4 @@ google-auth
 xlsxwriter
 plotly
 fpdf2
+streamlit-aggrid
