@@ -25,7 +25,23 @@ def make_tv_csv(df: pd.DataFrame, tab_name: str, ticker_col: str = "Ticker") -> 
     return tmp.to_csv(index=False).encode("utf-8")
 
 # -------------------------------------------------------------------------
-# RENDERER LINK "Apri" PER YAHOO / TRADINGVIEW (colonne *_url)
+# HELPER: COLONNE URL PER AGGRID (Yahoo_url / TradingView_url)
+# -------------------------------------------------------------------------
+def add_link_urls(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    col = "Ticker" if "Ticker" in df.columns else "ticker"
+    if col not in df.columns:
+        return df
+    df["Yahoo_url"] = df[col].astype(str).apply(
+        lambda t: f"https://finance.yahoo.com/quote/{t}"
+    )
+    df["TradingView_url"] = df[col].astype(str).apply(
+        lambda t: f"https://www.tradingview.com/chart/?symbol={t.split('.')[0]}"
+    )
+    return df
+
+# -------------------------------------------------------------------------
+# RENDERER LINK "🔗 Apri" PER YAHOO / TRADINGVIEW (colonne *_url)
 # -------------------------------------------------------------------------
 link_button_renderer = JsCode("""
 function(params) {
@@ -266,7 +282,7 @@ tabs = st.tabs(
 tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
 # =============================================================================
-# FUNZIONE GENERICA PER TAB SCANNER
+# FUNZIONE GENERICA PER TAB SCANNER (con link 🔗 Apri)
 # =============================================================================
 def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     st.subheader(f"Tab {title}")
@@ -287,9 +303,8 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         col_f = None
 
     df_f = df.copy()
-    if col_f and col_f in df_f.columns:
-        if status_filter in df_f[col_f].unique():
-            df_f = df_f[df_f[col_f] == status_filter].copy()
+    if col_f and col_f in df_f.columns and status_filter in df_f[col_f].unique():
+        df_f = df_f[df_f[col_f] == status_filter].copy()
 
     if df_f.empty:
         st.warning(f"Nessun risultato dopo filtro {status_filter}, mostro tutti i dati grezzi.")
@@ -301,37 +316,38 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     except Exception:
         pass
 
-    # Formattazione + link (crea Yahoo_url / TradingView_url se supportato)
+    # Formattazione numerica + riordino colonne
     df_fmt = add_formatted_cols(df_f)
-    df_v = prepare_display_df(df_fmt)
-    df_v = add_links(df_v)
+    df_disp = prepare_display_df(df_fmt)
+
+    # Colonne URL per AgGrid (Yahoo_url, TradingView_url)
+    df_disp = add_link_urls(df_disp)
 
     # Export CSV del tab (grezzo)
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
         get_csv_download_link(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
 
-    # Aggiunta a Watchlist via checkbox AgGrid
     with col_add:
         st.markdown(
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati a {st.session_state['current_list_name']}**."
         )
 
     # AgGrid con checkbox e link “🔗 Apri”
-    gb = GridOptionsBuilder.from_dataframe(df_v)
+    gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(
         sortable=True, resizable=True, filterable=True, editable=False
     )
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    if "Yahoo_url" in df_v.columns:
+    if "Yahoo_url" in df_disp.columns:
         gb.configure_column(
             "Yahoo_url",
             headerName="Yahoo",
             cellRenderer=link_button_renderer,
         )
-    if "TradingView_url" in df_v.columns:
+    if "TradingView_url" in df_disp.columns:
         gb.configure_column(
             "TradingView_url",
             headerName="TradingView",
@@ -341,7 +357,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     grid_options = gb.build()
 
     grid_response = AgGrid(
-        df_v,
+        df_disp,
         gridOptions=grid_options,
         height=600,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
@@ -349,6 +365,7 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         fit_columns_on_grid_load=True,
         theme="streamlit",
         allow_unsafe_jscode=True,
+        key=f"grid_{title}",  # chiave univoca per tab
     )
 
     selected_rows = grid_response["selected_rows"]
