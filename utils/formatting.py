@@ -8,13 +8,13 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def prepare_display_df(df: pd.DataFrame) -> pd.DataFrame:
-    # Mostra le colonne fondamentali
+    # Mostriamo solo le colonne chiave per pulizia
     cols = ["Ticker", "Nome", "Prezzo", "RSI", "Stato_Early", "Stato_Pro", "Stato"]
     return df[[c for c in cols if c in df.columns]]
 
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # Colonne con parola "Apri" e icona come richiesto
+    # Link richiesti: parola "Apri" + icona
     df["Yahoo"] = df["Ticker"].apply(lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">🔗 Apri</a>')
     df["Tradingview"] = df["Ticker"].apply(lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t}" target="_blank">📈 Apri</a>')
     return df
