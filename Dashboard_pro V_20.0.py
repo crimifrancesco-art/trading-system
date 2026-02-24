@@ -30,6 +30,7 @@ def make_tv_csv(df: pd.DataFrame, tab_name: str, ticker_col: str = "Ticker") -> 
 
 # -------------------------------------------------------------------------
 # RENDERER LINK "Apri" PER YAHOO / TRADINGVIEW
+# (usa le colonne con URL: Yahoo_url, TradingView_url)
 # -------------------------------------------------------------------------
 link_button_renderer = JsCode("""
 function(params) {
@@ -357,8 +358,10 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         st.session_state["top"]
     )
 
-    # Formattazione e link
-    df_v = add_links(prepare_display_df(add_formatted_cols(df_f)))
+    # Formattazione + link (produce colonne Yahoo_url / TradingView_url con URL)
+    df_fmt = add_formatted_cols(df_f)
+    df_v = prepare_display_df(df_fmt)
+    df_v = add_links(df_v)  # qui vengono create/riempite le colonne link[url][cite:18]
 
     # EXPORT CSV semplice tab
     col_exp, col_add = st.columns([1, 1])
@@ -377,18 +380,18 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         sortable=True, resizable=True, filterable=True, editable=False
     )
     gb.configure_side_bar()
-    gb.configure_selection(selection_mode="multiple", use_checkbox=True)  # checkbox ON[web:34]
+    gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    # Colonne link con renderer JS "Apri"
-    if "Yahoo" in df_v.columns:
+    # ATTENZIONE: usiamo le colonne _URL per il renderer JS
+    if "Yahoo_url" in df_v.columns:
         gb.configure_column(
-            "Yahoo",
+            "Yahoo_url",
             headerName="Yahoo",
             cellRenderer=link_button_renderer,
         )
-    if "TradingView" in df_v.columns:
+    if "TradingView_url" in df_v.columns:
         gb.configure_column(
-            "TradingView",
+            "TradingView_url",
             headerName="TradingView",
             cellRenderer=link_button_renderer,
         )
@@ -401,9 +404,9 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
         height=600,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,  # AUTO‑RESIZE[web:37]
+        fit_columns_on_grid_load=True,
         theme="streamlit",
-        allow_unsafe_jscode=True,
+        allow_unsafe_jscode=True,  # necessario per JsCode[web:24]
     )
 
     # Gestione selezionati per watchlist
@@ -413,7 +416,11 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
     if st.button(f"Aggiungi selezionati a {st.session_state['current_list_name']}", key=f"btn_{title}"):
         if not selected_df.empty and "Ticker" in selected_df.columns:
             tickers = selected_df["Ticker"].tolist()
-            names = selected_df["Nome"].tolist() if "Nome" in selected_df.columns else selected_df["Ticker"].tolist()
+            names = (
+                selected_df["Nome"].tolist()
+                if "Nome" in selected_df.columns
+                else selected_df["Ticker"].tolist()
+            )
             add_to_watchlist(
                 tickers,
                 names,
@@ -502,7 +509,7 @@ with tab_w:
         st.rerun()
 
 # =============================================================================
-# 4 EXPORT GLOBALI (SOTTO IL TODO)
+# 4 EXPORT GLOBALI
 # =============================================================================
 
 st.markdown("---")
@@ -524,7 +531,7 @@ st.download_button(
     file_name="TradingScanner_Tutti_i_tab.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     key="xlsx_all_tabs",
-)  # [web:39][web:44]
+)  # [web:39][web:46]
 
 # (2) CSV TradingView TUTTI I TAB (colonne: Tab, Ticker)
 tv_rows = []
