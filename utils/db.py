@@ -1,8 +1,9 @@
 import sqlite3
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 
-DB_PATH = "watchlist.db"
+DB_PATH = Path("watchlist.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
