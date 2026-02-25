@@ -10,3 +10,8 @@ xlsxwriter
 plotly
 fpdf2
 streamlit-aggrid
+streamlit
+streamlit-aggrid>=1.1.2
+pandas
+numpy
+xlsxwriter
