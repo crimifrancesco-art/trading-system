@@ -333,7 +333,13 @@ def render_scan_tab(df, status_filter, sort_cols, ascending, title):
 
     # Colonne link HTML Yahoo / TradingView per AgGrid
     df_disp = add_link_urls(df_disp)
+    cols = list(df_disp.columns)
+    for c in ["Yahoo", "TradingView"]:
+        if c in cols:
+        cols.remove(c)
+    df_disp = df_disp[["Ticker", "Nome", "Yahoo", "TradingView"] + cols if "Nome" in df_disp.columns else ["Ticker", "Yahoo", "TradingView"] + cols]
 
+    
     # Export CSV del tab (grezzo)
     col_exp, col_add = st.columns([1, 1])
     with col_exp:
