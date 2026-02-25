@@ -113,6 +113,15 @@ if "sidebar_init" not in st.session_state:
 # =============================================================================
 st.sidebar.title("⚙️ Configurazione")
 
+with st.sidebar.expander("🔗 Link veloci", expanded=False):
+    st.markdown(
+        "[📺 TradingView](https://www.tradingview.com/chart/)",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        "[📃 Yahoo Finance](https://finance.yahoo.com/)",
+        unsafe_allow_html=True
+    )
 with st.sidebar.expander("📈 Selezione Mercati", expanded=True):
     m_sp500 = st.checkbox("🇺🇸 S&P 500", st.session_state["m_SP500"])
     m_nasdaq = st.checkbox("🇺🇸 Nasdaq 100", st.session_state["m_Nasdaq"])
