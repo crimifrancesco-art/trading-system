@@ -39,35 +39,27 @@ def get_csv_download_button(df: pd.DataFrame, filename: str, key: str):
     )
 
 # -------------------------------------------------------------------------
-# LINK PER AGGRID: colonne testuali "Apri"
+# RENDERER JS: doppio click su Nome -> TradingView
 # -------------------------------------------------------------------------
-def add_link_columns_for_grid(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if "Yahoo" not in df.columns:
-        df["Yahoo"] = "Apri"
-    if "TradingView" not in df.columns:
-        df["TradingView"] = "Apri"
-    return df
+name_dblclick_renderer = JsCode("""
+class NameDoubleClickRenderer {
+    init(params) {
+        this.eGui = document.createElement('span');
+        this.eGui.innerText = params.value || '';
+        const ticker = params.data.Ticker || params.data.ticker;
+        if (!ticker) return;
 
-link_button_renderer = JsCode("""
-function(params) {
-    if (!params.value) { return ''; }
-    // recupera il ticker dalla riga
-    const ticker = params.data.Ticker || params.data.ticker;
-    if (!ticker) { return params.value; }
+        this.eGui.style.cursor = 'pointer';
 
-    let url = "";
-    if (params.colDef.field === "Yahoo") {
-        url = "https://finance.yahoo.com/quote/" + ticker;
-    } else if (params.colDef.field === "TradingView") {
-        // rimuove eventuale suffisso dopo il punto
-        const symbol = String(ticker).split(".")[0];
-        url = "https://www.tradingview.com/chart/?symbol=" + symbol;
-    } else {
-        return params.value;
+        this.eGui.ondblclick = function() {
+            const symbol = String(ticker).split(".")[0];
+            const url = "https://www.tradingview.com/chart/?symbol=" + symbol;
+            window.open(url, "_blank");
+        }
     }
-
-    return `<a href="${url}" target="_blank" style="text-decoration:none;">${params.value}</a>`;
+    getGui() {
+        return this.eGui;
+    }
 }
 """)
 
@@ -76,7 +68,7 @@ function(params) {
 # -------------------------------------------------------------------------
 st.set_page_config(page_title="Trading Scanner PRO 20.0", layout="wide", page_icon="📈")
 st.title("🧠 Trading Scanner Versione PRO 20.0")
-st.caption("EARLY • PRO • REA-HOT • Serafini • Regime • MultiTF • Finviz • Watchlist DB")
+st.caption("EARLY • PRO • REA-HOT • Serafini • Regime • MultiTF • Finviz • Watchlist DB")[page:1]
 
 init_db()
 if "init_done" not in st.session_state:
@@ -249,19 +241,20 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
 
     df_fmt = add_formatted_cols(df_f)
     df_disp = prepare_display_df(df_fmt)
-    df_disp = add_link_columns_for_grid(df_disp)
+
+    # eventuali colonne Yahoo/TradingView nel df vengono tolte
+    for c in ["Yahoo", "TradingView"]:
+        if c in df_disp.columns:
+            df_disp = df_disp.drop(columns=[c])
 
     cols = list(df_disp.columns)
-    for c in ["Yahoo", "TradingView"]:
-        if c in cols:
-            cols.remove(c)
     base_cols = ["Ticker"]
     if "Nome" in df_disp.columns:
         base_cols.append("Nome")
     for c in base_cols:
         if c in cols:
             cols.remove(c)
-    ordered = base_cols + ["Yahoo", "TradingView"] + cols
+    ordered = base_cols + cols
     df_disp = df_disp[[c for c in ordered if c in df_disp.columns]]
 
     c1, c2 = st.columns([1, 1])
@@ -277,10 +270,13 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    if "Yahoo" in df_disp.columns:
-        gb.configure_column("Yahoo", headerName="Yahoo", cellRenderer=link_button_renderer)
-    if "TradingView" in df_disp.columns:
-        gb.configure_column("TradingView", headerName="TradingView", cellRenderer=link_button_renderer)
+    # doppio click su Nome -> TradingView
+    if "Nome" in df_disp.columns:
+        gb.configure_column(
+            "Nome",
+            headerName="Nome",
+            cellRenderer=name_dblclick_renderer,
+        )
 
     grid_options = gb.build()
 
