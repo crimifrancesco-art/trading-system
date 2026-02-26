@@ -68,7 +68,7 @@ class NameDoubleClickRenderer {
 # -------------------------------------------------------------------------
 st.set_page_config(page_title="Trading Scanner PRO 20.0", layout="wide", page_icon="📈")
 st.title("🧠 Trading Scanner Versione PRO 20.0")
-st.caption("EARLY • PRO • REA-HOT • Serafini • Regime • MultiTF • Finviz • Watchlist DB")[page:1]
+st.caption("EARLY • PRO • REA-HOT • Serafini • Regime • MultiTF • Finviz • Watchlist DB")
 
 init_db()
 if "init_done" not in st.session_state:
