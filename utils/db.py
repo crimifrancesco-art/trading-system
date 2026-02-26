@@ -1,4 +1,5 @@
 import sqlite3
+import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -7,9 +8,15 @@ from datetime import datetime
 DB_PATH = Path("watchlist.db")
 
 
+# -------------------------------------------------------------------------
+# INIT DB
+# -------------------------------------------------------------------------
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+
+    # Watchlist
     c.execute("""
         CREATE TABLE IF NOT EXISTS watchlist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,9 +34,29 @@ def init_db():
             c.execute(f"ALTER TABLE watchlist ADD COLUMN {col_def}")
         except sqlite3.OperationalError:
             pass
+
+    # Storico scansioni (NUOVO v21.0)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS scan_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scanned_at TEXT NOT NULL,
+            markets TEXT,
+            n_early INTEGER,
+            n_pro INTEGER,
+            n_rea INTEGER,
+            n_confluence INTEGER,
+            df_ep_json TEXT,
+            df_rea_json TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
 
+
+# -------------------------------------------------------------------------
+# WATCHLIST
+# -------------------------------------------------------------------------
 
 def reset_watchlist_db():
     conn = sqlite3.connect(DB_PATH)
@@ -112,5 +139,74 @@ def rename_watchlist(old_name, new_name):
     conn.close()
 
 
+# -------------------------------------------------------------------------
+# STORICO SCANSIONI (NUOVO v21.0)
+# -------------------------------------------------------------------------
+
+def save_scan_history(markets: list, df_ep: pd.DataFrame, df_rea: pd.DataFrame):
+    """Salva i risultati della scansione nel DB per confronto storico."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        n_early = int((df_ep.get("Stato_Early", pd.Series()) == "EARLY").sum()) if not df_ep.empty else 0
+        n_pro = int((df_ep.get("Stato_Pro", pd.Series()) == "PRO").sum()) if not df_ep.empty else 0
+        n_rea = len(df_rea) if not df_rea.empty else 0
+
+        # Confluence: EARLY + PRO contemporaneamente
+        n_confluence = 0
+        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+            n_confluence = int(
+                ((df_ep["Stato_Early"] == "EARLY") & (df_ep["Stato_Pro"] == "PRO")).sum()
+            )
+
+        ep_json = df_ep.to_json(orient="records") if not df_ep.empty else "[]"
+        rea_json = df_rea.to_json(orient="records") if not df_rea.empty else "[]"
+
+        c.execute("""
+            INSERT INTO scan_history (scanned_at, markets, n_early, n_pro, n_rea, n_confluence, df_ep_json, df_rea_json)
+            VALUES (?,?,?,?,?,?,?,?)
+        """, (now, json.dumps(markets), n_early, n_pro, n_rea, n_confluence, ep_json, rea_json))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+
+def load_scan_history(limit=20) -> pd.DataFrame:
+    """Carica le ultime N scansioni (senza JSON dei dati)."""
+    if not DB_PATH.exists():
+        return pd.DataFrame()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        df = pd.read_sql_query(
+            "SELECT id, scanned_at, markets, n_early, n_pro, n_rea, n_confluence FROM scan_history ORDER BY id DESC LIMIT ?",
+            conn, params=(limit,)
+        )
+        conn.close()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def load_scan_snapshot(scan_id: int):
+    """Carica i DataFrame di una scansione specifica dal DB."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("SELECT df_ep_json, df_rea_json FROM scan_history WHERE id = ?", (scan_id,))
+        row = c.fetchone()
+        conn.close()
+        if row:
+            df_ep = pd.read_json(row[0]) if row[0] and row[0] != "[]" else pd.DataFrame()
+            df_rea = pd.read_json(row[1]) if row[1] and row[1] != "[]" else pd.DataFrame()
+            return df_ep, df_rea
+    except Exception:
+        pass
+    return pd.DataFrame(), pd.DataFrame()
+
+
 # Inizializza DB al caricamento del modulo
 init_db()
+
