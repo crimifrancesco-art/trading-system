@@ -372,18 +372,6 @@ with tab_serafini:
 with tab_regime:
     render_scan_tab(df_ep, "REGIME", ["Pro_Score"], [False], "Regime Momentum")
 
-with tab_mtf:
-    # base: tutti i PRO
-    df_mtf = df_ep[df_ep.get("Stato_Pro", "-") == "PRO"].copy()
-    # calcolo momentum
-    if "Pro_Score" in df_mtf.columns and "RSI" in df_mtf.columns:
-        df_mtf["Momentum"] = df_mtf["Pro_Score"] * 10 + df_mtf["RSI"]
-    # togli i ticker Finviz per non avere overlap
-    finviz_tickers = set(df_finviz["Ticker"]) if "df_finviz" in locals() else set()
-    df_mtf = df_mtf[~df_mtf["Ticker"].isin(finviz_tickers)]
-    render_scan_tab(df_mtf, "MTF", ["Momentum"], [False], "Multi-Timeframe")
-
-
 # --- Finviz ---
 with tab_finviz:
     # base = solo PRO, ma senza usare .get dentro [...]
