@@ -373,10 +373,28 @@ with tab_regime:
     render_scan_tab(df_ep, "REGIME", ["Pro_Score"], [False], "Regime Momentum")
 
 with tab_mtf:
-    render_scan_tab(df_ep, "MTF", ["Ticker"], [True], "Multi-Timeframe")
+    # base: tutti i PRO
+    df_mtf = df_ep[df_ep.get("Stato_Pro", "-") == "PRO"].copy()
+    # calcolo momentum
+    if "Pro_Score" in df_mtf.columns and "RSI" in df_mtf.columns:
+        df_mtf["Momentum"] = df_mtf["Pro_Score"] * 10 + df_mtf["RSI"]
+    # togli i ticker Finviz per non avere overlap
+    finviz_tickers = set(df_finviz["Ticker"]) if "df_finviz" in locals() else set()
+    df_mtf = df_mtf[~df_mtf["Ticker"].isin(finviz_tickers)]
+    render_scan_tab(df_mtf, "MTF", ["Momentum"], [False], "Multi-Timeframe")
 
+
+# nel blocco RENDER TABS SCANNER
 with tab_finviz:
-    render_scan_tab(df_ep, "FINVIZ", ["Ticker"], [True], "Finviz")
+    # base = solo PRO
+    df_finviz = df_ep[df_ep.get("Stato_Pro", "-") == "PRO"].copy()
+    # filtro qualità: MarketCap grande e volumi sopra media
+    if "MarketCap" in df_finviz.columns:
+        df_finviz = df_finviz[df_finviz["MarketCap"] >= df_finviz["MarketCap"].median()]
+    if "Vol_Ratio" in df_finviz.columns:
+        df_finviz = df_finviz[df_finviz["Vol_Ratio"] > 1.2]
+    render_scan_tab(df_finviz, "FINVIZ", ["Pro_Score"], [False], "Finviz")
+
 
 # -------------------------------------------------------------------------
 # TAB WATCHLIST
