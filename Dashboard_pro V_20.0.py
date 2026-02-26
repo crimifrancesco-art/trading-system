@@ -225,7 +225,7 @@ tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 # -------------------------------------------------------------------------
 # FUNZIONE GENERICA TAB SCANNER
 # -------------------------------------------------------------------------
-def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
+def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, title: str):
     st.subheader(f"📊 Tab {title}")
     show_legend(title)
 
@@ -233,16 +233,53 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
         st.info(f"Nessun dato {title}. Esegui lo scanner.")
         return
 
-    df_f = df.copy()
+    # --- FILTRO STATO COMUNE (stile 9.x) ---
+    col_f = None
+    if status_filter == "EARLY":
+        col_f = "Stato_Early"
+    elif status_filter == "PRO":
+        col_f = "Stato_Pro"
+    elif status_filter in ("HOT", "SERAFINI", "REGIME", "MTF", "FINVIZ"):
+        col_f = "Stato"
+
+    if col_f and col_f in df.columns:
+        if status_filter == "HOT":
+            df_f = df[df[col_f] == "HOT"].copy()
+        elif status_filter in ("SERAFINI", "REGIME", "MTF", "FINVIZ"):
+            # Sistemi avanzati: usiamo come base solo i PRO
+            df_f = df[df.get("Stato_Pro", "-") == "PRO"].copy()
+        else:
+            df_f = df[df[col_f] == status_filter].copy()
+    else:
+        df_f = df.copy()
+
+    if df_f.empty:
+        st.info(f"Nessun segnale {title} trovato.")
+        return
+
+    # --- LOGICHE SPECIFICHE PER TAB AVANZATI ---
+    if status_filter == "REGIME":
+        # Momentum = Pro_Score*10 + RSI
+        if "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
+            df_f["Momentum"] = df_f["Pro_Score"] * 10 + df_f["RSI"]
+            sort_cols = ["Momentum"]
+            ascending = [False]
+    elif status_filter == "SERAFINI":
+        # Serafini: privilegia i trend forti -> Pro_Score decrescente
+        if "Pro_Score" in df_f.columns:
+            sort_cols = ["Pro_Score"]
+            ascending = [False]
+
+    # --- ORDINAMENTO ---
     try:
         df_f = df_f.sort_values(sort_cols, ascending=ascending).head(st.session_state.top)
     except Exception:
         pass
 
+    # --- FORMATTAZIONE E RIMOZIONE COLONNE LINK ---
     df_fmt = add_formatted_cols(df_f)
     df_disp = prepare_display_df(df_fmt)
 
-    # eventuali colonne Yahoo/TradingView nel df vengono tolte
     for c in ["Yahoo", "TradingView"]:
         if c in df_disp.columns:
             df_disp = df_disp.drop(columns=[c])
@@ -257,6 +294,7 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
     ordered = base_cols + cols
     df_disp = df_disp[[c for c in ordered if c in df_disp.columns]]
 
+    # --- EXPORT E ISTRUZIONI ---
     c1, c2 = st.columns([1, 1])
     with c1:
         get_csv_download_button(df_f, f"{title.lower()}_export.csv", key=f"exp_{title}")
@@ -265,12 +303,12 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati** a '{st.session_state.current_list_name}'."
         )
 
+    # --- AGGRID: doppio click su Nome -> TradingView ---
     gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
 
-    # doppio click su Nome -> TradingView
     if "Nome" in df_disp.columns:
         gb.configure_column(
             "Nome",
@@ -318,27 +356,27 @@ def render_scan_tab(df: pd.DataFrame, sort_cols, ascending, title: str):
 # -------------------------------------------------------------------------
 with tab_e:
     st.session_state.last_active_tab = "EARLY"
-    render_scan_tab(df_ep, ["Early_Score"], [False], "EARLY")
+    render_scan_tab(df_ep, "EARLY", ["Early_Score", "RSI"], [False, True], "EARLY")
 
 with tab_p:
     st.session_state.last_active_tab = "PRO"
-    render_scan_tab(df_ep, ["Pro_Score"], [False], "PRO")
+    render_scan_tab(df_ep, "PRO", ["Pro_Score", "RSI"], [False, True], "PRO")
 
 with tab_r:
     st.session_state.last_active_tab = "REA-HOT"
-    render_scan_tab(df_rea, ["Vol_Ratio"], [False], "REA-HOT")
+    render_scan_tab(df_rea, "HOT", ["Vol_Ratio", "Dist_POC_%"], [False, True], "REA-HOT")
 
 with tab_serafini:
-    render_scan_tab(df_ep, ["Ticker"], [True], "Serafini Systems")
+    render_scan_tab(df_ep, "SERAFINI", ["Pro_Score"], [False], "Serafini Systems")
 
 with tab_regime:
-    render_scan_tab(df_ep, ["Ticker"], [True], "Regime Momentum")
+    render_scan_tab(df_ep, "REGIME", ["Pro_Score"], [False], "Regime Momentum")
 
 with tab_mtf:
-    render_scan_tab(df_ep, ["Ticker"], [True], "Multi-Timeframe")
+    render_scan_tab(df_ep, "MTF", ["Ticker"], [True], "Multi-Timeframe")
 
 with tab_finviz:
-    render_scan_tab(df_ep, ["Ticker"], [True], "Finviz")
+    render_scan_tab(df_ep, "FINVIZ", ["Ticker"], [True], "Finviz")
 
 # -------------------------------------------------------------------------
 # TAB WATCHLIST
@@ -442,3 +480,4 @@ if isinstance(df_current, pd.DataFrame) and not df_current.empty and "Ticker" in
         mime="text/csv",
         key="csv_tv_current_tab",
     )
+
