@@ -297,7 +297,7 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati** a '{st.session_state.current_list_name}'."
         )
 
-    # --- AGGRID: larghezze + pulsante Resize + doppio click Nome -> TV ---
+    # --- AGGRID: larghezze fissate + doppio click Nome -> TradingView ---
     gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
     gb.configure_side_bar()
@@ -320,15 +320,13 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
 
     grid_options = gb.build()
 
-    resize = st.checkbox("🔧 Resize colonne", key=f"resize_{title}", value=False)
-
     grid_response = AgGrid(
         df_disp,
         gridOptions=grid_options,
         height=600,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=resize,
+        fit_columns_on_grid_load=False,
         theme="streamlit",
         allow_unsafe_jscode=True,
         key=f"grid_{title}",
@@ -354,6 +352,7 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
             st.rerun()
         else:
             st.warning("Nessuna riga selezionata.")
+
 # -------------------------------------------------------------------------
 # TABS
 # -------------------------------------------------------------------------
