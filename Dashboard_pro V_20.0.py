@@ -384,17 +384,39 @@ with tab_mtf:
     render_scan_tab(df_mtf, "MTF", ["Momentum"], [False], "Multi-Timeframe")
 
 
-# nel blocco RENDER TABS SCANNER
+# --- Finviz ---
 with tab_finviz:
-    # base = solo PRO
-    df_finviz = df_ep[df_ep.get("Stato_Pro", "-") == "PRO"].copy()
-    # filtro qualità: MarketCap grande e volumi sopra media
+    # base = solo PRO, ma senza usare .get dentro [...]
+    stato_pro = df_ep.get("Stato_Pro")
+    if stato_pro is not None:
+        df_finviz = df_ep[stato_pro == "PRO"].copy()
+    else:
+        df_finviz = df_ep.copy()
+
+    # filtro qualità
     if "MarketCap" in df_finviz.columns:
         df_finviz = df_finviz[df_finviz["MarketCap"] >= df_finviz["MarketCap"].median()]
     if "Vol_Ratio" in df_finviz.columns:
         df_finviz = df_finviz[df_finviz["Vol_Ratio"] > 1.2]
+
     render_scan_tab(df_finviz, "FINVIZ", ["Pro_Score"], [False], "Finviz")
 
+# --- Multi-Timeframe ---
+with tab_mtf:
+    stato_pro = df_ep.get("Stato_Pro")
+    if stato_pro is not None:
+        df_mtf = df_ep[stato_pro == "PRO"].copy()
+    else:
+        df_mtf = df_ep.copy()
+
+    if "Pro_Score" in df_mtf.columns and "RSI" in df_mtf.columns:
+        df_mtf["Momentum"] = df_mtf["Pro_Score"] * 10 + df_mtf["RSI"]
+
+    finviz_tickers = set(df_finviz["Ticker"]) if "df_finviz" in locals() and "Ticker" in df_finviz.columns else set()
+    if "Ticker" in df_mtf.columns:
+        df_mtf = df_mtf[~df_mtf["Ticker"].isin(finviz_tickers)]
+
+    render_scan_tab(df_mtf, "MTF", ["Momentum"], [False], "Multi-Timeframe")
 
 # -------------------------------------------------------------------------
 # TAB WATCHLIST
