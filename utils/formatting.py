@@ -13,9 +13,7 @@ def fmt_currency(value, symbol="€"):
         return ""
     return (
         f"{symbol}{value:,.2f}"
-        .replace(",", "X")
-        .replace(".", ",")
-        .replace("X", ".")
+        .replace(",", "X").replace(".", ",").replace("X", ".")
     )
 
 
@@ -30,27 +28,21 @@ def fmt_marketcap(value, symbol="€"):
         return ""
     v = float(value)
     if v >= 1_000_000_000:
-        return (
-            f"{symbol}{v / 1_000_000_000:,.2f}B"
-            .replace(",", "X").replace(".", ",").replace("X", ".")
-        )
+        return (f"{symbol}{v/1_000_000_000:,.2f}B"
+                .replace(",","X").replace(".","," ).replace("X","."))
     if v >= 1_000_000:
-        return (
-            f"{symbol}{v / 1_000_000:,.2f}M"
-            .replace(",", "X").replace(".", ",").replace("X", ".")
-        )
+        return (f"{symbol}{v/1_000_000:,.2f}M"
+                .replace(",","X").replace(".","," ).replace("X","."))
     if v >= 1_000:
-        return (
-            f"{symbol}{v / 1_000:,.2f}K"
-            .replace(",", "X").replace(".", ",").replace("X", ".")
-        )
+        return (f"{symbol}{v/1_000:,.2f}K"
+                .replace(",","X").replace(".","," ).replace("X","."))
     return fmt_currency(v, symbol)
 
 
-# Colonne raw da eliminare dalla visualizzazione
 _COLS_TO_DROP = [
     "MarketCap", "Vol_Today", "Vol_7d_Avg",
     "Currency", "Stato_Early", "Stato_Pro", "Prezzo_fmt",
+    "_quality_components", "_chart_data",   # metadati interni
 ]
 
 
@@ -60,14 +52,10 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
         df["Currency"] = "USD"
     if "Prezzo" in df.columns:
         df["Prezzo_fmt"] = df.apply(
-            lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"),
-            axis=1,
-        )
+            lambda r: fmt_currency(r["Prezzo"], "€" if r["Currency"] == "EUR" else "$"), axis=1)
     if "MarketCap" in df.columns:
         df["MarketCap_fmt"] = df.apply(
-            lambda r: fmt_marketcap(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"),
-            axis=1,
-        )
+            lambda r: fmt_marketcap(r["MarketCap"], "€" if r["Currency"] == "EUR" else "$"), axis=1)
     if "Vol_Today" in df.columns:
         df["Vol_Today_fmt"] = df["Vol_Today"].apply(fmt_int)
     if "Vol_7d_Avg" in df.columns:
@@ -82,31 +70,19 @@ def prepare_display_df(df: pd.DataFrame) -> pd.DataFrame:
         df = df.drop(columns=cols_drop)
     cols = list(df.columns)
     insert_cols = [c for c in ["MarketCap_fmt", "Vol_Today_fmt", "Vol_7d_Avg_fmt"] if c in cols]
-    remaining = [c for c in cols if c not in insert_cols]
-    prefix = remaining[:2]
-    suffix = remaining[2:]
-    new_order = prefix + insert_cols + suffix
-    df = df[new_order]
+    remaining   = [c for c in cols if c not in insert_cols]
+    df = df[remaining[:2] + insert_cols + remaining[2:]]
     return df
 
 
 def add_links(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
+    df  = df.copy()
     col = "Ticker" if "Ticker" in df.columns else "ticker"
     if col not in df.columns:
         return df
-    df["Yahoo"] = df[col].astype(str).apply(
-        lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">Apri</a>'
-    )
+    df["Yahoo"]       = df[col].astype(str).apply(
+        lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">Apri</a>')
     df["TradingView"] = df[col].astype(str).apply(
-        lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t.split(".")[0]}" target="_blank">Apri</a>'
-    )
+        lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t.split(".")[0]}" target="_blank">Apri</a>')
     return df
-
-
-def style_bool_col(val):
-    """Colora True/False in verde/grigio per AgGrid."""
-    if val is True or val == "True":
-        return "color: #22c55e; font-weight: bold;"
-    return "color: #9ca3af;"
 
