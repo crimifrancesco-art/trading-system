@@ -215,14 +215,6 @@ def show_legend(title: str):
             st.write(f"Segnali scanner per il sistema {title}.")
 
 # -------------------------------------------------------------------------
-# TABS
-# -------------------------------------------------------------------------
-tabs = st.tabs(
-    ["EARLY", "PRO", "REA-HOT", "Serafini Systems", "Regime Momentum", "Multi-Timeframe", "Finviz", "Watchlist"]
-)
-tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
-
-# -------------------------------------------------------------------------
 # FUNZIONE GENERICA TAB SCANNER
 # -------------------------------------------------------------------------
 def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, title: str):
@@ -246,8 +238,12 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
         if status_filter == "HOT":
             df_f = df[df[col_f] == "HOT"].copy()
         elif status_filter in ("SERAFINI", "REGIME", "MTF", "FINVIZ"):
-            # Sistemi avanzati: usiamo come base solo i PRO
-            df_f = df[df.get("Stato_Pro", "-") == "PRO"].copy()
+            # Sistemi avanzati: base = soli PRO
+            stato_pro = df.get("Stato_Pro")
+            if stato_pro is not None:
+                df_f = df[stato_pro == "PRO"].copy()
+            else:
+                df_f = df.copy()
         else:
             df_f = df[df[col_f] == status_filter].copy()
     else:
@@ -259,13 +255,11 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
 
     # --- LOGICHE SPECIFICHE PER TAB AVANZATI ---
     if status_filter == "REGIME":
-        # Momentum = Pro_Score*10 + RSI
         if "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
             df_f["Momentum"] = df_f["Pro_Score"] * 10 + df_f["RSI"]
             sort_cols = ["Momentum"]
             ascending = [False]
     elif status_filter == "SERAFINI":
-        # Serafini: privilegia i trend forti -> Pro_Score decrescente
         if "Pro_Score" in df_f.columns:
             sort_cols = ["Pro_Score"]
             ascending = [False]
@@ -303,12 +297,12 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
             f"Seleziona righe nella tabella e clicca **Aggiungi selezionati** a '{st.session_state.current_list_name}'."
         )
 
-    # --- AGGRID: doppio click su Nome -> TradingView ---
+    # --- AGGRID: larghezze + pulsante Resize + doppio click Nome -> TV ---
     gb = GridOptionsBuilder.from_dataframe(df_disp)
     gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
-    # esempio: ticker stretto, nome più largo, punteggi compatti
+
     if "Ticker" in df_disp.columns:
         gb.configure_column("Ticker", width=90)
     if "Nome" in df_disp.columns:
@@ -326,21 +320,7 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
 
     grid_options = gb.build()
 
-    # sopra a grid_response
-resize = st.checkbox("🔧 Resize colonne", key=f"resize_{title}", value=False)
-
-grid_response = AgGrid(
-    df_disp,
-    gridOptions=grid_options,
-    height=600,
-    update_mode=GridUpdateMode.SELECTION_CHANGED,
-    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-    fit_columns_on_grid_load=resize,  # se True ricalcola il fit
-    theme="streamlit",
-    allow_unsafe_jscode=True,
-    key=f"grid_{title}",
-)
-
+    resize = st.checkbox("🔧 Resize colonne", key=f"resize_{title}", value=False)
 
     grid_response = AgGrid(
         df_disp,
@@ -348,7 +328,7 @@ grid_response = AgGrid(
         height=600,
         update_mode=GridUpdateMode.SELECTION_CHANGED,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,
+        fit_columns_on_grid_load=resize,
         theme="streamlit",
         allow_unsafe_jscode=True,
         key=f"grid_{title}",
@@ -374,6 +354,7 @@ grid_response = AgGrid(
             st.rerun()
         else:
             st.warning("Nessuna riga selezionata.")
+
 
 # -------------------------------------------------------------------------
 # RENDER TABS SCANNER
