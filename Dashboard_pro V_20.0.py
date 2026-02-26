@@ -39,25 +39,35 @@ def get_csv_download_button(df: pd.DataFrame, filename: str, key: str):
     )
 
 # -------------------------------------------------------------------------
-# LINK PER AGGRID (HTML "Apri")
+# LINK PER AGGRID: colonne testuali "Apri"
 # -------------------------------------------------------------------------
 def add_link_columns_for_grid(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    col = "Ticker" if "Ticker" in df.columns else "ticker"
-    if col not in df.columns:
-        return df
-    df["Yahoo"] = df[col].astype(str).apply(
-        lambda t: f'<a href="https://finance.yahoo.com/quote/{t}" target="_blank">Apri</a>'
-    )
-    df["TradingView"] = df[col].astype(str).apply(
-        lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t.split(".")[0]}" target="_blank">Apri</a>'
-    )
+    if "Yahoo" not in df.columns:
+        df["Yahoo"] = "Apri"
+    if "TradingView" not in df.columns:
+        df["TradingView"] = "Apri"
     return df
 
 link_button_renderer = JsCode("""
 function(params) {
     if (!params.value) { return ''; }
-    return params.value;
+    // recupera il ticker dalla riga
+    const ticker = params.data.Ticker || params.data.ticker;
+    if (!ticker) { return params.value; }
+
+    let url = "";
+    if (params.colDef.field === "Yahoo") {
+        url = "https://finance.yahoo.com/quote/" + ticker;
+    } else if (params.colDef.field === "TradingView") {
+        // rimuove eventuale suffisso dopo il punto
+        const symbol = String(ticker).split(".")[0];
+        url = "https://www.tradingview.com/chart/?symbol=" + symbol;
+    } else {
+        return params.value;
+    }
+
+    return `<a href="${url}" target="_blank" style="text-decoration:none;">${params.value}</a>`;
 }
 """)
 
