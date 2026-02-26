@@ -308,6 +308,14 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
     gb.configure_default_column(sortable=True, resizable=True, filterable=True, editable=False)
     gb.configure_side_bar()
     gb.configure_selection(selection_mode="multiple", use_checkbox=True)
+    # esempio: ticker stretto, nome più largo, punteggi compatti
+    if "Ticker" in df_disp.columns:
+        gb.configure_column("Ticker", width=90)
+    if "Nome" in df_disp.columns:
+        gb.configure_column("Nome", width=260)
+    for col in ["Early_Score", "Pro_Score", "RSI", "Vol_Ratio"]:
+        if col in df_disp.columns:
+            gb.configure_column(col, width=110)
 
     if "Nome" in df_disp.columns:
         gb.configure_column(
@@ -317,6 +325,22 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
         )
 
     grid_options = gb.build()
+
+    # sopra a grid_response
+resize = st.checkbox("🔧 Resize colonne", key=f"resize_{title}", value=False)
+
+grid_response = AgGrid(
+    df_disp,
+    gridOptions=grid_options,
+    height=600,
+    update_mode=GridUpdateMode.SELECTION_CHANGED,
+    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+    fit_columns_on_grid_load=resize,  # se True ricalcola il fit
+    theme="streamlit",
+    allow_unsafe_jscode=True,
+    key=f"grid_{title}",
+)
+
 
     grid_response = AgGrid(
         df_disp,
