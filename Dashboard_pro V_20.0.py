@@ -354,6 +354,13 @@ def render_scan_tab(df: pd.DataFrame, status_filter: str, sort_cols, ascending, 
             st.rerun()
         else:
             st.warning("Nessuna riga selezionata.")
+# -------------------------------------------------------------------------
+# TABS
+# -------------------------------------------------------------------------
+tabs = st.tabs(
+    ["EARLY", "PRO", "REA-HOT", "Serafini Systems", "Regime Momentum", "Multi-Timeframe", "Finviz", "Watchlist"]
+)
+tab_e, tab_p, tab_r, tab_serafini, tab_regime, tab_mtf, tab_finviz, tab_w = tabs
 
 
 # -------------------------------------------------------------------------
