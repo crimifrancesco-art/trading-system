@@ -723,9 +723,9 @@ class WeeklyRenderer {
     init(params) {
         this.eGui = document.createElement('span');
         const v = params.value;
-        if   (v===true||v==='True'||v==='true')    { this.eGui.innerText='📈 W+'; this.eGui.style.color='#00ff88'; }
-        elif (v===false||v==='False'||v==='false')  { this.eGui.innerText='📉 W—'; this.eGui.style.color='#ef4444'; }
-        else                                        { this.eGui.innerText='—';     this.eGui.style.color='#374151'; }
+        if      (v===true||v==='True'||v==='true')   { this.eGui.innerText='📈 W+'; this.eGui.style.color='#00ff88'; }
+        else if (v===false||v==='False'||v==='false'){ this.eGui.innerText='📉 W—'; this.eGui.style.color='#ef4444'; }
+        else                                         { this.eGui.innerText='—';     this.eGui.style.color='#374151'; }
     }
     getGui() { return this.eGui; }
 }
@@ -1348,3 +1348,4 @@ with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(f"📈 CSV TV {cur_tab}", make_tv_csv(df_cur, cur_tab),
             f"TradingScanner_v24_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
+
