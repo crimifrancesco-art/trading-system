@@ -1085,15 +1085,13 @@ with ec1:
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                        key="xlsx_all")
 with ec2:
-    tv_rows = [pd.DataFrame({"Tab":[n], "Ticker": df_t["Ticker"].tolist()})
-               if not df_t.empty and "Ticker" in df_t.columns else pd.DataFrame()
-               for n, df_t in all_tabs.items()]
-    tv_rows = [r for r in tv_rows if not r.empty]
+    tv_rows = []
+    for n, df_t in all_tabs.items():
+        if isinstance(df_t, pd.DataFrame) and not df_t.empty and "Ticker" in df_t.columns:
+            tickers = df_t["Ticker"].tolist()
+            tv_rows.append(pd.DataFrame({"Tab": [n] * len(tickers), "Ticker": tickers}))
     if tv_rows:
-        df_tv = pd.concat([pd.DataFrame({"Tab": [n]*len(df_t), "Ticker": df_t["Ticker"].tolist()})
-                           for n, df_t in all_tabs.items()
-                           if not df_t.empty and "Ticker" in df_t.columns],
-                          ignore_index=True).drop_duplicates("Ticker")
+        df_tv = pd.concat(tv_rows, ignore_index=True).drop_duplicates(subset=["Ticker"])
         st.download_button("📈 CSV TradingView Tutti", df_tv.to_csv(index=False).encode(),
                            "TradingScanner_v22_TV.csv", "text/csv", key="csv_tv_all")
 with ec3:
@@ -1108,3 +1106,4 @@ with ec4:
                            make_tv_csv(df_current, current_tab),
                            f"TradingScanner_v22_{current_tab}_TV.csv",
                            "text/csv", key="csv_tv_curr")
+
