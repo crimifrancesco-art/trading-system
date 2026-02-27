@@ -266,7 +266,7 @@ def build_candlestick(row: pd.Series) -> go.Figure:
     ), row=1, col=1)
 
     # Volume bars
-    colors_vol = ["#00ff8866" if c >= o else "#ef444466"
+    colors_vol = ["rgba(0, 255, 136, 0.4)" if c >= o else "rgba(239, 68, 68, 0.4)"
                   for c, o in zip(closes, opens)]
     fig.add_trace(go.Bar(
         x=dates, y=vols, marker_color=colors_vol, name="Volume", showlegend=False,
