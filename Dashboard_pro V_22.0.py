@@ -227,22 +227,15 @@ def build_candlestick(row: pd.Series) -> go.Figure:
     )
 
     # Candlestick
-    fig.add_trace(go.Candlestick(
-        x=dates, open=opens, high=highs, low=lows, close=closes,
-        name=row.get("Ticker", ""),
-        increasing_line_color="#00ff88",
-        decreasing_line_color="#ef4444",
-        # increasing_fillcolor="#00ff8855",
-        # decreasing_fillcolor="#ef444455",
-    fig.add_trace(go.Candlestick(
+    
+fig.add_trace(go.Candlestick(
     x=dates, open=opens, high=highs, low=lows, close=closes,
     increasing_line_color="#22c55e",
     increasing_fillcolor="rgba(34, 197, 94, 0.33)",
     decreasing_line_color="#ef4444",
     decreasing_fillcolor="rgba(239, 68, 68, 0.33)",
 ), row=1, col=1)
-    ), row=1, col=1)
-
+   
     # Bande di Bollinger (area)
     fig.add_trace(go.Scatter(
         x=dates + dates[::-1],
