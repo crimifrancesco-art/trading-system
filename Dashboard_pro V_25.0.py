@@ -782,11 +782,11 @@ PRESETS = {
 # PAGE CONFIG
 # =========================================================================
 
-st.set_page_config(page_title="Trading Scanner PRO 24.0", layout="wide", page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 25.0", layout="wide", page_icon="🧠")
 st.markdown(DARK_CSS, unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 24.0")
+st.markdown("# 🧠 Trading Scanner PRO 25.0")
 st.markdown(
-    '<div class="section-pill">DARK · SMA · MACD · SUPERTREND · SAR · ENTRY/EXIT · v24.0</div>',
+    '<div class="section-pill">DARK · SMA · MACD · SUPERTREND · SAR · ENTRY/EXIT · v25.0</div>',
     unsafe_allow_html=True,
 )
 
@@ -945,7 +945,7 @@ only_watchlist = st.sidebar.checkbox("Solo Watchlist", False)
 # =========================================================================
 
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 24.0", type="primary", use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 25.0", type="primary", use_container_width=True):
 
         universe = load_universe(sel)
         if not universe:
