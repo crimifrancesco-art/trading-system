@@ -17,10 +17,25 @@ try:
         DB_PATH, save_scan_history, load_scan_history, load_scan_snapshot,
         delete_from_watchlist, move_watchlist_rows, rename_watchlist,
         update_watchlist_note,
-        save_signals, cache_stats, cache_clear,
     )
 except ImportError as _e:
     st.error(f"❌ Errore import utils.db: {_e}"); st.stop()
+
+# Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
+try:
+    from utils.db import save_signals
+except ImportError:
+    def save_signals(*a, **k): pass
+
+try:
+    from utils.db import cache_stats
+except ImportError:
+    def cache_stats(): return {"fresh":0,"stale":0,"size_mb":0,"total_entries":0}
+
+try:
+    from utils.db import cache_clear
+except ImportError:
+    def cache_clear(*a, **k): pass
 
 # Scanner: prova scan_universe (v28), fallback a scan_ticker (v27)
 try:
@@ -748,22 +763,21 @@ if not only_watchlist:
 
             scan_id = save_scan_history(
                 sel, df_ep_new, df_rea_new,
-                elapsed_s  = scan_stats.get("elapsed_s", 0),
-                cache_hits = scan_stats.get("cache_hits", 0),
-                try:
-                    save_signals(scan_id, df_ep_new, df_rea_new, sel)
-                except Exception as _se:
-                    st.warning(f"⚠️ save_signals: {_se}")
+                elapsed_s   = scan_stats["elapsed_s"],
+                cache_hits  = scan_stats["cache_hits"],
+            )
+            save_signals(scan_id, df_ep_new, df_rea_new, sel)
 
-                n_h=len(df_rea_new); n_c=0
-                if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
-                    n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
-                if n_h>=5: st.toast(f"🔥 {n_h} HOT!",icon="🔥")
-                if n_c>=3: st.toast(f"⭐ {n_c} CONFLUENCE!",icon="⭐")
-                elapsed = float(scan_stats.get("elapsed_s", 0) or 0)
-                hits    = int(scan_stats.get("cache_hits", 0) or 0)
-                dl      = int(scan_stats.get("downloaded", 0) or 0)
-                st.toast(f"⏱️ {elapsed}s  |  ⚡ {hits} cache  |  ☁️ {dl} scaricati",icon="✅")
+            n_h=len(df_rea_new); n_c=0
+            if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
+                n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
+            if n_h>=5: st.toast(f"🔥 {n_h} HOT!",icon="🔥")
+            if n_c>=3: st.toast(f"⭐ {n_c} CONFLUENCE!",icon="⭐")
+            elapsed = scan_stats["elapsed_s"]
+            hits    = scan_stats["cache_hits"]
+            dl      = scan_stats["downloaded"]
+            st.toast(f"⏱️ {elapsed}s  |  ⚡ {hits} cache  |  ☁️ {dl} scaricati",icon="✅")
+            st.rerun()
 
 df_ep =st.session_state.get("df_ep", pd.DataFrame())
 df_rea=st.session_state.get("df_rea",pd.DataFrame())
