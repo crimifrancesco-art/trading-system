@@ -72,12 +72,25 @@ except ImportError:
                   "ep_found": len(rep), "rea_found": len(rrea), "finviz": False}
         return df_ep, df_rea, stats
 
-# Backtest tab opzionale
+# Backtest tab opzionale — wrappato per gestire errori db v27
 try:
-    from utils.backtest_tab import render_backtest_tab
-except ImportError:
+    from utils.backtest_tab import render_backtest_tab as _bt_orig
     def render_backtest_tab():
-        st.info("📈 Tab Backtest non disponibile. Aggiungi utils/backtest_tab.py al repo.")
+        try:
+            _bt_orig()
+        except Exception as _e:
+            st.warning(
+                f"📈 Tab Backtest: {_e}\n\n"
+                "Aggiorna `utils/db.py` alla v28 per abilitare il backtest completo."
+            )
+    _HAS_BACKTEST = True
+except ImportError:
+    _HAS_BACKTEST = False
+    def render_backtest_tab():
+        st.info(
+            "📈 **Tab Backtest** — disponibile dopo aver aggiunto `utils/backtest_tab.py`.\n\n"
+            "Scaricalo dalla chat e copialo in `utils/backtest_tab.py` nel repo."
+        )
 
 # =========================================================================
 # CSS
@@ -741,42 +754,75 @@ if not only_watchlist:
         universe=load_universe(sel)
         if not universe: st.warning("Seleziona almeno un mercato!")
         else:
-            pb=st.progress(0); status=st.empty()
-            use_cache   = st.session_state.get("use_cache",True)
-            use_finviz  = st.session_state.get("use_finviz",False)
-            n_wk        = st.session_state.get("n_workers",8)
+            tot        = len(universe)
+            use_cache  = st.session_state.get("use_cache",True)
+            use_finviz = st.session_state.get("use_finviz",False)
+            n_wk       = st.session_state.get("n_workers",8)
+
+            # ── Barra di avanzamento visibile ──────────────────────────────
+            st.markdown(f"**Avvio scansione: {tot} ticker**")
+            pb      = st.progress(0)
+            status  = st.empty()
+            status.info(f"⏳ Preparazione {tot} ticker in coda...")
+
+            import threading, time as _time
+            _counter   = [0]
+            _last_tick = [0.0]
+            _last_tkr  = [""]
+            _lock      = threading.Lock()
 
             def _progress(done, total, tkr):
-                pb.progress(done/total)
-                hit = "⚡ cache" if use_cache else ""
-                status.text(f"Analisi {done}/{total}: {tkr}  {hit}")
+                with _lock:
+                    _counter[0]   = done
+                    _last_tkr[0]  = tkr
+                pct = done / total
+                pb.progress(pct)
+                now = _time.time()
+                # Aggiorna testo ogni 0.5s per non spammare Streamlit
+                if now - _last_tick[0] > 0.5 or done == total:
+                    _last_tick[0] = now
+                    tag = " ⚡cache" if use_cache else ""
+                    status.info(
+                        f"🔍 **{done} / {total}** — `{tkr}`{tag} — "
+                        f"{pct*100:.0f}% completato"
+                    )
 
             df_ep_new, df_rea_new, scan_stats = scan_universe(
                 universe, eh, prmin, prmax, rpoc, vol_ratio_hot,
                 cache_enabled=use_cache, finviz_enabled=use_finviz,
                 n_workers=n_wk, progress_callback=_progress
             )
+            pb.progress(1.0)
+            elapsed = scan_stats.get("elapsed_s",0)
+            hits    = scan_stats.get("cache_hits",0)
+            dl      = scan_stats.get("downloaded", tot)
+            status.success(
+                f"✅ Scansione completata in **{elapsed:.0f}s** — "
+                f"{len(df_ep_new)} segnali EP, {len(df_rea_new)} HOT "
+                f"| ⚡ {hits} cache | ☁️ {dl} scaricati"
+            )
+
             st.session_state.df_ep     = df_ep_new
             st.session_state.df_rea    = df_rea_new
             st.session_state.last_scan = datetime.now().strftime("%H:%M:%S")
             st.session_state.scan_stats= scan_stats
 
-            scan_id = save_scan_history(
-                sel, df_ep_new, df_rea_new,
-                elapsed_s   = scan_stats["elapsed_s"],
-                cache_hits  = scan_stats["cache_hits"],
-            )
+            # save_scan_history: compatibile sia v27 (3 arg) che v28 (5 arg)
+            try:
+                scan_id = save_scan_history(
+                    sel, df_ep_new, df_rea_new,
+                    elapsed_s  = elapsed,
+                    cache_hits = hits,
+                )
+            except TypeError:
+                scan_id = save_scan_history(sel, df_ep_new, df_rea_new)
             save_signals(scan_id, df_ep_new, df_rea_new, sel)
 
             n_h=len(df_rea_new); n_c=0
             if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
                 n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
-            if n_h>=5: st.toast(f"🔥 {n_h} HOT!",icon="🔥")
-            if n_c>=3: st.toast(f"⭐ {n_c} CONFLUENCE!",icon="⭐")
-            elapsed = scan_stats["elapsed_s"]
-            hits    = scan_stats["cache_hits"]
-            dl      = scan_stats["downloaded"]
-            st.toast(f"⏱️ {elapsed}s  |  ⚡ {hits} cache  |  ☁️ {dl} scaricati",icon="✅")
+            if n_h>=5:  st.toast(f"🔥 {n_h} HOT!", icon="🔥")
+            if n_c>=3:  st.toast(f"⭐ {n_c} CONFLUENCE!", icon="⭐")
             st.rerun()
 
 df_ep =st.session_state.get("df_ep", pd.DataFrame())
@@ -1052,11 +1098,11 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # TABS
 # =========================================================================
 tabs=st.tabs(["📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
-              "🚀 Momentum","🌐 Multi-TF","🔎 Finviz",
+              "🌐 Multi-TF",
               "🎯 Serafini","🔎 Finviz Pro",
               "📋 Watchlist","📈 Backtest","📜 Storico"])
-(tab_e,tab_p,tab_r,tab_conf,tab_regime,tab_mtf,
- tab_finviz,tab_ser,tab_fvpro,tab_w,tab_bt,tab_hist)=tabs
+(tab_e,tab_p,tab_r,tab_conf,tab_mtf,
+ tab_ser,tab_fvpro,tab_w,tab_bt,tab_hist)=tabs
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -1064,7 +1110,18 @@ with tab_e:
 
 with tab_p:
     st.session_state.last_active_tab="PRO"; show_legend("PRO")
-    render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
+    _pro_sort = st.radio("Ordina per",["Quality","Momentum (Pro×RSI)"],
+                         horizontal=True, key="pro_sort_mode", label_visibility="collapsed")
+    if _pro_sort == "Momentum (Pro×RSI)":
+        # Aggiunge colonna Momentum temporanea per ordinamento
+        _df_pro = df_ep.copy()
+        if not _df_pro.empty and "Pro_Score" in _df_pro.columns and "RSI" in _df_pro.columns:
+            _df_pro["_Momentum"] = _df_pro["Pro_Score"].fillna(0)*10 + _df_pro["RSI"].fillna(0)
+        else:
+            _df_pro["_Momentum"] = 0
+        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
+    else:
+        render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
@@ -1074,22 +1131,9 @@ with tab_conf:
     st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
     render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
 
-with tab_regime:
-    show_legend("Regime Momentum")
-    render_scan_tab(df_ep,"REGIME",["Pro_Score"],[False],"Regime Momentum")
-
 with tab_mtf:
     show_legend("Multi-Timeframe")
     render_scan_tab(df_ep,"MTF",["Quality_Score","Pro_Score"],[False,False],"Multi-Timeframe")
-
-with tab_finviz:
-    show_legend("Finviz")
-    sp=df_ep.get("Stato_Pro")
-    df_fv=df_ep[sp=="PRO"].copy() if sp is not None and not df_ep.empty else df_ep.copy()
-    if not df_fv.empty:
-        if "MarketCap" in df_fv.columns: df_fv=df_fv[df_fv["MarketCap"]>=df_fv["MarketCap"].median()]
-        if "Vol_Ratio" in df_fv.columns: df_fv=df_fv[df_fv["Vol_Ratio"]>1.2]
-    render_scan_tab(df_fv,"PRO",["Quality_Score","Pro_Score"],[False,False],"Finviz")
 
 with tab_ser:
     show_legend("🎯 Serafini")
