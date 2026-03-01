@@ -15,3 +15,5 @@ streamlit-aggrid>=1.1.2
 pandas
 numpy
 xlsxwriter
+finvizfinance
+pyarrow        # per Parquet (usato internamente da pandas)
