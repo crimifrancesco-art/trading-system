@@ -17,25 +17,10 @@ try:
         DB_PATH, save_scan_history, load_scan_history, load_scan_snapshot,
         delete_from_watchlist, move_watchlist_rows, rename_watchlist,
         update_watchlist_note,
+        save_signals, cache_stats, cache_clear,
     )
 except ImportError as _e:
     st.error(f"❌ Errore import utils.db: {_e}"); st.stop()
-
-# Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
-try:
-    from utils.db import save_signals
-except ImportError:
-    def save_signals(*a, **k): pass
-
-try:
-    from utils.db import cache_stats
-except ImportError:
-    def cache_stats(): return {"fresh":0,"stale":0,"size_mb":0,"total_entries":0}
-
-try:
-    from utils.db import cache_clear
-except ImportError:
-    def cache_clear(*a, **k): pass
 
 # Scanner: prova scan_universe (v28), fallback a scan_ticker (v27)
 try:
