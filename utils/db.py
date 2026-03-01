@@ -1,12 +1,12 @@
 """
-utils/db.py  —  v28.0
+utils/db.py — v28.0
 ======================
 Novità rispetto alla v27:
-  • Tabella  yf_cache      → cache yfinance su SQLite (funziona su Streamlit Cloud)
-  • Tabella  signals       → registra ogni segnale emesso per backtest
-  • Tabella  signal_perf   → performance aggiornate dei segnali (prezzi forward)
-  • Funzioni cache_*       → get/set/clear per history e info
-  • Funzioni signal_*      → salva segnali, carica, aggiorna performance
+• Tabella yf_cache → cache yfinance su SQLite (funziona su Streamlit Cloud)
+• Tabella signals → registra ogni segnale emesso per backtest
+• Tabella signal_perf → performance aggiornate dei segnali (prezzi forward)
+• Funzioni cache_* → get/set/clear per history e info
+• Funzioni signal_* → salva segnali, carica, aggiorna performance
 """
 
 import json
@@ -19,27 +19,26 @@ import numpy as np
 import pandas as pd
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PERCORSO DB  (assoluto, stabile su Streamlit Cloud)
+# PERCORSO DB (assoluto, stabile su Streamlit Cloud)
 # ─────────────────────────────────────────────────────────────────────────────
 DB_PATH = Path(__file__).resolve().parent.parent / "watchlist.db"
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# HELPER  serializzazione DataFrame
+# HELPER serializzazione DataFrame
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _safe_df_to_json(df: pd.DataFrame) -> str:
     if df.empty:
         return "[]"
     drop = [c for c in df.columns if c.startswith("_")]
-    df2  = df.drop(columns=drop, errors="ignore").copy()
+    df2 = df.drop(columns=drop, errors="ignore").copy()
     for col in df2.columns:
         try:
             df2[col] = df2[col].apply(
-                lambda x: bool(x)  if isinstance(x, np.bool_)    else
-                          float(x) if isinstance(x, np.floating)  else
-                          int(x)   if isinstance(x, np.integer)   else
-                          None     if isinstance(x, float) and (np.isnan(x) or np.isinf(x))
+                lambda x: bool(x) if isinstance(x, np.bool_) else
+                          float(x) if isinstance(x, np.floating) else
+                          int(x) if isinstance(x, np.integer) else
+                          None if isinstance(x, float) and (np.isnan(x) or np.isinf(x))
                           else x
             )
         except Exception:
@@ -61,9 +60,7 @@ def _safe_json_to_df(s: str) -> pd.DataFrame:
 
 def _conn():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return sqlite3.connect(str(DB_PATH), timeout=30,
-                           check_same_thread=False)
-
+    return sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # INIT DB
@@ -72,56 +69,122 @@ def _conn():
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = _conn()
-    c    = conn.cursor()
+    c = conn.cursor()
 
     # ── Watchlist ─────────────────────────────────────────────────────────
     c.execute("""
-        CREATE TABLE IF NOT EXISTS watchlist (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticker     TEXT NOT NULL,
-            name       TEXT,
-            trend      TEXT,
-            origine    TEXT,
-            note       TEXT,
-            list_name  TEXT DEFAULT 'DEFAULT',
-            created_at TEXT
-        )
+    CREATE TABLE IF NOT EXISTS watchlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker TEXT NOT NULL,
+        name TEXT,
+        trend TEXT,
+        origine TEXT,
+        note TEXT,
+        list_name TEXT DEFAULT 'DEFAULT',
+        created_at TEXT
+    )
     """)
     existing_wl = {r[1] for r in c.execute("PRAGMA table_info(watchlist)").fetchall()}
     for col_def, col_name in [
-        ("trend TEXT",    "trend"),
-        ("list_name TEXT","list_name"),
-        ("origine TEXT",  "origine"),
-        ("note TEXT",     "note"),
+        ("trend TEXT", "trend"),
+        ("list_name TEXT", "list_name"),
+        ("origine TEXT", "origine"),
+        ("note TEXT", "note"),
     ]:
         if col_name not in existing_wl:
-            try: c.execute(f"ALTER TABLE watchlist ADD COLUMN {col_def}")
-            except sqlite3.OperationalError: pass
+            try:
+                c.execute(f"ALTER TABLE watchlist ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass
 
-    # ── Storico scansioni ─────────────────────────────────────────────────
+    # ── Storico scansioni ────────────────────────────────────────────────
     c.execute("""
-        CREATE TABLE IF NOT EXISTS scan_history (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            scanned_at   TEXT NOT NULL,
-            markets      TEXT,
-            n_early      INTEGER DEFAULT 0,
-            n_pro        INTEGER DEFAULT 0,
-            n_rea        INTEGER DEFAULT 0,
-            n_confluence INTEGER DEFAULT 0,
-            elapsed_s    REAL    DEFAULT 0,
-            cache_hits   INTEGER DEFAULT 0,
-            df_ep_json   TEXT,
-            df_rea_json  TEXT
-        )
+    CREATE TABLE IF NOT EXISTS scan_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scanned_at TEXT NOT NULL,
+        markets TEXT,
+        n_early INTEGER DEFAULT 0,
+        n_pro INTEGER DEFAULT 0,
+        n_rea INTEGER DEFAULT 0,
+        n_confluence INTEGER DEFAULT 0,
+        elapsed_s REAL DEFAULT 0,
+        cache_hits INTEGER DEFAULT 0,
+        df_ep_json TEXT,
+        df_rea_json TEXT
+    )
     """)
     existing_sh = {r[1] for r in c.execute("PRAGMA table_info(scan_history)").fetchall()}
     for col_def, col_name in [
-        ("elapsed_s REAL DEFAULT 0",   "elapsed_s"),
-        ("cache_hits INTEGER DEFAULT 0","cache_hits"),
+        ("elapsed_s REAL DEFAULT 0", "elapsed_s"),
+        ("cache_hits INTEGER DEFAULT 0", "cache_hits"),
     ]:
         if col_name not in existing_sh:
-            try: c.execute(f"ALTER TABLE scan_history ADD COLUMN {col_def}")
-            except sqlite3.OperationalError: pass
+            try:
+                c.execute(f"ALTER TABLE scan_history ADD COLUMN {col_def}")
+            except sqlite3.OperationalError:
+                pass
+
+    # ── Cache yfinance ───────────────────────────────────────────────────
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS yf_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticker TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        UNIQUE(ticker, kind) ON CONFLICT REPLACE
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_yf_cache_tk ON yf_cache(ticker, kind)")
+
+    # ── Segnali ──────────────────────────────────────────────────────────
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS signals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER NOT NULL,
+        scanned_at TEXT NOT NULL,
+        ticker TEXT NOT NULL,
+        nome TEXT,
+        signal_type TEXT NOT NULL,
+        entry_price REAL NOT NULL,
+        rsi REAL,
+        quality_score REAL,
+        early_score REAL,
+        pro_score REAL,
+        ser_score REAL,
+        fv_score REAL,
+        squeeze INTEGER,
+        weekly_bull INTEGER,
+        markets TEXT
+    )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_tk ON signals(ticker)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_sc ON signals(scan_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_signals_tp ON signals(signal_type)")
+
+    # ── Performance segnali ──────────────────────────────────────────────
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS signal_perf (
+        signal_id INTEGER PRIMARY KEY,
+        ticker TEXT,
+        entry_price REAL,
+        price_1d REAL,
+        price_5d REAL,
+        price_10d REAL,
+        price_20d REAL,
+        ret_1d REAL,
+        ret_5d REAL,
+        ret_10d REAL,
+        ret_20d REAL,
+        last_updated TEXT,
+        FOREIGN KEY(signal_id) REFERENCES signals(id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
 
     # ── Cache yfinance  ───────────────────────────────────────────────────
     # Chiave: ticker + kind ('history_9mo'/'history_6mo_weekly'/'info'/'calendar')
