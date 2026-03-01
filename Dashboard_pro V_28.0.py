@@ -748,21 +748,22 @@ if not only_watchlist:
 
             scan_id = save_scan_history(
                 sel, df_ep_new, df_rea_new,
-                elapsed_s   = scan_stats["elapsed_s"],
-                cache_hits  = scan_stats["cache_hits"],
-            )
-            save_signals(scan_id, df_ep_new, df_rea_new, sel)
+                elapsed_s  = scan_stats.get("elapsed_s", 0),
+                cache_hits = scan_stats.get("cache_hits", 0),
+                try:
+                    save_signals(scan_id, df_ep_new, df_rea_new, sel)
+                except Exception as _se:
+                    st.warning(f"⚠️ save_signals: {_se}")
 
-            n_h=len(df_rea_new); n_c=0
-            if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
-                n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
-            if n_h>=5: st.toast(f"🔥 {n_h} HOT!",icon="🔥")
-            if n_c>=3: st.toast(f"⭐ {n_c} CONFLUENCE!",icon="⭐")
-            elapsed = scan_stats["elapsed_s"]
-            hits    = scan_stats["cache_hits"]
-            dl      = scan_stats["downloaded"]
-            st.toast(f"⏱️ {elapsed}s  |  ⚡ {hits} cache  |  ☁️ {dl} scaricati",icon="✅")
-            st.rerun()
+                n_h=len(df_rea_new); n_c=0
+                if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
+                    n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
+                if n_h>=5: st.toast(f"🔥 {n_h} HOT!",icon="🔥")
+                if n_c>=3: st.toast(f"⭐ {n_c} CONFLUENCE!",icon="⭐")
+                elapsed = float(scan_stats.get("elapsed_s", 0) or 0)
+                hits    = int(scan_stats.get("cache_hits", 0) or 0)
+                dl      = int(scan_stats.get("downloaded", 0) or 0)
+                st.toast(f"⏱️ {elapsed}s  |  ⚡ {hits} cache  |  ☁️ {dl} scaricati",icon="✅")
 
 df_ep =st.session_state.get("df_ep", pd.DataFrame())
 df_rea=st.session_state.get("df_rea",pd.DataFrame())
