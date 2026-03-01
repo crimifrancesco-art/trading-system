@@ -302,6 +302,34 @@ else if(v<3)this.eGui.style.color='#f59e0b';
 else{this.eGui.style.color='#ef4444';this.eGui.style.textShadow='0 0 6px #ef4444';}
 }getGui(){return this.eGui;}}""")
 
+# Renderer per volumi abbreviati (es. 1.2M, 45.6K, 2.3B)
+vol_abbrev_renderer=JsCode("""class VA{init(p){this.eGui=document.createElement('span');
+const v=parseFloat(p.value);
+let txt='-';
+if(!isNaN(v)){
+  if(v>=1e9)txt=(v/1e9).toFixed(1)+'B';
+  else if(v>=1e6)txt=(v/1e6).toFixed(1)+'M';
+  else if(v>=1e3)txt=(v/1e3).toFixed(0)+'K';
+  else txt=v.toFixed(0);
+}
+this.eGui.innerText=txt;
+this.eGui.style.fontFamily='Courier New';this.eGui.style.color='#c9d1d9';
+}getGui(){return this.eGui;}}""")
+
+# Renderer MarketCap abbreviato
+mcap_renderer=JsCode("""class MC{init(p){this.eGui=document.createElement('span');
+const v=parseFloat(p.value);
+let txt='-';let color='#6b7280';
+if(!isNaN(v)){
+  if(v>=1e12){txt=(v/1e12).toFixed(2)+'T';color='#00ff88';}
+  else if(v>=1e9){txt=(v/1e9).toFixed(1)+'B';color='#58a6ff';}
+  else if(v>=1e6){txt=(v/1e6).toFixed(0)+'M';color='#f59e0b';}
+  else{txt=(v/1e3).toFixed(0)+'K';color='#6b7280';}
+}
+this.eGui.innerText=txt;
+this.eGui.style.fontFamily='Courier New';this.eGui.style.color=color;this.eGui.style.fontWeight='bold';
+}getGui(){return this.eGui;}}""")
+
 quality_renderer=JsCode("""class Q{init(p){this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:6px';
 const v=parseInt(p.value||0);const pct=Math.round((v/12)*100);
@@ -548,6 +576,19 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
 
 only_watchlist=st.sidebar.checkbox("Solo Watchlist",False)
 
+st.sidebar.divider()
+st.sidebar.markdown("**🔧 Layout Griglie**")
+st.sidebar.caption("Le larghezze/ordinamenti colonne vengono salvati nel browser (localStorage).")
+if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_container_width=True):
+    # Inietta JS per cancellare tutte le chiavi grid_state_* dal localStorage
+    st.markdown("""<script>
+(function(){
+  Object.keys(localStorage).filter(k=>k.startsWith('grid_state_')).forEach(k=>localStorage.removeItem(k));
+  console.log('Grid states cleared');
+})();
+</script>""",unsafe_allow_html=True)
+    st.sidebar.success("Layout resettato — ricarica la pagina.")
+
 # =========================================================================
 # SCANNER
 # =========================================================================
@@ -558,12 +599,25 @@ if not only_watchlist:
         else:
             rep,rrea=[],[]
             pb=st.progress(0);status=st.empty();tot=len(universe)
-            for i,tkr in enumerate(universe,1):
-                status.text(f"Analisi {i}/{tot}: {tkr}")
+            # Scanner parallelo con ThreadPoolExecutor (4 worker = ~4x più veloce)
+            import concurrent.futures, threading
+            lock=threading.Lock(); counter=[0]
+            def _scan_one(tkr):
                 ep,rea=scan_ticker(tkr,eh,prmin,prmax,rpoc,vol_ratio_hot)
-                if ep:  rep.append(ep)
-                if rea: rrea.append(rea)
-                pb.progress(i/tot)
+                with lock:
+                    counter[0]+=1
+                    pb.progress(counter[0]/tot)
+                    status.text(f"Analisi {counter[0]}/{tot}: {tkr}")
+                return ep,rea
+            n_workers=min(8,max(1,tot//10))  # auto-calibra workers
+            with concurrent.futures.ThreadPoolExecutor(max_workers=n_workers) as ex:
+                futures={ex.submit(_scan_one,t):t for t in universe}
+                for fut in concurrent.futures.as_completed(futures):
+                    try:
+                        ep,rea=fut.result()
+                        if ep:  rep.append(ep)
+                        if rea: rrea.append(rea)
+                    except Exception: pass
             df_ep_new =pd.DataFrame(rep)
             df_rea_new=pd.DataFrame(rrea)
             st.session_state.df_ep    =df_ep_new
@@ -600,22 +654,31 @@ def build_aggrid(df_disp: pd.DataFrame, grid_key: str, height: int=480,
             if ec in df_disp.columns:
                 gb.configure_column(ec,editable=True)
 
-    col_w={"Ticker":80,"Nome":160,"Prezzo_fmt":90,"MarketCap_fmt":110,
+    col_w={"Ticker":80,"Nome":160,"Prezzo":85,"Prezzo_fmt":85,"MarketCap":110,"MarketCap_fmt":110,
            "Early_Score":95,"Pro_Score":80,"Quality_Score":130,"Ser_Score":90,"FV_Score":90,
            "RSI":65,"Vol_Ratio":85,"Squeeze":70,"RSI_Div":85,
            "Weekly_Bull":80,"Stato_Early":85,"Stato_Pro":80,
+           "Vol_Today":85,"Vol_7d_Avg":85,"Avg_Vol_20":85,
            "trend":100,"note":200,"origine":90,"created_at":100,
            "EPS_NY_Gr":90,"EPS_5Y_Gr":90,"PE":70,"Fwd_PE":75,
-           "Earnings_Soon":90,"Optionable":85}
+           "Earnings_Soon":90,"Optionable":85,"OBV_Trend":80,
+           "EMA20":80,"EMA50":80,"EMA200":85,"ATR":70,"Rel_Vol":75}
     for c,w in col_w.items():
         if c in df_disp.columns: gb.configure_column(c,width=w)
+    # Nascondi colonne interne che non devono apparire in griglia
+    hide_cols=["id","_chart_data","_quality_components","_ser_criteri","_fv_criteri",
+               "Ser_OK","FV_OK","ATR_Exp","Stato"]
+    for c in hide_cols:
+        if c in df_disp.columns: gb.configure_column(c,hide=True)
 
     rmap={"Nome":name_dblclick_renderer,"RSI":rsi_renderer,
           "Vol_Ratio":vol_ratio_renderer,"Quality_Score":quality_renderer,
           "Ser_Score":ser_score_renderer,"FV_Score":fv_score_renderer,
           "Squeeze":squeeze_renderer,"RSI_Div":rsi_div_renderer,
-          "Weekly_Bull":weekly_renderer,"Prezzo_fmt":price_renderer,
+          "Weekly_Bull":weekly_renderer,"Prezzo_fmt":price_renderer,"Prezzo":price_renderer,
           "trend":trend_renderer,
+          "Vol_Today":vol_abbrev_renderer,"Vol_7d_Avg":vol_abbrev_renderer,"Avg_Vol_20":vol_abbrev_renderer,
+          "MarketCap":mcap_renderer,"MarketCap_fmt":mcap_renderer,
           "EPS_NY_Gr":pct_renderer,"EPS_5Y_Gr":pct_renderer,
           "ROE":pct_renderer,"Gross_Mgn":pct_renderer,"Op_Mgn":pct_renderer,
           "Earnings_Soon":bool_renderer,"Optionable":bool_renderer,
@@ -627,13 +690,57 @@ def build_aggrid(df_disp: pd.DataFrame, grid_key: str, height: int=480,
     if "Nome"   in df_disp.columns: gb.configure_column("Nome",  pinned="left")
 
     go_opts=gb.build()
-    go_opts["onFirstDataRendered"]=JsCode("function(p){p.api.sizeColumnsToFit();}")
+    # Salva larghezza colonne e ordinamento nel localStorage del browser
+    # (persiste tra refresh/scanner/sessioni finché non si svuota la cache)
+    state_key=f"grid_state_{grid_key}"
+    go_opts["onFirstDataRendered"]=JsCode(f"""
+function(p){{
+  const key='{state_key}';
+  try{{
+    const saved=localStorage.getItem(key);
+    if(saved){{
+      const st=JSON.parse(saved);
+      if(st.colState) p.columnApi.applyColumnState({{state:st.colState,applyOrder:true}});
+      if(st.sortState) p.api.setSortModel(st.sortState);
+    }} else {{
+      p.api.sizeColumnsToFit();
+    }}
+  }}catch(e){{p.api.sizeColumnsToFit();}}
+}}""")
+    go_opts["onColumnResized"]=JsCode(f"""
+function(p){{
+  if(!p.finished)return;
+  const key='{state_key}';
+  try{{
+    const saved=JSON.parse(localStorage.getItem(key)||'{{}}');
+    saved.colState=p.columnApi.getColumnState();
+    localStorage.setItem(key,JSON.stringify(saved));
+  }}catch(e){{}}
+}}""")
+    go_opts["onSortChanged"]=JsCode(f"""
+function(p){{
+  const key='{state_key}';
+  try{{
+    const saved=JSON.parse(localStorage.getItem(key)||'{{}}');
+    saved.sortState=p.api.getSortModel();
+    localStorage.setItem(key,JSON.stringify(saved));
+  }}catch(e){{}}
+}}""")
+    go_opts["onColumnMoved"]=JsCode(f"""
+function(p){{
+  const key='{state_key}';
+  try{{
+    const saved=JSON.parse(localStorage.getItem(key)||'{{}}');
+    saved.colState=p.columnApi.getColumnState();
+    localStorage.setItem(key,JSON.stringify(saved));
+  }}catch(e){{}}
+}}""")
 
     update=GridUpdateMode.VALUE_CHANGED if editable_cols else GridUpdateMode.SELECTION_CHANGED
     return AgGrid(df_disp,gridOptions=go_opts,height=height,
                   update_mode=update,
                   data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-                  fit_columns_on_grid_load=True,theme="streamlit",
+                  fit_columns_on_grid_load=False,theme="streamlit",
                   allow_unsafe_jscode=True,key=grid_key)
 
 # =========================================================================
@@ -762,9 +869,15 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     df_fmt =add_formatted_cols(df_f)
     df_disp=prepare_display_df(df_fmt)
+    # Rimuovi colonne interne (prefisso _ e criteri grezzi)
+    drop_cols=[c for c in df_disp.columns if c.startswith("_")]
+    df_disp=df_disp.drop(columns=drop_cols, errors="ignore")
+    # Ordine: Ticker, Nome, Prezzo subito dopo, poi il resto
     cols=list(df_disp.columns)
-    base=[c for c in ["Ticker","Nome"] if c in cols]
-    df_disp=df_disp[base+[c for c in cols if c not in base]].reset_index(drop=True)
+    priority=["Ticker","Nome","Prezzo","Prezzo_fmt"]
+    base=[c for c in priority if c in cols]
+    rest=[c for c in cols if c not in base]
+    df_disp=df_disp[base+rest].reset_index(drop=True)
 
     ce1,ce2=st.columns([1,3])
     with ce1: csv_btn(df_f,f"{title.lower().replace(' ','_')}.csv",f"exp_{title}")
@@ -958,7 +1071,7 @@ with tab_w:
                 st.session_state.wl_view_mode="grid"; st.rerun()
 
         # Merge colonne scanner
-        extra_cols=["RSI","Vol_Ratio","Quality_Score","OBV_Trend","Weekly_Bull",
+        extra_cols=["Prezzo","RSI","Vol_Ratio","Quality_Score","OBV_Trend","Weekly_Bull",
                     "Squeeze","Early_Score","Pro_Score","Ser_Score","Ser_OK","FV_Score","FV_OK"]
         df_wl_disp=df_wl.copy()
         for src_df in [df_ep,df_rea]:
@@ -984,9 +1097,9 @@ with tab_w:
         # ── VISTA GRIGLIA (AgGrid con note/trend editabili) ──────────────
         if st.session_state.wl_view_mode=="grid":
             # Prepara colonne per griglia watchlist
-            wl_grid_cols=["id",tcol,ncol,"trend","note","origine","created_at",
+            wl_grid_cols=["id",tcol,ncol,"Prezzo","trend","note","origine","created_at",
                           "RSI","Vol_Ratio","Quality_Score","Ser_Score","FV_Score",
-                          "Weekly_Bull","Squeeze","Early_Score","Pro_Score"]
+                          "Weekly_Bull","Squeeze","Early_Score","Pro_Score","OBV_Trend"]
             df_wg=df_wl_disp[[c for c in wl_grid_cols if c in df_wl_disp.columns]].copy()
             # Rinomina per display
             rename_map={}
