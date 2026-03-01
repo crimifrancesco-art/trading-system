@@ -10,15 +10,74 @@ from plotly.subplots import make_subplots
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
-from utils.db import (
-    init_db, reset_watchlist_db, add_to_watchlist, load_watchlist,
-    DB_PATH, save_scan_history, load_scan_history, load_scan_snapshot,
-    delete_from_watchlist, move_watchlist_rows, rename_watchlist,
-    update_watchlist_note,
-    save_signals, cache_stats, cache_clear,
-)
-from utils.scanner import load_universe, scan_universe
-from utils.backtest_tab import render_backtest_tab
+# ── Import robusti: fallback gracile se un modulo non è aggiornato ──────────
+try:
+    from utils.db import (
+        init_db, reset_watchlist_db, add_to_watchlist, load_watchlist,
+        DB_PATH, save_scan_history, load_scan_history, load_scan_snapshot,
+        delete_from_watchlist, move_watchlist_rows, rename_watchlist,
+        update_watchlist_note,
+    )
+except ImportError as _e:
+    st.error(f"❌ Errore import utils.db: {_e}"); st.stop()
+
+# Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
+try:
+    from utils.db import save_signals
+except ImportError:
+    def save_signals(*a, **k): pass
+
+try:
+    from utils.db import cache_stats
+except ImportError:
+    def cache_stats(): return {"fresh":0,"stale":0,"size_mb":0,"total_entries":0}
+
+try:
+    from utils.db import cache_clear
+except ImportError:
+    def cache_clear(*a, **k): pass
+
+# Scanner: prova scan_universe (v28), fallback a scan_ticker (v27)
+try:
+    from utils.scanner import load_universe, scan_universe
+    _HAS_SCAN_UNIVERSE = True
+except ImportError:
+    from utils.scanner import load_universe, scan_ticker
+    _HAS_SCAN_UNIVERSE = False
+
+    def scan_universe(universe, e_h, p_rmin, p_rmax, r_poc,
+                      vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
+                      n_workers=8, progress_callback=None):
+        import concurrent.futures, threading, time
+        rep, rrea = [], []
+        lock = threading.Lock(); counter = [0]; t0 = time.time()
+        def _one(tkr):
+            ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot)
+            with lock:
+                counter[0] += 1
+                if progress_callback: progress_callback(counter[0], len(universe), tkr)
+            return ep, rea
+        nw = min(max(n_workers,1), 16)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=nw) as ex:
+            for fut in concurrent.futures.as_completed({ex.submit(_one,t):t for t in universe}):
+                try:
+                    ep, rea = fut.result()
+                    if ep:  rep.append(ep)
+                    if rea: rrea.append(rea)
+                except Exception: pass
+        df_ep  = pd.DataFrame(rep)  if rep  else pd.DataFrame()
+        df_rea = pd.DataFrame(rrea) if rrea else pd.DataFrame()
+        stats  = {"elapsed_s": round(time.time()-t0,1), "cache_hits": 0,
+                  "downloaded": len(universe), "workers": nw, "total": len(universe),
+                  "ep_found": len(rep), "rea_found": len(rrea), "finviz": False}
+        return df_ep, df_rea, stats
+
+# Backtest tab opzionale
+try:
+    from utils.backtest_tab import render_backtest_tab
+except ImportError:
+    def render_backtest_tab():
+        st.info("📈 Tab Backtest non disponibile. Aggiungi utils/backtest_tab.py al repo.")
 
 # =========================================================================
 # CSS
