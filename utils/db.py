@@ -18,15 +18,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # PERCORSO DB  (assoluto, stabile su Streamlit Cloud)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 DB_PATH = Path(__file__).resolve().parent.parent / "watchlist.db"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # HELPER  serializzazione DataFrame
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def _safe_df_to_json(df: pd.DataFrame) -> str:
     if df.empty:
@@ -67,16 +67,16 @@ def _conn():
     return con
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # INIT DB
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = _conn()
     c    = conn.cursor()
 
-    # ── Watchlist ─────────────────────────────────────────────────────────
+    # -- Watchlist ---------------------------------------------------------
     c.execute("""
         CREATE TABLE IF NOT EXISTS watchlist (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +100,7 @@ def init_db():
             try: c.execute(f"ALTER TABLE watchlist ADD COLUMN {col_def}")
             except sqlite3.OperationalError: pass
 
-    # ── Storico scansioni ─────────────────────────────────────────────────
+    # -- Storico scansioni -------------------------------------------------
     c.execute("""
         CREATE TABLE IF NOT EXISTS scan_history (
             id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -125,7 +125,7 @@ def init_db():
             try: c.execute(f"ALTER TABLE scan_history ADD COLUMN {col_def}")
             except sqlite3.OperationalError: pass
 
-    # ── Cache yfinance  ───────────────────────────────────────────────────
+    # -- Cache yfinance  ---------------------------------------------------
     # Chiave: ticker + kind ('history_9mo'/'history_6mo_weekly'/'info'/'calendar')
     # Value: JSON/bytes compresso
     # expires_at: TTL come stringa ISO
@@ -142,7 +142,7 @@ def init_db():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_yf_cache_tk ON yf_cache(ticker, kind)")
 
-    # ── Segnali (per backtest) ────────────────────────────────────────────
+    # -- Segnali (per backtest) --------------------------------------------
     # Ogni riga = un segnale emesso in una scansione
     # entry_price = prezzo al momento del segnale
     # perf_* vengono aggiornati successivamente
@@ -170,7 +170,7 @@ def init_db():
     c.execute("CREATE INDEX IF NOT EXISTS idx_signals_sc  ON signals(scan_id)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_signals_tp  ON signals(signal_type)")
 
-    # ── Performance segnali ───────────────────────────────────────────────
+    # -- Performance segnali -----------------------------------------------
     # Per ogni segnale, memorizza prezzi forward a +1d, +5d, +10d, +20d
     c.execute("""
         CREATE TABLE IF NOT EXISTS signal_perf (
@@ -200,9 +200,9 @@ def init_db():
     conn.close()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # CACHE YFINANCE  (SQLite, funziona su Streamlit Cloud)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 _TTL = {
     "history_9mo":       timedelta(hours=4),
@@ -319,9 +319,9 @@ def cache_json_to_df(data: list, index_col: str = None) -> pd.DataFrame:
     return df
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # WATCHLIST  (identica a v27, mantenuta per compatibilità)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def reset_watchlist_db():
     conn = _conn()
@@ -397,9 +397,9 @@ def update_watchlist_note(row_id, new_note):
     conn.commit(); conn.close()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STORICO SCANSIONI
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def save_scan_history(markets: list, df_ep: pd.DataFrame, df_rea: pd.DataFrame,
                       elapsed_s: float = 0, cache_hits: int = 0):
@@ -463,9 +463,9 @@ def load_scan_snapshot(scan_id: int):
     return pd.DataFrame(), pd.DataFrame()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # SEGNALI  (per backtest)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def save_signals(scan_id: int, df_ep: pd.DataFrame, df_rea: pd.DataFrame,
                  markets: list, scanned_at: str = None):
@@ -680,12 +680,13 @@ def signal_summary_stats(days_back: int = 90) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("Avg +20d%", ascending=False, na_position="last")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Init automatico — protetto da eccezioni (es. file lock su Streamlit Cloud)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 try:
     init_db()
 except Exception as _init_err:
     import warnings
     warnings.warn(f"[db] init_db() fallita: {_init_err} — il DB verrà inizializzato al primo accesso.")
     # Ri-prova al primo accesso effettivo tramite _conn()
+
