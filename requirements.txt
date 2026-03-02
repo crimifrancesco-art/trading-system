@@ -7,22 +7,3 @@ yahooquery>=2.3.7
 requests>=2.31.0
 xlsxwriter>=3.1.0
 st-aggrid>=0.3.4
-streamlit
-yfinance
-pandas
-numpy
-openpyxl
-gspread
-gspread-dataframe
-google-auth
-xlsxwriter
-plotly
-fpdf2
-streamlit-aggrid
-streamlit
-streamlit-aggrid>=1.1.2
-pandas
-numpy
-xlsxwriter
-finvizfinance
-pyarrow        # per Parquet (usato internamente da pandas)
