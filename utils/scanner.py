@@ -69,9 +69,9 @@ def calc_quality_score(price, ema20, ema50, vol_ratio, obv_trend, atr_expansion,
 
 def calc_quality_components(price, ema20, ema50, vol_ratio, obv_trend, atr_expansion, rsi_val):
     return {
-        "VolRatio": min(vol_ratio / 3.0, 1.0),
+        "Vol_Ratio": min(vol_ratio / 3.0, 1.0),
         "OBV": 1.0 if obv_trend == "UP" else 0.0,
-        "ATRExp": 1.0 if atr_expansion else 0.0,
+        "ATR_Exp": 1.0 if atr_expansion else 0.0,
         "RSI Zone": max(0.0, 1.0 - abs(rsi_val - 55) / 25.0),
         "EMA20 Bull": 1.0 if price > ema20 else 0.0,
         "EMA50 Bull": 1.0 if price > ema50 else 0.0,
@@ -246,7 +246,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
             vp = pd.DataFrame({"P": pbins, "V": v}).groupby("P")["V"].sum()
             poc = float(vp.idxmax())
             dist_poc = abs(price - poc) / poc
-            if dist_poc < r_poc and vol_ratio > vol_ratio_hot * 0.3:
+            if dist_poc < r_poc and vol_ratio > vol_ratio_hot:
                 rea_score, stato_rea = 7, "HOT"
         except Exception:
             pass
@@ -259,30 +259,30 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
         common = {
             "Nome": name, "Ticker": ticker, "Prezzo": round(price, 2),
             "MarketCap": market_cap,
-            "VolToday": int(vol_today), "Vol7dAvg": int(vol_7d_avg), "AvgVol20": int(avg_vol_20),
-            "RelVol": round(vol_ratio, 2), "Currency": currency,
-            "RSI": round(rsi_val, 1), "VolRatio": round(vol_ratio, 2),
-            "OBVTrend": obv_trend, "ATR": round(atr_val, 2),
-            "ATRExp": atr_expansion, "Squeeze": in_squeeze,
-            "RSIDiv": rsi_divergence if rsi_divergence else "-",
-            "WeeklyBull": weekly_bullish,
+            "Vol_Today": int(vol_today), "Vol_7d_Avg": int(vol_7d_avg), "Avg_Vol_20": int(avg_vol_20),
+            "Rel_Vol": round(vol_ratio, 2), "Currency": currency,
+            "RSI": round(rsi_val, 1), "Vol_Ratio": round(vol_ratio, 2),
+            "OBV_Trend": obv_trend, "ATR": round(atr_val, 2),
+            "ATR_Exp": atr_expansion, "Squeeze": in_squeeze,
+            "RSI_Div": rsi_divergence if rsi_divergence else "-",
+            "Weekly_Bull": weekly_bullish,
             "EMA20": round(ema20, 2), "EMA50": round(ema50, 2),
             "EMA200": round(ema200, 2) if ema200 else None,
-            "QualityScore": quality_score,
-            "SerOK": ser_ok, "SerScore": ser_score,
-            "FVOK": fv_ok, "FVScore": fv_score,
-            "qualitycomponents": quality_comps,
-            "chartdata": chart_data,
+            "Quality_Score": quality_score,
+            "Ser_OK": ser_ok, "Ser_Score": ser_score,
+            "FV_OK": fv_ok, "FV_Score": fv_score,
+            "_quality_components": quality_comps,
+            "_chart_data": chart_data,
         }
 
-        res_ep = {**common, "EarlyScore": early_score, "ProScore": pro_score,
+        res_ep = {**common, "Early_Score": early_score, "Pro_Score": pro_score,
                     "Stato": stato_pro if stato_pro != "-" else stato_early,
-                    "StatoEarly": stato_early, "StatoPro": stato_pro}
+                    "Stato_Early": stato_early, "Stato_Pro": stato_pro}
 
         res_rea = None
         if stato_rea != "-":
-            res_rea = {**common, "ReaScore": rea_score, "POC": round(poc, 2),
-                       "DistPOC": round(dist_poc * 100, 1), "ProScore": pro_score,
+            res_rea = {**common, "Rea_Score": rea_score, "POC": round(poc, 2),
+                       "Dist_POC_%": round(dist_poc * 100, 1), "Pro_Score": pro_score,
                        "Stato": stato_rea}
 
         return res_ep, res_rea
@@ -333,3 +333,4 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot=1.5,
         "errors": _SCAN_ERRORS[:20],
         "n_errors": len(_SCAN_ERRORS),
     }
+
