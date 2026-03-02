@@ -107,6 +107,21 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return df if df is not None else pd.DataFrame()
     df = df.copy()
+        # ── Normalizza nomi colonne camelCase → underscore (compatibilità scanner v28) ─
+    _col_map = {
+        "ProScore": "Pro_Score", "EarlyScore": "Early_Score",
+        "QualityScore": "Quality_Score", "StatoEarly": "Stato_Early",
+        "StatoPro": "Stato_Pro", "OBVTrend": "OBV_Trend",
+        "VolRatio": "Vol_Ratio", "WeeklyBull": "Weekly_Bull",
+        "VolToday": "Vol_Today", "Vol7dAvg": "Vol_7d_Avg",
+        "AvgVol20": "Avg_Vol_20", "RelVol": "Rel_Vol",
+        "ATRExp": "ATR_Exp", "RSIDiv": "RSI_Div",
+        "SerOK": "Ser_OK", "SerScore": "Ser_Score",
+        "FVOK": "FV_OK", "FVScore": "FV_Score",
+        "MarketCap": "MarketCap",  # già corretto
+        "chartdata": "_chart_data", "qualitycomponents": "_quality_components",
+    }
+    df = df.rename(columns={k: v for k, v in _col_map.items() if k in df.columns})
 
     # ── Stato_Pro con soglia 6 ───────────────────────────────────────────
     if "Pro_Score" in df.columns:
