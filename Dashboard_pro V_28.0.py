@@ -10,7 +10,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
-# -- Import robusti: fallback gracile se un modulo non è aggiornato ----------
+# ── Import robusti: fallback gracile se un modulo non è aggiornato ──────────
 try:
     from utils.db import (
         init_db, reset_watchlist_db, add_to_watchlist, load_watchlist,
@@ -108,12 +108,12 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         return df if df is not None else pd.DataFrame()
     df = df.copy()
 
-    # -- Stato_Pro con soglia 6 -------------------------------------------
+    # ── Stato_Pro con soglia 6 ───────────────────────────────────────────
     if "Pro_Score" in df.columns:
         df["Stato_Pro"] = df["Pro_Score"].apply(
             lambda x: "PRO" if pd.notna(x) and float(x) >= 6 else "-")
 
-    # -- Stato_Early assicurato -------------------------------------------
+    # ── Stato_Early assicurato ───────────────────────────────────────────
     if "Stato_Early" not in df.columns:
         if "Early_Score" in df.columns:
             df["Stato_Early"] = df["Early_Score"].apply(
@@ -121,7 +121,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df["Stato_Early"] = "-"
 
-    # -- Ser_OK / Ser_Score -----------------------------------------------
+    # ── Ser_OK / Ser_Score ───────────────────────────────────────────────
     if "RSI" in df.columns and "OBV_Trend" in df.columns and "Vol_Ratio" in df.columns:
         pr  = df["Prezzo"]   if "Prezzo"   in df.columns else pd.Series(0.0, index=df.index)
         e20 = df["EMA20"]    if "EMA20"    in df.columns else pd.Series(dtype=float)
@@ -139,7 +139,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         df["Ser_Score"] = (c1.astype(int) + c2.astype(int) + c3.astype(int) +
                            c4.astype(int) + c5.astype(int) + c6.astype(int))
 
-    # -- FV_OK / FV_Score -------------------------------------------------
+    # ── FV_OK / FV_Score ─────────────────────────────────────────────────
     if "Prezzo" in df.columns and "Vol_Ratio" in df.columns:
         pr    = df["Prezzo"]
         f1    = pr > 10
@@ -631,7 +631,7 @@ PRESETS={
 st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 28.0")
-st.markdown('<div class="section-pill">CACHE . BACKTEST . FINVIZ . MULTI-WATCHLIST . v28.0</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v28.0</div>',unsafe_allow_html=True)
 init_db()
 
 # =========================================================================
@@ -740,7 +740,7 @@ active_list=st.sidebar.selectbox("Lista Attiva",list_options,
     key="active_list")
 st.session_state.current_list_name=active_list
 
-# -- Crea nuova lista -----------------------------------------------------
+# ── Crea nuova lista ─────────────────────────────────────────────────────
 with st.sidebar.expander("➕ Nuova Lista",expanded=False):
     new_list_name=st.text_input("Nome lista",key="new_list_input",placeholder="es. Watchlist Tech")
     if st.button("✅ Crea e Attiva",key="create_list_btn",use_container_width=True):
@@ -829,26 +829,45 @@ if not only_watchlist:
             use_finviz = st.session_state.get("use_finviz",False)
             n_wk       = st.session_state.get("n_workers",8)
 
-            # -- Barra di avanzamento visibile ------------------------------
+            import threading, time as _time, traceback as _tb
+
+            # ── DIAGNOSTICA PRE-SCAN: testa 1 ticker per vedere errori reali ─
+            diag = st.expander("🔬 Diagnostica pre-scan", expanded=True)
+            with diag:
+                st.write(f"Universe caricato: **{tot} ticker**")
+                st.write(f"Primi 5: `{universe[:5]}`")
+                _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
+                st.write(f"Test su `{_test_tkr}`...")
+                try:
+                    import yfinance as _yf
+                    _d = _yf.Ticker(_test_tkr).history(period="1mo", timeout=20)
+                    if _d is None or _d.empty:
+                        st.error(f"❌ yfinance ha ritornato DataFrame vuoto per `{_test_tkr}`. "
+                                 "Possibile problema di rete o ticker non trovato.")
+                    else:
+                        st.success(f"✅ yfinance OK — {len(_d)} barre per `{_test_tkr}` "
+                                   f"| Ultimo prezzo: {_d['Close'].iloc[-1]:.2f}")
+                except Exception as _e:
+                    st.error(f"❌ yfinance ERRORE su `{_test_tkr}`: {_e}")
+                    st.code(_tb.format_exc())
+
+            # ── Barra di avanzamento ──────────────────────────────────────────
             st.markdown(f"**Avvio scansione: {tot} ticker**")
             pb      = st.progress(0)
             status  = st.empty()
             status.info(f"⏳ Preparazione {tot} ticker in coda...")
 
-            import threading, time as _time
             _counter   = [0]
             _last_tick = [0.0]
-            _last_tkr  = [""]
             _lock      = threading.Lock()
+            _errors    = []
 
             def _progress(done, total, tkr):
                 with _lock:
-                    _counter[0]   = done
-                    _last_tkr[0]  = tkr
+                    _counter[0] = done
                 pct = done / total
                 pb.progress(pct)
                 now = _time.time()
-                # Aggiorna testo ogni 0.5s per non spammare Streamlit
                 if now - _last_tick[0] > 0.5 or done == total:
                     _last_tick[0] = now
                     tag = " ⚡cache" if use_cache else ""
@@ -863,18 +882,25 @@ if not only_watchlist:
                 n_workers=n_wk, progress_callback=_progress
             )
 
-            # -- Post-processing: normalizza con _enrich_df (globale) ----
+            # ── Post-processing: normalizza con _enrich_df (globale) ────
             df_ep_new  = _enrich_df(df_ep_new)
             df_rea_new = _enrich_df(df_rea_new)
             pb.progress(1.0)
             elapsed = scan_stats.get("elapsed_s",0)
             hits    = scan_stats.get("cache_hits",0)
             dl      = scan_stats.get("downloaded", tot)
+            n_err = scan_stats.get("n_errors", 0)
+            errs  = scan_stats.get("errors", [])
             status.success(
                 f"✅ Scansione completata in **{elapsed:.0f}s** — "
                 f"{len(df_ep_new)} segnali EP, {len(df_rea_new)} HOT "
-                f"| ⚡ {hits} cache | ☁️ {dl} scaricati"
+                f"| ⚡ {hits} cache | ☁️ {dl} scaricati "
+                f"| ⚠️ {n_err} errori"
             )
+            if n_err > 0:
+                with st.expander(f"⚠️ {n_err} ticker con errori (primi 20)", expanded=True):
+                    for _e in errs[:20]:
+                        st.code(_e)
 
             st.session_state.df_ep     = df_ep_new
             st.session_state.df_rea    = df_rea_new
@@ -899,8 +925,8 @@ if not only_watchlist:
             if n_c>=3:  st.toast(f"⭐ {n_c} CONFLUENCE!", icon="⭐")
             st.rerun()
 
-# -- Auto-load: se session_state è vuoto (refresh/reboot), ricarica l'ultima
-#    scansione salvata nel DB così i tab non sono mai completamente vuoti -----
+# ── Auto-load: se session_state è vuoto (refresh/reboot), ricarica l'ultima
+#    scansione salvata nel DB così i tab non sono mai completamente vuoti ─────
 if "df_ep" not in st.session_state:
     try:
         _hist = load_scan_history(1)
@@ -927,7 +953,7 @@ elif "last_scan" in st.session_state:
     st.caption(f"⏱️ Ultima scansione: {st.session_state.last_scan}")
 render_kpi_bar(df_ep,df_rea)
 
-# -- Pannello diagnostico (visibile solo se df non vuoto o si clicca) ---------
+# ── Pannello diagnostico (visibile solo se df non vuoto o si clicca) ─────────
 with st.expander("🔎 Diagnostica dati scanner",expanded=False):
     c1,c2,c3=st.columns(3)
     c1.metric("Righe df_ep",  len(df_ep)  if not df_ep.empty  else 0)
@@ -1352,7 +1378,7 @@ with tab_w:
     if "DEFAULT" not in all_lists: all_lists.append("DEFAULT")
     if pending and pending not in all_lists: all_lists.append(pending); all_lists=sorted(all_lists)
 
-    # -- Pannello gestione liste ------------------------------------------
+    # ── Pannello gestione liste ──────────────────────────────────────────
     with st.expander("⚙️ Gestione Liste",expanded=True):
         gc1,gc2,gc3,gc4=st.columns(4)
 
@@ -1400,7 +1426,7 @@ with tab_w:
                     st.session_state.current_list_name=rem[0] if rem else "DEFAULT"
                 st.rerun()
 
-    # -- Contenuto lista attiva -------------------------------------------
+    # ── Contenuto lista attiva ───────────────────────────────────────────
     df_wl=df_wl_full[df_wl_full["list_name"]==st.session_state.current_list_name].copy() \
           if not df_wl_full.empty else pd.DataFrame()
 
@@ -1413,7 +1439,7 @@ with tab_w:
         tcol="Ticker" if "Ticker" in df_wl.columns else "ticker"
         ncol="Nome"   if "Nome"   in df_wl.columns else "name"
 
-        # -- Vista: toggle cards / griglia --------------------------------
+        # ── Vista: toggle cards / griglia ────────────────────────────────
         vmode_col1,vmode_col2,_=st.columns([1,1,4])
         with vmode_col1:
             if st.button("🃏 Cards",key="vm_cards",
@@ -1438,7 +1464,7 @@ with tab_w:
                         if "Ticker_sc" in df_wl_disp.columns:
                             df_wl_disp.drop(columns=["Ticker_sc"],inplace=True)
 
-        # -- Azioni massa --------------------------------------------------
+        # ── Azioni massa ──────────────────────────────────────────────────
         wa1,wa2,wa3=st.columns(3)
         with wa1:
             csv_btn(df_wl_disp,f"watchlist_{st.session_state.current_list_name}.csv","exp_wl_dl")
@@ -1448,7 +1474,7 @@ with tab_w:
         with wa3:
             copy_dest2=st.selectbox("Copia selezione →",other_lists,key="mass_cp")
 
-        # -- VISTA GRIGLIA (AgGrid con note/trend editabili) --------------
+        # ── VISTA GRIGLIA (AgGrid con note/trend editabili) ──────────────
         if st.session_state.wl_view_mode=="grid":
             # Prepara colonne per griglia watchlist
             wl_grid_cols=["id",tcol,ncol,"Prezzo","trend","note","origine","created_at",
@@ -1496,7 +1522,7 @@ with tab_w:
                     if st.button("🗑️ Elimina sel.",key="do_dl_g",type="secondary"):
                         delete_from_watchlist(selected_ids); st.rerun()
 
-        # -- VISTA CARDS ---------------------------------------------------
+        # ── VISTA CARDS ───────────────────────────────────────────────────
         else:
             selected_ids=[]
             for _,wrow in df_wl_disp.iterrows():
@@ -1556,7 +1582,7 @@ with tab_w:
   <div style="display:flex;justify-content:space-between;align-items:center">
     <div><span class="wl-card-ticker">{tkr}</span>
     <span class="wl-card-name"> &nbsp;{nom}</span></div>
-    <div style="color:#374151;font-size:0.72rem">{origine} . {str(created)[:10]}</div>
+    <div style="color:#374151;font-size:0.72rem">{origine} · {str(created)[:10]}</div>
   </div>
   <div style="margin-top:8px">{trend_b}{rsi_b}{vr_b}{qs_b}{ser_b}{fv_b}{sq_b}{wb_b}</div>
 </div>""",unsafe_allow_html=True)
@@ -1581,7 +1607,7 @@ with tab_w:
                     if st.button("🗑️ Elimina sel.",key="do_dl_c",type="secondary"):
                         delete_from_watchlist(selected_ids); st.rerun()
 
-        # -- Grafici ticker selezionato ------------------------------------
+        # ── Grafici ticker selezionato ────────────────────────────────────
         st.markdown("---")
         st.markdown('<div class="section-pill">📊 ANALISI TICKER</div>',unsafe_allow_html=True)
         tickers_wl=df_wl[tcol].dropna().unique().tolist()
@@ -1670,3 +1696,4 @@ with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(f"📈 CSV TV {cur_tab}",make_tv_csv(df_cur,cur_tab),
             f"TradingScanner_v27_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
+
