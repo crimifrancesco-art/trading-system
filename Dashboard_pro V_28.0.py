@@ -111,7 +111,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     # ── Stato_Pro con soglia 6 ───────────────────────────────────────────
     if "Pro_Score" in df.columns:
         df["Stato_Pro"] = df["Pro_Score"].apply(
-            lambda x: "PRO" if pd.notna(x) and float(x) >= 6 else "-")
+            lambda x: "PRO" if pd.notna(x) and float(x) >= 4 else "-")
 
     # ── Stato_Early assicurato ───────────────────────────────────────────
     if "Stato_Early" not in df.columns:
