@@ -8,6 +8,9 @@ import pandas as pd
 import yfinance as yf
 from pathlib import Path
 
+# Lista errori raccolta durante la scansione (leggibile dal dashboard)
+_SCAN_ERRORS: list = []
+
 
 # -------------------------------------------------------------------------
 # INDICATORI TECNICI
@@ -426,7 +429,9 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
 
         return res_ep, res_rea
 
-    except Exception:
+    except Exception as _e:
+        # Log errore senza stampare per non rallentare — salvato in lista globale
+        _SCAN_ERRORS.append(f"{ticker}: {type(_e).__name__}: {_e}")
         return None, None
 
 
@@ -438,6 +443,8 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
                   vol_ratio_hot=1.5, cache_enabled=True,
                   finviz_enabled=False, n_workers=8,
                   progress_callback=None):
+    global _SCAN_ERRORS
+    _SCAN_ERRORS = []          # reset ad ogni nuova scansione
     rep, rrea = [], []
     lock    = threading.Lock()
     counter = [0]
@@ -476,5 +483,7 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
         "ep_found":   len(rep),
         "rea_found":  len(rrea),
         "finviz":     False,
+        "errors":     _SCAN_ERRORS[:20],   # primi 20 errori per diagnostica
+        "n_errors":   len(_SCAN_ERRORS),
     }
 
