@@ -222,7 +222,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
         if price > ema20: pro_score += 3
         if p_rmin < rsi_val < p_rmax: pro_score += 3
         if vol_ratio > 1.2: pro_score += 2
-        stato_pro = "PRO" if pro_score >= 6 else "-"
+        stato_pro = "PRO" if pro_score >= 4 else "-"
         
         poc, dist_poc, rea_score, stato_rea = price, 0.0, 0, "-"
         try:
