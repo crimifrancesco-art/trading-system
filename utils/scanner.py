@@ -79,7 +79,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
     try:
         data = None
         for _ in range(2):
-            data = yf.Ticker(ticker).history(period="7mo", timeout=20)
+            data = yf.Ticker(ticker).history(period="1y", timeout=20)
             if data is not None and len(data) >= 20: break
             time.sleep(1)
         if data is None or len(data) < 20: return None, None
