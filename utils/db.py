@@ -171,3 +171,4 @@ def cache_stats(): return {"fresh": 0, "stale": 0, "size_mb": 0, "total_entries"
 def cache_clear(*a, **k): pass
 
 init_db()
+
