@@ -265,12 +265,10 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
             "qualitycomponents": quality_comps, "chartdata": chart_data,
         }
         
-        res_ep = None
-        if stato_early != "-" or stato_pro != "-":
-            res_ep = {**common, "EarlyScore": early_score, "ProScore": pro_score,
-                      "Stato": stato_pro if stato_pro != "-" else stato_early,
-                      "StatoEarly": stato_early, "StatoPro": stato_pro}
-        
+        res_ep = {**common, "EarlyScore": early_score, "ProScore": pro_score,
+                    "Stato": stato_pro if stato_pro != "-" else stato_early,
+                    "StatoEarly": stato_early, "StatoPro": stato_pro}
+    
         res_rea = None
         if stato_rea != "-":
             res_rea = {**common, "ReaScore": rea_score, "POC": round(poc, 2),
