@@ -316,12 +316,12 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
     finviz_enabled → integra dati fondamentali reali da Finviz scraping
     """
     try:
-        # ── Dati OHLCV ───────────────────────────────────────────────────
+        # -- Dati OHLCV ---------------------------------------------------
         data = _get_history(ticker, "9mo", "1d", force=not cache_enabled)
         if len(data) < 60: return None, None
         c = data["Close"]; h = data["High"]; l = data["Low"]; v = data["Volume"]
 
-        # ── Info base yfinance ────────────────────────────────────────────
+        # -- Info base yfinance --------------------------------------------
         info   = _get_info(ticker, force=not cache_enabled)
         name   = info.get("longName", info.get("shortName", ticker))[:50]
         price  = float(c.iloc[-1])
@@ -330,13 +330,13 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         vol_td = float(v.iloc[-1])
         vol_7d = float(v.tail(7).mean())
 
-        # ── Medie mobili ─────────────────────────────────────────────────
+        # -- Medie mobili -------------------------------------------------
         ema20  = float(c.ewm(span=20).mean().iloc[-1])
         ema50  = float(c.ewm(span=50).mean().iloc[-1])
         sma200 = c.rolling(200).mean()
         ema200 = float(sma200.iloc[-1]) if not np.isnan(sma200.iloc[-1]) else None
 
-        # ── Indicatori ───────────────────────────────────────────────────
+        # -- Indicatori ---------------------------------------------------
         rsi_s  = calc_rsi(c); rsi_v = float(rsi_s.iloc[-1])
         avg20  = float(v.rolling(20).mean().iloc[-1])
         volr   = float(v.iloc[-1] / avg20) if avg20 > 0 else 0.0
@@ -348,7 +348,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         squeeze= detect_squeeze(c, h, l)
         rsi_dv = detect_rsi_divergence(c, rsi_s)
 
-        # ── Fondamentali: prima Finviz, fallback yfinance ─────────────────
+        # -- Fondamentali: prima Finviz, fallback yfinance -----------------
         fv_data = {}
         if finviz_enabled and FINVIZ_AVAILABLE:
             fv_data = _get_finviz(ticker, force=not cache_enabled)
@@ -384,7 +384,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         ins_own  = fv_data.get("insider_own")
         inst_own = fv_data.get("inst_own")
 
-        # ── Earnings imminenti ────────────────────────────────────────────
+        # -- Earnings imminenti --------------------------------------------
         earn_soon = False
         try:
             cal = _get_calendar(ticker, force=not cache_enabled)
@@ -397,7 +397,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         except Exception:
             pass
 
-        # ── Quality / Multi-TF ────────────────────────────────────────────
+        # -- Quality / Multi-TF --------------------------------------------
         qs = calc_quality_score(price, ema20, ema50, volr, obv_t, atr_ex, rsi_v)
         qc = calc_quality_components(price, ema20, ema50, volr, obv_t, atr_ex, rsi_v)
 
@@ -411,13 +411,13 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         except Exception:
             pass
 
-        # ── Scores ───────────────────────────────────────────────────────
+        # -- Scores -------------------------------------------------------
         ser_score, ser_ok, ser_crit = calc_serafini_score(
             price, ema20, ema50, rsi_v, obv_t, volr, earn_soon)
         fv_score, fv_ok, fv_crit = calc_finviz_score(
             price, avg20, volr, ema20, ema50, ema200, eps_ny, eps_5y, opt)
 
-        # ── Chart data ────────────────────────────────────────────────────
+        # -- Chart data ----------------------------------------------------
         t60   = data.tail(60).copy()
         e20s  = c.ewm(span=20).mean()
         e50s  = c.ewm(span=50).mean()
@@ -435,7 +435,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
             "bb_dn":  [round(x,2) for x in bb_d.tail(60).tolist()],
         }
 
-        # ── Scoring setup ─────────────────────────────────────────────────
+        # -- Scoring setup -------------------------------------------------
         dist_ema    = abs(price - ema20) / ema20
         early_score = round(max(0.0,(1.0 - dist_ema/e_h)*10.0),1) if dist_ema < e_h else 0.0
         stato_early = "EARLY" if early_score > 0 else "-"
@@ -454,7 +454,7 @@ def scan_ticker(ticker, e_h, p_rmin, p_rmax, r_poc,
         rea_score  = 7 if (dist_poc < r_poc and volr > vol_ratio_hot) else 0
         stato_rea  = "HOT" if rea_score >= 7 else "-"
 
-        # ── Record comune ─────────────────────────────────────────────────
+        # -- Record comune -------------------------------------------------
         common = {
             "Nome":          name,         "Ticker":       ticker,
             "Prezzo":        round(price,2),"MarketCap":    mcap,
@@ -574,3 +574,4 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
         "finviz":     finviz_enabled and FINVIZ_AVAILABLE,
     }
     return df_ep, df_rea, stats
+
