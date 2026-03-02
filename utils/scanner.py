@@ -157,7 +157,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
         data = None
         for _attempt in range(3):
             try:
-                data = yf.Ticker(ticker).history(period="3mo", timeout=20)
+                data = yf.Ticker(ticker).history(period=63mo", timeout=20, auto_adjust=True)
                 if data is not None and len(data) >= 10:
                     break
             except Exception as _re:

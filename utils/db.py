@@ -128,10 +128,10 @@ def save_scan_history(markets: list, df_ep: pd.DataFrame, df_rea: pd.DataFrame, 
         n_early, n_pro, n_conf = 0, 0, 0
         n_rea = len(df_rea) if not df_rea.empty else 0
         if not df_ep.empty:
-            if "StatoEarly" in df_ep.columns: n_early = int((df_ep["StatoEarly"] == "EARLY").sum())
-            if "StatoPro" in df_ep.columns: n_pro = int((df_ep["StatoPro"] == "PRO").sum())
-            if "StatoEarly" in df_ep.columns and "StatoPro" in df_ep.columns:
-                n_conf = int(((df_ep["StatoEarly"] == "EARLY") & (df_ep["StatoPro"] == "PRO")).sum())
+            if "Stato_Early" in df_ep.columns: n_early = int((df_ep["Stato_Early"] == "EARLY").sum())
+            if "Stato_Pro" in df_ep.columns: n_pro = int((df_ep["Stato_Pro"] == "PRO").sum())
+            if "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+                n_conf = int(((df_ep["Stato_Early"] == "EARLY") & (df_ep["Stato_Pro"] == "PRO")).sum())
         ep_json = _df_to_json_safe(df_ep)
         rea_json = _df_to_json_safe(df_rea)
         c.execute("INSERT INTO scan_history (scanned_at, markets, n_early, n_pro, n_rea, n_confluence, df_ep_json, df_rea_json, elapsed_s, cache_hits) VALUES (?,?,?,?,?,?,?,?,?,?)", (now, json.dumps(markets), n_early, n_pro, n_rea, n_conf, ep_json, rea_json, float(elapsed_s), int(cache_hits)))
