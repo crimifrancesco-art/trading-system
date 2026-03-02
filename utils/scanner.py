@@ -7,6 +7,11 @@ import pandas as pd
 import yfinance as yf
 from pathlib import Path
 
+try:
+    import requests as _requests_lib
+except ImportError:
+    _requests_lib = None
+
 # Lista errori raccolta durante la scansione (leggibile dal dashboard)
 _SCAN_ERRORS: list = []
 
@@ -152,22 +157,78 @@ def load_universe(markets: list) -> list:
 # -------------------------------------------------------------------------
 # SCAN TICKER
 # -------------------------------------------------------------------------
+def _get_session():
+    """Crea requests.Session con User-Agent browser per evitare blocchi Yahoo."""
+    try:
+        import requests
+        from requests.adapters import HTTPAdapter
+        UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/120.0.0.0 Safari/537.36")
+        session = requests.Session()
+        session.headers.update({"User-Agent": UA, "Accept": "*/*",
+                                 "Accept-Language": "en-US,en;q=0.9"})
+        return session
+    except Exception:
+        return None
+
+
+def _download_ohlcv(ticker: str, period: str = "6mo") -> pd.DataFrame:
+    """
+    Scarica OHLCV con fallback multiplo:
+    1. yf.download() — funziona meglio su Streamlit Cloud
+    2. yf.Ticker().history() con session custom
+    3. yf.Ticker().history() semplice
+    """
+    # Metodo 1: yf.download (più affidabile su cloud)
+    try:
+        session = _get_session()
+        kw = dict(period=period, progress=False, auto_adjust=True,
+                  threads=False, timeout=30)
+        if session:
+            kw["session"] = session
+        data = yf.download(ticker, **kw)
+        if data is not None and len(data) >= 10:
+            # yf.download su singolo ticker → colonne semplici (Close, High, ...)
+            # Ma su alcune versioni usa MultiIndex — normalizza
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+            return data
+    except Exception:
+        pass
+
+    # Metodo 2: Ticker.history con session custom
+    try:
+        session = _get_session()
+        tkr = yf.Ticker(ticker, session=session) if session else yf.Ticker(ticker)
+        data = tkr.history(period=period, auto_adjust=True, timeout=30)
+        if data is not None and len(data) >= 10:
+            return data
+    except Exception:
+        pass
+
+    # Metodo 3: fallback semplice
+    try:
+        data = yf.Ticker(ticker).history(period=period, timeout=30)
+        if data is not None and len(data) >= 10:
+            return data
+    except Exception:
+        pass
+
+    return pd.DataFrame()
+
+
 def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float, vol_ratio_hot: float = 1.5):
     try:
-        data = None
-        for _attempt in range(3):
-            try:
-                data = yf.Ticker(ticker).history(period="6mo", timeout=20, auto_adjust=True)
-                if data is not None and len(data) >= 10:
-                    break
-            except Exception as _re:
-                if "429" in str(_re) or "Too Many" in str(_re):
-                    time.sleep(2 + _attempt * 3)
-                else:
-                    raise
-        if data is None or len(data) < 10:
+        data = _download_ohlcv(ticker)
+        if data is None or data.empty or len(data) < 10:
             return None, None
-        c, h, l, v = data["Close"], data["High"], data["Low"], data["Volume"]
+        c = data["Close"] if "Close" in data.columns else data.iloc[:, 3]
+        h = data["High"]  if "High"  in data.columns else data.iloc[:, 1]
+        l = data["Low"]   if "Low"   in data.columns else data.iloc[:, 2]
+        v = data["Volume"]if "Volume"in data.columns else data.iloc[:, 4]
+        # Pulisci NaN
+        c, h, l, v = c.ffill(), h.ffill(), l.ffill(), v.fillna(0)
         price = float(c.iloc[-1])
         if price <= 0:
             return None, None
