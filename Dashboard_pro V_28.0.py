@@ -643,7 +643,7 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 28.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 28.0")
 st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v28.0</div>',unsafe_allow_html=True)
@@ -854,32 +854,31 @@ if not only_watchlist:
                 _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
                 st.write(f"Test su `{_test_tkr}`...")
                 try:
-                    import yfinance as _yf
-                    import requests as _req
-                    # Usa yf.download (più affidabile su Streamlit Cloud)
-                    _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                           "AppleWebKit/537.36 (KHTML, like Gecko) "
-                           "Chrome/120.0.0.0 Safari/537.36")
-                    _sess = _req.Session()
-                    _sess.headers.update({"User-Agent": _UA})
-                    _d = _yf.download(_test_tkr, period="1mo", progress=False,
-                                      auto_adjust=True, timeout=30, session=_sess)
-                    if isinstance(_d.columns, pd.MultiIndex):
-                        _d.columns = _d.columns.get_level_values(0)
-                    if _d is None or _d.empty:
-                        # Fallback senza session
-                        _d = _yf.Ticker(_test_tkr).history(period="1mo")
-                    if _d is None or _d.empty:
-                        st.error(f"❌ yfinance ritorna vuoto per `{_test_tkr}`. "
-                                 "Yahoo Finance potrebbe bloccare le richieste. "
-                                 "Lo scanner usa fallback multipli — prova comunque ad avviarlo.")
+                    _d, _src_ok = None, ""
+                    try:
+                        from yahooquery import Ticker as _YQT
+                        _df_yq = _YQT(_test_tkr).history(period="1mo", interval="1d")
+                        if _df_yq is not None and not _df_yq.empty:
+                            if isinstance(_df_yq.index, pd.MultiIndex):
+                                _df_yq = _df_yq.reset_index(level=0, drop=True)
+                            _d = _df_yq; _src_ok = "yahooquery"
+                    except Exception:
+                        pass
+                    if _d is None or (hasattr(_d,"empty") and _d.empty):
+                        try:
+                            import yfinance as _yf
+                            _d2 = _yf.download(_test_tkr, period="1mo", progress=False, timeout=20)
+                            if _d2 is not None and not _d2.empty:
+                                _d = _d2; _src_ok = "yfinance"
+                        except Exception:
+                            pass
+                    if _d is not None and not (hasattr(_d,"empty") and _d.empty) and len(_d) > 0:
+                        st.success(f"✅ {_src_ok} OK — {len(_d)} barre per `{_test_tkr}`")
                     else:
-                        st.success(f"✅ yfinance OK — {len(_d)} barre per `{_test_tkr}` "
-                                   f"| Ultimo prezzo: {float(_d['Close'].iloc[-1]):.2f}")
+                        st.error("❌ Nessuna fonte dati disponibile. "
+                                 "Verifica che requirements.txt contenga `yahooquery`.")
                 except Exception as _e:
-                    st.warning(f"⚠️ Test diagnostico fallito: `{_e}` — "
-                               "lo scanner usa fallback multipli, prova comunque ad avviarlo.")
-                    st.code(_tb.format_exc())
+                    st.error(f"❌ Errore: {_e}")
 
             # ── Barra di avanzamento ──────────────────────────────────────────
             st.markdown(f"**Avvio scansione: {tot} ticker**")
@@ -1226,13 +1225,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v28.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v27.0."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v28.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v27.0."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
