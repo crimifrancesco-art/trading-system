@@ -1,23 +1,120 @@
 import threading
 import concurrent.futures
 import time
-import traceback
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from pathlib import Path
 
 try:
-    import requests as _requests_lib
+    from yahooquery import Ticker as YQTicker
+    _HAS_YQ = True
 except ImportError:
-    _requests_lib = None
+    _HAS_YQ = False
 
-# Lista errori raccolta durante la scansione (leggibile dal dashboard)
+try:
+    import yfinance as yf
+    _HAS_YF = True
+except ImportError:
+    _HAS_YF = False
+
 _SCAN_ERRORS: list = []
 
-# -------------------------------------------------------------------------
-# INDICATORI TECNICI
-# -------------------------------------------------------------------------
+
+def _download_ohlcv(ticker: str, period: str = "6mo") -> pd.DataFrame:
+    """yahooquery (primario) → yfinance (fallback)."""
+    if _HAS_YQ:
+        try:
+            df = YQTicker(ticker).history(period=period, interval="1d")
+            if df is not None and not df.empty and len(df) >= 10:
+                if isinstance(df.index, pd.MultiIndex):
+                    df = df.reset_index(level=0, drop=True)
+                df.index = pd.to_datetime(df.index)
+                col_map = {}
+                for c in df.columns:
+                    cl = c.lower()
+                    if cl == "open":   col_map[c] = "Open"
+                    elif cl == "high": col_map[c] = "High"
+                    elif cl == "low":  col_map[c] = "Low"
+                    elif cl in ("close","adjclose","adj close"): col_map[c] = "Close"
+                    elif cl == "volume": col_map[c] = "Volume"
+                df = df.rename(columns=col_map)
+                if all(c in df.columns for c in ["Open","High","Low","Close","Volume"]):
+                    df = df[["Open","High","Low","Close","Volume"]].copy()
+                    df["Volume"] = df["Volume"].fillna(0)
+                    df = df.ffill().dropna(subset=["Close"])
+                    if len(df) >= 10:
+                        return df
+        except Exception:
+            pass
+    if _HAS_YF:
+        for attempt in range(2):
+            try:
+                data = yf.download(ticker, period=period, progress=False,
+                                   auto_adjust=True, threads=False, timeout=30)
+                if data is not None and not data.empty:
+                    if isinstance(data.columns, pd.MultiIndex):
+                        data.columns = data.columns.get_level_values(0)
+                    data["Volume"] = data["Volume"].fillna(0)
+                    data = data.ffill().dropna(subset=["Close"])
+                    if len(data) >= 10:
+                        return data
+            except Exception:
+                pass
+            try:
+                data = yf.Ticker(ticker).history(period=period, timeout=30)
+                if data is not None and not data.empty and len(data) >= 10:
+                    return data.ffill()
+            except Exception:
+                pass
+    return pd.DataFrame()
+
+
+def _get_info(ticker: str) -> dict:
+    if _HAS_YQ:
+        try:
+            p = YQTicker(ticker).price
+            if isinstance(p, dict) and ticker in p and isinstance(p[ticker], dict):
+                d = p[ticker]
+                return {"name": str(d.get("longName", d.get("shortName", ticker)))[:50],
+                        "currency": str(d.get("currency", "USD")),
+                        "market_cap": float(d.get("marketCap", float("nan")))}
+        except Exception:
+            pass
+    if _HAS_YF:
+        try:
+            info = yf.Ticker(ticker).info
+            return {"name": str(info.get("longName", info.get("shortName", ticker)))[:50],
+                    "currency": str(info.get("currency", "USD")),
+                    "market_cap": float(info.get("marketCap", float("nan")))}
+        except Exception:
+            pass
+    return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
+
+
+def _download_weekly(ticker: str) -> pd.DataFrame:
+    if _HAS_YQ:
+        try:
+            df = YQTicker(ticker).history(period="6mo", interval="1wk")
+            if df is not None and not df.empty:
+                if isinstance(df.index, pd.MultiIndex):
+                    df = df.reset_index(level=0, drop=True)
+                df.index = pd.to_datetime(df.index)
+                for c in df.columns:
+                    if c.lower() in ("close","adjclose"):
+                        df = df.rename(columns={c: "Close"}); break
+                if "Close" in df.columns and len(df) >= 5:
+                    return df
+        except Exception:
+            pass
+    if _HAS_YF:
+        try:
+            data = yf.Ticker(ticker).history(period="6mo", interval="1wk", timeout=15)
+            if data is not None and not data.empty and len(data) >= 5:
+                return data
+        except Exception:
+            pass
+    return pd.DataFrame()
+
 def calc_obv(close, volume):
     direction = np.sign(close.diff().fillna(0))
     return (direction * volume).cumsum()
