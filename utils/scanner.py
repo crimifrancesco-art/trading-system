@@ -154,7 +154,7 @@ def load_universe(markets: list) -> list:
 
 def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float, vol_ratio_hot: float = 1.5):
     try:
-        data = yf.Ticker(ticker).history(period="6mo", timeout=15)
+        data = None         for _retry in range(3):             try:                 data = yf.Ticker(ticker).history(period="6mo", timeout=15)                 if data is not None and len(data) > 0: break             except Exception as _re:                 if "Too Many Requests" in str(_re) or "rate" in str(_re).lower():                     time.sleep(5 + _retry * 10)                 else:                     raise         if data is None
         if data is None or len(data) < 20: return None, None
         c, h, l, v = data["Close"], data["High"], data["Low"], data["Volume"]
         price = float(c.iloc[-1])
