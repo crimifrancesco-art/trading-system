@@ -155,7 +155,7 @@ def load_universe(markets: list) -> list:
 def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float, vol_ratio_hot: float = 1.5):
     try:
         data = yf.Ticker(ticker).history(period="6mo", timeout=15)
-        if data is None or len(data) < 50: return None, None
+        if data is None or len(data) < 20: return None, None
         c, h, l, v = data["Close"], data["High"], data["Low"], data["Volume"]
         price = float(c.iloc[-1])
         if price <= 0: return None, None
@@ -168,7 +168,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
             market_cap = info.get("marketCap", np.nan)
         except Exception: pass
         
-        vol_today = float(v.iloc[-1])
+        vol_today = float(v.dropna().iloc[-1]) if not v.dropna().empty else float(v.tail(5).mean())
         avg_vol_20 = float(v.rolling(20).mean().iloc[-1])
         vol_7d_avg = float(v.tail(7).mean())
         vol_ratio = float(vol_today / avg_vol_20) if avg_vol_20 > 0 else 0.0
@@ -232,7 +232,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int, r_poc: float,
             vp = pd.DataFrame({"P": pbins, "V": v}).groupby("P")["V"].sum()
             poc = float(vp.idxmax())
             dist_poc = abs(price - poc) / poc
-            if dist_poc < r_poc and vol_ratio > vol_ratio_hot:
+            if dist_poc < r_poc and vol_ratio > vol_ratio_hot * 0.3:
                 rea_score, stato_rea = 7, "HOT"
         except Exception: pass
         
