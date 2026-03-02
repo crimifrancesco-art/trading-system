@@ -855,15 +855,30 @@ if not only_watchlist:
                 st.write(f"Test su `{_test_tkr}`...")
                 try:
                     import yfinance as _yf
-                    _d = _yf.Ticker(_test_tkr).history(period="1mo", timeout=20)
+                    import requests as _req
+                    # Usa yf.download (più affidabile su Streamlit Cloud)
+                    _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/120.0.0.0 Safari/537.36")
+                    _sess = _req.Session()
+                    _sess.headers.update({"User-Agent": _UA})
+                    _d = _yf.download(_test_tkr, period="1mo", progress=False,
+                                      auto_adjust=True, timeout=30, session=_sess)
+                    if isinstance(_d.columns, pd.MultiIndex):
+                        _d.columns = _d.columns.get_level_values(0)
                     if _d is None or _d.empty:
-                        st.error(f"❌ yfinance ha ritornato DataFrame vuoto per `{_test_tkr}`. "
-                                 "Possibile problema di rete o ticker non trovato.")
+                        # Fallback senza session
+                        _d = _yf.Ticker(_test_tkr).history(period="1mo")
+                    if _d is None or _d.empty:
+                        st.error(f"❌ yfinance ritorna vuoto per `{_test_tkr}`. "
+                                 "Yahoo Finance potrebbe bloccare le richieste. "
+                                 "Lo scanner usa fallback multipli — prova comunque ad avviarlo.")
                     else:
                         st.success(f"✅ yfinance OK — {len(_d)} barre per `{_test_tkr}` "
-                                   f"| Ultimo prezzo: {_d['Close'].iloc[-1]:.2f}")
+                                   f"| Ultimo prezzo: {float(_d['Close'].iloc[-1]):.2f}")
                 except Exception as _e:
-                    st.error(f"❌ yfinance ERRORE su `{_test_tkr}`: {_e}")
+                    st.warning(f"⚠️ Test diagnostico fallito: `{_e}` — "
+                               "lo scanner usa fallback multipli, prova comunque ad avviarlo.")
                     st.code(_tb.format_exc())
 
             # ── Barra di avanzamento ──────────────────────────────────────────
@@ -1711,3 +1726,4 @@ with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(f"📈 CSV TV {cur_tab}",make_tv_csv(df_cur,cur_tab),
             f"TradingScanner_v27_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
+
