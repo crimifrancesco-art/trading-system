@@ -79,18 +79,13 @@ try:
         try:
             _bt_orig()
         except Exception as _e:
-            st.warning(
-                f"📈 Tab Backtest: {_e}\n\n"
-                "Aggiorna `utils/db.py` alla v28 per abilitare il backtest completo."
-            )
+            st.error(f"❌ Errore Backtest: {_e}")
+            st.info("Assicurati che `utils/db.py` v28 sia installato con le tabelle `signals` e `backtest_results`.")
     _HAS_BACKTEST = True
-except ImportError:
+except ImportError as _bt_ie:
     _HAS_BACKTEST = False
     def render_backtest_tab():
-        st.info(
-            "📈 **Tab Backtest** — disponibile dopo aver aggiunto `utils/backtest_tab.py`.\n\n"
-            "Scaricalo dalla chat e copialo in `utils/backtest_tab.py` nel repo."
-        )
+        st.warning(f"⚠️ `utils/backtest_tab.py` non trovato ({_bt_ie}). Carica il file nella cartella utils/ del repo.")
 
 # =========================================================================
 # ENRICH: normalizza e arricchisce DataFrame dallo scanner
@@ -384,6 +379,9 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                 line=dict(color="#58a6ff",width=1,dash="dot"),showlegend=False,name=n),row=1,col=1)
     if ema20: fig.add_trace(go.Scatter(x=dates,y=ema20,line=dict(color="#f59e0b",width=1.5),name="EMA20"),row=1,col=1)
     if ema50: fig.add_trace(go.Scatter(x=dates,y=ema50,line=dict(color="#a78bfa",width=1.5),name="EMA50"),row=1,col=1)
+    if closes and len(closes)>=20:
+        _e200=pd.Series(closes).ewm(span=min(200,len(closes)),adjust=False).mean().tolist()
+        fig.add_trace(go.Scatter(x=dates,y=_e200,line=dict(color="#eab308",width=1.2,dash="dot"),name="EMA200"),row=1,col=1)
 
     if show_sma:
         sma9=_sma(closes,9); sma21=_sma(closes,21)
@@ -1053,7 +1051,7 @@ def build_aggrid(df_disp: pd.DataFrame, grid_key: str, height: int=480,
         if c in df_disp.columns: gb.configure_column(c,width=w)
     # Nascondi colonne interne che non devono apparire in griglia
     hide_cols=["id","_chart_data","_quality_components","_ser_criteri","_fv_criteri",
-               "Ser_OK","FV_OK","ATR_Exp","Stato"]
+               "Ser_OK","FV_OK","ATR_Exp","Stato","Nome","MarketCap_fmt"]
     for c in hide_cols:
         if c in df_disp.columns: gb.configure_column(c,hide=True)
 
@@ -1068,7 +1066,8 @@ def build_aggrid(df_disp: pd.DataFrame, grid_key: str, height: int=480,
           "EPS_NY_Gr":pct_renderer,"EPS_5Y_Gr":pct_renderer,
           "ROE":pct_renderer,"Gross_Mgn":pct_renderer,"Op_Mgn":pct_renderer,
           "Earnings_Soon":bool_renderer,"Optionable":bool_renderer,
-          "Ser_OK":bool_renderer,"FV_OK":bool_renderer}
+          "Ser_OK":bool_renderer,"FV_OK":bool_renderer,
+          "Dist_POC_%":JsCode("""class DP{init(p){this.eGui=document.createElement('span');const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'—':v.toFixed(2)+'%';this.eGui.style.fontFamily='Courier New';}getGui(){return this.eGui;}}""")}
     for c,r in rmap.items():
         if c in df_disp.columns: gb.configure_column(c,cellRenderer=r)
 
@@ -1299,7 +1298,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     df_disp=df_disp.drop(columns=drop_cols, errors="ignore")
     # Ordine: Ticker, Nome, Prezzo subito dopo, poi il resto
     cols=list(df_disp.columns)
-    priority=["Ticker","Nome","Prezzo","Prezzo_fmt"]
+    priority=["Ticker","Currency","Prezzo","MarketCap","Early_Score","Pro_Score","RSI","Vol_Ratio","Quality_Score","Stato_Early","Stato_Pro"]
     base=[c for c in priority if c in cols]
     rest=[c for c in cols if c not in base]
     df_disp=df_disp[base+rest].reset_index(drop=True)
@@ -1653,9 +1652,16 @@ with tab_w:
         # ── Grafici ticker selezionato ────────────────────────────────────
         st.markdown("---")
         st.markdown('<div class="section-pill">📊 ANALISI TICKER</div>',unsafe_allow_html=True)
-        tickers_wl=df_wl[tcol].dropna().unique().tolist()
-        if tickers_wl:
-            sel_wl=st.selectbox("🔍 Seleziona ticker",options=tickers_wl,key="wl_tkr_sel")
+        if not df_wl.empty and tcol in df_wl.columns:
+            _wl_df=df_wl[[tcol,ncol]].drop_duplicates(tcol).sort_values(ncol)
+            _wl_labels=[f"{r[tcol]}  —  {r[ncol]}" for _,r in _wl_df.iterrows()]
+            _wl_tickers=_wl_df[tcol].tolist()
+        else:
+            _wl_labels=[]; _wl_tickers=[]
+        if _wl_tickers:
+            _sel_idx=st.selectbox("🔍 Seleziona ticker (ordinati per nome)",
+                options=range(len(_wl_labels)),format_func=lambda i:_wl_labels[i],key="wl_tkr_sel")
+            sel_wl=_wl_tickers[_sel_idx]
             row_wl=None
             for src in [df_ep,df_rea]:
                 if src.empty or "Ticker" not in src.columns: continue
@@ -1690,17 +1696,29 @@ with tab_hist:
         st.dataframe(disp_hist,use_container_width=True)
         st.markdown("---"); st.subheader("🔍 Confronto Snapshot")
         hc1,hc2=st.columns(2)
-        with hc1: id_a=st.selectbox("Scansione A",df_hist["id"].tolist(),key="sn_a")
-        with hc2: id_b=st.selectbox("Scansione B",df_hist["id"].tolist(),index=min(1,len(df_hist)-1),key="sn_b")
-        if st.button("🔍 Confronta"):
+        def _snap_lbl(row):
+            dt=str(row.get("scanned_at",""))[:16]
+            ep=int(row.get("n_early",0)); pr=int(row.get("n_pro",0))
+            return f"{dt}  |  EARLY:{ep} PRO:{pr}"
+        _snap_map={row["id"]:_snap_lbl(row) for _,row in df_hist.iterrows()}
+        _ids=list(_snap_map.keys())
+        with hc1:
+            id_a=st.selectbox("📅 Scansione A",_ids,format_func=lambda i:_snap_map[i],key="sn_a")
+        with hc2:
+            id_b=st.selectbox("📅 Scansione B",_ids,format_func=lambda i:_snap_map[i],
+                index=min(1,len(_ids)-1),key="sn_b")
+        if st.button("🔍 Confronta le due scansioni"):
             ea,_=load_scan_snapshot(id_a); eb,_=load_scan_snapshot(id_b)
             if ea.empty or eb.empty: st.warning("Dati non disponibili.")
             else:
-                ta=set(ea.get("Ticker",[])); tb=set(eb.get("Ticker",[]))
+                ta=set(ea.get("Ticker",pd.Series()).tolist())
+                tb=set(eb.get("Ticker",pd.Series()).tolist())
                 sc1,sc2,sc3=st.columns(3)
-                sc1.metric("🆕 Nuovi",len(tb-ta)); sc2.metric("❌ Usciti",len(ta-tb)); sc3.metric("✅ Persistenti",len(ta&tb))
-                if tb-ta: st.markdown("**🆕** "+" ".join(sorted(tb-ta)))
-                if ta-tb: st.markdown("**❌** "+" ".join(sorted(ta-tb)))
+                sc1.metric("🆕 Nuovi in B",len(tb-ta))
+                sc2.metric("❌ Usciti da A",len(ta-tb))
+                sc3.metric("✅ Persistenti",len(ta&tb))
+                if tb-ta: st.markdown("**🆕 Nuovi:**"); st.code("  ".join(sorted(tb-ta)))
+                if ta-tb: st.markdown("**❌ Usciti:**"); st.code("  ".join(sorted(ta-tb)))
 
 # =========================================================================
 # EXPORT GLOBALI
