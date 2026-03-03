@@ -854,31 +854,30 @@ if not only_watchlist:
                 _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
                 st.write(f"Test su `{_test_tkr}`...")
                 try:
-                    _d, _src_ok = None, ""
+                    _d, _src = None, "nessuna"
                     try:
                         from yahooquery import Ticker as _YQT
-                        _df_yq = _YQT(_test_tkr).history(period="1mo", interval="1d")
-                        if _df_yq is not None and not _df_yq.empty:
-                            if isinstance(_df_yq.index, pd.MultiIndex):
-                                _df_yq = _df_yq.reset_index(level=0, drop=True)
-                            _d = _df_yq; _src_ok = "yahooquery"
-                    except Exception:
+                        _dq = _YQT(_test_tkr).history(period="1mo", interval="1d")
+                        if _dq is not None and not _dq.empty:
+                            if isinstance(_dq.index, pd.MultiIndex):
+                                _dq = _dq.reset_index(level=0, drop=True)
+                            _d = _dq; _src = "yahooquery"
+                    except Exception as _yqe:
                         pass
-                    if _d is None or (hasattr(_d,"empty") and _d.empty):
+                    if _d is None or _d.empty:
                         try:
                             import yfinance as _yf
-                            _d2 = _yf.download(_test_tkr, period="1mo", progress=False, timeout=20)
-                            if _d2 is not None and not _d2.empty:
-                                _d = _d2; _src_ok = "yfinance"
+                            _dy = _yf.download(_test_tkr, period="1mo", progress=False, timeout=20)
+                            if _dy is not None and not _dy.empty:
+                                _d = _dy; _src = "yfinance"
                         except Exception:
                             pass
-                    if _d is not None and not (hasattr(_d,"empty") and _d.empty) and len(_d) > 0:
-                        st.success(f"✅ {_src_ok} OK — {len(_d)} barre per `{_test_tkr}`")
+                    if _d is not None and not _d.empty and len(_d) > 0:
+                        st.success(f"✅ {_src} OK — {len(_d)} barre per `{_test_tkr}`")
                     else:
-                        st.error("❌ Nessuna fonte dati disponibile. "
-                                 "Verifica che requirements.txt contenga `yahooquery`.")
+                        st.error("❌ Nessuna fonte dati funziona. Verifica requirements.txt: deve contenere yahooquery")
                 except Exception as _e:
-                    st.error(f"❌ Errore: {_e}")
+                    st.error(f"❌ Errore diagnostica: {_e}")
 
             # ── Barra di avanzamento ──────────────────────────────────────────
             st.markdown(f"**Avvio scansione: {tot} ticker**")
