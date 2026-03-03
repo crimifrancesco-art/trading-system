@@ -854,30 +854,27 @@ if not only_watchlist:
                 _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
                 st.write(f"Test su `{_test_tkr}`...")
                 try:
-                    _d, _src = None, "nessuna"
-                    try:
-                        from yahooquery import Ticker as _YQT
-                        _dq = _YQT(_test_tkr).history(period="1mo", interval="1d")
-                        if _dq is not None and not _dq.empty:
-                            if isinstance(_dq.index, pd.MultiIndex):
-                                _dq = _dq.reset_index(level=0, drop=True)
-                            _d = _dq; _src = "yahooquery"
-                    except Exception as _yqe:
-                        pass
-                    if _d is None or _d.empty:
-                        try:
-                            import yfinance as _yf
-                            _dy = _yf.download(_test_tkr, period="1mo", progress=False, timeout=20)
-                            if _dy is not None and not _dy.empty:
-                                _d = _dy; _src = "yfinance"
-                        except Exception:
-                            pass
-                    if _d is not None and not _d.empty and len(_d) > 0:
-                        st.success(f"✅ {_src} OK — {len(_d)} barre per `{_test_tkr}`")
+                    import requests as _req, json as _json
+                    _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                           "AppleWebKit/537.36 (KHTML, like Gecko) "
+                           "Chrome/120.0.0.0 Safari/537.36")
+                    _sess = _req.Session()
+                    _sess.headers.update({"User-Agent": _UA, "Accept": "application/json",
+                                          "Referer": "https://finance.yahoo.com/"})
+                    _url = f"https://query2.finance.yahoo.com/v8/finance/chart/{_test_tkr}"
+                    _r = _sess.get(_url, params={"interval":"1d","range":"1mo"}, timeout=20)
+                    if _r.status_code == 200:
+                        _res = _r.json().get("chart",{}).get("result",[])
+                        if _res and _res[0].get("timestamp"):
+                            _n = len(_res[0]["timestamp"])
+                            _px = _res[0]["indicators"]["adjclose"][0]["adjclose"][-1]
+                            st.success(f"✅ Yahoo API diretta OK — {_n} barre per `{_test_tkr}` | Prezzo: {_px:.2f}")
+                        else:
+                            st.error(f"❌ Yahoo API: risposta vuota per `{_test_tkr}`")
                     else:
-                        st.error("❌ Nessuna fonte dati funziona. Verifica requirements.txt: deve contenere yahooquery")
+                        st.error(f"❌ Yahoo API HTTP {_r.status_code} per `{_test_tkr}`")
                 except Exception as _e:
-                    st.error(f"❌ Errore diagnostica: {_e}")
+                    st.error(f"❌ Errore connessione: {_e}")
 
             # ── Barra di avanzamento ──────────────────────────────────────────
             st.markdown(f"**Avvio scansione: {tot} ticker**")
