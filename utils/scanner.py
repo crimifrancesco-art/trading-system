@@ -108,39 +108,52 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
 
 
 def _fetch_meta_v10(ticker: str) -> dict:
-    """Chiama Yahoo Finance v10/quoteSummary — ritorna nome, currency, marketcap.
-    Funziona per tutti i mercati inclusi europei (.MI, .PA, .L ecc.)
+    """Yahoo Finance v10/quoteSummary — nome, currency, marketcap.
+    Tenta price + defaultKeyStatistics (shares * price = mcap se mcap mancante).
     """
     sess = _get_session()
     if sess is None:
         return {}
-    try:
-        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
-        resp = sess.get(url,
-            params={"modules": "assetProfile,summaryDetail,defaultKeyStatistics,price"},
-            timeout=15)
-        if resp.status_code != 200:
-            url2 = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
-            resp = sess.get(url2,
-                params={"modules": "price"},
+    for host in ["query2", "query1"]:
+        try:
+            url  = f"https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+            resp = sess.get(url,
+                params={"modules": "price,defaultKeyStatistics,summaryDetail"},
                 timeout=15)
-        if resp.status_code != 200:
-            return {}
-        data = resp.json().get("quoteSummary", {}).get("result", [])
-        if not data:
-            return {}
-        price_mod = data[0].get("price", {})
-        name = (price_mod.get("longName") or price_mod.get("shortName") or "")
-        curr = price_mod.get("currency", "USD") or "USD"
-        mcap_raw = price_mod.get("marketCap", {})
-        mcap = mcap_raw.get("raw") if isinstance(mcap_raw, dict) else mcap_raw
-        return {
-            "name":       str(name)[:50] if name else "",
-            "currency":   str(curr),
-            "market_cap": float(mcap) if mcap else float("nan"),
-        }
-    except Exception:
-        return {}
+            if resp.status_code != 200:
+                continue
+            result = resp.json().get("quoteSummary", {}).get("result", [])
+            if not result:
+                continue
+            d         = result[0]
+            price_mod = d.get("price", {})
+            stats_mod = d.get("defaultKeyStatistics", {})
+            summ_mod  = d.get("summaryDetail", {})
+
+            name = price_mod.get("longName") or price_mod.get("shortName") or ""
+            curr = price_mod.get("currency", "USD") or "USD"
+
+            # marketCap può essere dict {raw, fmt} o numero diretto
+            def _raw(v):
+                return v.get("raw") if isinstance(v, dict) else v
+
+            mcap = _raw(price_mod.get("marketCap"))
+
+            # Fallback: shares * price
+            if not mcap or mcap != mcap:
+                shares = _raw(stats_mod.get("sharesOutstanding")) or                          _raw(summ_mod.get("sharesOutstanding"))
+                reg_price = _raw(price_mod.get("regularMarketPrice"))
+                if shares and reg_price:
+                    mcap = float(shares) * float(reg_price)
+
+            return {
+                "name":       str(name)[:50] if name else "",
+                "currency":   str(curr),
+                "market_cap": float(mcap) if (mcap and mcap == mcap) else float("nan"),
+            }
+        except Exception:
+            continue
+    return {}
 
 
 def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
