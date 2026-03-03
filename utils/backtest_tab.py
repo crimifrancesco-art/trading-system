@@ -346,3 +346,4 @@ Non è backtesting storico con curve ottimizzate — è più onesto.
                 f"| 💾 {cs['size_mb']} MB"
             )
 
+
