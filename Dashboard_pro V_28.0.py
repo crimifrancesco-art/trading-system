@@ -261,11 +261,12 @@ def _fmt_large(v):
     """Abbrevia numeri grandi: 1234567 → '1.2M', 12345678901 → '12.3B'"""
     try:
         v = float(v)
+        if v != v or v <= 0: return "—"   # NaN o zero
         if v >= 1e12: return f"{v/1e12:.1f}T"
         if v >= 1e9:  return f"{v/1e9:.1f}B"
         if v >= 1e6:  return f"{v/1e6:.1f}M"
         if v >= 1e3:  return f"{v/1e3:.0f}K"
-        return str(int(v))
+        return "—"  # valori irrisori non ha senso mostrarli
     except Exception:
         return "—"
 
@@ -277,7 +278,8 @@ def add_formatted_cols(df: pd.DataFrame) -> pd.DataFrame:
             lambda x: f"${x:,.2f}" if pd.notna(x) else "—")
     if "MarketCap" in df.columns:
         df["MarketCap_fmt"] = df["MarketCap"].apply(
-            lambda x: _fmt_large(x) if pd.notna(x) and not (isinstance(x,float) and (x!=x)) else "—")
+            lambda x: _fmt_large(x) if (pd.notna(x) and not (isinstance(x,float) and (x!=x))
+                      and float(x) > 1_000_000) else "—")
     if "EMA200" in df.columns:
         df["EMA200_fmt"] = df["EMA200"].apply(
             lambda x: f"${x:,.2f}" if pd.notna(x) and not (isinstance(x,float) and (x!=x)) else "—")
@@ -1016,11 +1018,7 @@ with st.expander("🔎 Diagnostica dati scanner",expanded=False):
         }
         st.write("**Conteggi segnali:**", _col_check)
         st.write("**Colonne disponibili:**", list(df_ep.columns))
-        # Debug MarketCap
-        if "MarketCap" in df_ep.columns:
-            _mc = df_ep[["Ticker","Nome","MarketCap","MarketCap_fmt"]].head(5) if "MarketCap_fmt" in df_ep.columns else df_ep[["Ticker","Nome","MarketCap"]].head(5)
-            st.caption("🔍 **Debug MarketCap** (primi 5):")
-            st.dataframe(_mc.astype(str), use_container_width=True)
+
     else:
         st.write("df_ep è vuoto.")
         _hist_diag = load_scan_history(3)
