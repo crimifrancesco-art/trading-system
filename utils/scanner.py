@@ -1,11 +1,17 @@
+"""
+scanner.py — Trading Scanner PRO 28.0
+Fonte dati: Yahoo Finance API v8 diretta (requests) — funziona su Streamlit Cloud
+Fallback: yahooquery → yfinance
+"""
 import threading
 import concurrent.futures
 import time
+import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
-# ── Backend dati ─────────────────────────────────────────────────────────────
+# ── Backend disponibili ────────────────────────────────────────────────────────
 try:
     from yahooquery import Ticker as YQTicker
     _HAS_YQ = True
@@ -18,37 +24,154 @@ try:
 except ImportError:
     _HAS_YF = False
 
+try:
+    import requests as _requests
+    _HAS_REQ = True
+except ImportError:
+    _HAS_REQ = False
+
 _SCAN_ERRORS: list = []
 
-# ── Download OHLCV ────────────────────────────────────────────────────────────
+# ── Yahoo Finance API v8 diretta ───────────────────────────────────────────────
+_YF_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+}
+
+_RANGE_MAP = {"1mo": "1mo", "3mo": "3mo", "6mo": "6mo", "1y": "1y", "2y": "2y"}
+_INTERVAL_MAP = {"1d": "1d", "1wk": "1wk", "1mo": "1mo"}
+
+
+def _yahoo_api_direct(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
+    """
+    Chiama direttamente https://query2.finance.yahoo.com/v8/finance/chart/{ticker}
+    Funziona su Streamlit Cloud senza librerie esterne (solo requests).
+    """
+    if not _HAS_REQ:
+        return pd.DataFrame()
+    try:
+        rng  = _RANGE_MAP.get(period, "6mo")
+        ivl  = _INTERVAL_MAP.get(interval, "1d")
+        url  = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker}"
+        params = {"interval": ivl, "range": rng, "includePrePost": "false"}
+
+        session = _requests.Session()
+        session.headers.update(_YF_HEADERS)
+        resp = session.get(url, params=params, timeout=30)
+        if resp.status_code != 200:
+            # Prova con query1
+            url2 = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+            resp = session.get(url2, params=params, timeout=30)
+        if resp.status_code != 200:
+            return pd.DataFrame()
+
+        data = resp.json()
+        result = data.get("chart", {}).get("result", [])
+        if not result:
+            return pd.DataFrame()
+
+        r     = result[0]
+        ts    = r.get("timestamp", [])
+        q     = r.get("indicators", {}).get("quote", [{}])[0]
+        adjc  = r.get("indicators", {}).get("adjclose", [{}])
+
+        if not ts or not q:
+            return pd.DataFrame()
+
+        closes = adjc[0].get("adjclose") if adjc else q.get("close", [])
+        opens  = q.get("open",   [None]*len(ts))
+        highs  = q.get("high",   [None]*len(ts))
+        lows   = q.get("low",    [None]*len(ts))
+        vols   = q.get("volume", [0]*len(ts))
+
+        idx = pd.to_datetime(ts, unit="s", utc=True).tz_localize(None)
+        df  = pd.DataFrame({
+            "Open":   opens,
+            "High":   highs,
+            "Low":    lows,
+            "Close":  closes,
+            "Volume": vols,
+        }, index=idx)
+
+        df = df.dropna(subset=["Close"])
+        df["Volume"] = df["Volume"].fillna(0).astype(float)
+        df = df.ffill()
+        return df if len(df) >= 10 else pd.DataFrame()
+
+    except Exception:
+        return pd.DataFrame()
+
+
+def _yahoo_info_direct(ticker: str) -> dict:
+    """Scarica metadati ticker via API Yahoo v7/v11."""
+    if not _HAS_REQ:
+        return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
+    try:
+        url = f"https://query2.finance.yahoo.com/v7/finance/quote"
+        params = {"symbols": ticker, "fields": "longName,shortName,currency,marketCap"}
+        session = _requests.Session()
+        session.headers.update(_YF_HEADERS)
+        resp = session.get(url, params=params, timeout=15)
+        if resp.status_code == 200:
+            d = resp.json()
+            quotes = d.get("quoteResponse", {}).get("result", [])
+            if quotes:
+                q = quotes[0]
+                return {
+                    "name":       str(q.get("longName", q.get("shortName", ticker)))[:50],
+                    "currency":   str(q.get("currency", "USD")),
+                    "market_cap": float(q.get("marketCap", float("nan")))
+                }
+    except Exception:
+        pass
+    return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
+
+
 def _download_ohlcv(ticker: str, period: str = "6mo") -> pd.DataFrame:
-    """yahooquery (primario) → yfinance (fallback)"""
+    """
+    Ordine di priorità:
+    1. Yahoo API v8 diretta (requests) — funziona su Streamlit Cloud
+    2. yahooquery
+    3. yfinance
+    """
+    # 1. Chiamata diretta
+    df = _yahoo_api_direct(ticker, period=period, interval="1d")
+    if not df.empty and len(df) >= 10:
+        return df
+
+    # 2. yahooquery
     if _HAS_YQ:
         try:
-            df = YQTicker(ticker).history(period=period, interval="1d")
-            if df is not None and not df.empty and len(df) >= 10:
-                if isinstance(df.index, pd.MultiIndex):
-                    df = df.reset_index(level=0, drop=True)
-                df.index = pd.to_datetime(df.index)
+            raw = YQTicker(ticker).history(period=period, interval="1d")
+            if raw is not None and not raw.empty and len(raw) >= 10:
+                if isinstance(raw.index, pd.MultiIndex):
+                    raw = raw.reset_index(level=0, drop=True)
+                raw.index = pd.to_datetime(raw.index)
                 col_map = {}
-                for c in df.columns:
+                for c in raw.columns:
                     cl = c.lower()
                     if cl == "open":   col_map[c] = "Open"
                     elif cl == "high": col_map[c] = "High"
                     elif cl == "low":  col_map[c] = "Low"
-                    elif cl in ("close", "adjclose", "adj close"): col_map[c] = "Close"
+                    elif cl in ("close", "adjclose"): col_map[c] = "Close"
                     elif cl == "volume": col_map[c] = "Volume"
-                df = df.rename(columns=col_map)
-                needed = ["Open", "High", "Low", "Close", "Volume"]
-                if all(c in df.columns for c in needed):
-                    df = df[needed].copy()
-                    df["Volume"] = df["Volume"].fillna(0)
-                    df = df.ffill().dropna(subset=["Close"])
-                    if len(df) >= 10:
-                        return df
+                raw = raw.rename(columns=col_map)
+                if all(c in raw.columns for c in ["Open", "High", "Low", "Close", "Volume"]):
+                    raw = raw[["Open", "High", "Low", "Close", "Volume"]].copy()
+                    raw["Volume"] = raw["Volume"].fillna(0)
+                    raw = raw.ffill().dropna(subset=["Close"])
+                    if len(raw) >= 10:
+                        return raw
         except Exception:
             pass
 
+    # 3. yfinance
     if _HAS_YF:
         try:
             data = yf.download(ticker, period=period, progress=False,
@@ -73,44 +196,49 @@ def _download_ohlcv(ticker: str, period: str = "6mo") -> pd.DataFrame:
 
 
 def _get_info(ticker: str) -> dict:
+    # 1. API diretta
+    info = _yahoo_info_direct(ticker)
+    if info["name"] != ticker:
+        return info
+    # 2. yahooquery
     if _HAS_YQ:
         try:
             p = YQTicker(ticker).price
             if isinstance(p, dict) and ticker in p and isinstance(p[ticker], dict):
                 d = p[ticker]
-                return {
-                    "name":       str(d.get("longName", d.get("shortName", ticker)))[:50],
-                    "currency":   str(d.get("currency", "USD")),
-                    "market_cap": float(d.get("marketCap", float("nan")))
-                }
+                return {"name": str(d.get("longName", d.get("shortName", ticker)))[:50],
+                        "currency": str(d.get("currency", "USD")),
+                        "market_cap": float(d.get("marketCap", float("nan")))}
         except Exception:
             pass
+    # 3. yfinance
     if _HAS_YF:
         try:
-            info = yf.Ticker(ticker).info
-            return {
-                "name":       str(info.get("longName", info.get("shortName", ticker)))[:50],
-                "currency":   str(info.get("currency", "USD")),
-                "market_cap": float(info.get("marketCap", float("nan")))
-            }
+            i = yf.Ticker(ticker).info
+            return {"name": str(i.get("longName", i.get("shortName", ticker)))[:50],
+                    "currency": str(i.get("currency", "USD")),
+                    "market_cap": float(i.get("marketCap", float("nan")))}
         except Exception:
             pass
     return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
 
 
 def _download_weekly(ticker: str) -> pd.DataFrame:
+    df = _yahoo_api_direct(ticker, period="6mo", interval="1wk")
+    if not df.empty and len(df) >= 5:
+        return df
     if _HAS_YQ:
         try:
-            df = YQTicker(ticker).history(period="6mo", interval="1wk")
-            if df is not None and not df.empty:
-                if isinstance(df.index, pd.MultiIndex):
-                    df = df.reset_index(level=0, drop=True)
-                df.index = pd.to_datetime(df.index)
-                for c in df.columns:
+            raw = YQTicker(ticker).history(period="6mo", interval="1wk")
+            if raw is not None and not raw.empty:
+                if isinstance(raw.index, pd.MultiIndex):
+                    raw = raw.reset_index(level=0, drop=True)
+                raw.index = pd.to_datetime(raw.index)
+                for c in raw.columns:
                     if c.lower() in ("close", "adjclose"):
-                        df = df.rename(columns={c: "Close"}); break
-                if "Close" in df.columns and len(df) >= 5:
-                    return df
+                        raw = raw.rename(columns={c: "Close"}); break
+                if "Close" in raw.columns and len(raw) >= 5:
+                    return raw
         except Exception:
             pass
     if _HAS_YF:
@@ -123,7 +251,7 @@ def _download_weekly(ticker: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-# ── Indicatori tecnici ────────────────────────────────────────────────────────
+# ── Indicatori tecnici ─────────────────────────────────────────────────────────
 def calc_obv(close, volume):
     return (np.sign(close.diff().fillna(0)) * volume).cumsum()
 
@@ -181,15 +309,14 @@ def calc_quality_components(price, ema20, ema50, vol_ratio, obv_trend, atr_expan
     }
 
 
-# ── CSV / Universe ────────────────────────────────────────────────────────────
+# ── Universe ───────────────────────────────────────────────────────────────────
 def load_index_from_csv(filename: str):
     for base in [Path("data"), Path(".")]:
         path = base / filename
         if path.exists():
             try:
                 df = pd.read_csv(path)
-                for col in ["Simbolo", "simbolo", "ticker", "Ticker",
-                             "Symbol", "symbol", "TICKER", "SYMBOL"]:
+                for col in ["Simbolo","simbolo","ticker","Ticker","Symbol","symbol","TICKER","SYMBOL"]:
                     if col in df.columns:
                         tickers = df[col].dropna().astype(str).str.strip().unique().tolist()
                         return [t for t in tickers if t and len(t) <= 12 and not t.isdigit()]
@@ -198,15 +325,13 @@ def load_index_from_csv(filename: str):
     return []
 
 _CURRENCY_SUFFIX = {
-    "GBX": ".L",  "GBP": ".L",  "CHF": ".SW", "SEK": ".ST",
-    "DKK": ".CO", "NOK": ".OL", "PLN": ".WA", "HKD": ".HK",
-    "INR": ".NS", "KRW": ".KS", "TWD": ".TW", "MXN": ".MX",
-    "BRL": ".SA", "IDR": ".JK", "THB": ".BK", "ZAC": ".JO",
-    "HUF": ".BD", "CNY": ".SS", "CNH": ".SS",
+    "GBX":".L","GBP":".L","CHF":".SW","SEK":".ST","DKK":".CO","NOK":".OL",
+    "PLN":".WA","HKD":".HK","INR":".NS","KRW":".KS","TWD":".TW","MXN":".MX",
+    "BRL":".SA","IDR":".JK","THB":".BK","ZAC":".JO","HUF":".BD","CNY":".SS","CNH":".SS",
 }
 _US_LISTED = {"ASML","AZN","SAP","NVO","HSBC","SHELL","RDS","UBS","CS","SAN","BBVA","ING","AEG"}
 
-def _add_suffix(ticker: str, currency: str, market: str) -> str:
+def _add_suffix(ticker, currency, market):
     if ticker in _US_LISTED: return ticker
     if market == "FTSE": return ticker + ".MI"
     return ticker + _CURRENCY_SUFFIX[currency] if currency in _CURRENCY_SUFFIX else ticker
@@ -218,7 +343,7 @@ def load_universe(markets: list) -> list:
     if "Dow"        in markets: tickers += load_index_from_csv("dowjones.csv")
     if "Russell"    in markets: tickers += load_index_from_csv("russell2000.csv")
     if "USSmallCap" in markets:
-        for fname in ["us_small_cap_2000.csv", "us small cap 2000.csv"]:
+        for fname in ["us_small_cap_2000.csv","us small cap 2000.csv"]:
             t = load_index_from_csv(fname)
             if t: tickers += t; break
     if "FTSE" in markets:
@@ -226,30 +351,30 @@ def load_universe(markets: list) -> list:
             tickers.append(raw + ".MI")
     if "Eurostoxx" in markets:
         for fname in ["eurostoxx600.csv"]:
-            for path in [Path("data") / fname, Path(".") / fname]:
+            for path in [Path("data")/fname, Path(".")/fname]:
                 if path.exists():
                     df = pd.read_csv(path)
                     for _, row in df.iterrows():
-                        tkr = str(row.get("Simbolo", "")).strip()
-                        cur = str(row.get("Prezzo - Valuta", "")).strip()
+                        tkr = str(row.get("Simbolo","")).strip()
+                        cur = str(row.get("Prezzo - Valuta","")).strip()
                         if not tkr or tkr.isdigit() or len(tkr) > 12: continue
                         tickers.append(_add_suffix(tkr, cur, "Eurostoxx"))
                     break
     if "StoxxEmerging" in markets:
-        for fname in ["stoxx_emerging_market_50.csv", "stoxx emerging market 50.csv"]:
-            for path in [Path("data") / fname, Path(".") / fname]:
+        for fname in ["stoxx_emerging_market_50.csv","stoxx emerging market 50.csv"]:
+            for path in [Path("data")/fname, Path(".")/fname]:
                 if path.exists():
                     df = pd.read_csv(path)
                     for _, row in df.iterrows():
-                        tkr = str(row.get("Simbolo", "")).strip()
-                        cur = str(row.get("Prezzo - Valuta", "")).strip()
+                        tkr = str(row.get("Simbolo","")).strip()
+                        cur = str(row.get("Prezzo - Valuta","")).strip()
                         if not tkr or tkr.isdigit() or len(tkr) > 12: continue
                         tickers.append(_add_suffix(tkr, cur, "StoxxEmerging"))
                     break
     return list(dict.fromkeys(tickers))
 
 
-# ── Scan singolo ticker ───────────────────────────────────────────────────────
+# ── Scan singolo ticker ────────────────────────────────────────────────────────
 def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
                 r_poc: float, vol_ratio_hot: float = 1.5):
     try:
@@ -303,7 +428,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
         ema20_ser = c.ewm(span=20).mean()
         ema50_ser = c.ewm(span=50).mean()
         bb_up, _, bb_dn = calc_bollinger(c)
-        open_col  = tail60["Open"] if "Open" in tail60.columns else tail60["Close"]
+        open_col = tail60["Open"] if "Open" in tail60.columns else tail60["Close"]
         chart_data = {
             "dates":  tail60.index.strftime("%Y-%m-%d").tolist(),
             "open":   [round(float(x), 2) for x in open_col],
@@ -317,7 +442,6 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
             "bb_dn":  [round(float(x), 2) for x in bb_dn.tail(60)],
         }
 
-        # ── Scoring ──────────────────────────────────────────────────────
         dist_ema    = abs(price - ema20) / ema20
         early_score = round(max(0.0, (1.0 - dist_ema / e_h) * 10.0), 1) if dist_ema < e_h else 0.0
         stato_early = "EARLY" if early_score > 0 else "-"
@@ -334,21 +458,19 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
             bins  = np.linspace(float(l.min()), float(h.max()), 50)
             pbins = pd.cut(tp, bins, labels=bins[:-1])
             vp    = pd.DataFrame({"P": pbins, "V": v}).groupby("P")["V"].sum()
-            poc       = float(vp.idxmax())
-            dist_poc  = abs(price - poc) / poc
+            poc      = float(vp.idxmax())
+            dist_poc = abs(price - poc) / poc
             if dist_poc < r_poc and vol_ratio > vol_ratio_hot:
                 rea_score, stato_rea = 7, "HOT"
         except Exception:
             pass
 
-        ser_score = sum([rsi_val > 50, price > ema20, ema20 > ema50,
-                         obv_trend == "UP", vol_ratio > 1.0, True])
-        ser_ok    = all([rsi_val > 50, price > ema20, ema20 > ema50,
-                         obv_trend == "UP", vol_ratio > 1.0, True])
-        f1, f2, f3 = price > 10, avg_vol_20 > 500_000, vol_ratio > 1.0
-        f4, f5     = price > ema20, price > ema50
-        fv_score   = sum([f1, f2, f3, f4, f5])
-        fv_ok      = all([f1, f2, f3, f4, f5])
+        ser_score = sum([rsi_val>50, price>ema20, ema20>ema50, obv_trend=="UP", vol_ratio>1.0, True])
+        ser_ok    = all([rsi_val>50, price>ema20, ema20>ema50, obv_trend=="UP", vol_ratio>1.0, True])
+        f1,f2,f3  = price>10, avg_vol_20>500_000, vol_ratio>1.0
+        f4,f5     = price>ema20, price>ema50
+        fv_score  = sum([f1,f2,f3,f4,f5])
+        fv_ok     = all([f1,f2,f3,f4,f5])
 
         common = {
             "Nome": name, "Ticker": ticker, "Prezzo": round(price, 2),
@@ -405,17 +527,17 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
         return None, None
 
 
-# ── Scan universe ─────────────────────────────────────────────────────────────
+# ── Scan universe ──────────────────────────────────────────────────────────────
 def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
                   vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
                   n_workers=8, progress_callback=None):
     global _SCAN_ERRORS
     _SCAN_ERRORS = []
-    rep, rrea = [], []
-    lock    = threading.Lock()
-    counter = [0]
-    t0      = time.time()
-    tot     = len(universe)
+    rep, rrea   = [], []
+    lock        = threading.Lock()
+    counter     = [0]
+    t0          = time.time()
+    tot         = len(universe)
 
     def _one(tkr):
         ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot)
