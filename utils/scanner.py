@@ -135,7 +135,8 @@ def _fetch_meta_v10(ticker: str) -> dict:
 
             # marketCap può essere dict {raw, fmt} o numero diretto
             def _raw(v):
-                return v.get("raw") if isinstance(v, dict) else v
+                r = v.get("raw") if isinstance(v, dict) else v
+                return r if r else None  # 0 → None
 
             mcap = _raw(price_mod.get("marketCap"))
 
@@ -481,7 +482,7 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
 
         common = {
             "Nome": name, "Ticker": ticker, "Prezzo": round(price, 2),
-            "MarketCap":  market_cap,
+            "MarketCap":  market_cap if (market_cap and market_cap == market_cap and market_cap > 0) else float("nan"),
             "Vol_Today":  int(vol_today),
             "Vol_7d_Avg": int(vol_7d_avg),
             "Avg_Vol_20": int(avg_vol_20),
