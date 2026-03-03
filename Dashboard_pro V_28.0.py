@@ -383,14 +383,10 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                 line=dict(color="#58a6ff",width=1,dash="dot"),showlegend=False,name=n),row=1,col=1)
     if ema20: fig.add_trace(go.Scatter(x=dates,y=ema20,line=dict(color="#f59e0b",width=1.5),name="EMA20"),row=1,col=1)
     if ema50: fig.add_trace(go.Scatter(x=dates,y=ema50,line=dict(color="#a78bfa",width=1.5),name="EMA50"),row=1,col=1)
-    # EMA200 gialla calcolata live dai closes del chart_data (span adattivo se <200 barre)
-    if closes and len(closes) >= 5:
-        import pandas as _pd2
-        _span200 = min(200, len(closes))
-        _e200 = _pd2.Series(closes).ewm(span=_span200, adjust=False).mean().tolist()
-        # Sostituisci NaN iniziali con None per Plotly
-        _e200 = [v if not (isinstance(v,float) and v!=v) else None for v in _e200]
-        fig.add_trace(go.Scatter(x=dates,y=_e200,
+    # EMA200 gialla — letta dal chart_data (calcolata dallo scanner su 252 barre)
+    ema200=cd.get("ema200",[])
+    if ema200:
+        fig.add_trace(go.Scatter(x=dates,y=ema200,
             line=dict(color="#eab308",width=1.5,dash="dot"),name="EMA200"),row=1,col=1)
 
     if show_sma:
