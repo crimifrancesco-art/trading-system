@@ -48,8 +48,8 @@ def _get_session():
 _META_CACHE: dict = {}
 
 def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
-    """Chiama Yahoo Finance API v8 direttamente con requests.
-    Come effetto collaterale salva nome/currency/marketcap in _META_CACHE[ticker].
+    """Chiama Yahoo Finance API v8. Ritorna DataFrame OHLCV.
+    Come effetto collaterale salva meta in _META_CACHE[ticker].
     """
     sess = _get_session()
     if sess is None:
@@ -105,6 +105,30 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
 
     except Exception:
         return pd.DataFrame()
+
+
+def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
+    """Ritorna (DataFrame OHLCV, dict meta con name/currency/market_cap).
+    Meta viene estratto dalla risposta chart v8 — nessuna chiamata separata.
+    """
+    df = _yahoo_ohlcv(ticker, period=period, interval="1d")
+    meta = _META_CACHE.get(ticker, {
+        "name": ticker, "currency": "USD", "market_cap": float("nan")
+    })
+    # Se nome ancora uguale al ticker (API non ha risposto), prova yfinance info
+    if meta["name"] == ticker and _HAS_YF:
+        try:
+            info = yf.Ticker(ticker).info
+            name = info.get("longName") or info.get("shortName") or ticker
+            meta = {
+                "name":       str(name)[:50],
+                "currency":   str(info.get("currency","USD")),
+                "market_cap": float(info.get("marketCap", float("nan"))),
+            }
+            _META_CACHE[ticker] = meta
+        except Exception:
+            pass
+    return df, meta
 
 
 def _yahoo_info(ticker: str) -> dict:
@@ -278,7 +302,7 @@ def load_universe(markets: list) -> list:
 def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
                 r_poc: float, vol_ratio_hot: float = 1.5):
     try:
-        data = _download_ohlcv(ticker)
+        data, _meta = _download_ohlcv_meta(ticker)
         if data is None or data.empty or len(data) < 10:
             return None, None
 
@@ -286,10 +310,9 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
         price = float(c.iloc[-1])
         if price <= 0: return None, None
 
-        info       = _yahoo_info(ticker)
-        name       = info["name"]
-        currency   = info["currency"]
-        market_cap = info["market_cap"]
+        name       = _meta["name"]
+        currency   = _meta["currency"]
+        market_cap = _meta["market_cap"]
 
         vol_today  = float(v.iloc[-1]) if not v.empty else 0.0
         avg_vol_20 = float(v.rolling(20).mean().iloc[-1]) if len(v) >= 20 else float(v.mean())
