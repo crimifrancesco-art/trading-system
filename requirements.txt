@@ -2,8 +2,8 @@ streamlit
 pandas
 numpy
 plotly
-yahooquery
-yfinance
 requests
+yfinance
+yahooquery
 xlsxwriter
 streamlit-aggrid
