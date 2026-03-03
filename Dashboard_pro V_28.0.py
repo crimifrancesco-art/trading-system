@@ -836,118 +836,136 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # =========================================================================
 if not only_watchlist:
     if st.button("🚀 AVVIA SCANNER PRO 28.0",type="primary",use_container_width=True):
-        universe=load_universe(sel)
-        if not universe: st.warning("Seleziona almeno un mercato!")
+        universe = load_universe(sel)
+        if not universe:
+            st.warning("Seleziona almeno un mercato!")
         else:
             tot        = len(universe)
-            use_cache  = st.session_state.get("use_cache",True)
-            use_finviz = st.session_state.get("use_finviz",False)
-            n_wk       = st.session_state.get("n_workers",8)
+            use_cache  = st.session_state.get("use_cache", True)
+            use_finviz = st.session_state.get("use_finviz", False)
+            n_wk       = st.session_state.get("n_workers", 8)
 
-            import threading, time as _time, traceback as _tb
-
-            # ── DIAGNOSTICA PRE-SCAN: testa 1 ticker per vedere errori reali ─
-            diag = st.expander("🔬 Diagnostica pre-scan", expanded=True)
-            with diag:
-                st.write(f"Universe caricato: **{tot} ticker**")
-                st.write(f"Primi 5: `{universe[:5]}`")
-                _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
-                st.write(f"Test su `{_test_tkr}`...")
-                try:
-                    import requests as _req, json as _json
-                    _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                           "AppleWebKit/537.36 (KHTML, like Gecko) "
-                           "Chrome/120.0.0.0 Safari/537.36")
-                    _sess = _req.Session()
-                    _sess.headers.update({"User-Agent": _UA, "Accept": "application/json",
-                                          "Referer": "https://finance.yahoo.com/"})
-                    _url = f"https://query2.finance.yahoo.com/v8/finance/chart/{_test_tkr}"
-                    _r = _sess.get(_url, params={"interval":"1d","range":"1mo"}, timeout=20)
-                    if _r.status_code == 200:
-                        _res = _r.json().get("chart",{}).get("result",[])
-                        if _res and _res[0].get("timestamp"):
-                            _n = len(_res[0]["timestamp"])
-                            _px = _res[0]["indicators"]["adjclose"][0]["adjclose"][-1]
-                            st.success(f"✅ Yahoo API diretta OK — {_n} barre per `{_test_tkr}` | Prezzo: {_px:.2f}")
-                        else:
-                            st.error(f"❌ Yahoo API: risposta vuota per `{_test_tkr}`")
+            # ── Test connessione Yahoo Finance ────────────────────────────
+            import requests as _req
+            _conn_ok  = False
+            _test_tkr = next((t for t in universe if len(t) <= 5), universe[0])
+            _conn_box = st.empty()
+            try:
+                _s = _req.Session()
+                _s.headers.update({
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json",
+                    "Referer": "https://finance.yahoo.com/"
+                })
+                _r = _s.get(
+                    f"https://query2.finance.yahoo.com/v8/finance/chart/{_test_tkr}",
+                    params={"interval": "1d", "range": "5d"}, timeout=20
+                )
+                if _r.status_code == 200:
+                    _res = _r.json().get("chart", {}).get("result", [])
+                    if _res and _res[0].get("timestamp"):
+                        _conn_box.success(f"✅ Connessione Yahoo OK — ticker test: `{_test_tkr}`")
+                        _conn_ok = True
                     else:
-                        st.error(f"❌ Yahoo API HTTP {_r.status_code} per `{_test_tkr}`")
-                except Exception as _e:
-                    st.error(f"❌ Errore connessione: {_e}")
+                        _conn_box.error(f"❌ Yahoo Finance risposta vuota per `{_test_tkr}`")
+                else:
+                    _conn_box.error(f"❌ Yahoo Finance HTTP {_r.status_code}")
+            except Exception as _ce:
+                _conn_box.error(f"❌ Connessione fallita: {_ce}")
 
-            # ── Barra di avanzamento ──────────────────────────────────────────
-            st.markdown(f"**Avvio scansione: {tot} ticker**")
-            pb      = st.progress(0)
-            status  = st.empty()
-            status.info(f"⏳ Preparazione {tot} ticker in coda...")
+            if not _conn_ok:
+                st.warning("⚠️ Test connessione fallito. Lo scanner proverà comunque — "
+                           "potrebbe restituire 0 risultati se Yahoo Finance non è raggiungibile.")
 
-            _counter   = [0]
-            _last_tick = [0.0]
-            _lock      = threading.Lock()
-            _errors    = []
+            # ── Barra progressiva SEQUENZIALE (aggiornamento in tempo reale) ──
+            st.markdown(f"### 🔍 Scansione: **{tot}** ticker")
+            pb     = st.progress(0.0)
+            status = st.empty()
+            errors_box = st.empty()
+            found_box  = st.empty()
+
+            rep_live  = [0]   # contatore segnali trovati in tempo reale
+            rea_live  = [0]
 
             def _progress(done, total, tkr):
-                with _lock:
-                    _counter[0] = done
                 pct = done / total
                 pb.progress(pct)
-                now = _time.time()
-                if now - _last_tick[0] > 0.5 or done == total:
-                    _last_tick[0] = now
-                    tag = " ⚡cache" if use_cache else ""
-                    status.info(
-                        f"🔍 **{done} / {total}** — `{tkr}`{tag} — "
-                        f"{pct*100:.0f}% completato"
-                    )
+                n_ep  = rep_live[0]
+                n_rea = rea_live[0]
+                status.info(
+                    f"🔍 **{done} / {total}** "
+                    f"({pct*100:.0f}%) — `{tkr}`  "
+                    f"| 📡 EARLY/PRO: **{n_ep}** | 🔥 HOT: **{n_rea}**"
+                )
 
-            df_ep_new, df_rea_new, scan_stats = scan_universe(
-                universe, eh, prmin, prmax, rpoc, vol_ratio_hot,
-                cache_enabled=use_cache, finviz_enabled=use_finviz,
-                n_workers=n_wk, progress_callback=_progress
-            )
+            # Patch scan_universe per aggiornare contatori live
+            import utils.scanner as _sc_mod
+            _orig_scan = _sc_mod.scan_ticker
+            def _patched_scan(tkr, *a, **k):
+                ep, rea = _orig_scan(tkr, *a, **k)
+                if ep:  rep_live[0] += 1
+                if rea: rea_live[0] += 1
+                return ep, rea
+            _sc_mod.scan_ticker = _patched_scan
 
-            # ── Post-processing: normalizza con _enrich_df (globale) ────
+            try:
+                df_ep_new, df_rea_new, scan_stats = scan_universe(
+                    universe, eh, prmin, prmax, rpoc, vol_ratio_hot,
+                    cache_enabled=use_cache, finviz_enabled=use_finviz,
+                    n_workers=n_wk, progress_callback=_progress
+                )
+            finally:
+                _sc_mod.scan_ticker = _orig_scan  # ripristina
+
+            # ── Normalizza colonne ────────────────────────────────────────
             df_ep_new  = _enrich_df(df_ep_new)
             df_rea_new = _enrich_df(df_rea_new)
             pb.progress(1.0)
-            elapsed = scan_stats.get("elapsed_s",0)
-            hits    = scan_stats.get("cache_hits",0)
-            dl      = scan_stats.get("downloaded", tot)
-            n_err = scan_stats.get("n_errors", 0)
-            errs  = scan_stats.get("errors", [])
+
+            elapsed = scan_stats.get("elapsed_s", 0)
+            n_err   = scan_stats.get("n_errors", 0)
+            errs    = scan_stats.get("errors", [])
+
             status.success(
-                f"✅ Scansione completata in **{elapsed:.0f}s** — "
-                f"{len(df_ep_new)} segnali EP, {len(df_rea_new)} HOT "
-                f"| ⚡ {hits} cache | ☁️ {dl} scaricati "
-                f"| ⚠️ {n_err} errori"
+                f"✅ **{tot} ticker** in **{elapsed:.0f}s** — "
+                f"📡 **{len(df_ep_new)}** segnali EP | "
+                f"🔥 **{len(df_rea_new)}** HOT | "
+                f"⚠️ {n_err} errori"
             )
+
             if n_err > 0:
-                with st.expander(f"⚠️ {n_err} ticker con errori (primi 20)", expanded=True):
+                with st.expander(f"⚠️ {n_err} errori (espandi per dettagli)",
+                                  expanded=(len(df_ep_new) == 0)):
                     for _e in errs[:20]:
                         st.code(_e)
+
+            if df_ep_new.empty and df_rea_new.empty:
+                st.error(
+                    "🔴 **0 segnali trovati.** Cause possibili:\n"
+                    "1. Yahoo Finance irraggiungibile (prova tra 5 min)\n"
+                    "2. Parametri troppo restrittivi → usa Preset **'🔓 Nessun Filtro'**\n"
+                    f"3. {n_err} ticker con errori (vedi sopra)"
+                )
 
             st.session_state.df_ep     = df_ep_new
             st.session_state.df_rea    = df_rea_new
             st.session_state.last_scan = datetime.now().strftime("%H:%M:%S")
-            st.session_state.scan_stats= scan_stats
+            st.session_state.scan_stats = scan_stats
 
-            # save_scan_history: compatibile sia v27 (3 arg) che v28 (5 arg)
             try:
-                scan_id = save_scan_history(
-                    sel, df_ep_new, df_rea_new,
-                    elapsed_s  = elapsed,
-                    cache_hits = hits,
-                )
+                scan_id = save_scan_history(sel, df_ep_new, df_rea_new,
+                                             elapsed_s=elapsed, cache_hits=0)
             except TypeError:
                 scan_id = save_scan_history(sel, df_ep_new, df_rea_new)
             save_signals(scan_id, df_ep_new, df_rea_new, sel)
 
-            n_h=len(df_rea_new); n_c=0
+            n_h = len(df_rea_new)
+            n_c = 0
             if not df_ep_new.empty and "Stato_Early" in df_ep_new.columns:
-                n_c=int(((df_ep_new["Stato_Early"]=="EARLY")&(df_ep_new["Stato_Pro"]=="PRO")).sum())
-            if n_h>=5:  st.toast(f"🔥 {n_h} HOT!", icon="🔥")
-            if n_c>=3:  st.toast(f"⭐ {n_c} CONFLUENCE!", icon="⭐")
+                n_c = int(((df_ep_new["Stato_Early"]=="EARLY")&
+                            (df_ep_new["Stato_Pro"]=="PRO")).sum())
+            if n_h >= 5: st.toast(f"🔥 {n_h} HOT!", icon="🔥")
+            if n_c >= 3: st.toast(f"⭐ {n_c} CONFLUENCE!", icon="⭐")
             st.rerun()
 
 # ── Auto-load: se session_state è vuoto (refresh/reboot), ricarica l'ultima
