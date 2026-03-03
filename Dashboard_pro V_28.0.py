@@ -1016,6 +1016,11 @@ with st.expander("🔎 Diagnostica dati scanner",expanded=False):
         }
         st.write("**Conteggi segnali:**", _col_check)
         st.write("**Colonne disponibili:**", list(df_ep.columns))
+        # Debug MarketCap
+        if "MarketCap" in df_ep.columns:
+            _mc = df_ep[["Ticker","Nome","MarketCap","MarketCap_fmt"]].head(5) if "MarketCap_fmt" in df_ep.columns else df_ep[["Ticker","Nome","MarketCap"]].head(5)
+            st.caption("🔍 **Debug MarketCap** (primi 5):")
+            st.dataframe(_mc.astype(str), use_container_width=True)
     else:
         st.write("df_ep è vuoto.")
         _hist_diag = load_scan_history(3)
