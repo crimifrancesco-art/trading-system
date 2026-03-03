@@ -107,27 +107,86 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
         return pd.DataFrame()
 
 
+def _fetch_meta_v10(ticker: str) -> dict:
+    """Chiama Yahoo Finance v10/quoteSummary — ritorna nome, currency, marketcap.
+    Funziona per tutti i mercati inclusi europei (.MI, .PA, .L ecc.)
+    """
+    sess = _get_session()
+    if sess is None:
+        return {}
+    try:
+        url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+        resp = sess.get(url,
+            params={"modules": "assetProfile,summaryDetail,defaultKeyStatistics,price"},
+            timeout=15)
+        if resp.status_code != 200:
+            url2 = f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
+            resp = sess.get(url2,
+                params={"modules": "price"},
+                timeout=15)
+        if resp.status_code != 200:
+            return {}
+        data = resp.json().get("quoteSummary", {}).get("result", [])
+        if not data:
+            return {}
+        price_mod = data[0].get("price", {})
+        name = (price_mod.get("longName") or price_mod.get("shortName") or "")
+        curr = price_mod.get("currency", "USD") or "USD"
+        mcap_raw = price_mod.get("marketCap", {})
+        mcap = mcap_raw.get("raw") if isinstance(mcap_raw, dict) else mcap_raw
+        return {
+            "name":       str(name)[:50] if name else "",
+            "currency":   str(curr),
+            "market_cap": float(mcap) if mcap else float("nan"),
+        }
+    except Exception:
+        return {}
+
+
 def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
     """Ritorna (DataFrame OHLCV, dict meta con name/currency/market_cap).
-    Meta viene estratto dalla risposta chart v8 — nessuna chiamata separata.
+    Priorità: chart v8 meta → quoteSummary v10 → yfinance
     """
     df = _yahoo_ohlcv(ticker, period=period, interval="1d")
+
+    # Prendi quello che il chart v8 ha già messo in cache
     meta = _META_CACHE.get(ticker, {
         "name": ticker, "currency": "USD", "market_cap": float("nan")
     })
-    # Se nome ancora uguale al ticker (API non ha risposto), prova yfinance info
-    if meta["name"] == ticker and _HAS_YF:
+
+    _name_ok = meta.get("name","") and meta["name"] != ticker
+    _mcap_ok = meta.get("market_cap") and meta["market_cap"] == meta["market_cap"]  # not nan
+
+    # Se nome o marketcap mancano, chiama v10/quoteSummary
+    if not _name_ok or not _mcap_ok:
+        v10 = _fetch_meta_v10(ticker)
+        if v10:
+            if not _name_ok and v10.get("name"):
+                meta["name"] = v10["name"]
+            if not _mcap_ok and v10.get("market_cap"):
+                meta["market_cap"] = v10["market_cap"]
+            if v10.get("currency"):
+                meta["currency"] = v10["currency"]
+            _META_CACHE[ticker] = meta
+            _name_ok = bool(meta["name"] and meta["name"] != ticker)
+            _mcap_ok = meta["market_cap"] == meta["market_cap"]
+
+    # Ultimo fallback: yfinance
+    if (not _name_ok or not _mcap_ok) and _HAS_YF:
         try:
             info = yf.Ticker(ticker).info
-            name = info.get("longName") or info.get("shortName") or ticker
-            meta = {
-                "name":       str(name)[:50],
-                "currency":   str(info.get("currency","USD")),
-                "market_cap": float(info.get("marketCap", float("nan"))),
-            }
+            if not _name_ok:
+                name = info.get("longName") or info.get("shortName") or meta["name"]
+                meta["name"] = str(name)[:50]
+            if not _mcap_ok:
+                mcap = info.get("marketCap") or info.get("enterpriseValue")
+                meta["market_cap"] = float(mcap) if mcap else float("nan")
+            if info.get("currency"):
+                meta["currency"] = str(info["currency"])
             _META_CACHE[ticker] = meta
         except Exception:
             pass
+
     return df, meta
 
 
@@ -321,8 +380,9 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
 
         ema20    = float(c.ewm(span=20).mean().iloc[-1])
         ema50    = float(c.ewm(span=50).mean().iloc[-1])
-        sma200_s = c.rolling(200).mean()
-        ema200   = float(sma200_s.iloc[-1]) if len(sma200_s.dropna()) > 0 else None
+        # EMA200 con span adattivo — funziona anche con solo 126 barre (6 mesi)
+        _ema200_s = c.ewm(span=min(200, len(c)), adjust=False).mean()
+        ema200    = float(_ema200_s.iloc[-1]) if not _ema200_s.empty else None
 
         rsi_series    = calc_rsi(c)
         rsi_val       = float(rsi_series.iloc[-1])
