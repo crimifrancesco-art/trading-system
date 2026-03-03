@@ -44,8 +44,13 @@ def _get_session():
     return _SESSION
 
 
+# Cache meta globale: {ticker: {name, currency, market_cap}}
+_META_CACHE: dict = {}
+
 def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.DataFrame:
-    """Chiama Yahoo Finance API v8 direttamente con requests."""
+    """Chiama Yahoo Finance API v8 direttamente con requests.
+    Come effetto collaterale salva nome/currency/marketcap in _META_CACHE[ticker].
+    """
     sess = _get_session()
     if sess is None:
         return pd.DataFrame()
@@ -72,6 +77,17 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
         if not ts or not q:
             return pd.DataFrame()
 
+        # ── Estrai meta da chart response (sempre disponibile) ──────────
+        meta = r.get("meta", {})
+        _name = (meta.get("longName") or meta.get("shortName") or ticker)[:50]
+        _curr = meta.get("currency", "USD") or "USD"
+        _mcap = meta.get("regularMarketCap") or meta.get("marketCap")
+        _META_CACHE[ticker] = {
+            "name":       str(_name),
+            "currency":   str(_curr),
+            "market_cap": float(_mcap) if _mcap else float("nan"),
+        }
+
         closes = (adjc[0].get("adjclose") if adjc and adjc[0] else None) or q.get("close", [])
         opens  = q.get("open",   [None] * len(ts))
         highs  = q.get("high",   [None] * len(ts))
@@ -92,26 +108,14 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
 
 
 def _yahoo_info(ticker: str) -> dict:
-    """Metadati ticker via API Yahoo."""
-    sess = _get_session()
-    if sess is None:
-        return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
-    try:
-        resp = sess.get("https://query2.finance.yahoo.com/v7/finance/quote",
-                        params={"symbols": ticker,
-                                "fields": "longName,shortName,currency,marketCap"},
-                        timeout=12)
-        if resp.status_code == 200:
-            quotes = resp.json().get("quoteResponse", {}).get("result", [])
-            if quotes:
-                q = quotes[0]
-                return {
-                    "name":       str(q.get("longName", q.get("shortName", ticker)))[:50],
-                    "currency":   str(q.get("currency", "USD")),
-                    "market_cap": float(q.get("marketCap", float("nan"))),
-                }
-    except Exception:
-        pass
+    """Metadati ticker — usa _META_CACHE popolata da _yahoo_ohlcv (gratuito, nessuna chiamata extra)."""
+    # Prima controlla cache (popolata dalla chiamata chart già fatta)
+    if ticker in _META_CACHE:
+        return _META_CACHE[ticker]
+    # Fallback: prova API v8 chart con range minimo solo per i meta
+    df = _yahoo_ohlcv(ticker, period="5d", interval="1d")
+    if ticker in _META_CACHE:
+        return _META_CACHE[ticker]
     return {"name": ticker, "currency": "USD", "market_cap": float("nan")}
 
 
