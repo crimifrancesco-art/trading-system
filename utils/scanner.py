@@ -324,22 +324,31 @@ def scan_ticker(ticker: str, e_h: float, p_rmin: int, p_rmax: int,
         except Exception:
             pass
 
-        tail60    = data.tail(60).copy()
+        # Usa TUTTE le barre disponibili (max 252 = ~1 anno) per avere EMA200 significativa
+        n_bars    = min(len(data), 252)
+        tail_data = data.tail(n_bars).copy()
         ema20_ser = c.ewm(span=20).mean()
         ema50_ser = c.ewm(span=50).mean()
+        ema200_ser = c.ewm(span=200, adjust=False).mean()
         bb_up, _, bb_dn = calc_bollinger(c)
-        open_col = tail60["Open"] if "Open" in tail60.columns else tail60["Close"]
+        open_col = tail_data["Open"] if "Open" in tail_data.columns else tail_data["Close"]
+
+        def _safe(series, n):
+            vals = series.tail(n).tolist()
+            return [round(float(v), 2) if v == v else None for v in vals]
+
         chart_data = {
-            "dates":  tail60.index.strftime("%Y-%m-%d").tolist(),
-            "open":   [round(float(x), 2) for x in open_col],
-            "high":   [round(float(x), 2) for x in tail60["High"]],
-            "low":    [round(float(x), 2) for x in tail60["Low"]],
-            "close":  [round(float(x), 2) for x in tail60["Close"]],
-            "volume": [int(x)             for x in tail60["Volume"]],
-            "ema20":  [round(float(x), 2) for x in ema20_ser.tail(60)],
-            "ema50":  [round(float(x), 2) for x in ema50_ser.tail(60)],
-            "bb_up":  [round(float(x), 2) for x in bb_up.tail(60)],
-            "bb_dn":  [round(float(x), 2) for x in bb_dn.tail(60)],
+            "dates":  tail_data.index.strftime("%Y-%m-%d").tolist(),
+            "open":   _safe(open_col, n_bars),
+            "high":   _safe(tail_data["High"], n_bars),
+            "low":    _safe(tail_data["Low"],  n_bars),
+            "close":  _safe(tail_data["Close"], n_bars),
+            "volume": [int(x) for x in tail_data["Volume"]],
+            "ema20":  _safe(ema20_ser,  n_bars),
+            "ema50":  _safe(ema50_ser,  n_bars),
+            "ema200": _safe(ema200_ser, n_bars),
+            "bb_up":  _safe(bb_up,     n_bars),
+            "bb_dn":  _safe(bb_dn,     n_bars),
         }
 
         dist_ema    = abs(price - ema20) / ema20
