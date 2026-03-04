@@ -86,8 +86,7 @@ except ImportError as _bt_ie:
     _HAS_BACKTEST = False
     def render_backtest_tab():
         st.warning(f"⚠️ backtest_tab.py non trovato: {_bt_ie}")
-        st.info("Carica `utils/backtest_tab.py` nel repo e fai redeploy.")
-
+        st.info("Carica utils/backtest_tab.py nel repo e fai redeploy.")
 # =========================================================================
 # ENRICH: normalizza e arricchisce DataFrame dallo scanner
 # Compatibile con scanner v22 (repo) e v28 (aggiornato)
@@ -354,20 +353,23 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     highs=cd.get("high",[]); lows=cd.get("low",[])
     closes=cd.get("close",[]); vols=cd.get("volume",[])
     ema20=cd.get("ema20",[]); ema50=cd.get("ema50",[])
+    ema200=cd.get("ema200",[])
     bb_up=cd.get("bb_up",[]); bb_dn=cd.get("bb_dn",[])
     if not dates or not closes: return None
 
     show_sma=("SMA 9 & 21 + RSI" in indicators)
     show_macd=("MACD" in indicators)
     show_sar=("Parabolic SAR" in indicators)
+    show_alligator=("Alligator + Vortex" in indicators)
 
-    cur=2; row_rsi=None; row_macd=None
-    if show_sma:  row_rsi=cur;  cur+=1
-    if show_macd: row_macd=cur; cur+=1
+    cur=2; row_rsi=None; row_macd=None; row_vortex=None
+    if show_sma:        row_rsi=cur;    cur+=1
+    if show_macd:       row_macd=cur;   cur+=1
+    if show_alligator:  row_vortex=cur; cur+=1
     row_vol=cur; n_rows=cur
 
-    ht={2:[0.65,0.15],3:[0.52,0.18,0.13],4:[0.44,0.17,0.17,0.13]}
-    heights=ht.get(n_rows,[0.38,0.15,0.15,0.17,0.13])[:n_rows]
+    ht={2:[0.65,0.15],3:[0.52,0.18,0.13],4:[0.44,0.17,0.15,0.12],5:[0.38,0.15,0.15,0.12,0.10]}
+    heights=ht.get(n_rows,[0.38,0.15,0.15,0.12,0.10])[:n_rows]
     s=sum(heights); heights=[h/s for h in heights]
 
     fig=make_subplots(rows=n_rows,cols=1,shared_xaxes=True,
@@ -385,8 +387,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                 line=dict(color="#58a6ff",width=1,dash="dot"),showlegend=False,name=n),row=1,col=1)
     if ema20: fig.add_trace(go.Scatter(x=dates,y=ema20,line=dict(color="#f59e0b",width=1.5),name="EMA20"),row=1,col=1)
     if ema50: fig.add_trace(go.Scatter(x=dates,y=ema50,line=dict(color="#a78bfa",width=1.5),name="EMA50"),row=1,col=1)
-    # EMA200 gialla — letta dal chart_data (calcolata dallo scanner su 252 barre)
-    ema200=cd.get("ema200",[])
+    # EMA200 gialla — già letta nell'header da chart_data
     if ema200:
         fig.add_trace(go.Scatter(x=dates,y=ema200,
             line=dict(color="#eab308",width=1.5,dash="dot"),name="EMA200"),row=1,col=1)
@@ -432,6 +433,42 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
         fig.add_hline(y=0,line=dict(color="#6b7280",width=1,dash="dot"),row=row_macd,col=1)
         fig.update_yaxes(title_text="MACD",tickfont=dict(size=9),row=row_macd,col=1)
 
+    # ── Alligator (Jaw/Teeth/Lips) + Vortex (+VI/-VI) ─────────────────────
+    if show_alligator and row_vortex:
+        # Alligator: Jaw=SMA13, Teeth=SMA8, Lips=SMA5 (Williams)
+        _jaw   = _sma(closes, 13)
+        _teeth = _sma(closes, 8)
+        _lips  = _sma(closes, 5)
+        fig.add_trace(go.Scatter(x=dates,y=_jaw,
+            line=dict(color="#3b82f6",width=1.5),name="Jaw(13)"),row=1,col=1)
+        fig.add_trace(go.Scatter(x=dates,y=_teeth,
+            line=dict(color="#ef4444",width=1.5),name="Teeth(8)"),row=1,col=1)
+        fig.add_trace(go.Scatter(x=dates,y=_lips,
+            line=dict(color="#22c55e",width=1.5),name="Lips(5)"),row=1,col=1)
+        # Vortex Indicator (+VI/-VI) su pannello separato
+        import numpy as _np2
+        def _vortex(highs_l, lows_l, closes_l, period=14):
+            n = len(highs_l)
+            if n < period+1: return [None]*n, [None]*n
+            h=_np2.array(highs_l,dtype=float); l=_np2.array(lows_l,dtype=float)
+            c=_np2.array(closes_l,dtype=float)
+            tr  = _np2.maximum(h[1:]-l[1:], _np2.maximum(_np2.abs(h[1:]-c[:-1]),_np2.abs(l[1:]-c[:-1])))
+            vm_pos = _np2.abs(h[1:]-l[:-1])
+            vm_neg = _np2.abs(l[1:]-h[:-1])
+            vi_pos=[None]*period; vi_neg=[None]*period
+            for i in range(period, n):
+                s=i-period
+                vi_pos.append(vm_pos[s:i].sum()/tr[s:i].sum() if tr[s:i].sum()>0 else 1.0)
+                vi_neg.append(vm_neg[s:i].sum()/tr[s:i].sum() if tr[s:i].sum()>0 else 1.0)
+            return vi_pos, vi_neg
+        _vp, _vn = _vortex(highs, lows, closes)
+        fig.add_trace(go.Scatter(x=dates,y=_vp,
+            line=dict(color="#3b82f6",width=1.5),name="+VI"),row=row_vortex,col=1)
+        fig.add_trace(go.Scatter(x=dates,y=_vn,
+            line=dict(color="#ef4444",width=1.5),name="-VI"),row=row_vortex,col=1)
+        fig.add_hline(y=1.0,line=dict(color="#6b7280",width=1,dash="dot"),row=row_vortex,col=1)
+        fig.update_yaxes(title_text="Vortex",tickfont=dict(size=8),row=row_vortex,col=1)
+
     if vols:
         fig.add_trace(go.Bar(x=dates,y=vols,
             marker_color=["rgba(0,255,136,0.4)" if c>=o else "rgba(239,68,68,0.4)" for c,o in zip(closes,opens)],
@@ -471,7 +508,7 @@ def build_radar(row: pd.Series) -> go.Figure:
 def show_charts(row_full: pd.Series, key_suffix: str=""):
     tkr=row_full.get("Ticker","")
     st.markdown("---")
-    ind_opts=["SMA 9 & 21 + RSI","MACD","Parabolic SAR"]
+    ind_opts=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"]
     c1,c2=st.columns([4,1])
     with c1:
         indicators=st.multiselect("🔧 Indicatori",options=ind_opts,
@@ -664,7 +701,7 @@ defaults=dict(
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
     min_early_score=2.0,min_quality=3,min_pro_score=2.0,
     current_list_name="DEFAULT",last_active_tab="EARLY",
-    active_indicators=["SMA 9 & 21 + RSI","MACD","Parabolic SAR"],
+    active_indicators=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"],
     wl_view_mode="cards",
 )
 for k,v in defaults.items():
@@ -741,7 +778,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
     st.session_state.min_pro_score  =min_pro_score
 
 with st.sidebar.expander("📊 Indicatori Grafici",expanded=False):
-    ind_opts_all=["SMA 9 & 21 + RSI","MACD","Parabolic SAR"]
+    ind_opts_all=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"]
     ai=st.multiselect("Attivi",options=ind_opts_all,
         default=[x for x in st.session_state.active_indicators if x in ind_opts_all],
         key="global_indicators")
