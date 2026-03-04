@@ -5,7 +5,33 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-DB_PATH = Path("watchlist.db")
+# Path persistente: usa la home dell'utente se disponibile (Streamlit Cloud),
+# altrimenti cartella locale al modulo
+_HERE = Path(__file__).parent  # utils/
+_HOME_DB = Path.home() / ".streamlit_trading_scanner" / "watchlist.db"
+_LOCAL_DB = _HERE / "watchlist.db"
+
+def _get_db_path() -> Path:
+    """Ritorna path DB persistente. Priorità: home > locale."""
+    # Prova cartella home (persiste tra restart su Streamlit Cloud)
+    try:
+        _HOME_DB.parent.mkdir(parents=True, exist_ok=True)
+        # Test scrittura
+        test = _HOME_DB.parent / ".write_test"
+        test.write_text("ok"); test.unlink()
+        return _HOME_DB
+    except Exception:
+        pass
+    # Fallback: stessa cartella di db.py
+    try:
+        _HERE.mkdir(parents=True, exist_ok=True)
+        return _LOCAL_DB
+    except Exception:
+        pass
+    # Ultimo fallback: /tmp (non persiste tra restart)
+    return Path("/tmp/watchlist.db")
+
+DB_PATH = _get_db_path()
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
