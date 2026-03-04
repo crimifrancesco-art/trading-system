@@ -107,56 +107,59 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
         return pd.DataFrame()
 
 
+def _raw_val(v):
+    """Estrai valore numerico da {raw, fmt} o numero diretto. 0 → None."""
+    r = v.get("raw") if isinstance(v, dict) else v
+    return r if r else None
+
 def _fetch_meta_v10(ticker: str) -> dict:
-    """Yahoo Finance v10/quoteSummary — nome, currency, marketcap.
-    Tenta price + defaultKeyStatistics (shares * price = mcap se mcap mancante).
-    """
+    """Nome, currency, marketcap via v10/v6 quoteSummary + yfinance fast_info."""
     sess = _get_session()
     if sess is None:
         return {}
     for host in ["query2", "query1"]:
+        for ver, mods in [("v10", "price,defaultKeyStatistics"),
+                          ("v6",  "price,defaultKeyStatistics")]:
+            try:
+                url  = f"https://{host}.finance.yahoo.com/{ver}/finance/quoteSummary/{ticker}"
+                resp = sess.get(url, params={"modules": mods}, timeout=12)
+                if resp.status_code != 200:
+                    continue
+                result = resp.json().get("quoteSummary", {}).get("result", [])
+                if not result:
+                    continue
+                d         = result[0]
+                price_mod = d.get("price", {})
+                stats_mod = d.get("defaultKeyStatistics", {})
+                name = price_mod.get("longName") or price_mod.get("shortName") or ""
+                curr = price_mod.get("currency") or "USD"
+                mcap = _raw_val(price_mod.get("marketCap"))
+                if not mcap:
+                    shares    = _raw_val(stats_mod.get("sharesOutstanding"))
+                    reg_price = _raw_val(price_mod.get("regularMarketPrice"))
+                    if shares and reg_price:
+                        mcap = float(shares) * float(reg_price)
+                if name or mcap:
+                    return {
+                        "name":       str(name)[:50] if name else "",
+                        "currency":   str(curr),
+                        "market_cap": float(mcap) if (mcap and mcap == mcap) else float("nan"),
+                    }
+            except Exception:
+                continue
+    if _HAS_YF:
         try:
-            url  = f"https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{ticker}"
-            resp = sess.get(url,
-                params={"modules": "price,defaultKeyStatistics,summaryDetail"},
-                timeout=15)
-            if resp.status_code != 200:
-                continue
-            result = resp.json().get("quoteSummary", {}).get("result", [])
-            if not result:
-                continue
-            d         = result[0]
-            price_mod = d.get("price", {})
-            stats_mod = d.get("defaultKeyStatistics", {})
-            summ_mod  = d.get("summaryDetail", {})
-
-            name = price_mod.get("longName") or price_mod.get("shortName") or ""
-            curr = price_mod.get("currency", "USD") or "USD"
-
-            # marketCap può essere dict {raw, fmt} o numero diretto
-            def _raw(v):
-                r = v.get("raw") if isinstance(v, dict) else v
-                return r if r else None  # 0 → None
-
-            mcap = _raw(price_mod.get("marketCap"))
-
-            # Fallback: shares * price
-            if not mcap or mcap != mcap:
-                shares = _raw(stats_mod.get("sharesOutstanding")) or                          _raw(summ_mod.get("sharesOutstanding"))
-                reg_price = _raw(price_mod.get("regularMarketPrice"))
-                if shares and reg_price:
-                    mcap = float(shares) * float(reg_price)
-
+            fi = yf.Ticker(ticker).fast_info
+            mcap = getattr(fi, "market_cap", None) or getattr(fi, "marketCap", None)
+            curr = getattr(fi, "currency", "USD") or "USD"
             return {
-                "name":       str(name)[:50] if name else "",
+                "name":       "",
                 "currency":   str(curr),
-                "market_cap": float(mcap) if (mcap and mcap == mcap) else float("nan"),
+                "market_cap": float(mcap) if (mcap and mcap == mcap and mcap > 0) else float("nan"),
             }
         except Exception:
-            continue
+            pass
     return {}
-
-
 def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
     """Ritorna (DataFrame OHLCV, dict meta con name/currency/market_cap).
     Priorità: chart v8 meta → quoteSummary v10 → yfinance
