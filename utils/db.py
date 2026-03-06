@@ -71,6 +71,8 @@ def init_db():
         try:
             c.execute(f"ALTER TABLE scan_history ADD COLUMN {col_def}")
         except sqlite3.OperationalError: pass
+    # Crea tabella signals per backtest
+    _ensure_signals_table(conn)
     conn.commit()
     conn.close()
 
@@ -79,7 +81,169 @@ def reset_watchlist_db():
     conn.execute("DROP TABLE IF EXISTS watchlist")
     conn.commit()
     conn.close()
-    init_db()
+    
+def _ensure_signals_table(conn):
+    """Crea tabella signals se non esiste."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id     INTEGER,
+            scanned_at  TEXT NOT NULL,
+            ticker      TEXT NOT NULL,
+            signal_type TEXT,
+            prezzo      REAL,
+            markets     TEXT,
+            ret_1d      REAL,
+            ret_5d      REAL,
+            ret_10d     REAL,
+            ret_20d     REAL,
+            updated_at  TEXT
+        )
+    """)
+    conn.commit()
+
+
+def save_signals(scan_id: int, df_ep: pd.DataFrame,
+                 df_rea: pd.DataFrame, markets: list):
+    """Salva segnali EP e REA nella tabella signals."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        mkt = json.dumps(markets) if markets else "[]"
+        rows = []
+        for df, stype_col, default_type in [
+            (df_ep,  "Stato_Early", "EARLY"),
+            (df_rea, "Stato",       "HOT"),
+        ]:
+            if df is None or df.empty: continue
+            for _, row in df.iterrows():
+                ticker = str(row.get("Ticker", ""))
+                if not ticker: continue
+                stype = str(row.get(stype_col, default_type))
+                if stype == "-" or not stype:
+                    stype = default_type
+                prezzo = float(row.get("Prezzo", 0) or 0)
+                rows.append((scan_id, now, ticker, stype, prezzo, mkt))
+        if rows:
+            conn.executemany(
+                "INSERT INTO signals (scan_id,scanned_at,ticker,signal_type,"
+                "prezzo,markets) VALUES (?,?,?,?,?,?)",
+                rows
+            )
+            conn.commit()
+        conn.close()
+    except Exception:
+        import traceback; traceback.print_exc()
+
+
+def load_signals(signal_type: str = None, days_back: int = 90,
+                 with_perf: bool = True) -> pd.DataFrame:
+    """Carica segnali dal DB, opzionalmente filtrati per tipo e periodo."""
+    if not DB_PATH.exists():
+        return pd.DataFrame()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        where = []
+        params = []
+        if signal_type and signal_type != "Tutti":
+            where.append("signal_type = ?"); params.append(signal_type)
+        if days_back:
+            where.append("scanned_at >= datetime('now', ?)")
+            params.append(f"-{days_back} days")
+        sql = "SELECT * FROM signals"
+        if where: sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY scanned_at DESC"
+        df = pd.read_sql_query(sql, conn, params=params)
+        conn.close()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def signal_summary_stats(days_back: int = 90) -> pd.DataFrame:
+    """Statistiche aggregate: win rate e avg return per tipo segnale."""
+    df = load_signals(days_back=days_back, with_perf=True)
+    if df.empty:
+        return pd.DataFrame()
+    rows = []
+    for stype, grp in df.groupby("signal_type"):
+        n = len(grp)
+        for col, label in [("ret_1d","1g"),("ret_5d","5g"),
+                           ("ret_10d","10g"),("ret_20d","20g")]:
+            if col not in grp.columns: continue
+            vals = grp[col].dropna()
+            if vals.empty: continue
+            rows.append({
+                "Tipo": stype, "Periodo": label, "N": n,
+                "Win%":  round((vals > 0).mean() * 100, 1),
+                "Avg%":  round(vals.mean(), 2),
+                "Med%":  round(vals.median(), 2),
+                "Max%":  round(vals.max(), 2),
+                "Min%":  round(vals.min(), 2),
+            })
+    return pd.DataFrame(rows)
+
+
+def update_signal_performance(max_signals: int = 300) -> int:
+    """Aggiorna prezzi forward +1/5/10/20g per segnali senza performance."""
+    if not DB_PATH.exists():
+        return 0
+    try:
+        import yfinance as _yf
+    except ImportError:
+        return 0
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        # Carica segnali senza performance completa
+        df = pd.read_sql_query(
+            "SELECT * FROM signals WHERE ret_20d IS NULL "
+            "ORDER BY scanned_at DESC LIMIT ?",
+            conn, params=(max_signals,)
+        )
+        if df.empty:
+            conn.close(); return 0
+
+        updated = 0
+        for _, row in df.iterrows():
+            try:
+                tkr  = row["ticker"]
+                date = pd.to_datetime(row["scanned_at"])
+                p0   = float(row["prezzo"] or 0)
+                if p0 <= 0: continue
+
+                hist = _yf.Ticker(tkr).history(
+                    start=date.strftime("%Y-%m-%d"),
+                    end=(date + pd.Timedelta(days=30)).strftime("%Y-%m-%d"),
+                    progress=False, auto_adjust=True
+                )
+                if hist.empty: continue
+                closes = hist["Close"].dropna()
+                if len(closes) < 2: continue
+
+                def _ret(n):
+                    idx = min(n, len(closes)-1)
+                    return round((float(closes.iloc[idx]) / p0 - 1) * 100, 2)
+
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                conn.execute(
+                    "UPDATE signals SET ret_1d=?,ret_5d=?,ret_10d=?,ret_20d=?,"
+                    "updated_at=? WHERE id=?",
+                    (_ret(1),_ret(5),_ret(10),_ret(20), now, int(row["id"]))
+                )
+                updated += 1
+            except Exception:
+                continue
+        conn.commit()
+        conn.close()
+        return updated
+    except Exception:
+        import traceback; traceback.print_exc()
+        return 0
+
+init_db()
 
 def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
     if not tickers: return
@@ -196,5 +360,166 @@ def save_signals(scan_id, df_ep, df_rea, markets): pass
 def cache_stats(): return {"fresh": 0, "stale": 0, "size_mb": 0, "total_entries": 0}
 def cache_clear(*a, **k): pass
 
-init_db()
 
+def _ensure_signals_table(conn):
+    """Crea tabella signals se non esiste."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS signals (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id     INTEGER,
+            scanned_at  TEXT NOT NULL,
+            ticker      TEXT NOT NULL,
+            signal_type TEXT,
+            prezzo      REAL,
+            markets     TEXT,
+            ret_1d      REAL,
+            ret_5d      REAL,
+            ret_10d     REAL,
+            ret_20d     REAL,
+            updated_at  TEXT
+        )
+    """)
+    conn.commit()
+
+
+def save_signals(scan_id: int, df_ep: pd.DataFrame,
+                 df_rea: pd.DataFrame, markets: list):
+    """Salva segnali EP e REA nella tabella signals."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        mkt = json.dumps(markets) if markets else "[]"
+        rows = []
+        for df, stype_col, default_type in [
+            (df_ep,  "Stato_Early", "EARLY"),
+            (df_rea, "Stato",       "HOT"),
+        ]:
+            if df is None or df.empty: continue
+            for _, row in df.iterrows():
+                ticker = str(row.get("Ticker", ""))
+                if not ticker: continue
+                stype = str(row.get(stype_col, default_type))
+                if stype == "-" or not stype:
+                    stype = default_type
+                prezzo = float(row.get("Prezzo", 0) or 0)
+                rows.append((scan_id, now, ticker, stype, prezzo, mkt))
+        if rows:
+            conn.executemany(
+                "INSERT INTO signals (scan_id,scanned_at,ticker,signal_type,"
+                "prezzo,markets) VALUES (?,?,?,?,?,?)",
+                rows
+            )
+            conn.commit()
+        conn.close()
+    except Exception:
+        import traceback; traceback.print_exc()
+
+
+def load_signals(signal_type: str = None, days_back: int = 90,
+                 with_perf: bool = True) -> pd.DataFrame:
+    """Carica segnali dal DB, opzionalmente filtrati per tipo e periodo."""
+    if not DB_PATH.exists():
+        return pd.DataFrame()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        where = []
+        params = []
+        if signal_type and signal_type != "Tutti":
+            where.append("signal_type = ?"); params.append(signal_type)
+        if days_back:
+            where.append("scanned_at >= datetime('now', ?)")
+            params.append(f"-{days_back} days")
+        sql = "SELECT * FROM signals"
+        if where: sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY scanned_at DESC"
+        df = pd.read_sql_query(sql, conn, params=params)
+        conn.close()
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def signal_summary_stats(days_back: int = 90) -> pd.DataFrame:
+    """Statistiche aggregate: win rate e avg return per tipo segnale."""
+    df = load_signals(days_back=days_back, with_perf=True)
+    if df.empty:
+        return pd.DataFrame()
+    rows = []
+    for stype, grp in df.groupby("signal_type"):
+        n = len(grp)
+        for col, label in [("ret_1d","1g"),("ret_5d","5g"),
+                           ("ret_10d","10g"),("ret_20d","20g")]:
+            if col not in grp.columns: continue
+            vals = grp[col].dropna()
+            if vals.empty: continue
+            rows.append({
+                "Tipo": stype, "Periodo": label, "N": n,
+                "Win%":  round((vals > 0).mean() * 100, 1),
+                "Avg%":  round(vals.mean(), 2),
+                "Med%":  round(vals.median(), 2),
+                "Max%":  round(vals.max(), 2),
+                "Min%":  round(vals.min(), 2),
+            })
+    return pd.DataFrame(rows)
+
+
+def update_signal_performance(max_signals: int = 300) -> int:
+    """Aggiorna prezzi forward +1/5/10/20g per segnali senza performance."""
+    if not DB_PATH.exists():
+        return 0
+    try:
+        import yfinance as _yf
+    except ImportError:
+        return 0
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        _ensure_signals_table(conn)
+        # Carica segnali senza performance completa
+        df = pd.read_sql_query(
+            "SELECT * FROM signals WHERE ret_20d IS NULL "
+            "ORDER BY scanned_at DESC LIMIT ?",
+            conn, params=(max_signals,)
+        )
+        if df.empty:
+            conn.close(); return 0
+
+        updated = 0
+        for _, row in df.iterrows():
+            try:
+                tkr  = row["ticker"]
+                date = pd.to_datetime(row["scanned_at"])
+                p0   = float(row["prezzo"] or 0)
+                if p0 <= 0: continue
+
+                hist = _yf.Ticker(tkr).history(
+                    start=date.strftime("%Y-%m-%d"),
+                    end=(date + pd.Timedelta(days=30)).strftime("%Y-%m-%d"),
+                    progress=False, auto_adjust=True
+                )
+                if hist.empty: continue
+                closes = hist["Close"].dropna()
+                if len(closes) < 2: continue
+
+                def _ret(n):
+                    idx = min(n, len(closes)-1)
+                    return round((float(closes.iloc[idx]) / p0 - 1) * 100, 2)
+
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                conn.execute(
+                    "UPDATE signals SET ret_1d=?,ret_5d=?,ret_10d=?,ret_20d=?,"
+                    "updated_at=? WHERE id=?",
+                    (_ret(1),_ret(5),_ret(10),_ret(20), now, int(row["id"]))
+                )
+                updated += 1
+            except Exception:
+                continue
+        conn.commit()
+        conn.close()
+        return updated
+    except Exception:
+        import traceback; traceback.print_exc()
+        return 0
+
+init_db()
