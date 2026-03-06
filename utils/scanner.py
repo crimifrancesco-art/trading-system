@@ -36,11 +36,30 @@ _HEADERS = {
 # Session globale — riusa connessioni HTTP, più veloce e meno blocchi
 _SESSION = None
 
+_CRUMB: str = ""
+
+def _init_crumb(sess) -> str:
+    """Ottieni crumb Yahoo Finance — necessario per API autenticate."""
+    global _CRUMB
+    if _CRUMB:
+        return _CRUMB
+    try:
+        # Step 1: visita la homepage per ottenere cookie
+        sess.get("https://finance.yahoo.com", timeout=10)
+        # Step 2: ottieni crumb
+        r = sess.get("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=10)
+        if r.status_code == 200 and r.text and r.text != "":
+            _CRUMB = r.text.strip()
+    except Exception:
+        pass
+    return _CRUMB
+
 def _get_session():
     global _SESSION
     if _SESSION is None and _HAS_REQ:
         _SESSION = _req.Session()
         _SESSION.headers.update(_HEADERS)
+        _init_crumb(_SESSION)
     return _SESSION
 
 
@@ -57,8 +76,10 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
     try:
         for host in ["query2", "query1"]:
             url = f"https://{host}.finance.yahoo.com/v8/finance/chart/{ticker}"
-            resp = sess.get(url, params={"interval": interval, "range": period,
-                                         "includePrePost": "false"}, timeout=25)
+            chart_params = {"interval": interval, "range": period, "includePrePost": "false"}
+            if _CRUMB:
+                chart_params["crumb"] = _CRUMB
+            resp = sess.get(url, params=chart_params, timeout=25)
             if resp.status_code == 200:
                 break
         else:
@@ -138,9 +159,10 @@ def _fetch_meta_v10(ticker: str) -> dict:
         for ver in ["v10", "v6"]:
             try:
                 url  = f"https://{host}.finance.yahoo.com/{ver}/finance/quoteSummary/{ticker}"
-                resp = sess.get(url,
-                    params={"modules": "price,defaultKeyStatistics"},
-                    timeout=10)
+                params_v = {"modules": "price,defaultKeyStatistics"}
+                if _CRUMB:
+                    params_v["crumb"] = _CRUMB
+                resp = sess.get(url, params=params_v, timeout=10)
                 if resp.status_code != 200:
                     continue
                 result = resp.json().get("quoteSummary", {}).get("result", [])
