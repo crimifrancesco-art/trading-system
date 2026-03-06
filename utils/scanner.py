@@ -108,21 +108,39 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
 
 
 def _raw_val(v):
-    """Estrai valore numerico da {raw, fmt} o numero diretto. 0 → None."""
+    """Estrai valore numerico da {raw, fmt} o numero diretto. 0/None → None."""
     r = v.get("raw") if isinstance(v, dict) else v
     return r if r else None
 
+
 def _fetch_meta_v10(ticker: str) -> dict:
-    """Nome, currency, marketcap via v10/v6 quoteSummary + yfinance fast_info."""
+    """MarketCap e metadati via yfinance fast_info (primary) + quoteSummary (fallback)."""
+    # ── 1. yfinance fast_info: usa internamente API v8 chart, molto affidabile ──
+    if _HAS_YF:
+        try:
+            fi   = yf.Ticker(ticker).fast_info
+            mcap = getattr(fi, "market_cap", None)
+            curr = getattr(fi, "currency", "USD") or "USD"
+            if mcap and mcap > 0:
+                return {
+                    "name":       "",           # fast_info non ha longName
+                    "currency":   str(curr),
+                    "market_cap": float(mcap),
+                }
+        except Exception:
+            pass
+
+    # ── 2. Fallback: v10/quoteSummary (può essere bloccato su Streamlit Cloud) ──
     sess = _get_session()
     if sess is None:
         return {}
     for host in ["query2", "query1"]:
-        for ver, mods in [("v10", "price,defaultKeyStatistics"),
-                          ("v6",  "price,defaultKeyStatistics")]:
+        for ver in ["v10", "v6"]:
             try:
                 url  = f"https://{host}.finance.yahoo.com/{ver}/finance/quoteSummary/{ticker}"
-                resp = sess.get(url, params={"modules": mods}, timeout=12)
+                resp = sess.get(url,
+                    params={"modules": "price,defaultKeyStatistics"},
+                    timeout=10)
                 if resp.status_code != 200:
                     continue
                 result = resp.json().get("quoteSummary", {}).get("result", [])
@@ -139,26 +157,14 @@ def _fetch_meta_v10(ticker: str) -> dict:
                     reg_price = _raw_val(price_mod.get("regularMarketPrice"))
                     if shares and reg_price:
                         mcap = float(shares) * float(reg_price)
-                if name or mcap:
+                if mcap and mcap > 0:
                     return {
                         "name":       str(name)[:50] if name else "",
                         "currency":   str(curr),
-                        "market_cap": float(mcap) if (mcap and mcap == mcap) else float("nan"),
+                        "market_cap": float(mcap),
                     }
             except Exception:
                 continue
-    if _HAS_YF:
-        try:
-            fi = yf.Ticker(ticker).fast_info
-            mcap = getattr(fi, "market_cap", None) or getattr(fi, "marketCap", None)
-            curr = getattr(fi, "currency", "USD") or "USD"
-            return {
-                "name":       "",
-                "currency":   str(curr),
-                "market_cap": float(mcap) if (mcap and mcap == mcap and mcap > 0) else float("nan"),
-            }
-        except Exception:
-            pass
     return {}
 def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
     """Ritorna (DataFrame OHLCV, dict meta con name/currency/market_cap).
@@ -172,7 +178,8 @@ def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
     })
 
     _name_ok = meta.get("name","") and meta["name"] != ticker
-    _mcap_ok = meta.get("market_cap") and meta["market_cap"] == meta["market_cap"]  # not nan
+    _mcap_v  = meta.get("market_cap", float("nan"))
+    _mcap_ok = (isinstance(_mcap_v, float) and _mcap_v == _mcap_v and _mcap_v > 0)
 
     # Se nome o marketcap mancano, chiama v10/quoteSummary
     if not _name_ok or not _mcap_ok:
@@ -180,7 +187,7 @@ def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
         if v10:
             if not _name_ok and v10.get("name"):
                 meta["name"] = v10["name"]
-            if not _mcap_ok and v10.get("market_cap"):
+            if not _mcap_ok and v10.get("market_cap") and float(v10["market_cap"]) > 0:
                 meta["market_cap"] = v10["market_cap"]
             if v10.get("currency"):
                 meta["currency"] = v10["currency"]
@@ -567,4 +574,3 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
         "errors":     _SCAN_ERRORS[:20],
         "n_errors":   len(_SCAN_ERRORS),
     }
-
