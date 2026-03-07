@@ -134,6 +134,45 @@ def _raw_val(v):
     return r if r else None
 
 
+def fetch_bulk_meta(tickers: list) -> dict:
+    """Yahoo Finance /v7/finance/quote — nome+currency+marketCap per tutti i ticker.
+    Una sola chiamata HTTP per batch. Molto più affidabile di v10/quoteSummary.
+    """
+    if not tickers:
+        return {}
+    sess = _get_session()
+    if sess is None:
+        return {}
+    result = {}
+    for i in range(0, len(tickers), 80):
+        batch = tickers[i:i+80]
+        for host in ["query2", "query1"]:
+            try:
+                params = {"symbols": ",".join(batch),
+                          "fields": "longName,shortName,currency,marketCap,regularMarketPrice"}
+                if _CRUMB:
+                    params["crumb"] = _CRUMB
+                resp = sess.get(f"https://{host}.finance.yahoo.com/v7/finance/quote",
+                                params=params, timeout=20)
+                if resp.status_code != 200:
+                    continue
+                for q in resp.json().get("quoteResponse", {}).get("result", []):
+                    tkr  = q.get("symbol", "")
+                    if not tkr:
+                        continue
+                    name = q.get("longName") or q.get("shortName") or tkr
+                    mcap = q.get("marketCap") or 0
+                    result[tkr] = {
+                        "name":       str(name)[:50],
+                        "currency":   str(q.get("currency", "USD") or "USD"),
+                        "market_cap": float(mcap) if mcap and mcap > 0 else float("nan"),
+                    }
+                break
+            except Exception:
+                continue
+    return result
+
+
 def _fetch_meta_v10(ticker: str) -> dict:
     """MarketCap e metadati via yfinance fast_info (primary) + quoteSummary (fallback)."""
     # ── 1. yfinance fast_info: usa internamente API v8 chart, molto affidabile ──
@@ -569,7 +608,20 @@ def scan_universe(universe: list, e_h, p_rmin, p_rmax, r_poc,
                   vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
                   n_workers=8, progress_callback=None):
     """Loop sequenziale — più stabile su Streamlit Cloud di ThreadPoolExecutor."""
-    global _SCAN_ERRORS
+    global _SCAN_ERR
+    # Pre-carica nome+marketcap per TUTTI i ticker in una sola chiamata bulk
+    try:
+        _bulk = fetch_bulk_meta(universe)
+        for _tkr, _m in _bulk.items():
+            if _tkr not in _META_CACHE:
+                _META_CACHE[_tkr] = _m
+            else:
+                if not (_META_CACHE[_tkr].get("market_cap", 0) > 0):
+                    _META_CACHE[_tkr]["market_cap"] = _m["market_cap"]
+                if _META_CACHE[_tkr].get("name", _tkr) == _tkr and _m.get("name", _tkr) != _tkr:
+                    _META_CACHE[_tkr]["name"] = _m["name"]
+    except Exception:
+        passORS
     _SCAN_ERRORS = []
     rep, rrea = [], []
     t0  = time.time()
