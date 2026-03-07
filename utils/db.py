@@ -5,47 +5,48 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-# Path persistente: usa la home dell'utente se disponibile (Streamlit Cloud),
-# altrimenti cartella locale al modulo
-_HERE = Path(__file__).parent  # utils/
-_HOME_DB = Path.home() / ".streamlit_trading_scanner" / "watchlist.db"
-_LOCAL_DB = _HERE / "watchlist.db"
+# ── DB Path: ordine priorità per massima persistenza ─────────────────────────
+# 1. Stessa dir di db.py (utils/watchlist.db) — persiste tra restart
+# 2. Home utente (~/.trading_scanner/watchlist.db) — persiste tra restart
+# 3. /tmp/watchlist.db — fallback, si perde al restart
+
+_HERE     = Path(__file__).parent
+_PATHS    = [
+    _HERE / "watchlist.db",                                          # utils/
+    Path.home() / ".trading_scanner" / "watchlist.db",              # home
+    Path("/tmp/watchlist.db"),                                       # tmp
+]
 
 def _get_db_path() -> Path:
-    """Ritorna path DB persistente con migrazione automatica da path precedenti."""
-    candidates = [_HOME_DB, _LOCAL_DB, Path("/tmp/watchlist.db")]
-
-    # Trova il path scrivibile con più dati (migrazione automatica)
-    best_path = None
-    best_size = -1
-    for p in candidates:
-        if p.exists() and p.stat().st_size > best_size:
-            best_size = p.stat().st_size
-            best_path = p
-
-    # Determina path di destinazione (primo scrivibile)
-    dest = None
-    for p in [_HOME_DB, _LOCAL_DB, Path("/tmp/watchlist.db")]:
+    """Trova o crea il DB nel path più persistente disponibile.
+    Migra automaticamente da path secondari al path primario.
+    """
+    # Trova il path primario scrivibile
+    primary = None
+    for p in _PATHS:
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
-            test = p.parent / ".write_test"
-            test.write_text("ok"); test.unlink()
-            dest = p; break
+            # Test di scrittura
+            _t = p.parent / "._wtest"
+            _t.write_text("x"); _t.unlink()
+            primary = p
+            break
         except Exception:
             continue
+    if primary is None:
+        primary = Path("/tmp/watchlist.db")
 
-    if dest is None:
-        dest = Path("/tmp/watchlist.db")
-
-    # Migra dati dal DB più ricco al path di destinazione
-    if best_path and best_path != dest and best_path.exists():
-        try:
-            import shutil
-            shutil.copy2(best_path, dest)
-        except Exception:
-            pass
-
-    return dest
+    # Migra da altri path se il primario è vuoto/nuovo
+    if not primary.exists() or primary.stat().st_size < 4096:
+        for p in _PATHS:
+            if p != primary and p.exists() and p.stat().st_size > 4096:
+                try:
+                    import shutil
+                    shutil.copy2(p, primary)
+                    break
+                except Exception:
+                    continue
+    return primary
 
 DB_PATH = _get_db_path()
 
