@@ -103,10 +103,17 @@ def _yahoo_ohlcv(ticker: str, period: str = "6mo", interval: str = "1d") -> pd.D
         _name = (meta.get("longName") or meta.get("shortName") or ticker)[:50]
         _curr = meta.get("currency", "USD") or "USD"
         _mcap = meta.get("regularMarketCap") or meta.get("marketCap")
+        # Aggiorna cache: NON sovrascrivere market_cap se già presente e valido
+        _existing = _META_CACHE.get(ticker, {})
+        _mcap_final = float(_mcap) if _mcap else float("nan")
+        _existing_mcap = _existing.get("market_cap", float("nan"))
+        _keep_mcap = (isinstance(_existing_mcap, float)
+                      and _existing_mcap == _existing_mcap  # not nan
+                      and _existing_mcap > 0)
         _META_CACHE[ticker] = {
             "name":       str(_name),
             "currency":   str(_curr),
-            "market_cap": float(_mcap) if _mcap else float("nan"),
+            "market_cap": _existing_mcap if _keep_mcap else _mcap_final,
         }
 
         closes = (adjc[0].get("adjclose") if adjc and adjc[0] else None) or q.get("close", [])
@@ -272,6 +279,12 @@ def _download_ohlcv_meta(ticker: str, period: str = "6mo") -> tuple:
         except Exception:
             pass
 
+    # Rileggi da cache per ottenere market_cap da bulk se ancora mancante
+    if not _mcap_ok:
+        _cached = _META_CACHE.get(ticker, {})
+        _cv = _cached.get("market_cap", float("nan"))
+        if isinstance(_cv, float) and _cv == _cv and _cv > 0:
+            meta["market_cap"] = _cv
     return df, meta
 
 
