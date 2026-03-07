@@ -5,48 +5,59 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-# ── DB Path: ordine priorità per massima persistenza ─────────────────────────
-# 1. Stessa dir di db.py (utils/watchlist.db) — persiste tra restart
-# 2. Home utente (~/.trading_scanner/watchlist.db) — persiste tra restart
-# 3. /tmp/watchlist.db — fallback, si perde al restart
+# ── DB Path ────────────────────────────────────────────────────────────────
+# Su Streamlit Cloud: /mount/src/<repo>/ è READ-ONLY, /home/appuser/ è scrivibile
+# Su locale: usa la home utente
+# DB_PATH è fisso a runtime — non cambia mai durante la sessione.
 
-_HERE     = Path(__file__).parent
-_PATHS    = [
-    _HERE / "watchlist.db",                                          # utils/
-    Path.home() / ".trading_scanner" / "watchlist.db",              # home
-    Path("/tmp/watchlist.db"),                                       # tmp
-]
+_HERE = Path(__file__).parent
 
 def _get_db_path() -> Path:
-    """Trova o crea il DB nel path più persistente disponibile.
-    Migra automaticamente da path secondari al path primario.
+    """Path fisso e scrivibile per il DB watchlist.
+    Priorità:
+      1. $TRADING_DB_PATH  (variabile d'ambiente opzionale)
+      2. /home/appuser/.trading_scanner/  (Streamlit Cloud)
+      3. ~/.trading_scanner/              (locale / home generica)
+      4. /tmp/                            (fallback assoluto)
     """
-    # Trova il path primario scrivibile
-    primary = None
-    for p in _PATHS:
+    import os
+    # Priorità 1: variabile d'ambiente esplicita
+    env_path = os.environ.get("TRADING_DB_PATH")
+    if env_path:
+        p = Path(env_path)
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
-            # Test di scrittura
-            _t = p.parent / "._wtest"
-            _t.write_text("x"); _t.unlink()
-            primary = p
-            break
+            return p
+        except Exception:
+            pass
+
+    # Priorità 2-4: cerca un path scrivibile
+    candidates = [
+        Path("/home/appuser/.trading_scanner/watchlist.db"),  # Streamlit Cloud
+        Path.home() / ".trading_scanner" / "watchlist.db",   # locale
+        Path("/tmp/trading_scanner_watchlist.db"),            # fallback
+    ]
+    for p in candidates:
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            # Verifica scrittura reale
+            _t = p.with_suffix(".tmp")
+            _t.write_text("test"); _t.unlink()
+            # Se esiste già un DB a /tmp con dati, migra
+            _tmp = Path("/tmp/trading_scanner_watchlist.db")
+            _old = Path("/tmp/watchlist.db")
+            for _src in [_tmp, _old]:
+                if _src != p and _src.exists() and _src.stat().st_size > 8192:
+                    if not p.exists() or p.stat().st_size < _src.stat().st_size:
+                        try:
+                            import shutil; shutil.copy2(_src, p)
+                        except Exception:
+                            pass
+                    break
+            return p
         except Exception:
             continue
-    if primary is None:
-        primary = Path("/tmp/watchlist.db")
-
-    # Migra da altri path se il primario è vuoto/nuovo
-    if not primary.exists() or primary.stat().st_size < 4096:
-        for p in _PATHS:
-            if p != primary and p.exists() and p.stat().st_size > 4096:
-                try:
-                    import shutil
-                    shutil.copy2(p, primary)
-                    break
-                except Exception:
-                    continue
-    return primary
+    return Path("/tmp/trading_scanner_watchlist.db")
 
 DB_PATH = _get_db_path()
 
