@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 scanner.py — Trading Scanner PRO 28.0
 ARCHITETTURA: sequenziale (come v22 che funzionava) + API Yahoo diretta
