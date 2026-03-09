@@ -119,9 +119,16 @@ def _ensure_signals_table(conn):
             scan_id     INTEGER,
             scanned_at  TEXT NOT NULL,
             ticker      TEXT NOT NULL,
+            nome        TEXT,
             signal_type TEXT,
             prezzo      REAL,
             markets     TEXT,
+            rsi         REAL,
+            quality_score REAL,
+            ser_score   REAL,
+            fv_score    REAL,
+            squeeze     INTEGER,
+            weekly_bull INTEGER,
             ret_1d      REAL,
             ret_5d      REAL,
             ret_10d     REAL,
@@ -130,6 +137,17 @@ def _ensure_signals_table(conn):
         )
     """)
     conn.commit()
+    # Migrazione: aggiunge colonne mancanti a DB esistenti
+    for _col, _ctype in [
+        ('nome','TEXT'), ('rsi','REAL'), ('quality_score','REAL'),
+        ('ser_score','REAL'), ('fv_score','REAL'),
+        ('squeeze','INTEGER'), ('weekly_bull','INTEGER'),
+    ]:
+        try:
+            conn.execute(f'ALTER TABLE signals ADD COLUMN {_col} {_ctype}')
+            conn.commit()
+        except Exception:
+            pass  # colonna già presente
 
 
 def save_signals(scan_id: int, df_ep: pd.DataFrame,
@@ -153,11 +171,20 @@ def save_signals(scan_id: int, df_ep: pd.DataFrame,
                 if stype == "-" or not stype:
                     stype = default_type
                 prezzo = float(row.get("Prezzo", 0) or 0)
-                rows.append((scan_id, now, ticker, stype, prezzo, mkt))
+                nome   = str(row.get("Nome", "") or row.get("name", "") or "")
+                rsi_v  = float(row.get("RSI", 0) or 0)
+                qual_v = float(row.get("Quality_Score", 0) or 0)
+                ser_v  = float(row.get("Ser_Score", 0) or 0)
+                fv_v   = float(row.get("FV_Score", 0) or 0)
+                sq_v   = 1 if row.get("Squeeze") in [True,"True","true",1] else 0
+                wb_v   = 1 if row.get("Weekly_Bull") in [True,"True","true",1] else 0
+                rows.append((scan_id, now, ticker, nome, stype, prezzo, mkt,
+                             rsi_v, qual_v, ser_v, fv_v, sq_v, wb_v))
         if rows:
             conn.executemany(
-                "INSERT INTO signals (scan_id,scanned_at,ticker,signal_type,"
-                "prezzo,markets) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO signals (scan_id,scanned_at,ticker,nome,signal_type,"
+                "prezzo,markets,rsi,quality_score,ser_score,fv_score,squeeze,weekly_bull) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows
             )
             conn.commit()
@@ -398,9 +425,16 @@ def _ensure_signals_table(conn):
             scan_id     INTEGER,
             scanned_at  TEXT NOT NULL,
             ticker      TEXT NOT NULL,
+            nome        TEXT,
             signal_type TEXT,
             prezzo      REAL,
             markets     TEXT,
+            rsi         REAL,
+            quality_score REAL,
+            ser_score   REAL,
+            fv_score    REAL,
+            squeeze     INTEGER,
+            weekly_bull INTEGER,
             ret_1d      REAL,
             ret_5d      REAL,
             ret_10d     REAL,
@@ -409,6 +443,17 @@ def _ensure_signals_table(conn):
         )
     """)
     conn.commit()
+    # Migrazione: aggiunge colonne mancanti a DB esistenti
+    for _col, _ctype in [
+        ('nome','TEXT'), ('rsi','REAL'), ('quality_score','REAL'),
+        ('ser_score','REAL'), ('fv_score','REAL'),
+        ('squeeze','INTEGER'), ('weekly_bull','INTEGER'),
+    ]:
+        try:
+            conn.execute(f'ALTER TABLE signals ADD COLUMN {_col} {_ctype}')
+            conn.commit()
+        except Exception:
+            pass  # colonna già presente
 
 
 def save_signals(scan_id: int, df_ep: pd.DataFrame,
@@ -432,11 +477,20 @@ def save_signals(scan_id: int, df_ep: pd.DataFrame,
                 if stype == "-" or not stype:
                     stype = default_type
                 prezzo = float(row.get("Prezzo", 0) or 0)
-                rows.append((scan_id, now, ticker, stype, prezzo, mkt))
+                nome   = str(row.get("Nome", "") or row.get("name", "") or "")
+                rsi_v  = float(row.get("RSI", 0) or 0)
+                qual_v = float(row.get("Quality_Score", 0) or 0)
+                ser_v  = float(row.get("Ser_Score", 0) or 0)
+                fv_v   = float(row.get("FV_Score", 0) or 0)
+                sq_v   = 1 if row.get("Squeeze") in [True,"True","true",1] else 0
+                wb_v   = 1 if row.get("Weekly_Bull") in [True,"True","true",1] else 0
+                rows.append((scan_id, now, ticker, nome, stype, prezzo, mkt,
+                             rsi_v, qual_v, ser_v, fv_v, sq_v, wb_v))
         if rows:
             conn.executemany(
-                "INSERT INTO signals (scan_id,scanned_at,ticker,signal_type,"
-                "prezzo,markets) VALUES (?,?,?,?,?,?)",
+                "INSERT INTO signals (scan_id,scanned_at,ticker,nome,signal_type,"
+                "prezzo,markets,rsi,quality_score,ser_score,fv_score,squeeze,weekly_bull) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows
             )
             conn.commit()
