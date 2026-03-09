@@ -1821,7 +1821,7 @@ with tab_crisis:
         _live_keep = ["Ticker","Prezzo","RSI","Vol_Ratio","OBV_Trend",
                       "Stato_Early","Quality_Score","Early_Score","Pro_Score",
                       "Squeeze","Weekly_Bull"]
-        for _ldf in [df_ep, df_rea, df_p]:
+        for _ldf in [df_ep, df_rea]:
             if _ldf is None or _ldf.empty or "Ticker" not in _ldf.columns: continue
             _sub = _ldf[[c for c in _live_keep if c in _ldf.columns]].copy()
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
@@ -1903,7 +1903,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
         if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
             _ctkr = sel_crisis.iloc[0].get("Ticker","")
             _crow = None
-            for _cdf in [df_ep, df_rea, df_p]:
+            for _cdf in [df_ep, df_rea]:
                 if _cdf is None or _cdf.empty or "Ticker" not in _cdf.columns: continue
                 _cm = _cdf[_cdf["Ticker"]==_ctkr]
                 if not _cm.empty: _crow=_cm.iloc[0]; break
