@@ -274,6 +274,14 @@ def update_signal_performance(max_signals: int = 300) -> int:
 
 init_db()
 
+# Aggiungi in init_db():
+c.execute("""
+CREATE TABLE IF NOT EXISTS grid_layouts (
+    grid_key TEXT PRIMARY KEY,
+    column_state TEXT
+);
+""")
+
 def add_to_watchlist(tickers, names, origine, note, trend="LONG", list_name="DEFAULT"):
     if not tickers: return
     conn = sqlite3.connect(DB_PATH)
