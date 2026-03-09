@@ -178,53 +178,56 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 # =========================================================================
 DARK_CSS = """
 <style>
+/* ── TradingView-style skin ─────────────────────────────────── */
 html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid="block-container"]{
-    background-color:#0a0e1a !important; color:#c9d1d9 !important;}
-[data-testid="stSidebar"]{background-color:#0d1117 !important;border-right:1px solid #1f2937 !important;}
-[data-testid="stSidebar"] *{color:#c9d1d9 !important;}
-h1{color:#00ff88 !important;font-family:'Courier New',monospace !important;
-   letter-spacing:2px;text-shadow:0 0 20px #00ff8855;}
-h2,h3{color:#58a6ff !important;font-family:'Courier New',monospace !important;}
+    background-color:#131722 !important; color:#d1d4dc !important;
+    font-family:'Trebuchet MS','Segoe UI',sans-serif !important;}
+[data-testid="stSidebar"]{background-color:#1e222d !important;border-right:1px solid #2a2e39 !important;}
+[data-testid="stSidebar"] *{color:#d1d4dc !important;}
+h1{color:#2962ff !important;font-family:'Trebuchet MS',sans-serif !important;
+   letter-spacing:1px;text-shadow:0 0 16px #2962ff44;}
+h2,h3{color:#50c4e0 !important;font-family:'Trebuchet MS',sans-serif !important;}
 .stCaption,small{color:#6b7280 !important;}
-[data-testid="stTabs"] button{background:#0d1117 !important;color:#8b949e !important;
+[data-testid="stTabs"] button{background:#131722 !important;color:#787b86 !important;
     border-bottom:2px solid transparent !important;
-    font-family:'Courier New',monospace !important;font-size:0.82rem !important;}
-[data-testid="stTabs"] button[aria-selected="true"]{color:#00ff88 !important;border-bottom:2px solid #00ff88 !important;}
-[data-testid="stMetric"]{background:#0d1117 !important;border:1px solid #1f2937 !important;
-    border-radius:8px !important;padding:12px 16px !important;}
-[data-testid="stMetricLabel"]{color:#6b7280 !important;font-size:0.75rem !important;}
-[data-testid="stMetricValue"]{color:#00ff88 !important;font-size:1.6rem !important;
-    font-family:'Courier New',monospace !important;}
-[data-testid="stButton"]>button{background:linear-gradient(135deg,#0d1117,#1a2233) !important;
-    color:#00ff88 !important;border:1px solid #00ff8855 !important;
-    border-radius:6px !important;font-family:'Courier New',monospace !important;transition:all 0.2s;}
-[data-testid="stButton"]>button:hover{border-color:#00ff88 !important;color:#ffffff !important;}
-[data-testid="stButton"]>button[kind="primary"]{background:linear-gradient(135deg,#00401f,#006633) !important;
-    border-color:#00ff88 !important;color:#00ff88 !important;font-size:1rem !important;}
-[data-testid="stButton"]>button[kind="secondary"]{background:linear-gradient(135deg,#1a0a0a,#2d1010) !important;
-    color:#ef4444 !important;border:1px solid #ef444455 !important;}
+    font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
+[data-testid="stTabs"] button[aria-selected="true"]{color:#2962ff !important;border-bottom:2px solid #2962ff !important;
+    background:#1e222d !important;}
+[data-testid="stMetric"]{background:#1e222d !important;border:1px solid #2a2e39 !important;
+    border-radius:6px !important;padding:12px 16px !important;}
+[data-testid="stMetricLabel"]{color:#787b86 !important;font-size:0.75rem !important;}
+[data-testid="stMetricValue"]{color:#26a69a !important;font-size:1.6rem !important;
+    font-family:'Trebuchet MS',sans-serif !important;font-weight:700 !important;}
+[data-testid="stButton"]>button{background:#1e222d !important;
+    color:#d1d4dc !important;border:1px solid #363a45 !important;
+    border-radius:4px !important;font-family:'Trebuchet MS',sans-serif !important;transition:all 0.15s;}
+[data-testid="stButton"]>button:hover{background:#2a2e39 !important;border-color:#50c4e0 !important;color:#ffffff !important;}
+[data-testid="stButton"]>button[kind="primary"]{background:#2962ff !important;
+    border-color:#2962ff !important;color:#ffffff !important;font-size:1rem !important;}
+[data-testid="stButton"]>button[kind="secondary"]{background:#1e222d !important;
+    color:#ef5350 !important;border:1px solid #ef535055 !important;}
 [data-testid="stDownloadButton"]>button{background:#0d1117 !important;color:#58a6ff !important;
     border:1px solid #1f3a5f !important;border-radius:6px !important;}
 [data-testid="stExpander"]{background:#0d1117 !important;border:1px solid #1f2937 !important;border-radius:8px !important;}
 [data-testid="stExpander"] summary{color:#58a6ff !important;}
 hr{border-color:#1f2937 !important;}
-.ag-root-wrapper{background:#0d1117 !important;border:1px solid #1f2937 !important;}
-.ag-header{background:#0a0e1a !important;border-bottom:1px solid #1f2937 !important;}
-.ag-header-cell-label{color:#58a6ff !important;font-family:'Courier New',monospace !important;
-    font-size:0.78rem !important;letter-spacing:1px;}
-.ag-header-cell-resize{background:#374151 !important;}
-.ag-row{background:#0d1117 !important;border-bottom:1px solid #1a2233 !important;}
-.ag-row:hover{background:#131d2e !important;}
-.ag-row-selected{background:#0d2d1e !important;}
-.ag-cell{color:#c9d1d9 !important;font-family:'Courier New',monospace !important;font-size:0.82rem !important;}
-.ag-paging-panel{background:#0a0e1a !important;color:#6b7280 !important;}
+.ag-root-wrapper{background:#1e222d !important;border:1px solid #2a2e39 !important;border-radius:4px !important;}
+.ag-header{background:#131722 !important;border-bottom:1px solid #363a45 !important;}
+.ag-header-cell-label{color:#50c4e0 !important;font-family:'Trebuchet MS',sans-serif !important;
+    font-size:0.79rem !important;letter-spacing:0.5px;text-transform:uppercase;}
+.ag-header-cell-resize{background:#363a45 !important;}
+.ag-row{background:#1e222d !important;border-bottom:1px solid #2a2e39 !important;}
+.ag-row:hover{background:#2a2e39 !important;}
+.ag-row-selected{background:rgba(41,98,255,0.18) !important;border-left:3px solid #2962ff !important;}
+.ag-cell{color:#d1d4dc !important;font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
+.ag-paging-panel{background:#131722 !important;color:#787b86 !important;}
 ::-webkit-scrollbar{width:6px;height:6px;}
 ::-webkit-scrollbar-track{background:#0a0e1a;}
 ::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px;}
-.section-pill{display:inline-block;background:linear-gradient(90deg,#003320,#001a10);
-    border:1px solid #00ff8844;border-radius:20px;padding:4px 16px;
-    font-family:'Courier New',monospace;font-size:0.8rem;color:#00ff88;
-    letter-spacing:2px;margin-bottom:12px;}
+.section-pill{display:inline-block;background:#1e222d;
+    border-left:3px solid #2962ff;border-radius:0 4px 4px 0;padding:5px 16px;
+    font-family:'Trebuchet MS',sans-serif;font-size:0.82rem;color:#50c4e0;
+    letter-spacing:1px;margin-bottom:14px;}
 .wl-card{background:linear-gradient(135deg,#0d1117 0%,#111827 100%);
     border:1px solid #1f2937;border-radius:12px;padding:14px 18px;margin-bottom:8px;transition:border-color 0.2s;}
 .wl-card:hover{border-color:#374151;}
@@ -249,10 +252,13 @@ hr{border-color:#1f2937 !important;}
 """
 
 PLOTLY_DARK = dict(
-    paper_bgcolor="#0a0e1a", plot_bgcolor="#0d1117",
-    font=dict(color="#c9d1d9", family="Courier New"),
-    xaxis=dict(gridcolor="#1f2937", zerolinecolor="#1f2937"),
-    yaxis=dict(gridcolor="#1f2937", zerolinecolor="#1f2937"),
+    paper_bgcolor="#131722",
+    plot_bgcolor="#1e222d",
+    font=dict(color="#b2b5be", family="Trebuchet MS, sans-serif", size=12),
+    xaxis=dict(gridcolor="#2a2e39", zerolinecolor="#363a45",
+               linecolor="#363a45", tickfont=dict(color="#787b86",size=10)),
+    yaxis=dict(gridcolor="#2a2e39", zerolinecolor="#363a45",
+               linecolor="#363a45", tickfont=dict(color="#787b86",size=10)),
 )
 # =========================================================================
 # FORMATTING HELPERS  (inline — non richiedono utils.formatting)
@@ -347,6 +353,47 @@ def _parabolic_sar(highs,lows,af_start=0.02,af_max=0.2):
 # =========================================================================
 # CHART BUILDER
 # =========================================================================
+
+def _calc_volume_profile(highs, lows, closes, vols, n_bins=36):
+    """
+    Volume Profile: distribuzione volume per livello di prezzo.
+    Restituisce (bin_centers, vol_per_bin, poc, vah, val)
+    POC = Point of Control  |  VAH/VAL = Value Area (70%)
+    """
+    try:
+        import numpy as _np
+        h=_np.array(highs,dtype=float); l=_np.array(lows,dtype=float)
+        v=_np.array(vols,dtype=float)
+        pmin,pmax = l.min(), h.max()
+        if pmax<=pmin or len(h)<5: return [],[],None,None,None
+        bins   = _np.linspace(pmin, pmax, n_bins+1)
+        centers= (bins[:-1]+bins[1:])/2
+        vpvol  = _np.zeros(n_bins)
+        for i in range(len(h)):
+            if v[i]<=0 or h[i]<=l[i]: continue
+            b0=int(_np.searchsorted(bins,l[i],'left'))
+            b1=int(_np.searchsorted(bins,h[i],'right'))
+            b0=max(0,min(b0,n_bins-1)); b1=max(0,min(b1,n_bins))
+            span=h[i]-l[i]
+            for b in range(b0,b1):
+                lo=max(bins[b],l[i]); hi=min(bins[b+1] if b+1<len(bins) else pmax,h[i])
+                vpvol[b]+=v[i]*max(0,hi-lo)/span
+        poc_i=int(_np.argmax(vpvol))
+        poc=float(centers[poc_i])
+        # Value Area 70%
+        tot=vpvol.sum(); tgt=tot*0.70
+        acc=vpvol[poc_i]; lo_i=hi_i=poc_i
+        while acc<tgt and (lo_i>0 or hi_i<n_bins-1):
+            add_lo=vpvol[lo_i-1] if lo_i>0 else 0
+            add_hi=vpvol[hi_i+1] if hi_i<n_bins-1 else 0
+            if add_hi>=add_lo and hi_i<n_bins-1: hi_i+=1; acc+=add_hi
+            elif lo_i>0:                          lo_i-=1; acc+=add_lo
+            else:                                  hi_i+=1; acc+=add_hi
+        vah=float(centers[hi_i]); val=float(centers[lo_i])
+        return list(centers),list(vpvol),poc,vah,val
+    except Exception: return [],[],None,None,None
+
+
 def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     cd=row.get("_chart_data")
     if not cd or not isinstance(cd,dict): return None
@@ -373,11 +420,24 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     heights=ht.get(n_rows,[0.38,0.15,0.15,0.12,0.10])[:n_rows]
     s=sum(heights); heights=[h/s for h in heights]
 
-    fig=make_subplots(rows=n_rows,cols=1,shared_xaxes=True,
-                      row_heights=heights,vertical_spacing=0.025)
+    show_vp = ("Volume Profile" in indicators)
+    if show_vp and vols:
+        # 2 colonne: 84% candlestick | 16% Volume Profile
+        _specs = [[{"secondary_y":False},{"secondary_y":False}]]*n_rows
+        fig=make_subplots(rows=n_rows,cols=2,shared_xaxes=False,
+                          shared_yaxes=False,
+                          row_heights=heights,vertical_spacing=0.025,
+                          column_widths=[0.84,0.16],
+                          specs=_specs,horizontal_spacing=0.004)
+        _vp_col=2
+    else:
+        show_vp=False
+        fig=make_subplots(rows=n_rows,cols=1,shared_xaxes=True,
+                          row_heights=heights,vertical_spacing=0.025)
+        _vp_col=None
     fig.add_trace(go.Candlestick(x=dates,open=opens,high=highs,low=lows,close=closes,
-        increasing_line_color="#22c55e",increasing_fillcolor="rgba(34,197,94,0.33)",
-        decreasing_line_color="#ef4444",decreasing_fillcolor="rgba(239,68,68,0.33)",
+        increasing_line_color="#26a69a",increasing_fillcolor="rgba(38,166,154,0.85)",
+        decreasing_line_color="#ef5350",decreasing_fillcolor="rgba(239,83,80,0.85)",
         name="Prezzo",showlegend=False),row=1,col=1)
     if bb_up and bb_dn:
         fig.add_trace(go.Scatter(x=dates+dates[::-1],y=bb_up+bb_dn[::-1],fill="toself",
@@ -472,20 +532,63 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
 
     if vols:
         fig.add_trace(go.Bar(x=dates,y=vols,
-            marker_color=["rgba(0,255,136,0.4)" if c>=o else "rgba(239,68,68,0.4)" for c,o in zip(closes,opens)],
+            marker_color=["rgba(38,166,154,0.55)" if c>=o else "rgba(239,83,80,0.55)" for c,o in zip(closes,opens)],
             name="Volume",showlegend=False),row=row_vol,col=1)
         fig.update_yaxes(title_text="Vol",tickfont=dict(size=8),row=row_vol,col=1)
+
+    # ── Volume Profile ──────────────────────────────────────────────────
+    if show_vp and _vp_col:
+        _vp_c,_vp_v,_poc,_vah,_val=_calc_volume_profile(highs,lows,closes,vols)
+        if _vp_c:
+            _mx=max(_vp_v) if _vp_v else 1
+            _norm=[x/_mx for x in _vp_v]
+            # Colori: dentro VA=blu TV, POC=oro, fuori=grigio
+            _binw=(_vp_c[1]-_vp_c[0]) if len(_vp_c)>1 else 0
+            _colors=[]
+            for _i,_p in enumerate(_vp_c):
+                if _poc and _binw and abs(_p-_poc)<_binw:
+                    _colors.append("rgba(255,215,0,0.92)")    # POC oro
+                elif _val and _vah and _val<=_p<=_vah:
+                    _colors.append("rgba(41,98,255,0.70)")    # VA blu TV
+                else:
+                    _colors.append("rgba(120,123,134,0.42)")  # fuori VA grigio
+            fig.add_trace(go.Bar(
+                x=_norm, y=_vp_c, orientation="h",
+                marker=dict(color=_colors,line=dict(width=0)),
+                name="Vol Profile", showlegend=False,
+                hovertemplate="P: %{y:.2f}<br>Vol: %{customdata:,.0f}<extra>VP</extra>",
+                customdata=_vp_v,
+            ),row=1,col=_vp_col)
+            # Linee POC/VAH/VAL su asse Y condiviso con il prezzo
+            if _poc:
+                fig.add_hline(y=_poc,line=dict(color="#ffd700",width=1.5,dash="dot"),
+                    annotation_text=" POC",annotation_font_color="#ffd700",
+                    annotation_font_size=9,row=1,col=_vp_col)
+            if _vah:
+                fig.add_hline(y=_vah,line=dict(color="#2962ff",width=1,dash="dash"),
+                    annotation_text=" VAH",annotation_font_color="#2962ff",
+                    annotation_font_size=8,row=1,col=_vp_col)
+            if _val:
+                fig.add_hline(y=_val,line=dict(color="#2962ff",width=1,dash="dash"),
+                    annotation_text=" VAL",annotation_font_color="#2962ff",
+                    annotation_font_size=8,row=1,col=_vp_col)
+            # Nascondi assi VP
+            fig.update_xaxes(showticklabels=False,showgrid=False,zeroline=False,
+                             col=_vp_col)
+            for _rv in range(1,n_rows+1):
+                fig.update_yaxes(showticklabels=False,showgrid=False,
+                                 col=_vp_col,row=_rv)
 
     tkr=row.get("Ticker",""); sq="  🔥" if row.get("Squeeze") else ""
     fig.update_layout(**PLOTLY_DARK,
         title=dict(text=f"<b>{tkr}</b> — {row.get('Nome','')}  |  {row.get('Prezzo','')}  |  RSI {row.get('RSI','')}{sq}",
-            font=dict(color="#00ff88",size=13)),
+            font=dict(color="#50c4e0",size=13),x=0.01,xanchor="left"),
         height=160+180*n_rows,xaxis_rangeslider_visible=False,
         legend=dict(orientation="h",y=1.01,x=0,bgcolor="rgba(0,0,0,0)",font=dict(size=10)),
         margin=dict(l=0,r=0,t=55,b=0),hovermode="x unified")
     for r in range(1,n_rows+1):
-        fig.update_xaxes(gridcolor="#1f2937",row=r,col=1)
-        fig.update_yaxes(gridcolor="#1f2937",row=r,col=1)
+        fig.update_xaxes(gridcolor="#2a2e39",gridwidth=1,showline=True,linecolor="#363a45",row=r,col=1)
+        fig.update_yaxes(gridcolor="#2a2e39",gridwidth=1,showline=True,linecolor="#363a45",row=r,col=1)
     return fig
 
 def build_radar(row: pd.Series) -> go.Figure:
@@ -509,7 +612,7 @@ def build_radar(row: pd.Series) -> go.Figure:
 def show_charts(row_full: pd.Series, key_suffix: str=""):
     tkr=row_full.get("Ticker","")
     st.markdown("---")
-    ind_opts=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"]
+    ind_opts=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex","Volume Profile"]
     c1,c2=st.columns([4,1])
     with c1:
         indicators=st.multiselect("🔧 Indicatori",options=ind_opts,
@@ -526,6 +629,14 @@ def show_charts(row_full: pd.Series, key_suffix: str=""):
     if fig_r:
         _,c2,_=st.columns([1,1,1])
         with c2: st.plotly_chart(fig_r,use_container_width=True,key=f"radar_{tkr}_{key_suffix}")
+    # ── Grafico Analitico Avanzato ──────────────────────────────────────
+    try:
+        from analysis_chart import render_analysis_chart as _adv_chart
+        with st.expander(f"📐 Analisi Avanzata — Ichimoku · S/R · Trend · Squeeze  [{tkr}]",
+                         expanded=False):
+            _adv_chart(row_full, key_suffix=key_suffix)
+    except ImportError:
+        pass  # analysis_chart.py non presente
 
 # =========================================================================
 # JS RENDERERS
@@ -830,7 +941,7 @@ if st.sidebar.button("⚠️ Reset Watchlist DB",key="rst_wl"):
     reset_watchlist_db(); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("⚡ Scanner v28")
+st.sidebar.subheader("⚡ Scanner v29")
 with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
     use_cache  = st.checkbox("⚡ Cache SQLite (più veloce)",True,key="use_cache",
                               help="Riusa dati yfinance già scaricati oggi (TTL 4h). "
@@ -1474,13 +1585,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v27.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v29.0."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v27.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v29.0."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -1706,19 +1817,56 @@ with tab_crisis:
         rows = [{"Ticker": t, "Nome": n, "Descrizione Tattica": d} for t,n,d in assets]
         df_crisis_cat = pd.DataFrame(rows)
         all_crisis_tickers.extend([r[0] for r in assets])
+        # Arricchisci con dati scanner live se disponibili
+        _live_keep = ["Ticker","Prezzo","RSI","Vol_Ratio","OBV_Trend",
+                      "Stato_Early","Quality_Score","Early_Score","Pro_Score",
+                      "Squeeze","Weekly_Bull"]
+        for _ldf in [df_ep, df_rea, df_p]:
+            if _ldf is None or _ldf.empty or "Ticker" not in _ldf.columns: continue
+            _sub = _ldf[[c for c in _live_keep if c in _ldf.columns]].copy()
+            df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
+            break  # primo df disponibile basta
 
         gb_c = GridOptionsBuilder.from_dataframe(df_crisis_cat)
-        gb_c.configure_default_column(sortable=False, resizable=True, filterable=False)
+        gb_c.configure_default_column(sortable=True, resizable=True, filterable=False, minWidth=65)
         gb_c.configure_selection(selection_mode="multiple", use_checkbox=True)
         gb_c.configure_column("Ticker", width=100, pinned="left",
             cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('a');
 this.eGui.innerText=p.value;
 this.eGui.href='https://www.tradingview.com/chart/?symbol='+p.value;
-this.eGui.target='_blank';this.eGui.style.color='#60a5fa';
-this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';}
+this.eGui.target='_blank';this.eGui.style.color='#50c4e0';
+this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Trebuchet MS';}
 getGui(){return this.eGui;}refresh(){return false;}}"""))
-        gb_c.configure_column("Nome", width=210)
-        gb_c.configure_column("Descrizione Tattica", width=420, wrapText=True, autoHeight=True)
+        gb_c.configure_column("Nome", width=195)
+        gb_c.configure_column("Descrizione Tattica", width=360, wrapText=True, autoHeight=True)
+        # Colonne dati live (se disponibili dallo scanner)
+        if "Prezzo" in df_crisis_cat.columns:
+            gb_c.configure_column("Prezzo", width=88, headerName="Prezzo $",
+                cellRenderer=JsCode("""class P{init(p){this.eGui=document.createElement('span');
+const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'—':'$'+v.toFixed(2);
+this.eGui.style.color='#d1d4dc';this.eGui.style.fontWeight='600';}
+getGui(){return this.eGui;}refresh(){return false;}}"""))
+        if "RSI" in df_crisis_cat.columns:
+            gb_c.configure_column("RSI", width=68, cellRenderer=rsi_renderer)
+        if "Vol_Ratio" in df_crisis_cat.columns:
+            gb_c.configure_column("Vol_Ratio", width=82, headerName="Vol×",
+                cellRenderer=vol_ratio_renderer)
+        if "Quality_Score" in df_crisis_cat.columns:
+            gb_c.configure_column("Quality_Score", width=82, headerName="Quality",
+                cellRenderer=quality_renderer)
+        if "OBV_Trend" in df_crisis_cat.columns:
+            gb_c.configure_column("OBV_Trend", width=80, headerName="OBV Trend")
+        if "Stato_Early" in df_crisis_cat.columns:
+            gb_c.configure_column("Stato_Early", width=85, headerName="Stato")
+        if "Early_Score" in df_crisis_cat.columns:
+            gb_c.configure_column("Early_Score", width=72, headerName="E.Score")
+        if "Pro_Score" in df_crisis_cat.columns:
+            gb_c.configure_column("Pro_Score", width=72, headerName="P.Score")
+        if "Squeeze" in df_crisis_cat.columns:
+            gb_c.configure_column("Squeeze", width=72, cellRenderer=squeeze_renderer)
+        if "Weekly_Bull" in df_crisis_cat.columns:
+            gb_c.configure_column("Weekly_Bull", width=68, headerName="W+",
+                cellRenderer=weekly_renderer)
         go_c = gb_c.build()
 
         try:
@@ -1751,6 +1899,19 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                 add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
                                  "WATCH", st.session_state.current_list_name)
                 st.success(f"✅ Aggiunti tutti i {len(tks)} ticker."); time.sleep(0.5); st.rerun()
+        # ── Grafico ticker selezionato (come negli altri tab) ──────────
+        if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
+            _ctkr = sel_crisis.iloc[0].get("Ticker","")
+            _crow = None
+            for _cdf in [df_ep, df_rea, df_p]:
+                if _cdf is None or _cdf.empty or "Ticker" not in _cdf.columns: continue
+                _cm = _cdf[_cdf["Ticker"]==_ctkr]
+                if not _cm.empty: _crow=_cm.iloc[0]; break
+            if _crow is not None:
+                show_charts(_crow, key_suffix=f"cr_{cat_name[:8].replace(' ','')}")
+            else:
+                st.info(f"📭 Dati tecnici non disponibili per **{_ctkr}**. "
+                        f"Esegui prima lo scanner su questo mercato.")
         st.markdown("")
 
     # ── Legenda e guida ───────────────────────────────────────────────
@@ -2327,7 +2488,7 @@ df_cur=all_exp.get(cur_tab,pd.DataFrame())
 ec1,ec2,ec3,ec4=st.columns(4)
 with ec1:
     st.download_button("📊 XLSX Tutti",to_excel_bytes(all_exp),
-        "TradingScanner_v27_Tutti.xlsx",
+        "TradingScanner_v29_Tutti.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="xlsx_all")
 with ec2:
     tv_rows=[]
@@ -2338,12 +2499,12 @@ with ec2:
     if tv_rows:
         df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
         st.download_button("📈 CSV TV Tutti",df_tv.to_csv(index=False).encode(),
-            "TradingScanner_v27_TV.csv","text/csv",key="csv_tv_all")
+            "TradingScanner_v29_TV.csv","text/csv",key="csv_tv_all")
 with ec3:
     st.download_button(f"📊 XLSX {cur_tab}",to_excel_bytes({cur_tab:df_cur}),
-        f"TradingScanner_v27_{cur_tab}.xlsx",
+        f"TradingScanner_v29_{cur_tab}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="xlsx_curr")
 with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(f"📈 CSV TV {cur_tab}",make_tv_csv(df_cur,cur_tab),
-            f"TradingScanner_v27_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
+            f"TradingScanner_v29_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
