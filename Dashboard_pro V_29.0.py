@@ -698,9 +698,9 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 29.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 29.0")
+st.markdown("# 🧠 Trading Scanner PRO 28.0")
 st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v29.0</div>',unsafe_allow_html=True)
 init_db()
 
@@ -890,7 +890,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 29.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 28.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -1474,13 +1474,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v29.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v27.0."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v29.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v27.0."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -1567,10 +1567,10 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 tabs=st.tabs(["📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "🌐 Multi-TF",
               "🎯 Serafini","🔎 Finviz Pro",
-              "📋 Watchlist","📈 Backtest","📜 Storico",
-              "🛡️ Crisis Monitor"])
+              "🛡️ Crisis Monitor",
+              "📋 Watchlist","📈 Backtest","📜 Storico"])
 (tab_e,tab_p,tab_r,tab_conf,tab_mtf,
- tab_ser,tab_fvpro,tab_w,tab_bt,tab_hist,tab_crisis)=tabs
+ tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_hist)=tabs
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -1642,6 +1642,174 @@ with tab_fvpro:
 > Per dati precisi si consiglia Finviz Elite API.
 """)
     render_scan_tab(df_ep,"FINVIZ_PRO",["FV_Score","Quality_Score","EPS_NY_Gr"],[False,False,False],"🔎 Finviz Pro")
+
+# =========================================================================
+# CRISIS MONITOR TAB
+# =========================================================================
+with tab_crisis:
+    st.markdown('<div class="section-pill">🛡️ CRISIS MONITOR — Asset Difensivi</div>',
+                unsafe_allow_html=True)
+
+    st.markdown("""
+> **Come usare questo tab**: seleziona lo scenario di rischio che ti preoccupa.
+> Per ogni asset trovi ticker, nome e descrizione tattica. Clicca sul ticker per aprire TradingView.
+> Aggiungi alla watchlist per seguire l'analisi tecnica con lo scanner.
+""")
+
+    # ── Selezione scenario ────────────────────────────────────────────
+    scenario_labels = {
+        "🌍 Guerra / Conflitto Militare":  ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🔫 Difesa & Aerospazio","🏦 Treasuries & Obbligazioni","💵 Valute Rifugio"],
+        "📈 Inflazione / Stagflazione":    ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🍞 Commodities & Agri","💵 Valute Rifugio","🌍 Mercati Neutri / Commodity States"],
+        "📉 Crash / Panic Sell":            ["🥇 Metalli Preziosi","🏦 Treasuries & Obbligazioni","⚡ Utilities","💊 Healthcare & Pharma","💵 Valute Rifugio"],
+        "🦠 Pandemia / Crisi Sanitaria":   ["💊 Healthcare & Pharma","🥇 Metalli Preziosi","⚡ Utilities","🏦 Treasuries & Obbligazioni"],
+        "💻 Crisi Energetica":             ["⚫ Energia & Petrolio","⚡ Utilities","🌍 Mercati Neutri / Commodity States"],
+        "📊 Tutti gli asset difensivi":    list(CRISIS_ASSETS.keys()),
+    }
+
+    # Inizializza session_state per evitare crash al primo render
+    if "crisis_scenario" not in st.session_state:
+        st.session_state["crisis_scenario"] = list(scenario_labels.keys())[0]
+
+    sc_col1, sc_col2 = st.columns([2, 3])
+    with sc_col1:
+        selected_scenario = st.selectbox(
+            "🎯 Seleziona scenario di rischio",
+            list(scenario_labels.keys()),
+            key="crisis_scenario"
+        )
+    with sc_col2:
+        _n_cats   = len(scenario_labels.get(selected_scenario, []))
+        _n_assets = sum(len(CRISIS_ASSETS.get(c,{}).get("assets",[]))
+                        for c in scenario_labels.get(selected_scenario, []))
+        st.markdown(f"""
+<div style="background:#1a2332;border:1px solid #2d3f55;border-radius:8px;padding:10px;margin-top:8px">
+<b style="color:#60a5fa">Scenario selezionato:</b>
+<span style="color:#e2e8f0"> {selected_scenario}</span><br>
+<span style="color:#6b7280;font-size:0.82rem">{_n_cats} categorie — {_n_assets} asset totali</span>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    active_categories = scenario_labels[selected_scenario]
+    all_crisis_tickers = []
+
+    # ── Per ogni categoria ─────────────────────────────────────────────
+    for cat_name in active_categories:
+        cat_data = CRISIS_ASSETS.get(cat_name, {})
+        if not cat_data: continue
+        assets = cat_data.get("assets", [])
+        if not assets: continue
+
+        st.markdown(f"### {cat_name}")
+        st.markdown(f"*{CRISIS_LEGEND.get(cat_name, cat_data.get('desc',''))}*")
+
+        rows = [{"Ticker": t, "Nome": n, "Descrizione Tattica": d} for t,n,d in assets]
+        df_crisis_cat = pd.DataFrame(rows)
+        all_crisis_tickers.extend([r[0] for r in assets])
+
+        gb_c = GridOptionsBuilder.from_dataframe(df_crisis_cat)
+        gb_c.configure_default_column(sortable=False, resizable=True, filterable=False)
+        gb_c.configure_selection(selection_mode="multiple", use_checkbox=True)
+        gb_c.configure_column("Ticker", width=100, pinned="left",
+            cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('a');
+this.eGui.innerText=p.value;
+this.eGui.href='https://www.tradingview.com/chart/?symbol='+p.value;
+this.eGui.target='_blank';this.eGui.style.color='#60a5fa';
+this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';}
+getGui(){return this.eGui;}refresh(){return false;}}"""))
+        gb_c.configure_column("Nome", width=210)
+        gb_c.configure_column("Descrizione Tattica", width=420, wrapText=True, autoHeight=True)
+        go_c = gb_c.build()
+
+        try:
+            resp_c = AgGrid(df_crisis_cat, gridOptions=go_c,
+                            height=min(120 + len(assets)*35, 440),
+                            update_mode=GridUpdateMode.SELECTION_CHANGED,
+                            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                            fit_columns_on_grid_load=True, theme="streamlit",
+                            allow_unsafe_jscode=True, key=f"cg_{cat_name[:10].strip()}")
+            sel_crisis = pd.DataFrame(resp_c["selected_rows"])
+        except Exception as _ag_err:
+            # Fallback: dataframe semplice se AgGrid non disponibile
+            st.dataframe(df_crisis_cat, use_container_width=True, hide_index=True)
+            sel_crisis = pd.DataFrame()
+
+        c_a1, c_a2, _ = st.columns([2, 2, 4])
+        with c_a1:
+            if st.button(f"➕ Aggiungi selezionati", key=f"cadd_{cat_name[:10].strip()}"):
+                if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
+                    tks = sel_crisis["Ticker"].tolist()
+                    nms = sel_crisis["Nome"].tolist()
+                    add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
+                                     "WATCH", st.session_state.current_list_name)
+                    st.success(f"✅ Aggiunti {len(tks)} ticker."); time.sleep(0.5); st.rerun()
+                else:
+                    st.warning("Seleziona almeno un asset dalla griglia.")
+        with c_a2:
+            if st.button(f"➕ Tutti ({len(assets)})", key=f"call_{cat_name[:10].strip()}"):
+                tks=[r[0] for r in assets]; nms=[r[1] for r in assets]
+                add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
+                                 "WATCH", st.session_state.current_list_name)
+                st.success(f"✅ Aggiunti tutti i {len(tks)} ticker."); time.sleep(0.5); st.rerun()
+        st.markdown("")
+
+    # ── Legenda e guida ───────────────────────────────────────────────
+    st.markdown("---")
+    with st.expander("📖 Guida — Come usare il Crisis Monitor e performance storiche", expanded=False):
+        st.markdown("""
+## 🛡️ Crisis Monitor — Guida Operativa
+
+### 📊 Come usare il tab
+| Azione | Come fare |
+|--------|-----------|
+| **Aprire grafico** | Clicca sul ticker (link blu) → TradingView |
+| **Aggiungere alla watchlist** | Seleziona riga → ➕ Aggiungi selezionati |
+| **Analisi tecnica** | Dopo averli in watchlist, esegui lo scanner per segnali |
+| **Cambiare scenario** | Usa il selettore in cima |
+
+### 🎯 Criteri di selezione asset
+- ✅ **Liquidità** > 1M$/giorno — trattabili senza slippage
+- ✅ **Correlazione provata** con lo scenario (dati storici reali)
+- ✅ **Strumenti regolamentati** NYSE/NASDAQ — niente prodotti esotici
+- ✅ **Diversificazione**: ETF broad + singoli titoli per leva
+
+### 📈 Performance storica in scenari di crisi
+| Scenario | Asset vincente | Performance tipica |
+|----------|---------------|-------------------|
+| Guerra Ucraina Feb 2022 | LMT +36%, RTX +28%, XOM +40% | +30/50% in 3 mesi |
+| COVID Crash Mar 2020 | TLT +20%, GLD +15%, XLV -5% | TLT unico rialzista |
+| Inflazione 2021-2022 | XOM +80%, OXY +120%, WEAT +65% | Energia/agri dominano |
+| Crisi bancaria Mar 2023 | GLD +8%, BTC +40%, TLT +6% | Oro e Bitcoin |
+| 9/11 Settembre 2001 | GLD, LMT, RTX +15% in 6 mesi | Difesa e oro |
+
+### ⚠️ Avvertenze
+> I rendimenti passati non garantiscono quelli futuri. Questo è uno strumento informativo,
+> non consulenza finanziaria. Alcuni ETF (RSX Russia) possono diventare illiquidi in caso di sanzioni.
+""")
+
+    # ── Export ────────────────────────────────────────────────────────
+    st.markdown("---")
+    _cx1, _cx2 = st.columns(2)
+    _unique = list(dict.fromkeys(all_crisis_tickers))
+    with _cx1:
+        st.download_button("📺 Export TradingView CSV",
+            data=chr(10).join(_unique),
+            file_name=f"crisis_{selected_scenario[:25].replace(' ','_')}.csv",
+            mime="text/plain", key="crisis_tv_exp",
+            help="Un ticker per riga — importabile in TradingView Watchlist")
+    with _cx2:
+        _cdf = pd.DataFrame([
+            {"Categoria":cat,"Ticker":t,"Nome":n,"Descrizione":d}
+            for cat in active_categories
+            for t,n,d in CRISIS_ASSETS.get(cat,{}).get("assets",[])
+        ])
+        if not _cdf.empty:
+            st.download_button("📊 Export Excel",
+                data=to_excel_bytes({"Crisis Monitor":_cdf}),
+                file_name="crisis_monitor.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="crisis_xlsx_exp")
+
 
 # =========================================================================
 # WATCHLIST — AgGrid + cards + multi-lista
