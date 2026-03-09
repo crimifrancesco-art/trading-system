@@ -698,9 +698,9 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 29.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 28.0")
+st.markdown("# 🧠 Trading Scanner PRO 29.0")
 st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v29.0</div>',unsafe_allow_html=True)
 init_db()
 
@@ -890,7 +890,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 28.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 29.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -1474,13 +1474,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v27.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v29.0."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v27.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v29.0."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
