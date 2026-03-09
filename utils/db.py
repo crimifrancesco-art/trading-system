@@ -6,35 +6,59 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-# ── DB Path v29 ────────────────────────────────────────────────────────────
-# Su Streamlit Cloud /mount/src/ è READ-ONLY.
-# /home/appuser/ è SCRIVIBILE e persiste tra restart (ma non tra redeploy).
-# Per persistenza cross-redeploy usa st.secrets["TRADING_DB_PATH"] o var env.
+# ── DB Path ────────────────────────────────────────────────────────────────
+# Su Streamlit Cloud: /mount/src/<repo>/ è READ-ONLY, /home/appuser/ è scrivibile
+# Su locale: usa la home utente
+# DB_PATH è fisso a runtime — non cambia mai durante la sessione.
 
-import os as _os
+_HERE = Path(__file__).parent
 
 def _get_db_path() -> Path:
-    # 1. Variabile d'ambiente o secrets esplicita
-    _env = _os.environ.get("TRADING_DB_PATH", "")
-    if _env:
-        p = Path(_env)
+    """Path fisso e scrivibile per il DB watchlist.
+    Priorità:
+      1. $TRADING_DB_PATH  (variabile d'ambiente opzionale)
+      2. /home/appuser/.trading_scanner/  (Streamlit Cloud)
+      3. ~/.trading_scanner/              (locale / home generica)
+      4. /tmp/                            (fallback assoluto)
+    """
+    import os
+    # Priorità 1: variabile d'ambiente esplicita
+    env_path = os.environ.get("TRADING_DB_PATH")
+    if env_path:
+        p = Path(env_path)
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
             return p
         except Exception:
             pass
-    # 2. /home/appuser (Streamlit Cloud — scrivibile, persiste tra restart)
-    # 3. ~/.trading_scanner (locale)
-    for p in [Path("/home/appuser/.trading_scanner/watchlist.db"),
-              Path.home() / ".trading_scanner" / "watchlist.db",
-              Path("/tmp/trading_scanner.db")]:
+
+    # Priorità 2-4: cerca un path scrivibile
+    candidates = [
+        Path("/home/appuser/.trading_scanner/watchlist.db"),  # Streamlit Cloud
+        Path.home() / ".trading_scanner" / "watchlist.db",   # locale
+        Path("/tmp/trading_scanner_watchlist.db"),            # fallback
+    ]
+    for p in candidates:
         try:
             p.parent.mkdir(parents=True, exist_ok=True)
-            _t = p.with_suffix(".tmp"); _t.write_text("x"); _t.unlink()
+            # Verifica scrittura reale
+            _t = p.with_suffix(".tmp")
+            _t.write_text("test"); _t.unlink()
+            # Se esiste già un DB a /tmp con dati, migra
+            _tmp = Path("/tmp/trading_scanner_watchlist.db")
+            _old = Path("/tmp/watchlist.db")
+            for _src in [_tmp, _old]:
+                if _src != p and _src.exists() and _src.stat().st_size > 8192:
+                    if not p.exists() or p.stat().st_size < _src.stat().st_size:
+                        try:
+                            import shutil; shutil.copy2(_src, p)
+                        except Exception:
+                            pass
+                    break
             return p
         except Exception:
             continue
-    return Path("/tmp/trading_scanner.db")
+    return Path("/tmp/trading_scanner_watchlist.db")
 
 DB_PATH = _get_db_path()
 
@@ -528,3 +552,65 @@ def update_signal_performance(max_signals: int = 300) -> int:
         return 0
 
 init_db()
+
+# ─────────────────────────────────────────────────────────────────
+# LAYOUT GRIGLIA — persistenza larghezze/ordinamento colonne AgGrid
+# ─────────────────────────────────────────────────────────────────
+def _ensure_grid_layouts_table(conn):
+    """Crea tabella grid_layouts se non esiste."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS grid_layouts (
+            grid_key    TEXT PRIMARY KEY,
+            layout_json TEXT,
+            updated_at  TEXT
+        )
+    """)
+    conn.commit()
+
+
+def save_grid_layout(grid_key: str, layout: dict | None):
+    """
+    Salva il layout (colState/sortState) di una griglia nel DB.
+    Se layout=None cancella il layout salvato (reset).
+    """
+    import json
+    from datetime import datetime
+    conn = sqlite3.connect(str(_get_db_path()))
+    try:
+        _ensure_grid_layouts_table(conn)
+        if layout is None:
+            conn.execute("DELETE FROM grid_layouts WHERE grid_key=?", (grid_key,))
+        else:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute("""
+                INSERT INTO grid_layouts (grid_key, layout_json, updated_at)
+                VALUES (?,?,?)
+                ON CONFLICT(grid_key) DO UPDATE SET
+                    layout_json=excluded.layout_json,
+                    updated_at=excluded.updated_at
+            """, (grid_key, json.dumps(layout, default=str), now))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def load_grid_layout(grid_key: str) -> dict | None:
+    """
+    Carica il layout salvato per una griglia.
+    Ritorna None se non esiste.
+    """
+    import json
+    conn = sqlite3.connect(str(_get_db_path()))
+    try:
+        _ensure_grid_layouts_table(conn)
+        row = conn.execute(
+            "SELECT layout_json FROM grid_layouts WHERE grid_key=?", (grid_key,)
+        ).fetchone()
+        if row and row[0]:
+            return json.loads(row[0])
+        return None
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
