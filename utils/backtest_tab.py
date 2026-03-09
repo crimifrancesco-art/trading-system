@@ -94,6 +94,24 @@ def render_backtest_tab():
             st.success(f"✅ Aggiornati {n} segnali.")
             st.rerun()
 
+    # Pulsante Reset Elenco segnali
+    _bc1, _bc2 = st.columns([1, 5])
+    with _bc1:
+        if st.button("🗑️ Reset Elenco Segnali", key="bt_reset_sigs",
+                     type="secondary",
+                     help="Cancella tutti i segnali registrati dal DB. "
+                          "I dati scanner rimangono intatti."):
+            try:
+                from utils.db import _get_db_path
+                import sqlite3 as _sq
+                _c = _sq.connect(str(_get_db_path()))
+                _c.execute("DELETE FROM signals")
+                _c.commit(); _c.close()
+                st.success("✅ Elenco segnali cancellato!")
+                st.rerun()
+            except Exception as _re:
+                st.error(f"Errore reset: {_re}")
+
     # -- Carica dati -------------------------------------------------------
     df_sigs = load_signals(signal_type=sig_type_arg,
                            days_back=days_back, with_perf=True)
@@ -286,7 +304,7 @@ Non è backtesting storico con curve ottimizzate — è più onesto.
     st.markdown("### 🔍 Dettaglio segnali registrati")
 
     disp_cols = ["scanned_at", "ticker", "nome", "signal_type",
-                 "entry_price", "rsi", "quality_score", "ser_score", "fv_score",
+                 "prezzo", "rsi", "quality_score", "ser_score", "fv_score",
                  "squeeze", "weekly_bull",
                  "ret_1d", "ret_5d", "ret_10d", "ret_20d"]
     disp_cols = [c for c in disp_cols if c in df_sigs.columns]
@@ -295,7 +313,7 @@ Non è backtesting storico con curve ottimizzate — è più onesto.
     # Rename
     df_disp = df_disp.rename(columns={
         "scanned_at": "Data", "ticker": "Ticker", "nome": "Nome",
-        "signal_type": "Tipo", "entry_price": "Prezzo",
+        "signal_type": "Tipo", "prezzo": "Prezzo",
         "rsi": "RSI", "quality_score": "Quality",
         "ser_score": "Ser", "fv_score": "FV",
         "squeeze": "SQ", "weekly_bull": "W+",
