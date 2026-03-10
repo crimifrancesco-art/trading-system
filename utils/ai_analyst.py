@@ -30,8 +30,8 @@ import streamlit as st
 
 
 # ── Costanti ──────────────────────────────────────────────────────
-GEMINI_MODEL    = "gemini-1.5-flash-latest"   # free tier, funzionante
-GEMINI_MODEL_FB = "gemini-1.5-pro-latest"      # fallback qualità
+GEMINI_MODEL    = "gemini-1.5-flash-002"   # versione stabile
+GEMINI_MODEL_FB = "gemini-1.5-flash-001"   # fallback
 GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com"
     "/v1beta/models/{model}:generateContent?key={key}"
@@ -89,8 +89,15 @@ def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
     Su 429 aspetta con backoff prima di riprovare.
     """
     import time
-    models = [model or GEMINI_MODEL, "gemini-1.5-flash-latest",
-              "gemini-1.5-pro-latest"]
+    # Nomi esatti Gemini (no alias "-latest" — non supportato su v1beta)
+    models = [
+        model or GEMINI_MODEL,
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-pro-001",
+        "gemini-pro",
+    ]
     seen = set()
     models = [m for m in models if not (m in seen or seen.add(m))]
 
@@ -345,7 +352,8 @@ def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
     with c3:
         model_sel = st.selectbox(
             "Modello",
-            ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest"],
+            ["gemini-1.5-flash-002", "gemini-1.5-flash-001",
+             "gemini-1.5-pro-002",  "gemini-pro"],
             index=0,
             key=f"ai_model_{tkr}_{key_suffix}",
             label_visibility="collapsed",
