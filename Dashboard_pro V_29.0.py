@@ -1770,7 +1770,8 @@ with tab_crisis:
     # ── Selezione scenario ────────────────────────────────────────────
     scenario_labels = {
         "🌍 Guerra / Conflitto Militare":  ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🔫 Difesa & Aerospazio","🏦 Treasuries & Obbligazioni","💵 Valute Rifugio"],
-        "📈 Inflazione / Stagflazione":    ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🍞 Commodities & Agri","💵 Valute Rifugio","🌍 Mercati Neutri / Commodity States"],
+        "📈 Inflazione Alta":              ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🍞 Commodities & Agri","💵 Valute Rifugio","🌍 Mercati Neutri / Commodity States"],
+        "🧱 Stagflazione":                 ["🥇 Metalli Preziosi","⚫ Energia & Petrolio","🍞 Commodities & Agri","⚡ Utilities","💊 Healthcare & Pharma","💵 Valute Rifugio"],
         "📉 Crash / Panic Sell":            ["🥇 Metalli Preziosi","🏦 Treasuries & Obbligazioni","⚡ Utilities","💊 Healthcare & Pharma","💵 Valute Rifugio"],
         "🦠 Pandemia / Crisi Sanitaria":   ["💊 Healthcare & Pharma","🥇 Metalli Preziosi","⚡ Utilities","🏦 Treasuries & Obbligazioni"],
         "💻 Crisi Energetica":             ["⚫ Energia & Petrolio","⚡ Utilities","🌍 Mercati Neutri / Commodity States"],
@@ -1900,18 +1901,25 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                                  "WATCH", st.session_state.current_list_name)
                 st.success(f"✅ Aggiunti tutti i {len(tks)} ticker."); time.sleep(0.5); st.rerun()
         # ── Grafico ticker selezionato (come negli altri tab) ──────────
-        if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
+        # Controlla selezione esplicita (non solo riga pre-selezionata)
+        _has_selection = (not sel_crisis.empty
+                          and "Ticker" in sel_crisis.columns
+                          and len(sel_crisis) > 0)
+        if _has_selection:
             _ctkr = sel_crisis.iloc[0].get("Ticker","")
             _crow = None
             for _cdf in [df_ep, df_rea]:
                 if _cdf is None or _cdf.empty or "Ticker" not in _cdf.columns: continue
                 _cm = _cdf[_cdf["Ticker"]==_ctkr]
-                if not _cm.empty: _crow=_cm.iloc[0]; break
+                if not _cm.empty and "_chart_data" in _cm.columns:
+                    _cd = _cm.iloc[0].get("_chart_data")
+                    if _cd and isinstance(_cd, dict) and _cd.get("dates"):
+                        _crow = _cm.iloc[0]; break
             if _crow is not None:
                 show_charts(_crow, key_suffix=f"cr_{cat_name[:8].replace(' ','')}")
             else:
-                st.info(f"📭 Dati tecnici non disponibili per **{_ctkr}**. "
-                        f"Esegui prima lo scanner su questo mercato.")
+                st.info(f"📭 Dati tecnici per **{_ctkr}** non disponibili. "
+                        f"Esegui lo scanner su questo mercato.")
         st.markdown("")
 
     # ── Legenda e guida ───────────────────────────────────────────────
