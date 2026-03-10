@@ -1,25 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-ai_analyst.py  —  AI Analyst Module  v30.0
+ai_analyst.py  —  AI Analyst Module  v30.0  (Google Gemini)
 ════════════════════════════════════════════════════════════════════
-Usa Claude API per generare un brief analitico su ogni ticker.
-Claude legge i dati tecnici già calcolati dallo scanner e produce
-un'analisi strutturata in italiano: setup, target, invalidazione,
-rischio, contesto macro.
+Usa Google Gemini API (gratuita) per brief analitici sui ticker.
 
-REQUISITI:
-  Streamlit secrets:
-    [anthropic]
-    api_key = "sk-ant-xxxx"
+SETUP:
+  1. aistudio.google.com → Get API Key (gratis, nessuna carta)
+  2. Streamlit Cloud → App settings → Secrets:
 
-  Oppure variabile d'ambiente:
-    ANTHROPIC_API_KEY = "sk-ant-xxxx"
+     [gemini]
+     api_key = "AIzaSy..."
 
-ARCHITETTURA:
-  • Chiamata diretta all'API Anthropic (no SDK — solo urllib)
-  • Cache in st.session_state per evitare chiamate ripetute
-  • Streaming simulato con st.write_stream per UX fluida
-  • Fallback gracile se API non configurata
+MODELLI (tutti gratuiti, 15 req/min):
+  gemini-1.5-flash      → default, ottimo bilanciamento
+  gemini-1.5-flash-8b   → più veloce
+  gemini-2.0-flash-exp  → sperimentale
 ════════════════════════════════════════════════════════════════════
 """
 
@@ -34,73 +29,51 @@ import pandas as pd
 import streamlit as st
 
 
-# ── Config ────────────────────────────────────────────────────────
-MODEL = "claude-sonnet-4-5"
-MAX_TOKENS = 1200
+# ── Costanti ──────────────────────────────────────────────────────
+GEMINI_MODEL    = "gemini-1.5-flash"
+GEMINI_MODEL_FB = "gemini-1.5-flash-8b"
+GEMINI_BASE_URL = (
+    "https://generativelanguage.googleapis.com"
+    "/v1beta/models/{model}:generateContent?key={key}"
+)
+MAX_TOKENS       = 1200
 CACHE_KEY_PREFIX = "_ai_analyst_"
 
 
+# ── Lettura API Key ───────────────────────────────────────────────
+
 def _get_api_key() -> Optional[str]:
-    """
-    Legge la chiave API Anthropic da tutte le possibili fonti.
-    Gestisce tutti i formati di Streamlit secrets:
-      [anthropic]           ANTHROPIC_API_KEY = "sk-ant-..."
-      api_key = "sk-ant-..."
-
-      oppure livello root:
-      ANTHROPIC_API_KEY = "sk-ant-..."
-
-    Oppure variabile d'ambiente ANTHROPIC_API_KEY.
-    """
+    """Legge Gemini API key da secrets o env."""
     import os
 
-    # 1. Variabile d'ambiente (priorità massima — override esplicito)
-    env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if env_key and env_key.startswith("sk-"):
-        return env_key
+    env = os.environ.get("GEMINI_API_KEY", "").strip()
+    if env and env.startswith("AIza"):
+        return env
 
-    # 2. Streamlit secrets — vari formati
     try:
-        secrets = st.secrets
-
-        # Formato A: [anthropic] / api_key = "..."
-        try:
-            key = str(secrets["anthropic"]["api_key"]).strip()
-            if key and key.startswith("sk-"): return key
-        except Exception:
-            pass
-
-        # Formato B: [anthropic] / ANTHROPIC_API_KEY = "..."
-        try:
-            key = str(secrets["anthropic"]["ANTHROPIC_API_KEY"]).strip()
-            if key and key.startswith("sk-"): return key
-        except Exception:
-            pass
-
-        # Formato C: root level — ANTHROPIC_API_KEY = "..."
-        try:
-            key = str(secrets["ANTHROPIC_API_KEY"]).strip()
-            if key and key.startswith("sk-"): return key
-        except Exception:
-            pass
-
-        # Formato D: root level — api_key = "..."
-        try:
-            key = str(secrets["api_key"]).strip()
-            if key and key.startswith("sk-"): return key
-        except Exception:
-            pass
-
-        # Formato E: root level — anthropic_api_key = "..."
-        try:
-            key = str(secrets["anthropic_api_key"]).strip()
-            if key and key.startswith("sk-"): return key
-        except Exception:
-            pass
-
+        s = st.secrets
+        for path in (
+            ("gemini", "api_key"),
+            ("gemini", "GEMINI_API_KEY"),
+        ):
+            try:
+                k = s
+                for p in path:
+                    k = k[p]
+                k = str(k).strip()
+                if k.startswith("AIza"):
+                    return k
+            except Exception:
+                pass
+        for nome in ("GEMINI_API_KEY", "gemini_api_key", "api_key"):
+            try:
+                k = str(s[nome]).strip()
+                if k.startswith("AIza"):
+                    return k
+            except Exception:
+                pass
     except Exception:
         pass
-
     return None
 
 
@@ -108,165 +81,185 @@ def _api_available() -> bool:
     return bool(_get_api_key())
 
 
-# ── Costruzione prompt ────────────────────────────────────────────
+# ── Chiamata REST Gemini ──────────────────────────────────────────
+
+def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
+    """Chiama Gemini API, prova modelli in sequenza."""
+    models = [model or GEMINI_MODEL, GEMINI_MODEL_FB,
+              "gemini-2.0-flash-exp", "gemini-1.0-pro"]
+    seen = set()
+    models = [m for m in models if not (m in seen or seen.add(m))]
+
+    last_err = None
+    for m in models:
+        url = GEMINI_BASE_URL.format(model=m, key=api_key.strip())
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": MAX_TOKENS,
+                "temperature": 0.4,
+            },
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read())
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            last_err = f"HTTP {e.code} ({m}): {body[:300]}"
+            if e.code in (400, 403):
+                try:
+                    msg = json.loads(body).get("error", {}).get("message", body[:200])
+                except Exception:
+                    msg = body[:200]
+                raise RuntimeError(f"❌ Gemini Error {e.code}: {msg}")
+            if e.code == 404:
+                continue
+            raise RuntimeError(last_err)
+        except RuntimeError:
+            raise
+        except Exception as ex:
+            last_err = str(ex)
+            continue
+
+    raise RuntimeError(f"Tutti i modelli Gemini hanno fallito. Ultimo: {last_err}")
+
+
+# ── Prompt ────────────────────────────────────────────────────────
 
 def _build_prompt(row: pd.Series) -> str:
-    """
-    Costruisce il prompt per Claude a partire dai dati tecnici del ticker.
-    """
-    tkr   = row.get("Ticker", "")
-    nome  = row.get("Nome", "")
-    prezzo = row.get("Prezzo", "")
-    rsi   = row.get("RSI", "")
-    qual  = row.get("Quality_Score", "")
-    early = row.get("Early_Score", "")
-    pro   = row.get("Pro_Score", "")
-    vol_r = row.get("Vol_Ratio", "")
-    obv   = row.get("OBV_Trend", "")
-    squeeze = row.get("Squeeze", False)
-    weekly  = row.get("Weekly_Bull", False)
-    stato_e = row.get("Stato_Early", "")
-    stato_p = row.get("Stato_Pro", "")
-    mcap    = row.get("MarketCap_fmt", "")
-    ser_s   = row.get("Ser_Score", "")
-    fv_s    = row.get("FV_Score", "")
-
-    # Dati grafico
-    cd = row.get("_chart_data", {}) or {}
-    closes = cd.get("close", [])
-    ema20  = cd.get("ema20",  [])
-    ema50  = cd.get("ema50",  [])
-    ema200 = cd.get("ema200", [])
-
+    def g(k, d=""): return row.get(k, d)
     def last(lst):
         vals = [v for v in (lst or []) if v is not None]
         return round(vals[-1], 2) if vals else "N/D"
 
-    ema20_v  = last(ema20)
-    ema50_v  = last(ema50)
-    ema200_v = last(ema200)
-    close_v  = last(closes)
+    cd   = g("_chart_data", {}) or {}
+    e20  = last(cd.get("ema20",  []))
+    e50  = last(cd.get("ema50",  []))
+    e200 = last(cd.get("ema200", []))
+    cl   = last(cd.get("close",  []))
+    bbu  = last(cd.get("bb_up",  []))
+    bbd  = last(cd.get("bb_dn",  []))
 
-    # Trend EMA
-    trend_str = "N/D"
-    if close_v != "N/D" and ema20_v != "N/D" and ema50_v != "N/D":
-        if close_v > ema20_v > ema50_v:
-            trend_str = "RIALZISTA (prezzo > EMA20 > EMA50)"
-        elif close_v < ema20_v < ema50_v:
-            trend_str = "RIBASSISTA (prezzo < EMA20 < EMA50)"
-        else:
-            trend_str = "LATERALE / MISTO"
+    if cl != "N/D" and e20 != "N/D" and e50 != "N/D":
+        if cl > e20 > e50:    trend = "RIALZISTA (prezzo > EMA20 > EMA50)"
+        elif cl < e20 < e50:  trend = "RIBASSISTA (prezzo < EMA20 < EMA50)"
+        else:                  trend = "LATERALE / MISTO"
+    else:
+        trend = "N/D"
 
-    # Target e stop semplificati da BB
-    bb_up = last(cd.get("bb_up", []))
-    bb_dn = last(cd.get("bb_dn", []))
+    return f"""Sei un analista tecnico quantitativo senior. Analizza questo ticker
+usando SOLO i dati tecnici forniti. Rispondi ESCLUSIVAMENTE in italiano.
+Sii conciso, preciso e operativo. Data: {datetime.now().strftime("%d %b %Y %H:%M")}.
 
-    now = datetime.now().strftime("%d %b %Y %H:%M")
+TICKER: {g("Ticker")} | NOME: {g("Nome")} | PREZZO: ${g("Prezzo")} | MCAP: {g("MarketCap_fmt")}
 
-    prompt = f"""Sei un analista tecnico quantitativo senior specializzato in trading azionario USA.
-Analizza il seguente ticker basandoti ESCLUSIVAMENTE sui dati tecnici forniti.
-Rispondi SOLO in italiano. Sii conciso, diretto e operativo. Data analisi: {now}.
+TECNICI:
+RSI(14)={g("RSI")} | Vol_Ratio={g("Vol_Ratio")}x | OBV={g("OBV_Trend")}
+Squeeze={"🔥 SÌ" if g("Squeeze") else "No"} | Weekly Bull={"✅ Sì" if g("Weekly_Bull") else "No"}
+Trend EMA: {trend}
+EMA20={e20} | EMA50={e50} | EMA200={e200}
+BB Upper={bbu} | BB Lower={bbd}
 
-═══ DATI TICKER ═══
-Ticker:       {tkr}
-Nome:         {nome}
-Prezzo:       ${prezzo}
-Market Cap:   {mcap}
+SCORE:
+Quality={g("Quality_Score")}/12 | Early={g("Early_Score")} | Pro={g("Pro_Score")}
+Serafini={g("Ser_Score")} | FinViz={g("FV_Score")}
+Stato Early={g("Stato_Early")} | Stato Pro={g("Stato_Pro")}
 
-═══ INDICATORI TECNICI ═══
-RSI(14):        {rsi}
-Vol_Ratio:      {vol_r}x  (volume oggi vs media 20g)
-OBV Trend:      {obv}
-Squeeze:        {"🔥 SÌ — compressione esplosiva" if squeeze else "No"}
-Weekly Bull:    {"✅ Sì — setup multi-timeframe" if weekly else "No"}
-Trend EMA:      {trend_str}
-EMA 20:         {ema20_v}
-EMA 50:         {ema50_v}
-EMA 200:        {ema200_v}
-BB Upper:       {bb_up}
-BB Lower:       {bb_dn}
-
-═══ SCORE SCANNER ═══
-Quality Score:  {qual}/12
-Early Score:    {early}
-Pro Score:      {pro}
-Serafini Score: {ser_s}
-FinViz Score:   {fv_s}
-Stato Early:    {stato_e}
-Stato Pro:      {stato_p}
-
-═══ FORMATO RISPOSTA RICHIESTO ═══
-Rispondi con questa struttura esatta (usa emoji e markdown):
+FORMATO RISPOSTA (rispetta questa struttura):
 
 ## 🎯 Setup
-[1-2 frasi: descrivi il setup tecnico attuale — cosa sta succedendo]
+[1-2 frasi: setup tecnico attuale]
 
 ## 📈 Scenario Bullish
-**Target 1:** $xxx (+x%)  |  **Target 2:** $xxx (+x%)
+**Target 1:** $xxx (+x%) | **Target 2:** $xxx (+x%)
 [1 frase: condizione per conferma rialzo]
 
 ## 🛡️ Invalidazione
 **Stop Loss:** $xxx (-x%)
-[1 frase: livello tecnico chiave che invalida il setup]
+[1 frase: livello tecnico che invalida il setup]
 
 ## ⚡ Catalizzatori
-[2-3 bullet con i punti tecnici più forti a favore o contro]
+- [punto tecnico 1]
+- [punto tecnico 2]
+- [punto tecnico 3]
 
 ## ⚠️ Rischi
-[1-2 frasi: rischi principali da monitorare]
+[1-2 frasi: rischi principali]
 
 ## 📊 Verdict
-**[STRONG BUY / BUY / WATCH / AVOID]** — [1 frase di sintesi operativa]
-
-Sii preciso con i prezzi target. Usa i livelli BB/EMA come riferimento."""
-
-    return prompt
+**[STRONG BUY / BUY / WATCH / AVOID]** — [1 frase operativa]"""
 
 
-# ── Chiamata API ──────────────────────────────────────────────────
+def _build_portfolio_prompt(df_wl: pd.DataFrame,
+                             df_scan: pd.DataFrame) -> str:
+    tickers = df_wl.get("Ticker", pd.Series()).tolist()
+    liste   = (df_wl["list_name"].value_counts().to_dict()
+               if "list_name" in df_wl.columns else {})
 
-def _call_claude(prompt: str, api_key: str) -> str:
-    """
-    Chiama Claude API via urllib (no dipendenze extra).
-    Ritorna il testo della risposta.
-    """
-    url = "https://api.anthropic.com/v1/messages"
-    payload = {
-        "model": MODEL,
-        "max_tokens": MAX_TOKENS,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        method="POST",
-        headers={
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-    return data["content"][0]["text"]
+    scan_cols = ["Ticker","RSI","Quality_Score","Vol_Ratio",
+                 "OBV_Trend","Squeeze","Weekly_Bull","Stato_Early"]
+    rows_data = []
+    if df_scan is not None and not df_scan.empty and "Ticker" in df_scan.columns:
+        avail  = [c for c in scan_cols if c in df_scan.columns]
+        merged = df_wl.merge(df_scan[avail], on="Ticker", how="left")
+        for _, r in merged.iterrows():
+            rows_data.append(
+                f"  {str(r.get('Ticker','?')):8s} | "
+                f"lista={str(r.get('list_name','?')):10s} | "
+                f"RSI={str(r.get('RSI','?')):5s} | "
+                f"Q={str(r.get('Quality_Score','?')):4s} | "
+                f"Sqz={'🔥' if r.get('Squeeze') else 'No'} | "
+                f"W+={'✅' if r.get('Weekly_Bull') else 'No'} | "
+                f"OBV={str(r.get('OBV_Trend','?'))}"
+            )
+    else:
+        rows_data = [f"  {t}" for t in tickers]
+
+    return f"""Sei un portfolio manager quantitativo senior. Analizza questo portafoglio.
+Data: {datetime.now().strftime("%d %b %Y %H:%M")}. Rispondi in italiano.
+
+PORTAFOGLIO: {len(tickers)} ticker | Liste: {json.dumps(liste, ensure_ascii=False)}
+
+DATI TECNICI:
+{"".join(chr(10)+r for r in rows_data)}
+
+Rispondi con questa struttura:
+
+## 📊 Panoramica
+[2-3 frasi: stato generale e momentum medio]
+
+## 🔥 Top 3 Momentum
+[I 3 ticker con setup migliore]
+
+## ⚠️ Posizioni Deboli
+[Ticker da ridurre o uscire]
+
+## ⚖️ Bilanciamento
+[Concentrazione, correlazioni, rischi]
+
+## 🎯 Azioni Raccomandate
+1. [azione specifica]
+2. [azione specifica]
+3. [azione specifica]
+
+## 📈 Outlook
+**[BULLISH / NEUTRALE / CAUTO]** — [sintesi 1 frase]"""
 
 
-# ── Cache helpers ─────────────────────────────────────────────────
+# ── Cache ─────────────────────────────────────────────────────────
 
-def _cache_key(tkr: str) -> str:
-    return f"{CACHE_KEY_PREFIX}{tkr}"
-
-
-def _get_cached(tkr: str) -> Optional[str]:
-    return st.session_state.get(_cache_key(tkr))
-
-
-def _set_cached(tkr: str, text: str):
-    st.session_state[_cache_key(tkr)] = text
-
+def _cache_key(tkr): return f"{CACHE_KEY_PREFIX}{tkr}"
+def _get_cached(tkr): return st.session_state.get(_cache_key(tkr))
+def _set_cached(tkr, text): st.session_state[_cache_key(tkr)] = text
 
 def clear_cache(tkr: str = None):
-    """Cancella cache AI per un ticker o per tutti."""
     if tkr:
         st.session_state.pop(_cache_key(tkr), None)
     else:
@@ -275,269 +268,184 @@ def clear_cache(tkr: str = None):
                 del st.session_state[k]
 
 
-# ── UI principale ─────────────────────────────────────────────────
+# ── UI ticker ─────────────────────────────────────────────────────
 
 def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
-    """
-    Renderizza il pannello AI Analyst per un ticker.
-    Chiamare dentro show_charts o in un expander.
-    """
-    tkr = row.get("Ticker", "N/D")
+    tkr  = row.get("Ticker", "N/D")
     nome = row.get("Nome", "")
 
-    # Header stile TV
     st.markdown(
         f'<div style="background:#1e222d;border-left:3px solid #2962ff;'
         f'padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:8px">'
         f'<span style="color:#2962ff;font-weight:700;font-size:0.9rem">'
         f'🤖 AI ANALYST</span>'
         f'<span style="color:#787b86;font-size:0.82rem;margin-left:12px">'
-        f'Powered by Claude · {MODEL}</span>'
+        f'Powered by Google Gemini · gratuito</span>'
         f'</div>',
         unsafe_allow_html=True
     )
 
     if not _api_available():
-        # Mostra diagnostica per aiutare il setup
         st.info(
-            "🔑 **API Anthropic non configurata.** Aggiungi la chiave in "
-            "Streamlit Cloud → App settings → Secrets:\n\n"
-            "```toml\n[anthropic]\napi_key = \"sk-ant-api03-...\"\n```\n\n"
-            "Oppure a livello root:\n```toml\nANTHROPIC_API_KEY = \"sk-ant-api03-...\"\n```"
+            "🔑 **Gemini API non configurata.**\n\n"
+            "1. Vai su **aistudio.google.com** → crea API Key (gratis)\n"
+            "2. In Streamlit Cloud → App settings → Secrets:\n\n"
+            "```toml\n[gemini]\napi_key = \"AIzaSy...\"\n```"
         )
-        # Debug: mostra cosa trova nei secrets (senza esporre la key)
         try:
-            _dbg = []
-            _s = st.secrets
-            if "anthropic" in _s:
-                _sub = _s["anthropic"]
-                _dbg.append(f"✅ sezione [anthropic] trovata — chiavi: {list(_sub.keys())}")
-                for k in _sub.keys():
-                    v = str(_sub[k])
-                    _dbg.append(f"  · {k} = '{v[:8]}...{v[-4:]}' (len={len(v)})")
+            dbg = []
+            s = st.secrets
+            if "gemini" in s:
+                sub = s["gemini"]
+                dbg.append(f"✅ sezione [gemini] trovata — chiavi: {list(sub.keys())}")
+                for k in sub.keys():
+                    v = str(sub[k])
+                    dbg.append(f"  · {k} = '{v[:8]}...{v[-4:]}' (len={len(v)})")
             else:
-                _dbg.append("❌ sezione [anthropic] NON trovata")
-                _dbg.append(f"  chiavi root: {list(_s.keys())}")
+                dbg.append("❌ sezione [gemini] NON trovata")
+                dbg.append(f"  chiavi root: {list(s.keys())}")
             with st.expander("🔍 Debug secrets", expanded=True):
-                st.code("\n".join(_dbg))
-        except Exception as _de:
-            st.caption(f"Secrets non accessibili: {_de}")
+                st.code("\n".join(dbg))
+        except Exception as de:
+            st.caption(f"Secrets non accessibili: {de}")
         return
 
     cached = _get_cached(tkr)
-    col_btn1, col_btn2, col_btn3 = st.columns([2, 2, 4])
+    c1, c2, c3 = st.columns([2, 2, 2])
 
-    with col_btn1:
-        run_analysis = st.button(
+    with c1:
+        run_btn = st.button(
             f"🧠 Analizza {tkr}",
             key=f"ai_run_{tkr}_{key_suffix}",
             type="primary",
             use_container_width=True,
-            help="Chiama Claude API per analisi tecnica completa"
         )
-    with col_btn2:
+    with c2:
+        regen_btn = False
         if cached:
-            if st.button(
+            regen_btn = st.button(
                 "🔄 Rigenera",
                 key=f"ai_regen_{tkr}_{key_suffix}",
                 use_container_width=True,
-                help="Forza nuova analisi (ignora cache)"
-            ):
-                clear_cache(tkr)
-                st.rerun()
+            )
+    with c3:
+        model_sel = st.selectbox(
+            "Modello",
+            ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"],
+            index=0,
+            key=f"ai_model_{tkr}_{key_suffix}",
+            label_visibility="collapsed",
+        )
 
-    if run_analysis or (cached is None and False):  # auto-run: False per ora
-        with st.spinner(f"🧠 Claude sta analizzando **{tkr}** — {nome}..."):
+    if regen_btn:
+        clear_cache(tkr)
+        st.rerun()
+
+    if run_btn:
+        with st.spinner(f"🧠 Gemini analizza **{tkr}** — {nome}..."):
             try:
-                api_key = _get_api_key()
-                prompt  = _build_prompt(row)
-                result  = _call_claude(prompt, api_key)
+                result = _call_gemini(_build_prompt(row), _get_api_key(), model_sel)
                 _set_cached(tkr, result)
                 cached = result
-                st.success(f"✅ Analisi completata per **{tkr}**")
-            except urllib.error.HTTPError as e:
-                body = e.read().decode("utf-8", errors="replace")
-                st.error(f"❌ API Error {e.code}: {body[:200]}")
+                st.success(f"✅ Analisi completata — {tkr}")
+            except RuntimeError as e:
+                st.error(str(e))
                 return
             except Exception:
-                st.error(f"❌ Errore: {traceback.format_exc()[-300:]}")
+                st.error(f"❌ Errore:\n```\n{traceback.format_exc()[-400:]}\n```")
                 return
 
     if cached:
-        # Mostra l'analisi in un box styled
         st.markdown(
             f'<div style="background:#131722;border:1px solid #2a2e39;'
             f'border-radius:6px;padding:18px 22px;margin-top:6px;'
-            f'font-size:0.88rem;line-height:1.6;color:#d1d4dc">'
+            f'font-size:0.88rem;line-height:1.7;color:#d1d4dc">'
             f'{cached.replace(chr(10), "<br>")}'
             f'</div>',
             unsafe_allow_html=True
         )
-        # Footer con timestamp e bottone copia
-        st.caption(
-            f"🕐 Analisi in cache · {tkr} · "
-            f"Clicca 'Rigenera' per aggiornare"
-        )
+        st.caption(f"🕐 Cache · {tkr} · {model_sel} · Premi Rigenera per aggiornare")
     else:
         st.markdown(
             '<div style="background:#1e222d;border:1px dashed #363a45;'
             'border-radius:6px;padding:20px;text-align:center;color:#787b86">'
-            '🧠 Clicca <b>Analizza</b> per generare il brief AI su questo ticker'
+            '🧠 Premi <b>Analizza</b> per il brief AI su questo ticker'
             '</div>',
             unsafe_allow_html=True
         )
 
 
-# ── Batch analysis per watchlist ──────────────────────────────────
+# ── UI portafoglio ────────────────────────────────────────────────
 
-def render_portfolio_ai(df_watchlist: pd.DataFrame,
-                        df_scanner: pd.DataFrame,
+def render_portfolio_ai(df_wl: pd.DataFrame,
+                        df_scan: pd.DataFrame,
                         key_suffix: str = ""):
-    """
-    Analisi AI del portafoglio complessivo.
-    Legge tutti i ticker in watchlist + dati scanner e produce
-    un brief sul bilanciamento, momentum, e raccomandazioni.
-    """
     st.markdown(
         '<div style="background:#1e222d;border-left:3px solid #ff9800;'
         'padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:8px">'
         '<span style="color:#ff9800;font-weight:700;font-size:0.9rem">'
         '💼 PORTFOLIO INTELLIGENCE</span>'
         '<span style="color:#787b86;font-size:0.82rem;margin-left:12px">'
-        'Analisi bilanciamento e momentum portafoglio</span>'
+        'Analisi AI bilanciamento e momentum portafoglio</span>'
         '</div>',
         unsafe_allow_html=True
     )
 
     if not _api_available():
-        st.info("🔑 Configura la chiave API Anthropic per usare questa funzione.")
+        st.info("🔑 Configura la Gemini API key per questa funzione.")
         return
-
-    if df_watchlist is None or df_watchlist.empty:
-        st.info("📭 Watchlist vuota. Aggiungi ticker per l'analisi portafoglio.")
+    if df_wl is None or df_wl.empty:
+        st.info("📭 Watchlist vuota.")
         return
 
     cache_key = "_ai_portfolio_brief_"
-    cached_portfolio = st.session_state.get(cache_key)
+    cached_p  = st.session_state.get(cache_key)
+    c1, c2    = st.columns([2, 6])
 
-    col1, col2 = st.columns([2, 6])
-    with col1:
-        run_portfolio = st.button(
+    with c1:
+        run_port = st.button(
             "💼 Analizza Portafoglio",
             key=f"ai_port_{key_suffix}",
             type="primary",
-            use_container_width=True
+            use_container_width=True,
         )
-    with col2:
-        if cached_portfolio:
+    with c2:
+        if cached_p:
             if st.button("🔄 Rigenera", key=f"ai_port_regen_{key_suffix}"):
                 st.session_state.pop(cache_key, None)
                 st.rerun()
 
-    if run_portfolio:
-        with st.spinner("💼 Claude sta analizzando il tuo portafoglio..."):
+    if run_port:
+        with st.spinner("💼 Gemini analizza il portafoglio..."):
             try:
-                api_key = _get_api_key()
-                prompt = _build_portfolio_prompt(df_watchlist, df_scanner)
-                result = _call_claude(prompt, api_key)
+                result = _call_gemini(
+                    _build_portfolio_prompt(df_wl, df_scan), _get_api_key()
+                )
                 st.session_state[cache_key] = result
-                cached_portfolio = result
+                cached_p = result
                 st.success("✅ Analisi portafoglio completata")
+            except RuntimeError as e:
+                st.error(str(e))
+                return
             except Exception:
-                st.error(f"❌ Errore: {traceback.format_exc()[-300:]}")
+                st.error(f"❌ {traceback.format_exc()[-300:]}")
                 return
 
-    if cached_portfolio:
+    if cached_p:
         st.markdown(
             f'<div style="background:#131722;border:1px solid #2a2e39;'
-            f'border-radius:6px;padding:18px 22px;margin-top:6px;'
-            f'font-size:0.88rem;line-height:1.6;color:#d1d4dc">'
-            f'{cached_portfolio.replace(chr(10), "<br>")}'
+            f'border-radius:6px;padding:18px 22px;font-size:0.88rem;'
+            f'line-height:1.7;color:#d1d4dc">'
+            f'{cached_p.replace(chr(10), "<br>")}'
             f'</div>',
             unsafe_allow_html=True
         )
     else:
-        tickers = df_watchlist["Ticker"].tolist() if "Ticker" in df_watchlist.columns else []
+        n = df_wl["Ticker"].nunique() if "Ticker" in df_wl.columns else 0
         st.markdown(
             f'<div style="background:#1e222d;border:1px dashed #363a45;'
             f'border-radius:6px;padding:20px;text-align:center;color:#787b86">'
-            f'💼 {len(tickers)} ticker in watchlist · '
-            f'Clicca <b>Analizza Portafoglio</b> per il brief AI'
+            f'💼 {n} ticker · Premi <b>Analizza Portafoglio</b> per il brief AI'
             f'</div>',
             unsafe_allow_html=True
         )
-
-
-def _build_portfolio_prompt(df_wl: pd.DataFrame,
-                             df_scan: pd.DataFrame) -> str:
-    """Costruisce il prompt per l'analisi portafoglio completa."""
-    tickers = df_wl["Ticker"].tolist() if "Ticker" in df_wl.columns else []
-    liste   = df_wl["list_name"].value_counts().to_dict() if "list_name" in df_wl.columns else {}
-    now = datetime.now().strftime("%d %b %Y %H:%M")
-
-    # Merge con dati scanner
-    rows_data = []
-    if df_scan is not None and not df_scan.empty and "Ticker" in df_scan.columns:
-        merged = df_wl.merge(
-            df_scan[["Ticker","RSI","Quality_Score","Vol_Ratio",
-                      "OBV_Trend","Squeeze","Weekly_Bull",
-                      "Stato_Early","Early_Score","Pro_Score"]
-                     if all(c in df_scan.columns for c in ["RSI","Quality_Score"])
-                     else ["Ticker"]],
-            on="Ticker", how="left"
-        )
-        for _, r in merged.iterrows():
-            rows_data.append(
-                f"  {r.get('Ticker','?'):8s} | lista={r.get('list_name','?'):12s} | "
-                f"RSI={r.get('RSI','?')!s:5s} | Q={r.get('Quality_Score','?')!s:4s} | "
-                f"Vol×={r.get('Vol_Ratio','?')!s:4s} | "
-                f"Sqz={'🔥' if r.get('Squeeze') else 'No':3s} | "
-                f"W+={'✅' if r.get('Weekly_Bull') else 'No':3s} | "
-                f"OBV={r.get('OBV_Trend','?')!s:6s} | "
-                f"Stato={r.get('Stato_Early','?')}"
-            )
-    else:
-        rows_data = [f"  {t}" for t in tickers]
-
-    ticker_table = "\n".join(rows_data) if rows_data else "  Nessun dato disponibile"
-
-    prompt = f"""Sei un portfolio manager quantitativo senior. Analizza questo portafoglio azionario
-e fornisci raccomandazioni operative concrete. Data analisi: {now}.
-
-═══ COMPOSIZIONE PORTAFOGLIO ═══
-Ticker totali: {len(tickers)}
-Liste: {json.dumps(liste, ensure_ascii=False)}
-
-═══ DATI TECNICI PER TICKER ═══
-Ticker   | Lista        | RSI   | Q    | Vol× | Sqz | W+  | OBV    | Stato
-{ticker_table}
-
-═══ ISTRUZIONI ═══
-Analizza il portafoglio e rispondi con questa struttura:
-
-## 📊 Panoramica Portafoglio
-[2-3 frasi: stato generale del portafoglio, momentum medio, concentrazione]
-
-## 🔥 Top Pick Momentum
-[Top 3 ticker con il miglior setup tecnico attuale — spiega perché]
-
-## ⚠️ Posizioni a Rischio
-[Ticker con segnali deboli o deterioramento — considera riduzione/uscita]
-
-## ⚖️ Bilanciamento
-[Analisi della distribuzione: settori, liquidità, correlazioni evidenti]
-
-## 🎯 Azioni Raccomandate
-Lista di 3-5 azioni concrete:
-1. [Azione specifica su ticker specifico]
-2. ...
-
-## 💡 Opportunità da Aggiungere
-[2-3 tipologie di asset o settori che migliorerebbero il bilanciamento]
-
-## 📈 Outlook
-**[BULLISH / NEUTRALE / CAUTO]** — [1 frase di sintesi sul portafoglio complessivo]
-
-Sii specifico con i ticker. Usa i dati tecnici forniti come base principale."""
-
-    return prompt
