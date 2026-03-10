@@ -22,6 +22,30 @@ try:
 except ImportError as _e:
     st.error(f"❌ Errore import utils.db: {_e}"); st.stop()
 
+# ── GitHub Sync (watchlist persistente tra deploy) ──────────────────────────
+try:
+    from utils.github_sync import (
+        pull_watchlist        as _gh_pull,
+        push_watchlist        as _gh_push,
+        sync_status           as _gh_status,
+        gh_add_to_watchlist,
+        gh_delete_from_watchlist,
+        gh_rename_watchlist,
+        gh_move_watchlist_rows,
+        gh_update_watchlist_note,
+        gh_reset_watchlist_by_name,
+    )
+    _GH_SYNC = True
+except ImportError:
+    _GH_SYNC = False
+    gh_add_to_watchlist        = add_to_watchlist
+    gh_delete_from_watchlist   = delete_from_watchlist
+    gh_rename_watchlist        = rename_watchlist
+    gh_move_watchlist_rows     = move_watchlist_rows
+    gh_update_watchlist_note   = update_watchlist_note
+    from utils.db import reset_watchlist_by_name
+    gh_reset_watchlist_by_name = reset_watchlist_by_name
+
 # Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
 try:
     from utils.db import save_signals
@@ -814,6 +838,16 @@ st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 29.0")
 st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v29.0</div>',unsafe_allow_html=True)
 init_db()
+
+# ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
+if _GH_SYNC and not st.session_state.get("_gh_pulled"):
+    with st.spinner("☁️ Ripristino watchlist da GitHub..."):
+        _ok, _n, _gh_src = _gh_pull(DB_PATH)
+    st.session_state["_gh_pulled"] = True
+    if _ok and _n > 0:
+        st.toast(f"☁️ Watchlist ripristinata: {_n} ticker", icon="✅")
+    elif not _ok and _gh_src == "github_error":
+        st.toast("⚠️ GitHub sync: errore connessione — uso dati locali", icon="⚠️")
 
 # =========================================================================
 # SESSION STATE
@@ -1662,7 +1696,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         if not selected_df.empty and "Ticker" in selected_df.columns:
             tickers=selected_df["Ticker"].tolist()
             names  =selected_df.get("Nome",selected_df["Ticker"]).tolist()
-            add_to_watchlist(tickers,names,title,"Scanner","LONG",st.session_state.current_list_name)
+            gh_add_to_watchlist(tickers,names,title,"Scanner","LONG",st.session_state.current_list_name)
             st.success(f"✅ Aggiunti {len(tickers)} titoli a '{st.session_state.current_list_name}'.")
             time.sleep(0.8); st.rerun()
         else: st.warning("Seleziona almeno una riga.")
@@ -1895,7 +1929,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                 if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
                     tks = sel_crisis["Ticker"].tolist()
                     nms = sel_crisis["Nome"].tolist()
-                    add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
+                    gh_add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
                                      "WATCH", st.session_state.current_list_name)
                     st.success(f"✅ Aggiunti {len(tks)} ticker."); time.sleep(0.5); st.rerun()
                 else:
@@ -1903,7 +1937,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
         with c_a2:
             if st.button(f"➕ Tutti ({len(assets)})", key=f"call_{_slug(cat_name)}"):
                 tks=[r[0] for r in assets]; nms=[r[1] for r in assets]
-                add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
+                gh_add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
                                  "WATCH", st.session_state.current_list_name)
                 st.success(f"✅ Aggiunti tutti i {len(tks)} ticker."); time.sleep(0.5); st.rerun()
         # ── Grafico ticker selezionato (come negli altri tab) ──────────
@@ -1993,19 +2027,41 @@ with tab_w:
     st.markdown(f'<div class="section-pill">📋 WATCHLIST MANAGER — {st.session_state.current_list_name}</div>',
                 unsafe_allow_html=True)
 
-    # ── Diagnostica DB path ─────────────────────────────────────────
-    _wl_db_ok = False
-    try:
-        from utils.db import DB_PATH as _WL_DB
-        _wl_db_ok = _WL_DB.exists()
-        _wl_db_sz = round(_WL_DB.stat().st_size/1024,1) if _wl_db_ok else 0
-        if _wl_db_ok:
-            st.caption(f"💾 DB: `{_WL_DB}` — {_wl_db_sz} KB ✅ (persiste tra riavvii)")
+    # ── Sync status GitHub + Diagnostica DB ─────────────────────────────
+    _wl_col1, _wl_col2 = st.columns([3, 2])
+    with _wl_col1:
+        if _GH_SYNC:
+            _gs = _gh_status(DB_PATH)
+            st.markdown(
+                f'<div style="background:#1e222d;border-left:3px solid #26a69a;'
+                f'padding:6px 12px;border-radius:0 4px 4px 0;font-size:0.82rem;">'
+                f'☁️ <b style="color:#26a69a">GitHub Sync attivo</b> — '
+                f'<code style="color:#b2b5be">{_gs.get("repo","")}/{_gs.get("path","")}</code>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
         else:
-            st.warning(f"⚠️ DB non trovato in `{_WL_DB}`. La watchlist potrebbe non persistere. "
-                       "Usa **Backup & Restore** per esportare i dati.")
-    except Exception as _e:
-        st.caption(f"⚠️ DB path: {_e}")
+            st.markdown(
+                '<div style="background:#1e222d;border-left:3px solid #f59e0b;'
+                'padding:6px 12px;border-radius:0 4px 4px 0;font-size:0.82rem;">'
+                '⚠️ <b style="color:#f59e0b">GitHub Sync non configurato</b> — '
+                'watchlist solo locale (si azzera ad ogni deploy)'
+                '</div>',
+                unsafe_allow_html=True
+            )
+    with _wl_col2:
+        try:
+            _wl_db_ok = DB_PATH.exists()
+            _wl_db_sz = round(DB_PATH.stat().st_size/1024,1) if _wl_db_ok else 0
+            st.caption(f"💾 `{DB_PATH.name}` — {_wl_db_sz} KB {'✅' if _wl_db_ok else '⚠️'}")
+        except Exception as _e:
+            st.caption(f"⚠️ DB: {_e}")
+        if _GH_SYNC:
+            if st.button("☁️ Sync ora", key="wl_sync_now",
+                         help="Forza upload watchlist → GitHub"):
+                _gh_push(DB_PATH)
+                st.success("✅ Watchlist inviata a GitHub!")
+    st.markdown("")
 
     df_wl_full=load_watchlist()
 
@@ -2032,7 +2088,7 @@ with tab_w:
             ren_src=st.selectbox("Da",all_lists,key="ren_src")
             ren_dst=st.text_input("Nuovo nome",key="ren_dst")
             if st.button("✏️ Rinomina",key="do_ren") and ren_dst.strip():
-                rename_watchlist(ren_src,ren_dst.strip())
+                gh_rename_watchlist(ren_src,ren_dst.strip())
                 if st.session_state.current_list_name==ren_src:
                     st.session_state.current_list_name=ren_dst.strip()
                 st.rerun()
@@ -2046,7 +2102,7 @@ with tab_w:
                 if not df_src.empty:
                     tc="Ticker" if "Ticker" in df_src.columns else "ticker"
                     nc="Nome"   if "Nome"   in df_src.columns else "name"
-                    add_to_watchlist(df_src[tc].tolist(),
+                    gh_add_to_watchlist(df_src[tc].tolist(),
                                      df_src[nc].tolist() if nc in df_src.columns else df_src[tc].tolist(),
                                      "Copia",f"da {cp_src}","LONG",cp_dst.strip())
                     st.success(f"✅ Copiati {len(df_src)} ticker."); st.rerun()
@@ -2147,17 +2203,17 @@ with tab_w:
                 ac1,ac2,ac3=st.columns(3)
                 with ac1:
                     if st.button(f"➡️ Sposta in '{move_dest}'",key="do_mv_g"):
-                        move_watchlist_rows(selected_ids,move_dest); st.rerun()
+                        gh_move_watchlist_rows(selected_ids,move_dest); st.rerun()
                 with ac2:
                     if st.button(f"📋 Copia in '{copy_dest2}'",key="do_cp_g"):
                         rows_s=df_wl_disp[df_wl_disp["id"].isin(selected_ids)]
-                        add_to_watchlist(rows_s[tcol].tolist(),
+                        gh_add_to_watchlist(rows_s[tcol].tolist(),
                             rows_s[ncol].tolist() if ncol in rows_s.columns else rows_s[tcol].tolist(),
                             "Copia","da selezione","LONG",copy_dest2)
                         st.success("✅ Copiati."); st.rerun()
                 with ac3:
                     if st.button("🗑️ Elimina sel.",key="do_dl_g",type="secondary"):
-                        delete_from_watchlist(selected_ids); st.rerun()
+                        gh_delete_from_watchlist(selected_ids); st.rerun()
 
         # ── VISTA CARDS ───────────────────────────────────────────────────
         else:
@@ -2226,23 +2282,23 @@ with tab_w:
                 with row_c[2]:
                     st.write("")
                     if st.button("🗑️",key=f"del_{rid}",help=f"Elimina {tkr}"):
-                        delete_from_watchlist([rid]); st.rerun()
+                        gh_delete_from_watchlist([rid]); st.rerun()
 
             if selected_ids:
                 ac1,ac2,ac3=st.columns(3)
                 with ac1:
                     if st.button(f"➡️ Sposta in '{move_dest}'",key="do_mv_c"):
-                        move_watchlist_rows(selected_ids,move_dest); st.rerun()
+                        gh_move_watchlist_rows(selected_ids,move_dest); st.rerun()
                 with ac2:
                     if st.button(f"📋 Copia in '{copy_dest2}'",key="do_cp_c"):
                         rows_s=df_wl_disp[df_wl_disp["id"].isin(selected_ids)]
-                        add_to_watchlist(rows_s[tcol].tolist(),
+                        gh_add_to_watchlist(rows_s[tcol].tolist(),
                             rows_s[ncol].tolist() if ncol in rows_s.columns else rows_s[tcol].tolist(),
                             "Copia","da selezione","LONG",copy_dest2)
                         st.success("✅ Copiati."); st.rerun()
                 with ac3:
                     if st.button("🗑️ Elimina sel.",key="do_dl_c",type="secondary"):
-                        delete_from_watchlist(selected_ids); st.rerun()
+                        gh_delete_from_watchlist(selected_ids); st.rerun()
 
         # ── Grafici ticker selezionato ────────────────────────────────────
         st.markdown("---")
