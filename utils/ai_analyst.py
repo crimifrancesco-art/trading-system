@@ -41,14 +41,67 @@ CACHE_KEY_PREFIX = "_ai_analyst_"
 
 
 def _get_api_key() -> Optional[str]:
-    """Legge la chiave API da secrets o env."""
+    """
+    Legge la chiave API Anthropic da tutte le possibili fonti.
+    Gestisce tutti i formati di Streamlit secrets:
+      [anthropic]           ANTHROPIC_API_KEY = "sk-ant-..."
+      api_key = "sk-ant-..."
+
+      oppure livello root:
+      ANTHROPIC_API_KEY = "sk-ant-..."
+
+    Oppure variabile d'ambiente ANTHROPIC_API_KEY.
+    """
+    import os
+
+    # 1. Variabile d'ambiente (priorità massima — override esplicito)
+    env_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if env_key and env_key.startswith("sk-"):
+        return env_key
+
+    # 2. Streamlit secrets — vari formati
     try:
-        key = st.secrets.get("anthropic", {}).get("api_key", "")
-        if key: return key
+        secrets = st.secrets
+
+        # Formato A: [anthropic] / api_key = "..."
+        try:
+            key = str(secrets["anthropic"]["api_key"]).strip()
+            if key and key.startswith("sk-"): return key
+        except Exception:
+            pass
+
+        # Formato B: [anthropic] / ANTHROPIC_API_KEY = "..."
+        try:
+            key = str(secrets["anthropic"]["ANTHROPIC_API_KEY"]).strip()
+            if key and key.startswith("sk-"): return key
+        except Exception:
+            pass
+
+        # Formato C: root level — ANTHROPIC_API_KEY = "..."
+        try:
+            key = str(secrets["ANTHROPIC_API_KEY"]).strip()
+            if key and key.startswith("sk-"): return key
+        except Exception:
+            pass
+
+        # Formato D: root level — api_key = "..."
+        try:
+            key = str(secrets["api_key"]).strip()
+            if key and key.startswith("sk-"): return key
+        except Exception:
+            pass
+
+        # Formato E: root level — anthropic_api_key = "..."
+        try:
+            key = str(secrets["anthropic_api_key"]).strip()
+            if key and key.startswith("sk-"): return key
+        except Exception:
+            pass
+
     except Exception:
         pass
-    import os
-    return os.environ.get("ANTHROPIC_API_KEY", "") or None
+
+    return None
 
 
 def _api_available() -> bool:
@@ -245,10 +298,30 @@ def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
     )
 
     if not _api_available():
+        # Mostra diagnostica per aiutare il setup
         st.info(
-            "🔑 **API non configurata.** Aggiungi la chiave in Streamlit Secrets:\n\n"
-            "```toml\n[anthropic]\napi_key = \"sk-ant-...\"\n```"
+            "🔑 **API Anthropic non configurata.** Aggiungi la chiave in "
+            "Streamlit Cloud → App settings → Secrets:\n\n"
+            "```toml\n[anthropic]\napi_key = \"sk-ant-api03-...\"\n```\n\n"
+            "Oppure a livello root:\n```toml\nANTHROPIC_API_KEY = \"sk-ant-api03-...\"\n```"
         )
+        # Debug: mostra cosa trova nei secrets (senza esporre la key)
+        try:
+            _dbg = []
+            _s = st.secrets
+            if "anthropic" in _s:
+                _sub = _s["anthropic"]
+                _dbg.append(f"✅ sezione [anthropic] trovata — chiavi: {list(_sub.keys())}")
+                for k in _sub.keys():
+                    v = str(_sub[k])
+                    _dbg.append(f"  · {k} = '{v[:8]}...{v[-4:]}' (len={len(v)})")
+            else:
+                _dbg.append("❌ sezione [anthropic] NON trovata")
+                _dbg.append(f"  chiavi root: {list(_s.keys())}")
+            with st.expander("🔍 Debug secrets", expanded=True):
+                st.code("\n".join(_dbg))
+        except Exception as _de:
+            st.caption(f"Secrets non accessibili: {_de}")
         return
 
     cached = _get_cached(tkr)
