@@ -811,7 +811,7 @@ PRESETS={
 # =========================================================================
 st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 28.0")
+st.markdown("# 🧠 Trading Scanner PRO 29.0")
 st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · v29.0</div>',unsafe_allow_html=True)
 init_db()
 
@@ -1001,7 +1001,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 28.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 29.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -1805,6 +1805,12 @@ with tab_crisis:
     active_categories = scenario_labels[selected_scenario]
     all_crisis_tickers = []
 
+    def _slug(s, maxlen=12):
+        """Rimuove emoji e spazi per creare una chiave Streamlit valida."""
+        import re as _re
+        clean = _re.sub(r'[^\w]', '', s)  # solo alfanumerici e _
+        return clean[:maxlen] if clean else "cat"
+
     # ── Per ogni categoria ─────────────────────────────────────────────
     for cat_name in active_categories:
         cat_data = CRISIS_ASSETS.get(cat_name, {})
@@ -1876,7 +1882,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                             update_mode=GridUpdateMode.SELECTION_CHANGED,
                             data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
                             fit_columns_on_grid_load=True, theme="streamlit",
-                            allow_unsafe_jscode=True, key=f"cg_{cat_name[:10].strip()}")
+                            allow_unsafe_jscode=True, key=f"cg_{_slug(cat_name)}")
             sel_crisis = pd.DataFrame(resp_c["selected_rows"])
         except Exception as _ag_err:
             # Fallback: dataframe semplice se AgGrid non disponibile
@@ -1885,7 +1891,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 
         c_a1, c_a2, _ = st.columns([2, 2, 4])
         with c_a1:
-            if st.button(f"➕ Aggiungi selezionati", key=f"cadd_{cat_name[:10].strip()}"):
+            if st.button(f"➕ Aggiungi selezionati", key=f"cadd_{_slug(cat_name)}"):
                 if not sel_crisis.empty and "Ticker" in sel_crisis.columns:
                     tks = sel_crisis["Ticker"].tolist()
                     nms = sel_crisis["Nome"].tolist()
@@ -1895,7 +1901,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                 else:
                     st.warning("Seleziona almeno un asset dalla griglia.")
         with c_a2:
-            if st.button(f"➕ Tutti ({len(assets)})", key=f"call_{cat_name[:10].strip()}"):
+            if st.button(f"➕ Tutti ({len(assets)})", key=f"call_{_slug(cat_name)}"):
                 tks=[r[0] for r in assets]; nms=[r[1] for r in assets]
                 add_to_watchlist(tks, nms, f"Crisis:{cat_name[:18]}", "CrisisMonitor",
                                  "WATCH", st.session_state.current_list_name)
@@ -1916,7 +1922,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                     if _cd and isinstance(_cd, dict) and _cd.get("dates"):
                         _crow = _cm.iloc[0]; break
             if _crow is not None:
-                show_charts(_crow, key_suffix=f"cr_{cat_name[:8].replace(' ','')}")
+                show_charts(_crow, key_suffix=f"cr_{_slug(cat_name)}")
             else:
                 st.info(f"📭 Dati tecnici per **{_ctkr}** non disponibili. "
                         f"Esegui lo scanner su questo mercato.")
