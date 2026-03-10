@@ -96,7 +96,6 @@ def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
         "gemini-1.5-flash-001",
         "gemini-1.5-pro-002",
         "gemini-1.5-pro-001",
-        "gemini-pro",
     ]
     seen = set()
     models = [m for m in models if not (m in seen or seen.add(m))]
@@ -131,10 +130,13 @@ def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
                     msg = body[:200]
                 raise RuntimeError(f"❌ Gemini Error {e.code}: {msg}")
             if e.code == 429:
-                # Rate limit free tier — backoff crescente tra tentativi
-                wait = 10 + attempt * 8   # 10s, 18s, 26s
-                time.sleep(wait)
-                continue
+                raise RuntimeError(
+                    "⏳ **Rate limit Gemini (429)**\n\n"
+                    "Il piano gratuito permette ~2 richieste/minuto su Pro, "
+                    "~15/min su Flash.\n"
+                    "Aspetta 60 secondi e riprova, oppure scegli "
+                    "**gemini-1.5-flash-002** dal selettore modello."
+                )
             if e.code == 404:
                 continue
             raise RuntimeError(last_err)
@@ -353,7 +355,7 @@ def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
         model_sel = st.selectbox(
             "Modello",
             ["gemini-1.5-flash-002", "gemini-1.5-flash-001",
-             "gemini-1.5-pro-002",  "gemini-pro"],
+             "gemini-1.5-pro-002",  "gemini-1.5-pro-001"],
             index=0,
             key=f"ai_model_{tkr}_{key_suffix}",
             label_visibility="collapsed",
