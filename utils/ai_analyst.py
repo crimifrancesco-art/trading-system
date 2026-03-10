@@ -9,7 +9,7 @@ SETUP:
   2. Streamlit Cloud → App settings → Secrets:
 
      [gemini]
-     api_key = "AIzaSyDly-lKiJof83AoDzZDHLz1iXPr3EC-mGU"
+     api_key = "AIzaSy..."
 
 MODELLI (tutti gratuiti, 15 req/min):
   gemini-1.5-flash      → default, ottimo bilanciamento
@@ -30,8 +30,8 @@ import streamlit as st
 
 
 # ── Costanti ──────────────────────────────────────────────────────
-GEMINI_MODEL    = "gemini-2.0-flash"
-GEMINI_MODEL_FB = "gemini-1.5-flash-latest"
+GEMINI_MODEL    = "gemini-1.5-flash-latest"   # free tier, funzionante
+GEMINI_MODEL_FB = "gemini-1.5-pro-latest"      # fallback qualità
 GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com"
     "/v1beta/models/{model}:generateContent?key={key}"
@@ -84,15 +84,18 @@ def _api_available() -> bool:
 # ── Chiamata REST Gemini ──────────────────────────────────────────
 
 def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
-    """Chiama Gemini API, prova modelli in sequenza."""
-    models = [model or GEMINI_MODEL, GEMINI_MODEL_FB,
-              "gemini-2.0-flash-lite", "gemini-1.5-flash-latest",
+    """
+    Chiama Gemini API, prova modelli in sequenza.
+    Su 429 aspetta con backoff prima di riprovare.
+    """
+    import time
+    models = [model or GEMINI_MODEL, "gemini-1.5-flash-latest",
               "gemini-1.5-pro-latest"]
     seen = set()
     models = [m for m in models if not (m in seen or seen.add(m))]
 
     last_err = None
-    for m in models:
+    for attempt, m in enumerate(models):
         url = GEMINI_BASE_URL.format(model=m, key=api_key.strip())
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
@@ -120,6 +123,11 @@ def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
                 except Exception:
                     msg = body[:200]
                 raise RuntimeError(f"❌ Gemini Error {e.code}: {msg}")
+            if e.code == 429:
+                # Rate limit free tier — backoff crescente tra tentativi
+                wait = 10 + attempt * 8   # 10s, 18s, 26s
+                time.sleep(wait)
+                continue
             if e.code == 404:
                 continue
             raise RuntimeError(last_err)
@@ -129,7 +137,12 @@ def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
             last_err = str(ex)
             continue
 
-    raise RuntimeError(f"Tutti i modelli Gemini hanno fallito. Ultimo: {last_err}")
+    raise RuntimeError(
+        "⏳ **Rate limit Gemini (429)** — tutti i modelli occupati.\n\n"
+        "Il piano gratuito permette ~15 richieste/minuto. "
+        "Aspetta 60 secondi e riprova.\n\n"
+        f"Ultimo errore: {last_err}"
+    )
 
 
 # ── Prompt ────────────────────────────────────────────────────────
@@ -332,10 +345,11 @@ def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
     with c3:
         model_sel = st.selectbox(
             "Modello",
-            ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"],
+            ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest"],
             index=0,
             key=f"ai_model_{tkr}_{key_suffix}",
             label_visibility="collapsed",
+            help="flash = veloce (15 RPM) | pro = qualità massima",
         )
 
     if regen_btn:
