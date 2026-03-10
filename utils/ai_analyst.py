@@ -9,7 +9,7 @@ SETUP:
   2. Streamlit Cloud → App settings → Secrets:
 
      [gemini]
-     api_key = "AIzaSy..."
+     api_key = "AIzaSyDly-lKiJof83AoDzZDHLz1iXPr3EC-mGU"
 
 MODELLI (tutti gratuiti, 15 req/min):
   gemini-1.5-flash      → default, ottimo bilanciamento
@@ -30,8 +30,8 @@ import streamlit as st
 
 
 # ── Costanti ──────────────────────────────────────────────────────
-GEMINI_MODEL    = "gemini-1.5-flash"
-GEMINI_MODEL_FB = "gemini-1.5-flash-8b"
+GEMINI_MODEL    = "gemini-2.0-flash"
+GEMINI_MODEL_FB = "gemini-1.5-flash-latest"
 GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com"
     "/v1beta/models/{model}:generateContent?key={key}"
@@ -86,7 +86,8 @@ def _api_available() -> bool:
 def _call_gemini(prompt: str, api_key: str, model: str = None) -> str:
     """Chiama Gemini API, prova modelli in sequenza."""
     models = [model or GEMINI_MODEL, GEMINI_MODEL_FB,
-              "gemini-2.0-flash-exp", "gemini-1.0-pro"]
+              "gemini-2.0-flash-lite", "gemini-1.5-flash-latest",
+              "gemini-1.5-pro-latest"]
     seen = set()
     models = [m for m in models if not (m in seen or seen.add(m))]
 
@@ -331,7 +332,7 @@ def render_ai_analyst(row: pd.Series, key_suffix: str = ""):
     with c3:
         model_sel = st.selectbox(
             "Modello",
-            ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash-exp"],
+            ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash-latest"],
             index=0,
             key=f"ai_model_{tkr}_{key_suffix}",
             label_visibility="collapsed",
