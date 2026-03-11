@@ -1710,13 +1710,14 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # TABS
 # =========================================================================
 tabs=st.tabs(["🏠 Home",
-              "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "📊 Comparatore",
+              "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "🎯 Serafini","🔎 Finviz Pro",
               "🛡️ Crisis Monitor",
-              "📋 Watchlist","📈 Backtest","📜 Storico"])
-(tab_home,tab_e,tab_p,tab_r,tab_conf,tab_mtf,
- tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_hist)=tabs
+              "📋 Watchlist","📈 Backtest",
+              "💎 Blue Chip Dip"])
+(tab_home,tab_mtf,tab_e,tab_p,tab_r,tab_conf,
+ tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_bcd)=tabs
 
 with tab_home:
     try:
@@ -2533,7 +2534,17 @@ with tab_w:
 with tab_bt:
     render_backtest_tab()
 
-with tab_hist:
+with tab_bcd:
+    try:
+        from utils.bluechip_dip import render_bluechip_dip
+        render_bluechip_dip()
+    except ImportError:
+        st.info("💎 bluechip_dip.py non trovato in utils/")
+    except Exception as _bce:
+        import traceback
+        st.error(f"Blue Chip Dip error: {_bce}")
+        st.code(traceback.format_exc())
+
     st.markdown('<div class="section-pill">📜 STORICO SCANSIONI</div>',unsafe_allow_html=True)
 
     # ── Legenda Storico ────────────────────────────────────────────────
