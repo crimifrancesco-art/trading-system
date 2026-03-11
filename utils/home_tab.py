@@ -485,8 +485,7 @@ def _render_sparklines():
                 mode="lines",
                 line=dict(color=color, width=1.5),
                 fill="tozeroy",
-                fillcolor=color.replace("#", "rgba(").replace(")", ",0.08)")
-                          if color.startswith("#") else color,
+                fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.08)",
                 name=label,
                 hovertemplate=f"{label}: %{{y:.1f}}<extra></extra>",
             ),
