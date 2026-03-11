@@ -1850,16 +1850,16 @@ with tab_crisis:
     all_crisis_tickers = []
 
     # ── Scanner fisso Crisis Monitor ───────────────────────────────────────
+    def _slug_fast(s):
+        import re as _re2
+        return _re2.sub(r'[^\w]','',s)[:16]
+
     _all_crisis_tks = []
     for _cn in active_categories:
         _all_crisis_tks.extend([t for t,_,_ in CRISIS_ASSETS.get(_cn,{}).get("assets",[])])
     _all_crisis_tks = list(dict.fromkeys(_all_crisis_tks))  # deduplica
 
     _crisis_cache_key = f"_crisis_scan_{_slug_fast(selected_scenario)}"
-
-    def _slug_fast(s):
-        import re as _re2
-        return _re2.sub(r'[^\w]','',s)[:16]
 
     _c1, _c2, _c3 = st.columns([2, 2, 4])
     with _c1:
