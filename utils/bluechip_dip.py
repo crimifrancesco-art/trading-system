@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-bluechip_dip.py  —  💎 Blue Chip Dip Screener  v30.0
+bluechip_dip.py  —  💎 Blue Chip Dip Screener  v31.0
 ══════════════════════════════════════════════════════
 Monitora le 60 maggiori aziende mondiali per market cap.
 Per ognuna calcola:
@@ -78,6 +78,43 @@ BLUE_CHIPS = [
     ("BTI",   "BAT"),             ("DEO",   "Diageo"),
     ("RIO",   "Rio Tinto"),       ("BP",    "BP"),
 ]
+
+# ── Settori S&P500 per ticker ─────────────────────
+SECTOR_MAP = {
+    # Technology
+    "AAPL":"Technology",  "MSFT":"Technology",  "NVDA":"Technology",
+    "AVGO":"Technology",  "ORCL":"Technology",  "CRM":"Technology",
+    "AMD":"Technology",   "NOW":"Technology",   "IBM":"Technology",
+    "ACN":"Technology",   "SAP":"Technology",   "ASML":"Technology",
+    "TSM":"Technology",   "SIE.DE":"Technology",
+    # Communication
+    "GOOGL":"Communication", "META":"Communication", "NFLX":"Communication",
+    # Consumer Discretionary
+    "AMZN":"Cons. Discret.", "TSLA":"Cons. Discret.", "HD":"Cons. Discret.",
+    "MCD":"Cons. Discret.",  "COST":"Cons. Discret.", "TM":"Cons. Discret.",
+    "BABA":"Cons. Discret.", "SONY":"Cons. Discret.", "AIR.PA":"Cons. Discret.",
+    "LVMH.PA":"Cons. Discret.", "OR.PA":"Cons. Discret.",
+    # Consumer Staples
+    "WMT":"Cons. Staples", "PG":"Cons. Staples",  "KO":"Cons. Staples",
+    "PEP":"Cons. Staples", "PM":"Cons. Staples",  "UL":"Cons. Staples",
+    "BTI":"Cons. Staples", "DEO":"Cons. Staples", "NESN.SW":"Cons. Staples",
+    # Financials
+    "JPM":"Financials", "V":"Financials",   "MA":"Financials",
+    "BAC":"Financials", "GS":"Financials",  "BRK-B":"Financials",
+    # Healthcare
+    "LLY":"Healthcare", "UNH":"Healthcare", "JNJ":"Healthcare",
+    "MRK":"Healthcare", "ABBV":"Healthcare","TMO":"Healthcare",
+    "NVO":"Healthcare", "NOVN.SW":"Healthcare", "ROG.SW":"Healthcare",
+    # Energy
+    "XOM":"Energy", "CVX":"Energy", "TTE":"Energy", "BP":"Energy",
+    "RIO":"Materials",
+    # Industrials
+    "GE":"Industrials",  "CAT":"Industrials", "LIN":"Materials",
+    # Materials / Other
+}
+
+def _get_sector(ticker: str) -> str:
+    return SECTOR_MAP.get(ticker, "Other")
 
 # ── Fetch ─────────────────────────────────────────
 
@@ -290,6 +327,7 @@ def _scan_all() -> pd.DataFrame:
             "Currency":    d["currency"],
             "_dd_raw":     d["drawdown"],
             "_ema200_raw": d["ema200"],
+            "Sector":      _get_sector(sym),
         })
     if not rows:
         return pd.DataFrame()
@@ -639,6 +677,641 @@ def _render_card(row: pd.Series, rank: int):
     )
 
 
+# ══════════════════════════════════════════════════
+# MODULO 4 — 🔥 Heatmap Settoriale
+# ══════════════════════════════════════════════════
+
+def _render_sector_heatmap(df: pd.DataFrame) -> None:
+    """
+    Griglia interattiva stile TradingView: settori S&P500 colorati
+    per momentum medio. Click settore → dettaglio ticker con segnali.
+    """
+    st.markdown(
+        f'<div style="background:{TV_PANEL};border-left:3px solid {TV_ORANGE};'
+        f'padding:8px 14px;border-radius:0 4px 4px 0;margin-bottom:12px">'
+        f'<span style="color:{TV_ORANGE};font-weight:700">🔥 HEATMAP SETTORIALE</span>'
+        f'<span style="color:{TV_GRAY};font-size:0.78rem;margin-left:10px">'
+        f'Momentum medio per settore · Click settore → dettaglio ticker</span>'
+        f'</div>', unsafe_allow_html=True
+    )
+
+    # Aggiungi settore al dataframe se non presente
+    if "Sector" not in df.columns:
+        df = df.copy()
+        df["Sector"] = df["Ticker"].apply(_get_sector)
+
+    # Aggrega per settore
+    sector_stats = (
+        df.groupby("Sector")
+        .agg(
+            mom_avg=("Momentum", "mean"),
+            mom_min=("Momentum", "min"),
+            mom_max=("Momentum", "max"),
+            count=("Ticker", "count"),
+            dip_avg=("Dip Score", "mean"),
+            rsi_avg=("RSI", "mean"),
+            dd_avg=("_dd_raw", "mean"),
+        )
+        .reset_index()
+        .sort_values("mom_avg", ascending=False)
+    )
+
+    def _sector_color(score: float) -> str:
+        if score >= 72:  return "#26a69a"
+        if score >= 58:  return "#66bb6a"
+        if score >= 43:  return "#ffd700"
+        if score >= 28:  return "#ff9800"
+        return "#ef5350"
+
+    def _sector_bg(score: float) -> str:
+        if score >= 72:  return "rgba(38,166,154,0.18)"
+        if score >= 58:  return "rgba(102,187,106,0.15)"
+        if score >= 43:  return "rgba(255,215,0,0.12)"
+        if score >= 28:  return "rgba(255,152,0,0.15)"
+        return "rgba(239,83,80,0.18)"
+
+    # ── Heatmap Plotly treemap ─────────────────────
+    fig_hm = go.Figure(go.Treemap(
+        labels=sector_stats["Sector"].tolist(),
+        parents=[""] * len(sector_stats),
+        values=sector_stats["count"].tolist(),
+        customdata=np.column_stack([
+            sector_stats["mom_avg"].round(0).tolist(),
+            sector_stats["dip_avg"].round(1).tolist(),
+            sector_stats["rsi_avg"].round(1).tolist(),
+            sector_stats["dd_avg"].round(1).tolist(),
+            sector_stats["count"].tolist(),
+        ]),
+        hovertemplate=(
+            "<b>%{label}</b><br>"
+            "Momentum: <b>%{customdata[0]:.0f}/100</b><br>"
+            "Dip Score medio: %{customdata[1]:.1f}<br>"
+            "RSI medio: %{customdata[2]:.1f}<br>"
+            "Drawdown medio: %{customdata[3]:.1f}%<br>"
+            "Titoli: %{customdata[4]}<extra></extra>"
+        ),
+        marker=dict(
+            colors=sector_stats["mom_avg"].tolist(),
+            colorscale=[
+                [0.0,  "#ef5350"],
+                [0.28, "#ff9800"],
+                [0.43, "#ffd700"],
+                [0.58, "#66bb6a"],
+                [1.0,  "#26a69a"],
+            ],
+            cmin=0, cmax=100,
+            colorbar=dict(
+                title="Momentum",
+                tickvals=[0, 28, 43, 58, 72, 100],
+                ticktext=["Forte Ribasso","Ribasso","Neutro","Rialzo","Forte Rialzo",""],
+                tickfont=dict(size=9, color=TV_TEXT),
+                bgcolor=TV_PANEL,
+                bordercolor=TV_BORDER,
+                len=0.8,
+            ),
+            pad=dict(t=4),
+        ),
+        texttemplate="<b>%{label}</b><br>%{customdata[0]:.0f}",
+        textfont=dict(size=13, color="#ffffff"),
+        pathbar_visible=False,
+    ))
+    fig_hm.update_layout(
+        height=380,
+        paper_bgcolor=TV_BG,
+        plot_bgcolor=TV_BG,
+        margin=dict(l=4, r=4, t=10, b=4),
+        font=dict(color=TV_TEXT),
+    )
+    st.plotly_chart(fig_hm, use_container_width=True, key="bcd_sector_treemap")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Cards per settore con barra momentum ──────
+    st.markdown(
+        f'<span style="color:{TV_GRAY};font-size:0.8rem">Seleziona un settore per il dettaglio dei ticker</span>',
+        unsafe_allow_html=True
+    )
+
+    sectors_list = sector_stats["Sector"].tolist()
+    selected_sector = st.selectbox(
+        "Settore",
+        options=["— Tutti —"] + sectors_list,
+        key="bcd_sector_select",
+        label_visibility="collapsed"
+    )
+
+    # ── Griglia settori cards ──────────────────────
+    cols_s = st.columns(min(4, len(sector_stats)))
+    for i, (_, srow) in enumerate(sector_stats.iterrows()):
+        with cols_s[i % len(cols_s)]:
+            sc = srow["mom_avg"]
+            sc_color = _sector_color(sc)
+            sc_bg    = _sector_bg(sc)
+            bar_w    = f"{sc:.0f}%"
+            st.markdown(
+                f'<div style="background:{sc_bg};border:1px solid {TV_BORDER};'
+                f'border-top:3px solid {sc_color};border-radius:6px;'
+                f'padding:8px 10px;margin-bottom:8px;cursor:pointer">'
+                f'<div style="color:{TV_TEXT};font-weight:700;font-size:0.85rem">{srow["Sector"]}</div>'
+                f'<div style="color:{sc_color};font-size:1.3rem;font-weight:800">{sc:.0f}</div>'
+                f'<div style="color:{TV_GRAY};font-size:0.68rem">'
+                f'{int(srow["count"])} titoli · RSI {srow["rsi_avg"]:.0f} · DD {srow["dd_avg"]:.1f}%</div>'
+                f'<div style="background:{TV_BORDER};border-radius:3px;height:4px;margin-top:5px">'
+                f'<div style="background:{sc_color};width:{bar_w};height:4px;border-radius:3px"></div>'
+                f'</div></div>',
+                unsafe_allow_html=True
+            )
+
+    # ── Dettaglio ticker del settore selezionato ──
+    if selected_sector != "— Tutti —":
+        df_sec = df[df["Sector"] == selected_sector].sort_values("Momentum", ascending=False)
+    else:
+        df_sec = df.sort_values("Momentum", ascending=False)
+
+    st.markdown(
+        f'<div style="color:{TV_GOLD};font-weight:700;font-size:0.9rem;'
+        f'margin:12px 0 6px 0">📋 Ticker — {selected_sector} '
+        f'({len(df_sec)} titoli)</div>',
+        unsafe_allow_html=True
+    )
+
+    # Tabella interattiva con segnali per ticker
+    for _, trow in df_sec.iterrows():
+        sym   = trow["Ticker"]
+        nome  = trow["Nome"]
+        mom   = int(trow["Momentum"])
+        mom_c = trow["Mom Color"]
+        mom_l = trow["Mom Label"]
+        rsi   = trow["RSI"]
+        dd    = trow["_dd_raw"]
+        dip   = trow["Dip Score"]
+        macdh = trow["MACD Hist"]
+        sector= trow.get("Sector", _get_sector(sym))
+        tv_url= f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
+        macd_color = TV_GREEN if macdh >= 0 else TV_RED
+        rsi_color  = TV_GREEN if rsi < 35 else (TV_CYAN if rsi < 45 else TV_GRAY)
+        dip_color  = TV_GREEN if dip >= 60 else (TV_GOLD if dip >= 35 else TV_GRAY)
+
+        bull_signals = sum([
+            mom >= 58,
+            rsi < 45,
+            macdh > 0,
+            dd > 15,
+            dip >= 40,
+        ])
+        signal_icons = "🟢" * bull_signals + "⚪" * (5 - bull_signals)
+
+        st.markdown(
+            f'<div style="background:{TV_PANEL};border:1px solid {TV_BORDER};'
+            f'border-left:4px solid {mom_c};border-radius:6px;'
+            f'padding:8px 12px;margin-bottom:6px;'
+            f'display:flex;align-items:center;justify-content:space-between">'
+            # Sinistra: ticker + nome
+            f'<div style="min-width:140px">'
+            f'<a href="{tv_url}" target="_blank" style="color:{TV_CYAN};'
+            f'font-weight:700;text-decoration:none;font-size:0.9rem">{sym}</a>'
+            f'<span style="color:{TV_GRAY};font-size:0.75rem;margin-left:6px">{nome[:18]}</span>'
+            f'</div>'
+            # Centro: metriche
+            f'<div style="display:flex;gap:16px;flex:1;justify-content:center;flex-wrap:wrap">'
+            f'<div style="text-align:center">'
+            f'<div style="color:{TV_GRAY};font-size:0.65rem">MOM</div>'
+            f'<div style="color:{mom_c};font-weight:700">{mom}</div></div>'
+            f'<div style="text-align:center">'
+            f'<div style="color:{TV_GRAY};font-size:0.65rem">RSI</div>'
+            f'<div style="color:{rsi_color};font-weight:700">{rsi:.0f}</div></div>'
+            f'<div style="text-align:center">'
+            f'<div style="color:{TV_GRAY};font-size:0.65rem">DIP</div>'
+            f'<div style="color:{dip_color};font-weight:700">{dip:.0f}</div></div>'
+            f'<div style="text-align:center">'
+            f'<div style="color:{TV_GRAY};font-size:0.65rem">DD%</div>'
+            f'<div style="color:{TV_RED};font-weight:700">{dd:.1f}%</div></div>'
+            f'<div style="text-align:center">'
+            f'<div style="color:{TV_GRAY};font-size:0.65rem">MACD</div>'
+            f'<div style="color:{macd_color};font-weight:700">{"▲" if macdh>=0 else "▼"}</div></div>'
+            f'</div>'
+            # Destra: segnali + label
+            f'<div style="text-align:right;min-width:130px">'
+            f'<div style="font-size:0.75rem">{signal_icons}</div>'
+            f'<div style="color:{mom_c};font-size:0.7rem;font-weight:700">{mom_l}</div>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+
+# ══════════════════════════════════════════════════
+# MODULO 6 — 📈 Backtest Avanzato
+# ══════════════════════════════════════════════════
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _fetch_ohlcv_2y(symbol: str) -> pd.DataFrame:
+    """Scarica 2 anni di dati OHLCV per backtest."""
+    try:
+        url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+               f"?interval=1d&range=2y")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            data = json.loads(r.read())
+        result = data["chart"]["result"][0]
+        ts = result["timestamp"]
+        q  = result["indicators"]["quote"][0]
+        df = pd.DataFrame({
+            "date":   pd.to_datetime(ts, unit="s"),
+            "open":   q.get("open",   []),
+            "high":   q.get("high",   []),
+            "low":    q.get("low",    []),
+            "close":  q.get("close",  []),
+            "volume": q.get("volume", []),
+        }).dropna(subset=["close"]).reset_index(drop=True)
+        df["date"] = df["date"].dt.tz_localize(None)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
+    """
+    Simula strategia su dati storici e restituisce metriche + equity curve.
+    Strategie:
+      DipScore  — entra quando RSI<45 + prezzo sotto EMA200 (dip classico)
+      Momentum  — entra quando MACD positivo + EMA20 > EMA50 (momentum)
+    """
+    if df_ohlcv.empty or len(df_ohlcv) < 60:
+        return {"ok": False}
+
+    c = df_ohlcv["close"].values.astype(float)
+    v = df_ohlcv["volume"].fillna(0).values.astype(float)
+    dates = df_ohlcv["date"].values
+
+    s = pd.Series(c)
+
+    # Indicatori
+    ema20  = s.ewm(span=20,  adjust=False).mean().values
+    ema50  = s.ewm(span=50,  adjust=False).mean().values
+    ema200 = s.ewm(span=200, adjust=False).mean().values
+
+    d_   = s.diff()
+    g_   = d_.clip(lower=0).rolling(14).mean()
+    l_   = (-d_.clip(upper=0)).rolling(14).mean()
+    rsi_s= (100 - 100 / (1 + g_ / l_.replace(0, np.nan))).values
+
+    macd_line   = s.ewm(span=12).mean() - s.ewm(span=26).mean()
+    signal_line = macd_line.ewm(span=9).mean()
+    macd_hist   = (macd_line - signal_line).values
+
+    # Genera segnali di ingresso/uscita
+    in_trade   = False
+    entry_price= 0.0
+    entry_idx  = 0
+    trades     = []  # (entry_date, exit_date, entry_p, exit_p, pct_gain)
+    equity     = [100.0]
+    equity_dates = [dates[0]]
+
+    hold_days = 20  # uscita dopo N giorni o stop/take profit
+    stop_loss = -0.08   # -8%
+    take_profit = 0.15  # +15%
+
+    for i in range(60, len(c) - 1):
+        rsi_ok  = not np.isnan(rsi_s[i]) and rsi_s[i] < 45
+        ema_ok  = c[i] < ema200[i]
+        macd_ok = macd_hist[i] > 0
+        trend_ok= ema20[i] > ema50[i]
+
+        if strategy == "DipScore":
+            entry_signal = rsi_ok and ema_ok
+        else:  # Momentum
+            entry_signal = macd_ok and trend_ok and c[i] > ema50[i]
+
+        if not in_trade and entry_signal:
+            in_trade    = True
+            entry_price = c[i + 1]  # esegui al prossimo open (approssimato con close)
+            entry_idx   = i + 1
+
+        elif in_trade:
+            pct = (c[i] - entry_price) / entry_price
+            days_held = i - entry_idx
+            exit_reason = None
+
+            if pct <= stop_loss:      exit_reason = "SL"
+            elif pct >= take_profit:  exit_reason = "TP"
+            elif days_held >= hold_days: exit_reason = "Time"
+
+            if exit_reason:
+                exit_price = c[i]
+                trades.append({
+                    "entry_date": dates[entry_idx],
+                    "exit_date":  dates[i],
+                    "entry_price": entry_price,
+                    "exit_price":  exit_price,
+                    "pct":         pct * 100,
+                    "days":        days_held,
+                    "reason":      exit_reason,
+                    "win":         pct > 0,
+                })
+                equity.append(equity[-1] * (1 + pct))
+                equity_dates.append(dates[i])
+                in_trade = False
+
+        # Equity buy&hold giornaliera (normalizzata a 100)
+    # Build equity curve daily
+    daily_equity = [100.0]
+    for i in range(1, len(c)):
+        daily_equity.append(daily_equity[-1] * (c[i] / c[i-1]))
+
+    if not trades:
+        return {"ok": False, "reason": "no_trades"}
+
+    df_trades = pd.DataFrame(trades)
+
+    # ── Metriche ──────────────────────────────────
+    wins     = df_trades["win"].sum()
+    total_t  = len(df_trades)
+    win_rate = wins / total_t * 100 if total_t > 0 else 0
+
+    eq_arr   = np.array(equity)
+    returns  = np.diff(eq_arr) / eq_arr[:-1]
+
+    sharpe = (np.mean(returns) / np.std(returns) * np.sqrt(252)
+              if np.std(returns) > 0 else 0)
+
+    peak     = np.maximum.accumulate(eq_arr)
+    drawdowns= (eq_arr - peak) / peak * 100
+    max_dd   = float(np.min(drawdowns))
+
+    total_return = (eq_arr[-1] / eq_arr[0] - 1) * 100
+
+    # ── Performance per mese/anno ──────────────────
+    df_trades["entry_date"] = pd.to_datetime(df_trades["entry_date"])
+    df_trades["month"]      = df_trades["entry_date"].dt.month
+    df_trades["year"]       = df_trades["entry_date"].dt.year
+
+    monthly = df_trades.groupby(["year","month"])["pct"].sum().reset_index()
+
+    return {
+        "ok":           True,
+        "trades":       df_trades,
+        "equity":       eq_arr.tolist(),
+        "equity_dates": [pd.Timestamp(d).strftime("%Y-%m-%d") for d in equity_dates],
+        "bnh_equity":   daily_equity,
+        "bnh_dates":    [pd.Timestamp(d).strftime("%Y-%m-%d") for d in dates],
+        "win_rate":     win_rate,
+        "sharpe":       sharpe,
+        "max_dd":       max_dd,
+        "total_return": total_return,
+        "total_trades": total_t,
+        "monthly":      monthly,
+    }
+
+
+def _render_backtest(df: pd.DataFrame) -> None:
+    """Modulo 6 — Backtest Avanzato con equity curve, Sharpe, drawdown, heatmap."""
+    st.markdown(
+        f'<div style="background:{TV_PANEL};border-left:3px solid {TV_GREEN};'
+        f'padding:8px 14px;border-radius:0 4px 4px 0;margin-bottom:12px">'
+        f'<span style="color:{TV_GREEN};font-weight:700">📈 BACKTEST AVANZATO</span>'
+        f'<span style="color:{TV_GRAY};font-size:0.78rem;margin-left:10px">'
+        f'Equity curve · Sharpe · Max Drawdown · Win Rate · Heatmap mensile</span>'
+        f'</div>', unsafe_allow_html=True
+    )
+
+    # Controlli
+    c1, c2, c3 = st.columns([2, 2, 1])
+    with c1:
+        tickers_available = df["Ticker"].tolist()
+        sel_ticker = st.selectbox(
+            "Ticker da testare",
+            options=tickers_available,
+            key="bt_ticker",
+            help="Scegli il titolo su cui eseguire il backtest"
+        )
+    with c2:
+        strategy = st.radio(
+            "Strategia",
+            ["DipScore", "Momentum"],
+            horizontal=True,
+            key="bt_strategy",
+            help="DipScore: RSI<45 + sotto EMA200 | Momentum: MACD+ + EMA20>EMA50"
+        )
+    with c3:
+        st.write("")
+        st.write("")
+        run_bt = st.button("▶ Esegui Backtest", key="bt_run", use_container_width=True)
+
+    # Hint parametri
+    st.markdown(
+        f'<div style="color:{TV_GRAY};font-size:0.72rem;padding:5px 10px;'
+        f'background:{TV_PANEL};border-radius:4px;border:1px solid {TV_BORDER};margin-bottom:10px">'
+        f'⚙️ Parametri fissi: Hold max <b style="color:{TV_TEXT}">20 giorni</b> · '
+        f'Stop Loss <b style="color:{TV_RED}">-8%</b> · '
+        f'Take Profit <b style="color:{TV_GREEN}">+15%</b> · '
+        f'Dati: <b style="color:{TV_TEXT}">2 anni</b>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
+
+    if not run_bt:
+        st.info("👆 Seleziona ticker e strategia, poi clicca **▶ Esegui Backtest**")
+        return
+
+    with st.spinner(f"⏳ Scaricando 2 anni di dati per {sel_ticker}..."):
+        df_ohlcv = _fetch_ohlcv_2y(sel_ticker)
+
+    if df_ohlcv.empty:
+        st.error(f"⚠️ Nessun dato disponibile per {sel_ticker}")
+        return
+
+    with st.spinner("🔄 Esecuzione backtest..."):
+        res = _run_backtest(df_ohlcv, strategy)
+
+    if not res.get("ok"):
+        st.warning(f"Nessun trade generato per {sel_ticker} con strategia {strategy}. "
+                   f"Prova un altro ticker o strategia.")
+        return
+
+    # ── KPI metriche ──────────────────────────────
+    k1, k2, k3, k4, k5 = st.columns(5)
+    metrics = [
+        (k1, "Win Rate",        f"{res['win_rate']:.1f}%",
+         TV_GREEN if res['win_rate'] >= 50 else TV_RED),
+        (k2, "Sharpe Ratio",    f"{res['sharpe']:.2f}",
+         TV_GREEN if res['sharpe'] >= 1 else (TV_GOLD if res['sharpe'] >= 0 else TV_RED)),
+        (k3, "Max Drawdown",    f"{res['max_dd']:.1f}%",
+         TV_RED if res['max_dd'] < -15 else TV_GOLD),
+        (k4, "Return Totale",   f"{res['total_return']:+.1f}%",
+         TV_GREEN if res['total_return'] > 0 else TV_RED),
+        (k5, "N° Trade",        str(res['total_trades']), TV_CYAN),
+    ]
+    for col, label, val, color in metrics:
+        with col:
+            st.markdown(
+                f'<div style="background:{TV_PANEL};border:1px solid {TV_BORDER};'
+                f'border-top:3px solid {color};border-radius:6px;'
+                f'padding:10px;text-align:center">'
+                f'<div style="color:{TV_GRAY};font-size:0.68rem">{label}</div>'
+                f'<div style="color:{color};font-size:1.4rem;font-weight:800">{val}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Equity Curve ──────────────────────────────
+    fig_eq = go.Figure()
+
+    # Buy & Hold
+    bnh_norm = [100 * v / df_ohlcv["close"].iloc[0]
+                for v in df_ohlcv["close"].values]
+    fig_eq.add_trace(go.Scatter(
+        x=res["bnh_dates"][:len(bnh_norm)],
+        y=bnh_norm,
+        mode="lines",
+        name="Buy & Hold",
+        line=dict(color=TV_GRAY, width=1.5, dash="dot"),
+        hovertemplate="B&H: %{y:.1f}<extra></extra>",
+    ))
+
+    # Strategia
+    fig_eq.add_trace(go.Scatter(
+        x=res["equity_dates"],
+        y=res["equity"],
+        mode="lines+markers",
+        name=f"Strategia {strategy}",
+        line=dict(color=TV_BLUE, width=2.5),
+        marker=dict(size=5, color=TV_BLUE),
+        fill="tonexty" if res["total_return"] > 0 else None,
+        fillcolor="rgba(41,98,255,0.08)",
+        hovertemplate="Equity: %{y:.1f}<extra></extra>",
+    ))
+
+    # Linea base 100
+    fig_eq.add_hline(y=100, line=dict(color=TV_BORDER, dash="dash", width=1))
+
+    fig_eq.update_layout(
+        title=dict(
+            text=f"📈 <b>Equity Curve</b> — {sel_ticker} · Strategia {strategy}",
+            font=dict(size=13, color=TV_TEXT), x=0.01
+        ),
+        height=350,
+        paper_bgcolor=TV_BG,
+        plot_bgcolor=TV_PANEL,
+        legend=dict(
+            bgcolor=TV_PANEL, bordercolor=TV_BORDER,
+            font=dict(size=10, color=TV_TEXT)
+        ),
+        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
+        yaxis=dict(
+            title="Equity (base 100)",
+            showgrid=True, gridcolor=TV_BORDER, zeroline=False
+        ),
+        margin=dict(l=10, r=10, t=50, b=10),
+        font=dict(color=TV_TEXT, size=10),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig_eq, use_container_width=True, key="bt_equity_curve")
+
+    # ── Drawdown Chart ────────────────────────────
+    eq_arr = np.array(res["equity"])
+    peak   = np.maximum.accumulate(eq_arr)
+    dd_arr = (eq_arr - peak) / peak * 100
+
+    fig_dd = go.Figure(go.Scatter(
+        x=res["equity_dates"],
+        y=dd_arr,
+        mode="lines",
+        fill="tozeroy",
+        fillcolor="rgba(239,83,80,0.15)",
+        line=dict(color=TV_RED, width=1.5),
+        hovertemplate="DD: %{y:.1f}%<extra></extra>",
+        name="Drawdown",
+    ))
+    fig_dd.update_layout(
+        title=dict(text="📉 <b>Drawdown Strategia</b>",
+                   font=dict(size=12, color=TV_TEXT), x=0.01),
+        height=200,
+        paper_bgcolor=TV_BG,
+        plot_bgcolor=TV_PANEL,
+        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
+        yaxis=dict(title="DD%", showgrid=True, gridcolor=TV_BORDER,
+                   ticksuffix="%"),
+        margin=dict(l=10, r=10, t=40, b=10),
+        font=dict(color=TV_TEXT, size=10),
+        showlegend=False,
+    )
+    st.plotly_chart(fig_dd, use_container_width=True, key="bt_drawdown")
+
+    # ── Heatmap mensile performance ───────────────
+    monthly = res["monthly"]
+    if not monthly.empty:
+        years  = sorted(monthly["year"].unique())
+        months = list(range(1, 13))
+        month_names = ["Gen","Feb","Mar","Apr","Mag","Giu",
+                       "Lug","Ago","Set","Ott","Nov","Dic"]
+
+        z_data = []
+        for yr in years:
+            row_data = []
+            for mo in months:
+                val = monthly[(monthly["year"]==yr) & (monthly["month"]==mo)]["pct"]
+                row_data.append(float(val.values[0]) if len(val) > 0 else None)
+            z_data.append(row_data)
+
+        fig_hm2 = go.Figure(go.Heatmap(
+            z=z_data,
+            x=month_names,
+            y=[str(y) for y in years],
+            colorscale=[
+                [0.0, "#ef5350"],
+                [0.5, "#1e222d"],
+                [1.0, "#26a69a"],
+            ],
+            zmid=0,
+            text=[[f"{v:+.1f}%" if v is not None else "—"
+                   for v in row] for row in z_data],
+            texttemplate="%{text}",
+            textfont=dict(size=10),
+            hovertemplate="Anno: %{y}<br>Mese: %{x}<br>PnL: %{z:+.1f}%<extra></extra>",
+            colorbar=dict(
+                title="PnL%", tickfont=dict(size=9, color=TV_TEXT),
+                bgcolor=TV_PANEL, bordercolor=TV_BORDER,
+            ),
+        ))
+        fig_hm2.update_layout(
+            title=dict(text="🗓️ <b>Performance mensile (PnL% somma trade)</b>",
+                       font=dict(size=12, color=TV_TEXT), x=0.01),
+            height=max(180, 80 + len(years) * 55),
+            paper_bgcolor=TV_BG,
+            plot_bgcolor=TV_PANEL,
+            xaxis=dict(side="top", tickfont=dict(size=10, color=TV_TEXT)),
+            yaxis=dict(tickfont=dict(size=10, color=TV_TEXT)),
+            margin=dict(l=10, r=10, t=60, b=10),
+            font=dict(color=TV_TEXT),
+        )
+        st.plotly_chart(fig_hm2, use_container_width=True, key="bt_monthly_heatmap")
+
+    # ── Lista trade ───────────────────────────────
+    with st.expander("📋 Lista trade dettagliata"):
+        df_t = res["trades"].copy()
+        df_t["entry_date"] = pd.to_datetime(df_t["entry_date"]).dt.strftime("%d/%m/%Y")
+        df_t["exit_date"]  = pd.to_datetime(df_t["exit_date"]).dt.strftime("%d/%m/%Y")
+        df_t["pct"]        = df_t["pct"].round(2)
+        df_t["win"]        = df_t["win"].map({True:"✅", False:"❌"})
+        df_t.columns = ["Entrata","Uscita","Prezzo In","Prezzo Out",
+                        "PnL%","Giorni","Ragione","Esito","Anno","Mese"]
+        df_t = df_t[["Entrata","Uscita","Prezzo In","Prezzo Out",
+                     "PnL%","Giorni","Ragione","Esito"]].reset_index(drop=True)
+
+        def _color_pnl(v):
+            return f"color: {'#26a69a' if v > 0 else '#ef5350'}; font-weight:700"
+
+        styled_t = (df_t.style
+            .applymap(_color_pnl, subset=["PnL%"])
+            .format({"Prezzo In":"${:.2f}", "Prezzo Out":"${:.2f}", "PnL%":"{:+.2f}%"})
+            .set_properties(**{"background-color": TV_PANEL, "color": TV_TEXT})
+        )
+        st.dataframe(styled_t, use_container_width=True)
+
+
 # ── Entry point ───────────────────────────────────
 
 def render_bluechip_dip():
@@ -648,7 +1321,7 @@ def render_bluechip_dip():
         f'<span style="color:{TV_GOLD};font-weight:700;font-size:1rem">'
         f'💎 BLUE CHIP DIP SCREENER</span>'
         f'<span style="color:{TV_GRAY};font-size:0.8rem;margin-left:12px">'
-        f'Top 60 aziende mondiali · Opportunità di rientro · v30.0</span>'
+        f'Top 60 aziende mondiali · Opportunità di rientro · v31.0</span>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -714,11 +1387,17 @@ def render_bluechip_dip():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Vista ─────────────────────────────────────
-    view = st.radio("Vista", ["📡 Momentum", "🃏 Cards", "📋 Tabella", "📊 Scatter"],
+    view = st.radio("Vista", ["📡 Momentum", "🔥 Heatmap Settoriale", "📈 Backtest", "🃏 Cards", "📋 Tabella", "📊 Scatter"],
                     horizontal=True, key="bcd_view")
 
     if view == "📡 Momentum":
         _render_momentum_dashboard(df_f)
+
+    elif view == "🔥 Heatmap Settoriale":
+        _render_sector_heatmap(df_f)
+
+    elif view == "📈 Backtest":
+        _render_backtest(df_f)
 
     elif view == "🃏 Cards":
         col_a, col_b = st.columns(2)
@@ -829,7 +1508,7 @@ def render_bluechip_dip():
         f'<div style="color:{TV_GRAY};font-size:0.72rem;text-align:center;'
         f'margin-top:16px;padding-top:8px;border-top:1px solid {TV_BORDER}">'
         f'Dati: Yahoo Finance · Cache 30 min · Universe: {len(BLUE_CHIPS)} Blue Chip globali · '
-        f'Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
+        f'v31.0 · Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
         f'</div>',
         unsafe_allow_html=True
     )
