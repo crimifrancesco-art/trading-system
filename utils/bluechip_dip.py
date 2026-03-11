@@ -376,55 +376,79 @@ def _sparkline(closes: list, color: str) -> go.Figure:
 
 # ── Momentum Gauge semicircolare ──────────────────
 
-def _momentum_gauge(score: int, label: str, color: str,
-                    title: str = "", height: int = 200) -> go.Figure:
-    """
-    Gauge semicircolare 0-100:
-      0-28  → Forte Ribasso  (rosso)
-      28-43 → Ribassista     (arancio)
-      43-58 → Neutro         (giallo)
-      58-72 → Rialzista      (verde chiaro)
-      72-100→ Forte Rialzo   (verde)
-    """
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score,
-        number={"font": {"size": 28, "color": color}, "suffix": ""},
-        title={"text": f"<b>{title}</b><br><span style='font-size:0.85em;color:{color}'>{label}</span>",
-               "font": {"size": 11, "color": "#d1d4dc"}},
-        gauge={
-            "axis": {
-                "range": [0, 100],
-                "tickvals": [0, 28, 43, 58, 72, 100],
-                "ticktext": ["", "Ribasso", "Neutro", "", "Rialzo", ""],
-                "tickfont": {"size": 8, "color": "#787b86"},
-                "tickcolor": "#2a2e39",
-            },
-            "bar": {"color": color, "thickness": 0.25},
-            "bgcolor": "#1e222d",
-            "borderwidth": 0,
-            "steps": [
-                {"range": [0,   28],  "color": "rgba(239,83,80,0.25)"},
-                {"range": [28,  43],  "color": "rgba(255,152,0,0.20)"},
-                {"range": [43,  58],  "color": "rgba(255,215,0,0.15)"},
-                {"range": [58,  72],  "color": "rgba(102,187,106,0.20)"},
-                {"range": [72,  100], "color": "rgba(38,166,154,0.25)"},
-            ],
-            "threshold": {
-                "line": {"color": color, "width": 3},
-                "thickness": 0.8,
-                "value": score,
-            },
-        },
-    ))
-    fig.update_layout(
-        height=height,
-        paper_bgcolor="#131722",
-        plot_bgcolor="#131722",
-        margin=dict(l=10, r=10, t=30, b=10),
-        font=dict(color="#d1d4dc"),
-    )
-    return fig
+def _momentum_gauge_html(score: int, label: str, color: str,
+                         sym: str, nome: str,
+                         rsi: float, macd_h: float, dd: float) -> str:
+    """Gauge semicircolare SVG puro — zero Plotly, zero key Streamlit."""
+    import math as _m
+
+    cx, cy, ro, ri = 100, 100, 85, 55
+
+    def pt(r, deg):
+        a = _m.radians(deg)
+        return cx + r * _m.cos(a), cy + r * _m.sin(a)
+
+    def arc(s0, s1, ro2, ri2):
+        a0 = -180 + s0 * 1.8
+        a1 = -180 + s1 * 1.8
+        x0o, y0o = pt(ro2, a0);  x1o, y1o = pt(ro2, a1)
+        x0i, y0i = pt(ri2, a1);  x1i, y1i = pt(ri2, a0)
+        laf = 1 if (a1 - a0) > 180 else 0
+        return (f"M{x0o:.1f} {y0o:.1f} A{ro2} {ro2} 0 {laf} 1 {x1o:.1f} {y1o:.1f} "
+                f"L{x0i:.1f} {y0i:.1f} A{ri2} {ri2} 0 {laf} 0 {x1i:.1f} {y1i:.1f}Z")
+
+    zones = [
+        (0,  28, "rgba(239,83,80,0.35)"),
+        (28, 43, "rgba(255,152,0,0.30)"),
+        (43, 58, "rgba(255,215,0,0.25)"),
+        (58, 72, "rgba(102,187,106,0.30)"),
+        (72, 100,"rgba(38,166,154,0.35)"),
+    ]
+
+    arcs = f'<path d="{arc(0,100,ro,ri)}" fill="#1e2535"/>'
+    for s, e, c in zones:
+        arcs += f'<path d="{arc(s,e,ro,ri)}" fill="{c}"/>'
+    if score > 0:
+        arcs += f'<path d="{arc(0,min(score,100),ro-6,ri+6)}" fill="{color}" opacity="0.85"/>'
+
+    na = -180 + score * 1.8
+    nx, ny = pt(ro - 4, na)
+    arcs += (f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" '
+             f'stroke="{color}" stroke-width="3.5" stroke-linecap="round"/>'
+             f'<circle cx="{cx}" cy="{cy}" r="5" fill="{color}"/>')
+
+    ticks = ""
+    for v, t in [(0, "BEAR"), (50, "NEU"), (100, "BULL")]:
+        tx, ty = pt(ro + 13, -180 + v * 1.8)
+        ticks += (f'<text x="{tx:.1f}" y="{ty+3:.1f}" text-anchor="middle" '
+                  f'font-size="7" fill="#555b6e">{t}</text>')
+
+    mc  = "#26a69a" if macd_h >= 0 else "#ef5350"
+    ma  = "&#9650;" if macd_h >= 0 else "&#9660;"
+    rc  = "#26a69a" if rsi < 45 else ("#ff9800" if rsi > 65 else "#787b86")
+    bar = _momentum_bar(score, color)
+    tvu = f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
+
+    return f"""<div style="background:#1a1e2e;border:1px solid #2a2e39;border-radius:10px;
+padding:10px 8px 8px;text-align:center;border-top:3px solid {color};margin-bottom:6px">
+<a href="{tvu}" target="_blank"
+   style="color:#50c4e0;font-weight:700;font-size:0.82rem;text-decoration:none">{sym}</a>
+<div style="color:#787b86;font-size:0.67rem;overflow:hidden;text-overflow:ellipsis;
+white-space:nowrap;margin-bottom:2px">{nome[:18]}</div>
+<svg viewBox="10 20 180 90" width="100%" height="105" style="display:block;margin:0 auto">
+{arcs}{ticks}
+<text x="{cx}" y="{cy+10}" text-anchor="middle" font-size="22"
+      font-weight="bold" fill="{color}">{score}</text>
+<text x="{cx}" y="{cy+22}" text-anchor="middle" font-size="7" fill="#787b86">/100</text>
+</svg>
+<div style="color:{color};font-size:0.71rem;font-weight:700;
+            margin:-2px 0 4px">{label}</div>
+<div style="display:flex;justify-content:space-around;font-size:0.67rem;
+            color:#787b86;margin-bottom:4px">
+  <span>RSI <b style="color:{rc}">{rsi:.0f}</b></span>
+  <span>MACD <b style="color:{mc}">{ma}</b></span>
+  <span>DD <b style="color:#ef5350">{dd:.0f}%</b></span>
+</div>{bar}</div>"""
 
 
 def _momentum_bar(score: int, color: str) -> str:
@@ -524,50 +548,27 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
 
     df_sorted = df.sort_values("Momentum", ascending=False).reset_index(drop=True)
     cols_per_row = 4
-    tickers_list = list(df_sorted.iterrows())
-
-    for row_start in range(0, len(tickers_list), cols_per_row):
-        chunk = tickers_list[row_start:row_start + cols_per_row]
-        cols  = st.columns(cols_per_row)
-        for col, (ri, (_, row)) in zip(cols, enumerate(chunk)):
-            sym   = row["Ticker"]
-            nome  = row["Nome"][:16]
-            score = int(row["Momentum"])
-            label = row["Mom Label"]
-            color = row["Mom Color"]
-            rsi   = row["RSI"]
-            macd_h= row["MACD Hist"]
-            dd    = row["_dd_raw"]
-            tv_url= f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
-            # Key stabile: posizione assoluta nel dataset ordinato, mai duplicata
-            abs_pos = row_start + ri
-
-            with col:
-                fig = _momentum_gauge(score, label, color,
-                                      title=f"{sym}", height=175)
-                # Inietta ticker nell'id figura per renderla unica a Streamlit
-                fig.update_layout(meta={"ticker": sym, "pos": abs_pos})
-                st.plotly_chart(fig, use_container_width=True,
-                                key=f"bcd_mg_{abs_pos}_{sym.replace('-','_').replace('.','_')}")
-
-                # Mini dettagli sotto il gauge
-                macd_color = "#26a69a" if macd_h >= 0 else "#ef5350"
+    rows_data = [df_sorted.iloc[i:i+cols_per_row]
+                 for i in range(0, len(df_sorted), cols_per_row)]
+    for row_df in rows_data:
+        st_cols = st.columns(cols_per_row)
+        for st_col, (_, row) in zip(st_cols, row_df.iterrows()):
+            with st_col:
                 st.markdown(
-                    f'<div style="background:#1e222d;border-radius:4px;'
-                    f'padding:4px 8px;font-size:0.72rem;margin-top:-8px">'
-                    f'<a href="{tv_url}" target="_blank" style="color:#50c4e0;'
-                    f'text-decoration:none;font-weight:700">{sym}</a>'
-                    f'<span style="color:#787b86"> {nome}</span><br>'
-                    f'RSI <b style="color:{"#26a69a" if rsi<45 else "#787b86"}">{rsi:.0f}</b>'
-                    f' · MACD <b style="color:{macd_color}">{"▲" if macd_h>=0 else "▼"}</b>'
-                    f' · DD <b style="color:#ef5350">{dd:.0f}%</b>'
-                    f'{_momentum_bar(score, color)}'
-                    f'</div>',
+                    _momentum_gauge_html(
+                        score  = int(row["Momentum"]),
+                        label  = row["Mom Label"],
+                        color  = row["Mom Color"],
+                        sym    = row["Ticker"],
+                        nome   = row["Nome"],
+                        rsi    = row["RSI"],
+                        macd_h = row["MACD Hist"],
+                        dd     = row["_dd_raw"],
+                    ),
                     unsafe_allow_html=True
                 )
 
 
-# ── Render card per top ticker ────────────────────
 
 def _render_card(row: pd.Series, rank: int):
     sym       = row["Ticker"]
