@@ -720,9 +720,6 @@ def render_bluechip_dip():
     if view == "📡 Momentum":
         _render_momentum_dashboard(df_f)
 
-    if view == "📡 Momentum":
-        _render_momentum_dashboard(df_f)
-
     elif view == "🃏 Cards":
         col_a, col_b = st.columns(2)
         for i, (_, row) in enumerate(df_f.iterrows()):
