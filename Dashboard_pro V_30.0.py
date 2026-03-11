@@ -1711,7 +1711,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 tabs=st.tabs(["🏠 Home",
               "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
-              "🌐 Multi-TF",
+              "📊 Comparatore",
               "🎯 Serafini","🔎 Finviz Pro",
               "🛡️ Crisis Monitor",
               "📋 Watchlist","📈 Backtest","📜 Storico"])
@@ -1755,8 +1755,17 @@ with tab_conf:
     render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
 
 with tab_mtf:
-    show_legend("Multi-Timeframe")
-    render_scan_tab(df_ep,"MTF",["Quality_Score","Pro_Score"],[False,False],"Multi-Timeframe")
+    try:
+        from utils.compare_tab import render_compare
+        _df_scan_all = pd.concat(
+            [df for df in [df_ep, df_rea] if df is not None and not df.empty],
+            ignore_index=True
+        ) if any(df is not None and not df.empty for df in [df_ep, df_rea]) else None
+        render_compare(_df_scan_all)
+    except ImportError:
+        st.info("📊 compare_tab.py non trovato in utils/")
+    except Exception as _ce:
+        st.error(f"Comparatore error: {_ce}")
 
 with tab_ser:
     show_legend("🎯 Serafini")
