@@ -1723,10 +1723,10 @@ with tab_home:
     try:
         from utils.home_tab import render_home
         render_home(df_ep, df_rea)
-    except ImportError:
-        st.info("🏠 home_tab.py non trovato in utils/")
     except Exception as _he:
+        import traceback
         st.error(f"Home tab error: {_he}")
+        st.code(traceback.format_exc())
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
