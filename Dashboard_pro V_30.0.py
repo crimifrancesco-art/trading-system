@@ -46,20 +46,6 @@ except ImportError:
     from utils.db import reset_watchlist_by_name
     gh_reset_watchlist_by_name = reset_watchlist_by_name
 
-# ── AI Analyst (Claude API) ────────────────────────────────────────────────
-try:
-    from utils.ai_analyst import (
-        render_ai_analyst    as _ai_ticker,
-        render_portfolio_ai  as _ai_portfolio,
-        clear_cache          as _ai_clear_cache,
-    )
-    _AI_AVAILABLE = True
-except ImportError:
-    _AI_AVAILABLE = False
-    def _ai_ticker(row, key_suffix=""): pass
-    def _ai_portfolio(df_wl, df_scan, key_suffix=""): pass
-    def _ai_clear_cache(tkr=None): pass
-
 # Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
 try:
     from utils.db import save_signals
@@ -675,11 +661,6 @@ def show_charts(row_full: pd.Series, key_suffix: str=""):
             _adv_chart(row_full, key_suffix=key_suffix)
     except ImportError:
         pass  # analysis_chart.py non presente
-
-    # ── AI Analyst ──────────────────────────────────────────────────────
-    if _AI_AVAILABLE:
-        with st.expander(f"🤖 AI Analyst — Brief Claude su {tkr}", expanded=False):
-            _ai_ticker(row_full, key_suffix=key_suffix)
 
 # =========================================================================
 # JS RENDERERS
@@ -1728,13 +1709,23 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 # TABS
 # =========================================================================
-tabs=st.tabs(["📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
+tabs=st.tabs(["🏠 Home",
+              "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "🌐 Multi-TF",
               "🎯 Serafini","🔎 Finviz Pro",
               "🛡️ Crisis Monitor",
               "📋 Watchlist","📈 Backtest","📜 Storico"])
-(tab_e,tab_p,tab_r,tab_conf,tab_mtf,
+(tab_home,tab_e,tab_p,tab_r,tab_conf,tab_mtf,
  tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_hist)=tabs
+
+with tab_home:
+    try:
+        from utils.home_tab import render_home
+        render_home(df_ep, df_rea)
+    except ImportError:
+        st.info("🏠 home_tab.py non trovato in utils/")
+    except Exception as _he:
+        st.error(f"Home tab error: {_he}")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -2416,17 +2407,6 @@ with tab_w:
             help="Un ticker per riga — importabile direttamente in TradingView Watchlist"
         )
     if st.button("🔄 Refresh",key="wl_ref"): st.rerun()
-
-    # ── Portfolio Intelligence AI ──────────────────────────────────────────
-    if _AI_AVAILABLE:
-        st.markdown("---")
-        _df_wl_ai  = load_watchlist()
-        _cur_list  = st.session_state.get("current_list_name","DEFAULT")
-        _df_wl_cur = (_df_wl_ai[_df_wl_ai["list_name"]==_cur_list]
-                      if not _df_wl_ai.empty else pd.DataFrame())
-        with st.expander("💼 Portfolio Intelligence — Analisi AI del portafoglio",
-                         expanded=False):
-            _ai_portfolio(_df_wl_cur, df_ep, key_suffix="wl")
 
 # =========================================================================
 # STORICO
