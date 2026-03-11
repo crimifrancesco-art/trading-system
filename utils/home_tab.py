@@ -495,7 +495,8 @@ def _render_sparklines():
         # Annotazione % change
         fig.add_annotation(
             text=f"{'▲' if chg>=0 else '▼'}{abs(chg):.1f}%",
-            xref=f"x{i} domain", yref=f"y{i} domain",
+            xref=f"x{'' if i==1 else i} domain",
+            yref=f"y{'' if i==1 else i} domain",
             x=0.98, y=0.95,
             showarrow=False,
             font=dict(size=11, color=TV_GREEN if chg>=0 else TV_RED),
