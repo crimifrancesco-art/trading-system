@@ -64,7 +64,7 @@ except ImportError:
 
 # Scanner: prova scan_universe (v28), fallback a scan_ticker (v27)
 try:
-    from utils.scanner import load_universe, scan_universe
+    from utils.scanner import load_universe, scan_universe, scan_ticker
     _HAS_SCAN_UNIVERSE = True
 except ImportError:
     from utils.scanner import load_universe, scan_ticker
