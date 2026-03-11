@@ -668,7 +668,7 @@ def show_charts(row_full: pd.Series, key_suffix: str=""):
 name_dblclick_renderer=JsCode("""class N{init(p){this.eGui=document.createElement('span');
 this.eGui.innerText=p.value||'';const t=p.data.Ticker||p.data.ticker;if(!t)return;
 this.eGui.style.cursor='pointer';this.eGui.title='Doppio click → TradingView';
-this.eGui.ondblclick=()=>window.open("https://www.tradingview.com/chart/?symbol="+String(t).split(".")[0],"_blank");}
+this.eGui.ondblclick=()=>window.open("https://it.tradingview.com/chart/?symbol="+String(t).split(".")[0],"_blank");}
 getGui(){return this.eGui;}}""")
 
 rsi_renderer=JsCode("""class R{init(p){this.eGui=document.createElement('span');
@@ -1849,6 +1849,70 @@ with tab_crisis:
     active_categories = scenario_labels[selected_scenario]
     all_crisis_tickers = []
 
+    # ── Scanner fisso Crisis Monitor ───────────────────────────────────────
+    _all_crisis_tks = []
+    for _cn in active_categories:
+        _all_crisis_tks.extend([t for t,_,_ in CRISIS_ASSETS.get(_cn,{}).get("assets",[])])
+    _all_crisis_tks = list(dict.fromkeys(_all_crisis_tks))  # deduplica
+
+    _crisis_cache_key = f"_crisis_scan_{_slug_fast(selected_scenario)}"
+
+    def _slug_fast(s):
+        import re as _re2
+        return _re2.sub(r'[^\w]','',s)[:16]
+
+    _c1, _c2, _c3 = st.columns([2, 2, 4])
+    with _c1:
+        _run_crisis = st.button(
+            f"🔍 Scansiona {len(_all_crisis_tks)} ticker",
+            key="crisis_scan_btn",
+            type="primary",
+            use_container_width=True,
+            help="Scarica dati tecnici live per tutti gli asset dello scenario selezionato"
+        )
+    with _c2:
+        if st.session_state.get(_crisis_cache_key):
+            if st.button("🗑️ Reset dati", key="crisis_scan_reset",
+                         use_container_width=True):
+                st.session_state.pop(_crisis_cache_key, None)
+                st.rerun()
+    with _c3:
+        _crisis_df_cached = st.session_state.get(_crisis_cache_key)
+        if _crisis_df_cached is not None:
+            st.success(f"✅ Dati live: {len(_crisis_df_cached)} ticker scansionati")
+        else:
+            st.caption("⚠️ Dati tecnici non disponibili — premi Scansiona per popolare RSI, Quality, Vol×, etc.")
+
+    if _run_crisis:
+        _crisis_rows = []
+        _prog = st.progress(0, text="🔍 Scansione Crisis Monitor...")
+        _eh   = st.session_state.get("eh", 0.02)
+        _prmin= st.session_state.get("prmin", 30)
+        _prmax= st.session_state.get("prmax", 80)
+        _rpoc = st.session_state.get("rpoc", 0.02)
+        _vrh  = st.session_state.get("vol_ratio_hot", 1.5)
+        for _i, _tkr in enumerate(_all_crisis_tks):
+            _prog.progress((_i+1)/len(_all_crisis_tks),
+                           text=f"🔍 {_tkr} ({_i+1}/{len(_all_crisis_tks)})")
+            try:
+                _ep_row, _rea_row = scan_ticker(_tkr, _eh, _prmin, _prmax, _rpoc, _vrh)
+                _row = _ep_row if _ep_row is not None else _rea_row
+                if _row is not None:
+                    _crisis_rows.append(_row)
+            except Exception:
+                pass
+        _prog.empty()
+        if _crisis_rows:
+            _crisis_df = pd.DataFrame(_crisis_rows)
+            st.session_state[_crisis_cache_key] = _crisis_df
+            st.success(f"✅ Scansione completata: {len(_crisis_df)} ticker con dati")
+            st.rerun()
+        else:
+            st.warning("⚠️ Nessun dato recuperato. Riprova tra qualche istante.")
+
+    # Usa dati live dalla scansione crisis o dallo scanner principale
+    _crisis_live = st.session_state.get(_crisis_cache_key)
+
     def _slug(s, maxlen=12):
         """Rimuove emoji e spazi per creare una chiave Streamlit valida."""
         import re as _re
@@ -1868,11 +1932,11 @@ with tab_crisis:
         rows = [{"Ticker": t, "Nome": n, "Descrizione Tattica": d} for t,n,d in assets]
         df_crisis_cat = pd.DataFrame(rows)
         all_crisis_tickers.extend([r[0] for r in assets])
-        # Arricchisci con dati scanner live se disponibili
+        # Arricchisci con dati scanner: prima crisis scan dedicato, poi scanner principale
         _live_keep = ["Ticker","Prezzo","RSI","Vol_Ratio","OBV_Trend",
                       "Stato_Early","Quality_Score","Early_Score","Pro_Score",
                       "Squeeze","Weekly_Bull"]
-        for _ldf in [df_ep, df_rea]:
+        for _ldf in [_crisis_live, df_ep, df_rea]:
             if _ldf is None or _ldf.empty or "Ticker" not in _ldf.columns: continue
             _sub = _ldf[[c for c in _live_keep if c in _ldf.columns]].copy()
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
@@ -1882,11 +1946,12 @@ with tab_crisis:
         gb_c.configure_default_column(sortable=True, resizable=True, filterable=False, minWidth=65)
         gb_c.configure_selection(selection_mode="multiple", use_checkbox=True)
         gb_c.configure_column("Ticker", width=100, pinned="left",
-            cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('a');
-this.eGui.innerText=p.value;
-this.eGui.href='https://www.tradingview.com/chart/?symbol='+p.value;
-this.eGui.target='_blank';this.eGui.style.color='#50c4e0';
-this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Trebuchet MS';}
+            cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('span');
+this.eGui.innerText=p.value||'';const t=p.value;if(!t)return;
+this.eGui.style.cursor='pointer';this.eGui.style.color='#50c4e0';
+this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Trebuchet MS';
+this.eGui.title='Doppio click → TradingView';
+this.eGui.ondblclick=()=>window.open('https://it.tradingview.com/chart/?symbol='+String(t).split('.')[0],'_blank');}
 getGui(){return this.eGui;}refresh(){return false;}}"""))
         gb_c.configure_column("Nome", width=195)
         gb_c.configure_column("Descrizione Tattica", width=360, wrapText=True, autoHeight=True)
