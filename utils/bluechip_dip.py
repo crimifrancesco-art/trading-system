@@ -930,23 +930,13 @@ def _fetch_ohlcv_2y(symbol: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
-    """
-    Simula strategia su dati storici e restituisce metriche + equity curve.
-    Strategie:
-      DipScore  — entra quando RSI<45 + prezzo sotto EMA200 (dip classico)
-      Momentum  — entra quando MACD positivo + EMA20 > EMA50 (momentum)
-    """
-    if df_ohlcv.empty or len(df_ohlcv) < 60:
-        return {"ok": False}
-
+def _compute_indicators(df_ohlcv: pd.DataFrame) -> dict:
+    """Calcola tutti gli indicatori necessari per i backtest."""
     c = df_ohlcv["close"].values.astype(float)
     v = df_ohlcv["volume"].fillna(0).values.astype(float)
     dates = df_ohlcv["date"].values
-
     s = pd.Series(c)
 
-    # Indicatori
     ema20  = s.ewm(span=20,  adjust=False).mean().values
     ema50  = s.ewm(span=50,  adjust=False).mean().values
     ema200 = s.ewm(span=200, adjust=False).mean().values
@@ -954,56 +944,147 @@ def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
     d_   = s.diff()
     g_   = d_.clip(lower=0).rolling(14).mean()
     l_   = (-d_.clip(upper=0)).rolling(14).mean()
-    rsi_s= (100 - 100 / (1 + g_ / l_.replace(0, np.nan))).values
+    rsi_s = (100 - 100 / (1 + g_ / l_.replace(0, np.nan))).values
 
     macd_line   = s.ewm(span=12).mean() - s.ewm(span=26).mean()
     signal_line = macd_line.ewm(span=9).mean()
     macd_hist   = (macd_line - signal_line).values
+    macd_arr    = macd_line.values
+    signal_arr  = signal_line.values
 
-    # Genera segnali di ingresso/uscita
-    in_trade   = False
-    entry_price= 0.0
-    entry_idx  = 0
-    trades     = []  # (entry_date, exit_date, entry_p, exit_p, pct_gain)
-    equity     = [100.0]
-    equity_dates = [dates[0]]
+    # VWAP approssimato (rolling 20 giorni: somma(close*vol)/somma(vol))
+    cv = pd.Series(c * v)
+    vwap_s = cv.rolling(20).sum() / pd.Series(v).rolling(20).sum()
+    vwap   = vwap_s.values
 
-    hold_days = 20  # uscita dopo N giorni o stop/take profit
-    stop_loss = -0.08   # -8%
-    take_profit = 0.15  # +15%
+    # ADX (14 periodi, approssimazione)
+    h = df_ohlcv["high"].fillna(method="ffill").values.astype(float)
+    lo = df_ohlcv["low"].fillna(method="ffill").values.astype(float)
+    tr  = np.maximum(h[1:] - lo[1:],
+          np.maximum(np.abs(h[1:] - c[:-1]),
+                     np.abs(lo[1:] - c[:-1])))
+    dm_pos = np.where((h[1:] - h[:-1]) > (lo[:-1] - lo[1:]),
+                       np.maximum(h[1:] - h[:-1], 0), 0)
+    dm_neg = np.where((lo[:-1] - lo[1:]) > (h[1:] - h[:-1]),
+                       np.maximum(lo[:-1] - lo[1:], 0), 0)
+    n = 14
+    atr_s, dmp_s, dmn_s = [0.0]*n, [0.0]*n, [0.0]*n
+    if len(tr) >= n:
+        atr_s = [np.mean(tr[:n])]
+        dmp_s = [np.mean(dm_pos[:n])]
+        dmn_s = [np.mean(dm_neg[:n])]
+        for k in range(n, len(tr)):
+            atr_s.append(atr_s[-1] - atr_s[-1]/n + tr[k])
+            dmp_s.append(dmp_s[-1] - dmp_s[-1]/n + dm_pos[k])
+            dmn_s.append(dmn_s[-1] - dmn_s[-1]/n + dm_neg[k])
+    atr_a = np.array(atr_s)
+    dmp_a = np.array(dmp_s)
+    dmn_a = np.array(dmn_s)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        di_pos = np.where(atr_a > 0, 100 * dmp_a / atr_a, 0)
+        di_neg = np.where(atr_a > 0, 100 * dmn_a / atr_a, 0)
+        dx     = np.where((di_pos + di_neg) > 0,
+                           100 * np.abs(di_pos - di_neg) / (di_pos + di_neg), 0)
+    adx_list = []
+    if len(dx) >= n:
+        adx_list = [np.mean(dx[:n])]
+        for k in range(n, len(dx)):
+            adx_list.append((adx_list[-1] * (n-1) + dx[k]) / n)
+    # Allinea adx alla lunghezza di c (pad con 0 all'inizio)
+    adx_full = np.zeros(len(c))
+    offset = len(c) - len(adx_list)
+    if len(adx_list) > 0:
+        adx_full[offset:] = adx_list
+
+    return dict(c=c, v=v, dates=dates, ema20=ema20, ema50=ema50, ema200=ema200,
+                rsi=rsi_s, macd=macd_arr, macd_signal=signal_arr,
+                macd_hist=macd_hist, vwap=vwap, adx=adx_full,
+                di_pos=np.concatenate([np.zeros(offset), di_pos]) if len(di_pos) else np.zeros(len(c)),
+                di_neg=np.concatenate([np.zeros(offset), di_neg]) if len(di_neg) else np.zeros(len(c)))
+
+
+def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
+    """
+    Simula strategia su dati storici.
+    Strategie:
+      DipScore  — RSI<45 + prezzo sotto EMA200
+      Momentum  — MACD+ + EMA20>EMA50
+      RSI+VWAP  — RSI incrocia sopra 30 + prezzo sopra VWAP (Long)
+                  RSI incrocia sotto 70 + prezzo sotto VWAP (Exit)
+      ADX+EMA   — EMA20>EMA50 + ADX>25 (Long); EMA20<EMA50 + ADX<25 (Exit)
+    """
+    if df_ohlcv.empty or len(df_ohlcv) < 60:
+        return {"ok": False}
+
+    ind  = _compute_indicators(df_ohlcv)
+    c    = ind["c"]
+    dates= ind["dates"]
+    rsi  = ind["rsi"]
+    ema20= ind["ema20"]; ema50=ind["ema50"]; ema200=ind["ema200"]
+    macd_hist = ind["macd_hist"]
+    vwap = ind["vwap"]
+    adx  = ind["adx"]
+
+    in_trade    = False
+    entry_price = 0.0
+    entry_idx   = 0
+    trades      = []
+    equity      = [100.0]
+    equity_dates= [dates[0]]
+    hold_days   = 20
+    stop_loss   = -0.08
+    take_profit = 0.15
+
+    # Segnali di ingresso precedente periodo (per crossover)
+    rsi_prev_above30 = False
+    rsi_prev_below70 = False
 
     for i in range(60, len(c) - 1):
-        rsi_ok  = not np.isnan(rsi_s[i]) and rsi_s[i] < 45
-        ema_ok  = c[i] < ema200[i]
-        macd_ok = macd_hist[i] > 0
-        trend_ok= ema20[i] > ema50[i]
+        rsi_i    = rsi[i]   if not np.isnan(rsi[i])   else 50
+        rsi_prev = rsi[i-1] if not np.isnan(rsi[i-1]) else 50
+        vwap_i   = vwap[i]  if not np.isnan(vwap[i])  else c[i]
 
         if strategy == "DipScore":
-            entry_signal = rsi_ok and ema_ok
-        else:  # Momentum
-            entry_signal = macd_ok and trend_ok and c[i] > ema50[i]
+            entry_signal = (rsi_i < 45) and (c[i] < ema200[i])
+            exit_signal  = False  # usa SL/TP/Time
+
+        elif strategy == "Momentum":
+            entry_signal = (macd_hist[i] > 0) and (ema20[i] > ema50[i]) and (c[i] > ema50[i])
+            exit_signal  = (macd_hist[i] < 0) or (ema20[i] < ema50[i])
+
+        elif strategy == "RSI+VWAP":
+            # Entry: RSI attraversa sopra 30 (da sotto) + prezzo > VWAP
+            rsi_cross_30 = (rsi_prev < 30) and (rsi_i >= 30)
+            entry_signal = rsi_cross_30 and (c[i] > vwap_i)
+            # Exit: RSI attraversa sotto 70 (da sopra) + prezzo < VWAP
+            rsi_cross_70 = (rsi_prev > 70) and (rsi_i <= 70)
+            exit_signal  = rsi_cross_70 or (c[i] < vwap_i and rsi_i > 65)
+
+        else:  # ADX+EMA
+            entry_signal = (ema20[i] > ema50[i]) and (adx[i] > 25) and (ema20[i-1] <= ema50[i-1])
+            exit_signal  = (ema20[i] < ema50[i]) or (adx[i] < 25)
 
         if not in_trade and entry_signal:
             in_trade    = True
-            entry_price = c[i + 1]  # esegui al prossimo open (approssimato con close)
+            entry_price = c[i + 1]
             entry_idx   = i + 1
 
         elif in_trade:
-            pct = (c[i] - entry_price) / entry_price
+            pct       = (c[i] - entry_price) / entry_price
             days_held = i - entry_idx
             exit_reason = None
 
-            if pct <= stop_loss:      exit_reason = "SL"
-            elif pct >= take_profit:  exit_reason = "TP"
-            elif days_held >= hold_days: exit_reason = "Time"
+            if pct <= stop_loss:          exit_reason = "SL"
+            elif pct >= take_profit:      exit_reason = "TP"
+            elif days_held >= hold_days:  exit_reason = "Time"
+            elif exit_signal:             exit_reason = "Signal"
 
             if exit_reason:
-                exit_price = c[i]
                 trades.append({
-                    "entry_date": dates[entry_idx],
-                    "exit_date":  dates[i],
+                    "entry_date":  dates[entry_idx],
+                    "exit_date":   dates[i],
                     "entry_price": entry_price,
-                    "exit_price":  exit_price,
+                    "exit_price":  c[i],
                     "pct":         pct * 100,
                     "days":        days_held,
                     "reason":      exit_reason,
@@ -1013,8 +1094,6 @@ def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
                 equity_dates.append(dates[i])
                 in_trade = False
 
-        # Equity buy&hold giornaliera (normalizzata a 100)
-    # Build equity curve daily
     daily_equity = [100.0]
     for i in range(1, len(c)):
         daily_equity.append(daily_equity[-1] * (c[i] / c[i-1]))
@@ -1024,48 +1103,324 @@ def _run_backtest(df_ohlcv: pd.DataFrame, strategy: str = "DipScore") -> dict:
 
     df_trades = pd.DataFrame(trades)
 
-    # ── Metriche ──────────────────────────────────
     wins     = df_trades["win"].sum()
     total_t  = len(df_trades)
     win_rate = wins / total_t * 100 if total_t > 0 else 0
 
-    eq_arr   = np.array(equity)
-    returns  = np.diff(eq_arr) / eq_arr[:-1]
-
-    sharpe = (np.mean(returns) / np.std(returns) * np.sqrt(252)
-              if np.std(returns) > 0 else 0)
-
+    eq_arr  = np.array(equity)
+    returns = np.diff(eq_arr) / eq_arr[:-1]
+    sharpe  = (np.mean(returns) / np.std(returns) * np.sqrt(252)
+               if np.std(returns) > 0 else 0)
     peak     = np.maximum.accumulate(eq_arr)
     drawdowns= (eq_arr - peak) / peak * 100
     max_dd   = float(np.min(drawdowns))
-
     total_return = (eq_arr[-1] / eq_arr[0] - 1) * 100
 
-    # ── Performance per mese/anno ──────────────────
     df_trades["entry_date"] = pd.to_datetime(df_trades["entry_date"])
     df_trades["month"]      = df_trades["entry_date"].dt.month
     df_trades["year"]       = df_trades["entry_date"].dt.year
-
     monthly = df_trades.groupby(["year","month"])["pct"].sum().reset_index()
 
     return {
-        "ok":           True,
-        "trades":       df_trades,
-        "equity":       eq_arr.tolist(),
+        "ok": True, "trades": df_trades, "indicators": ind,
+        "equity": eq_arr.tolist(),
         "equity_dates": [pd.Timestamp(d).strftime("%Y-%m-%d") for d in equity_dates],
-        "bnh_equity":   daily_equity,
-        "bnh_dates":    [pd.Timestamp(d).strftime("%Y-%m-%d") for d in dates],
-        "win_rate":     win_rate,
-        "sharpe":       sharpe,
-        "max_dd":       max_dd,
-        "total_return": total_return,
-        "total_trades": total_t,
-        "monthly":      monthly,
+        "bnh_equity": daily_equity,
+        "bnh_dates":  [pd.Timestamp(d).strftime("%Y-%m-%d") for d in dates],
+        "win_rate": win_rate, "sharpe": sharpe, "max_dd": max_dd,
+        "total_return": total_return, "total_trades": total_t,
+        "monthly": monthly,
     }
 
 
+def _plot_strategy_chart(res: dict, df_ohlcv: pd.DataFrame,
+                         strategy: str, sel_ticker: str, sel_name: str) -> None:
+    """
+    Grafico specifico per ogni strategia con i suoi indicatori dedicati.
+    Completamente separato dall'equity curve.
+    """
+    ind   = res["indicators"]
+    c     = ind["c"]
+    dates_str = [pd.Timestamp(d).strftime("%Y-%m-%d") for d in ind["dates"]]
+    df_t  = res["trades"]
+
+    # ── Colori e config per strategia ─────────────
+    strategy_colors = {
+        "DipScore":  {"accent": TV_CYAN,   "sub_color": "#9c27b0"},
+        "Momentum":  {"accent": TV_BLUE,   "sub_color": TV_GREEN},
+        "RSI+VWAP":  {"accent": "#e91e63", "sub_color": "#9c27b0"},
+        "ADX+EMA":   {"accent": TV_ORANGE, "sub_color": TV_GREEN},
+    }
+    sc = strategy_colors.get(strategy, {"accent": TV_BLUE, "sub_color": TV_GREEN})
+
+    if strategy in ("DipScore", "Momentum"):
+        # 2 righe: candele+EMA / MACD o RSI
+        rows, row_h = 2, [0.68, 0.32]
+        specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
+        subplot_titles = [
+            f"{sel_ticker} — {sel_name}  |  EMA 20/50/200",
+            "MACD (12,26,9)" if strategy == "Momentum" else "RSI (14)",
+        ]
+    elif strategy == "RSI+VWAP":
+        # 2 righe: candele+VWAP / RSI
+        rows, row_h = 2, [0.65, 0.35]
+        specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
+        subplot_titles = [
+            f"{sel_ticker} — {sel_name}  |  VWAP (rolling 20d)",
+            "RSI (14)  ·  Zona oversold 30 / overbought 70",
+        ]
+    else:  # ADX+EMA
+        # 2 righe: candele+EMA20/50 / ADX
+        rows, row_h = 2, [0.65, 0.35]
+        specs = [[{"secondary_y": False}], [{"secondary_y": False}]]
+        subplot_titles = [
+            f"{sel_ticker} — {sel_name}  |  EMA 20 / EMA 50",
+            "ADX (14)  ·  Soglia trend = 25",
+        ]
+
+    fig = make_subplots(
+        rows=rows, cols=1,
+        shared_xaxes=True,
+        row_heights=row_h,
+        specs=specs,
+        subplot_titles=subplot_titles,
+        vertical_spacing=0.04,
+    )
+
+    # ── Candele ────────────────────────────────────
+    fig.add_trace(go.Candlestick(
+        x=dates_str,
+        open=df_ohlcv["open"].values,
+        high=df_ohlcv["high"].values,
+        low=df_ohlcv["low"].values,
+        close=c,
+        name="Price",
+        increasing=dict(fillcolor=TV_GREEN, line=dict(color=TV_GREEN, width=1)),
+        decreasing=dict(fillcolor=TV_RED,   line=dict(color=TV_RED,   width=1)),
+        showlegend=False,
+    ), row=1, col=1)
+
+    # ── Indicatori pannello superiore ─────────────
+    if strategy in ("DipScore", "Momentum", "ADX+EMA"):
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["ema20"],
+            mode="lines", name="EMA 20", line=dict(color="#26c6da", width=1.2)),
+            row=1, col=1)
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["ema50"],
+            mode="lines", name="EMA 50", line=dict(color="#7e57c2", width=1.2)),
+            row=1, col=1)
+    if strategy == "DipScore":
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["ema200"],
+            mode="lines", name="EMA 200", line=dict(color=TV_GOLD, width=1.5, dash="dot")),
+            row=1, col=1)
+    if strategy == "RSI+VWAP":
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["vwap"],
+            mode="lines", name="VWAP", line=dict(color=TV_ORANGE, width=2)),
+            row=1, col=1)
+
+    # ── Entry / Exit markers sulle candele ─────────
+    entry_dates = [pd.Timestamp(d).strftime("%Y-%m-%d")
+                   for d in df_t["entry_date"]]
+    exit_dates  = [pd.Timestamp(d).strftime("%Y-%m-%d")
+                   for d in df_t["exit_date"]]
+    entry_prices= df_t["entry_price"].tolist()
+    exit_prices = df_t["exit_price"].tolist()
+    pcts        = df_t["pct"].tolist()
+
+    fig.add_trace(go.Scatter(
+        x=entry_dates, y=entry_prices,
+        mode="markers",
+        name="Entry",
+        marker=dict(symbol="triangle-up", size=10,
+                    color=TV_GREEN, line=dict(color="#ffffff", width=1)),
+        hovertemplate="<b>ENTRY</b><br>%{x}<br>%{y:.2f}<extra></extra>",
+    ), row=1, col=1)
+
+    win_exits  = [(d, p) for d, p, pct in zip(exit_dates, exit_prices, pcts) if pct > 0]
+    loss_exits = [(d, p) for d, p, pct in zip(exit_dates, exit_prices, pcts) if pct <= 0]
+    if win_exits:
+        fig.add_trace(go.Scatter(
+            x=[w[0] for w in win_exits], y=[w[1] for w in win_exits],
+            mode="markers", name="Exit ✅",
+            marker=dict(symbol="triangle-down", size=10,
+                        color=TV_GREEN, line=dict(color="#ffffff", width=1)),
+            hovertemplate="<b>EXIT WIN</b><br>%{x}<br>%{y:.2f}<extra></extra>",
+        ), row=1, col=1)
+    if loss_exits:
+        fig.add_trace(go.Scatter(
+            x=[l[0] for l in loss_exits], y=[l[1] for l in loss_exits],
+            mode="markers", name="Exit ❌",
+            marker=dict(symbol="triangle-down", size=10,
+                        color=TV_RED, line=dict(color="#ffffff", width=1)),
+            hovertemplate="<b>EXIT LOSS</b><br>%{x}<br>%{y:.2f}<extra></extra>",
+        ), row=1, col=1)
+
+    # ── Pannello inferiore: indicatore dedicato ────
+    if strategy == "Momentum":
+        # MACD
+        colors_hist = [TV_GREEN if v >= 0 else TV_RED for v in ind["macd_hist"]]
+        fig.add_trace(go.Bar(x=dates_str, y=ind["macd_hist"],
+            name="MACD Hist", marker_color=colors_hist, opacity=0.7), row=2, col=1)
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["macd"],
+            mode="lines", name="MACD", line=dict(color=TV_BLUE, width=1.2)), row=2, col=1)
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["macd_signal"],
+            mode="lines", name="Signal", line=dict(color=TV_ORANGE, width=1.2)), row=2, col=1)
+        fig.add_hline(y=0, line=dict(color=TV_BORDER, width=1), row=2, col=1)
+
+    elif strategy == "DipScore":
+        # RSI
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["rsi"],
+            mode="lines", name="RSI(14)",
+            line=dict(color="#9c27b0", width=1.8),
+            fill="tozeroy", fillcolor="rgba(156,33,176,0.05)"), row=2, col=1)
+        fig.add_hline(y=45, line=dict(color=TV_CYAN, dash="dot", width=1), row=2, col=1)
+        fig.add_hrect(y0=0, y1=45, fillcolor="rgba(38,166,154,0.06)", line_width=0, row=2, col=1)
+        fig.add_annotation(text="Zona Entry RSI<45", x=dates_str[80], y=22,
+                           font=dict(size=9, color=TV_CYAN), showarrow=False, row=2, col=1)
+
+    elif strategy == "RSI+VWAP":
+        # RSI con zone 30/70
+        fig.add_trace(go.Scatter(x=dates_str, y=ind["rsi"],
+            mode="lines", name="RSI(14)",
+            line=dict(color="#9c27b0", width=1.8)), row=2, col=1)
+        fig.add_hline(y=70, line=dict(color=TV_RED,   dash="dot", width=1.2), row=2, col=1)
+        fig.add_hline(y=50, line=dict(color=TV_GRAY,  dash="dot", width=0.8), row=2, col=1)
+        fig.add_hline(y=30, line=dict(color=TV_GREEN, dash="dot", width=1.2), row=2, col=1)
+        fig.add_hrect(y0=70, y1=100, fillcolor="rgba(239,83,80,0.10)",  line_width=0, row=2, col=1)
+        fig.add_hrect(y0=0,  y1=30,  fillcolor="rgba(38,166,154,0.10)", line_width=0, row=2, col=1)
+        fig.add_annotation(text="Overbought → EXIT", x=dates_str[80], y=85,
+                           font=dict(size=9, color=TV_RED),   showarrow=False, row=2, col=1)
+        fig.add_annotation(text="Oversold → ENTRY", x=dates_str[80], y=15,
+                           font=dict(size=9, color=TV_GREEN), showarrow=False, row=2, col=1)
+
+    else:  # ADX+EMA
+        fig.add_trace(go.Scatter(x=dates_str[:len(ind["adx"])], y=ind["adx"],
+            mode="lines", name="ADX(14)",
+            line=dict(color=TV_RED, width=2)), row=2, col=1)
+        fig.add_hline(y=25, line=dict(color=TV_GOLD, dash="dot", width=1.5), row=2, col=1)
+        fig.add_hrect(y0=25, y1=100, fillcolor="rgba(255,152,0,0.08)", line_width=0, row=2, col=1)
+        fig.add_annotation(text="Trend forte (ADX>25)", x=dates_str[80], y=40,
+                           font=dict(size=9, color=TV_GOLD), showarrow=False, row=2, col=1)
+
+    fig.update_layout(
+        height=600,
+        paper_bgcolor=TV_BG,
+        plot_bgcolor=TV_PANEL,
+        legend=dict(bgcolor=TV_PANEL, bordercolor=TV_BORDER,
+                    font=dict(size=9, color=TV_TEXT), orientation="h",
+                    yanchor="bottom", y=1.01, xanchor="left", x=0),
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=10, r=10, t=60, b=10),
+        font=dict(color=TV_TEXT, size=10),
+        hovermode="x unified",
+    )
+    for i in range(1, rows+1):
+        fig.update_xaxes(showgrid=True, gridcolor=TV_BORDER, zeroline=False, row=i, col=1)
+        fig.update_yaxes(showgrid=True, gridcolor=TV_BORDER, zeroline=False, row=i, col=1)
+
+    key_safe = strategy.replace("+","_").replace(" ","_")
+    st.plotly_chart(fig, use_container_width=True, key=f"bt_strategy_chart_{key_safe}")
+
+
+def _plot_equity_and_dd(res: dict, strategy: str, sel_ticker: str,
+                        df_ohlcv: pd.DataFrame) -> None:
+    """Equity Curve + Drawdown: grafici identici al backtest originale."""
+    # Equity curve
+    fig_eq = go.Figure()
+    bnh_norm = [100 * v / df_ohlcv["close"].iloc[0] for v in df_ohlcv["close"].values]
+    fig_eq.add_trace(go.Scatter(
+        x=res["bnh_dates"][:len(bnh_norm)], y=bnh_norm,
+        mode="lines", name="Buy & Hold",
+        line=dict(color=TV_GRAY, width=1.5, dash="dot"),
+        hovertemplate="B&H: %{y:.1f}<extra></extra>",
+    ))
+    fig_eq.add_trace(go.Scatter(
+        x=res["equity_dates"], y=res["equity"],
+        mode="lines+markers", name=f"Strategia {strategy}",
+        line=dict(color=TV_BLUE, width=2.5),
+        marker=dict(size=5, color=TV_BLUE),
+        fill="tonexty" if res["total_return"] > 0 else None,
+        fillcolor="rgba(41,98,255,0.08)",
+        hovertemplate="Equity: %{y:.1f}<extra></extra>",
+    ))
+    fig_eq.add_hline(y=100, line=dict(color=TV_BORDER, dash="dash", width=1))
+    fig_eq.update_layout(
+        title=dict(text=f"📈 <b>Equity Curve</b> — {sel_ticker} · {strategy}",
+                   font=dict(size=13, color=TV_TEXT), x=0.01),
+        height=320,
+        paper_bgcolor=TV_BG, plot_bgcolor=TV_PANEL,
+        legend=dict(bgcolor=TV_PANEL, bordercolor=TV_BORDER, font=dict(size=10, color=TV_TEXT)),
+        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
+        yaxis=dict(title="Equity (base 100)", showgrid=True, gridcolor=TV_BORDER, zeroline=False),
+        margin=dict(l=10, r=10, t=50, b=10),
+        font=dict(color=TV_TEXT, size=10), hovermode="x unified",
+    )
+    key_safe = strategy.replace("+","_").replace(" ","_")
+    st.plotly_chart(fig_eq, use_container_width=True, key=f"bt_equity_{key_safe}")
+
+    # Drawdown
+    eq_arr = np.array(res["equity"])
+    peak   = np.maximum.accumulate(eq_arr)
+    dd_arr = (eq_arr - peak) / peak * 100
+    fig_dd = go.Figure(go.Scatter(
+        x=res["equity_dates"], y=dd_arr,
+        mode="lines", fill="tozeroy",
+        fillcolor="rgba(239,83,80,0.15)",
+        line=dict(color=TV_RED, width=1.5),
+        hovertemplate="DD: %{y:.1f}%<extra></extra>", name="Drawdown",
+    ))
+    fig_dd.update_layout(
+        title=dict(text="📉 <b>Drawdown Strategia</b>",
+                   font=dict(size=12, color=TV_TEXT), x=0.01),
+        height=190, paper_bgcolor=TV_BG, plot_bgcolor=TV_PANEL,
+        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
+        yaxis=dict(title="DD%", showgrid=True, gridcolor=TV_BORDER, ticksuffix="%"),
+        margin=dict(l=10, r=10, t=40, b=10),
+        font=dict(color=TV_TEXT, size=10), showlegend=False,
+    )
+    st.plotly_chart(fig_dd, use_container_width=True, key=f"bt_drawdown_{key_safe}")
+
+
+def _plot_monthly_heatmap(res: dict, strategy: str) -> None:
+    """Heatmap performance mensile identica al backtest originale."""
+    monthly = res["monthly"]
+    if monthly.empty:
+        return
+    years  = sorted(monthly["year"].unique())
+    months = list(range(1, 13))
+    month_names = ["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"]
+    z_data = []
+    for yr in years:
+        row_data = []
+        for mo in months:
+            val = monthly[(monthly["year"]==yr) & (monthly["month"]==mo)]["pct"]
+            row_data.append(float(val.values[0]) if len(val) > 0 else None)
+        z_data.append(row_data)
+    fig_hm = go.Figure(go.Heatmap(
+        z=z_data, x=month_names, y=[str(y) for y in years],
+        colorscale=[[0.0,"#ef5350"],[0.5,"#1e222d"],[1.0,"#26a69a"]],
+        zmid=0,
+        text=[[f"{v:+.1f}%" if v is not None else "—" for v in row] for row in z_data],
+        texttemplate="%{text}", textfont=dict(size=10),
+        hovertemplate="Anno: %{y}<br>Mese: %{x}<br>PnL: %{z:+.1f}%<extra></extra>",
+        colorbar=dict(title="PnL%", tickfont=dict(size=9, color=TV_TEXT),
+                      bgcolor=TV_PANEL, bordercolor=TV_BORDER),
+    ))
+    fig_hm.update_layout(
+        title=dict(text="🗓️ <b>Performance mensile (PnL% somma trade)</b>",
+                   font=dict(size=12, color=TV_TEXT), x=0.01),
+        height=max(180, 80 + len(years) * 55),
+        paper_bgcolor=TV_BG, plot_bgcolor=TV_PANEL,
+        xaxis=dict(side="top", tickfont=dict(size=10, color=TV_TEXT)),
+        yaxis=dict(tickfont=dict(size=10, color=TV_TEXT)),
+        margin=dict(l=10, r=10, t=60, b=10),
+        font=dict(color=TV_TEXT),
+    )
+    key_safe = strategy.replace("+","_").replace(" ","_")
+    st.plotly_chart(fig_hm, use_container_width=True, key=f"bt_monthly_{key_safe}")
+
+
 def _render_backtest(df: pd.DataFrame) -> None:
-    """Modulo 6 — Backtest Avanzato con equity curve, Sharpe, drawdown, heatmap."""
+    """Modulo 6 — Backtest Avanzato."""
     st.markdown(
         f'<div style="background:{TV_PANEL};border-left:3px solid {TV_GREEN};'
         f'padding:8px 14px;border-radius:0 4px 4px 0;margin-bottom:12px">'
@@ -1075,43 +1430,67 @@ def _render_backtest(df: pd.DataFrame) -> None:
         f'</div>', unsafe_allow_html=True
     )
 
-    # Controlli
-    c1, c2, c3 = st.columns([2, 2, 1])
+    # ── Selectbox ticker: TICKER — Nome, ordinato alfabeticamente per nome
+    ticker_nome = sorted(
+        [(row["Ticker"], row["Nome"]) for _, row in df.iterrows()],
+        key=lambda x: x[1].lower()
+    )
+    ticker_options  = [f"{t} — {n}" for t, n in ticker_nome]
+    ticker_map      = {f"{t} — {n}": t for t, n in ticker_nome}
+
+    c1, c2, c3 = st.columns([3, 2, 1])
     with c1:
-        tickers_available = df["Ticker"].tolist()
-        sel_ticker = st.selectbox(
+        sel_option = st.selectbox(
             "Ticker da testare",
-            options=tickers_available,
+            options=ticker_options,
             key="bt_ticker",
-            help="Scegli il titolo su cui eseguire il backtest"
+            help="Ordinato alfabeticamente per nome azienda"
         )
+        sel_ticker = ticker_map[sel_option]
+        sel_name   = sel_option.split(" — ", 1)[1]
+
     with c2:
         strategy = st.radio(
             "Strategia",
-            ["DipScore", "Momentum"],
+            ["DipScore", "Momentum", "RSI+VWAP", "ADX+EMA"],
             horizontal=True,
             key="bt_strategy",
-            help="DipScore: RSI<45 + sotto EMA200 | Momentum: MACD+ + EMA20>EMA50"
         )
     with c3:
         st.write("")
         st.write("")
-        run_bt = st.button("▶ Esegui Backtest", key="bt_run", use_container_width=True)
+        run_bt = st.button("▶ Esegui", key="bt_run", use_container_width=True)
 
-    # Hint parametri
-    st.markdown(
-        f'<div style="color:{TV_GRAY};font-size:0.72rem;padding:5px 10px;'
-        f'background:{TV_PANEL};border-radius:4px;border:1px solid {TV_BORDER};margin-bottom:10px">'
-        f'⚙️ Parametri fissi: Hold max <b style="color:{TV_TEXT}">20 giorni</b> · '
-        f'Stop Loss <b style="color:{TV_RED}">-8%</b> · '
-        f'Take Profit <b style="color:{TV_GREEN}">+15%</b> · '
-        f'Dati: <b style="color:{TV_TEXT}">2 anni</b>'
-        f'</div>',
-        unsafe_allow_html=True
-    )
+    # Info strategia selezionata
+    strategy_info = {
+        "DipScore":  ("💎", TV_CYAN,   "RSI < 45  +  Prezzo sotto EMA200",
+                      "SL -8% · TP +15% · Hold max 20gg"),
+        "Momentum":  ("⚡", TV_BLUE,   "MACD+ & EMA20 > EMA50 & Prezzo > EMA50",
+                      "Exit su inversione MACD o EMA · SL -8% · TP +15%"),
+        "RSI+VWAP":  ("📊", "#e91e63", "RSI attraversa 30 dal basso  +  Prezzo > VWAP",
+                      "Exit: RSI attraversa 70 dall'alto o Prezzo < VWAP · SL -8%"),
+        "ADX+EMA":   ("📈", TV_ORANGE, "EMA20 incrocia sopra EMA50  +  ADX > 25",
+                      "Exit: EMA20 < EMA50 o ADX < 25 · SL -8% · TP +15%"),
+    }
+    icon, color, entry_txt, exit_txt = strategy_info[strategy]
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.markdown(
+            f'<div style="background:{TV_PANEL};border:1px solid {TV_BORDER};'
+            f'border-left:4px solid {color};border-radius:6px;padding:8px 12px;margin-bottom:10px">'
+            f'<div style="color:{TV_GRAY};font-size:0.68rem">ENTRY {icon}</div>'
+            f'<div style="color:{TV_TEXT};font-size:0.82rem;font-weight:600">{entry_txt}</div>'
+            f'</div>', unsafe_allow_html=True)
+    with col_r:
+        st.markdown(
+            f'<div style="background:{TV_PANEL};border:1px solid {TV_BORDER};'
+            f'border-left:4px solid {TV_RED};border-radius:6px;padding:8px 12px;margin-bottom:10px">'
+            f'<div style="color:{TV_GRAY};font-size:0.68rem">EXIT / PARAMETRI</div>'
+            f'<div style="color:{TV_TEXT};font-size:0.82rem;font-weight:600">{exit_txt}</div>'
+            f'</div>', unsafe_allow_html=True)
 
     if not run_bt:
-        st.info("👆 Seleziona ticker e strategia, poi clicca **▶ Esegui Backtest**")
+        st.info("👆 Seleziona ticker e strategia, poi clicca **▶ Esegui**")
         return
 
     with st.spinner(f"⏳ Scaricando 2 anni di dati per {sel_ticker}..."):
@@ -1126,21 +1505,21 @@ def _render_backtest(df: pd.DataFrame) -> None:
 
     if not res.get("ok"):
         st.warning(f"Nessun trade generato per {sel_ticker} con strategia {strategy}. "
-                   f"Prova un altro ticker o strategia.")
+                   f"Prova un altro ticker o cambia strategia.")
         return
 
     # ── KPI metriche ──────────────────────────────
     k1, k2, k3, k4, k5 = st.columns(5)
     metrics = [
-        (k1, "Win Rate",        f"{res['win_rate']:.1f}%",
+        (k1, "Win Rate",      f"{res['win_rate']:.1f}%",
          TV_GREEN if res['win_rate'] >= 50 else TV_RED),
-        (k2, "Sharpe Ratio",    f"{res['sharpe']:.2f}",
+        (k2, "Sharpe Ratio",  f"{res['sharpe']:.2f}",
          TV_GREEN if res['sharpe'] >= 1 else (TV_GOLD if res['sharpe'] >= 0 else TV_RED)),
-        (k3, "Max Drawdown",    f"{res['max_dd']:.1f}%",
+        (k3, "Max Drawdown",  f"{res['max_dd']:.1f}%",
          TV_RED if res['max_dd'] < -15 else TV_GOLD),
-        (k4, "Return Totale",   f"{res['total_return']:+.1f}%",
+        (k4, "Return Totale", f"{res['total_return']:+.1f}%",
          TV_GREEN if res['total_return'] > 0 else TV_RED),
-        (k5, "N° Trade",        str(res['total_trades']), TV_CYAN),
+        (k5, "N° Trade",      str(res['total_trades']), TV_CYAN),
     ]
     for col, label, val, color in metrics:
         with col:
@@ -1150,144 +1529,25 @@ def _render_backtest(df: pd.DataFrame) -> None:
                 f'padding:10px;text-align:center">'
                 f'<div style="color:{TV_GRAY};font-size:0.68rem">{label}</div>'
                 f'<div style="color:{color};font-size:1.4rem;font-weight:800">{val}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+                f'</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Equity Curve ──────────────────────────────
-    fig_eq = go.Figure()
+    # ── Grafico strategia dedicato (con indicatori propri) ──
+    st.markdown(
+        f'<div style="color:{TV_GRAY};font-size:0.8rem;margin-bottom:6px">'
+        f'📉 <b style="color:{TV_TEXT}">Grafico {strategy}</b> — '
+        f'Candele con indicatori · Entry ▲ · Exit ▼</div>',
+        unsafe_allow_html=True)
+    _plot_strategy_chart(res, df_ohlcv, strategy, sel_ticker, sel_name)
 
-    # Buy & Hold
-    bnh_norm = [100 * v / df_ohlcv["close"].iloc[0]
-                for v in df_ohlcv["close"].values]
-    fig_eq.add_trace(go.Scatter(
-        x=res["bnh_dates"][:len(bnh_norm)],
-        y=bnh_norm,
-        mode="lines",
-        name="Buy & Hold",
-        line=dict(color=TV_GRAY, width=1.5, dash="dot"),
-        hovertemplate="B&H: %{y:.1f}<extra></extra>",
-    ))
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # Strategia
-    fig_eq.add_trace(go.Scatter(
-        x=res["equity_dates"],
-        y=res["equity"],
-        mode="lines+markers",
-        name=f"Strategia {strategy}",
-        line=dict(color=TV_BLUE, width=2.5),
-        marker=dict(size=5, color=TV_BLUE),
-        fill="tonexty" if res["total_return"] > 0 else None,
-        fillcolor="rgba(41,98,255,0.08)",
-        hovertemplate="Equity: %{y:.1f}<extra></extra>",
-    ))
+    # ── Equity curve + Drawdown ────────────────────
+    _plot_equity_and_dd(res, strategy, sel_ticker, df_ohlcv)
 
-    # Linea base 100
-    fig_eq.add_hline(y=100, line=dict(color=TV_BORDER, dash="dash", width=1))
-
-    fig_eq.update_layout(
-        title=dict(
-            text=f"📈 <b>Equity Curve</b> — {sel_ticker} · Strategia {strategy}",
-            font=dict(size=13, color=TV_TEXT), x=0.01
-        ),
-        height=350,
-        paper_bgcolor=TV_BG,
-        plot_bgcolor=TV_PANEL,
-        legend=dict(
-            bgcolor=TV_PANEL, bordercolor=TV_BORDER,
-            font=dict(size=10, color=TV_TEXT)
-        ),
-        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
-        yaxis=dict(
-            title="Equity (base 100)",
-            showgrid=True, gridcolor=TV_BORDER, zeroline=False
-        ),
-        margin=dict(l=10, r=10, t=50, b=10),
-        font=dict(color=TV_TEXT, size=10),
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_eq, use_container_width=True, key="bt_equity_curve")
-
-    # ── Drawdown Chart ────────────────────────────
-    eq_arr = np.array(res["equity"])
-    peak   = np.maximum.accumulate(eq_arr)
-    dd_arr = (eq_arr - peak) / peak * 100
-
-    fig_dd = go.Figure(go.Scatter(
-        x=res["equity_dates"],
-        y=dd_arr,
-        mode="lines",
-        fill="tozeroy",
-        fillcolor="rgba(239,83,80,0.15)",
-        line=dict(color=TV_RED, width=1.5),
-        hovertemplate="DD: %{y:.1f}%<extra></extra>",
-        name="Drawdown",
-    ))
-    fig_dd.update_layout(
-        title=dict(text="📉 <b>Drawdown Strategia</b>",
-                   font=dict(size=12, color=TV_TEXT), x=0.01),
-        height=200,
-        paper_bgcolor=TV_BG,
-        plot_bgcolor=TV_PANEL,
-        xaxis=dict(showgrid=True, gridcolor=TV_BORDER, zeroline=False),
-        yaxis=dict(title="DD%", showgrid=True, gridcolor=TV_BORDER,
-                   ticksuffix="%"),
-        margin=dict(l=10, r=10, t=40, b=10),
-        font=dict(color=TV_TEXT, size=10),
-        showlegend=False,
-    )
-    st.plotly_chart(fig_dd, use_container_width=True, key="bt_drawdown")
-
-    # ── Heatmap mensile performance ───────────────
-    monthly = res["monthly"]
-    if not monthly.empty:
-        years  = sorted(monthly["year"].unique())
-        months = list(range(1, 13))
-        month_names = ["Gen","Feb","Mar","Apr","Mag","Giu",
-                       "Lug","Ago","Set","Ott","Nov","Dic"]
-
-        z_data = []
-        for yr in years:
-            row_data = []
-            for mo in months:
-                val = monthly[(monthly["year"]==yr) & (monthly["month"]==mo)]["pct"]
-                row_data.append(float(val.values[0]) if len(val) > 0 else None)
-            z_data.append(row_data)
-
-        fig_hm2 = go.Figure(go.Heatmap(
-            z=z_data,
-            x=month_names,
-            y=[str(y) for y in years],
-            colorscale=[
-                [0.0, "#ef5350"],
-                [0.5, "#1e222d"],
-                [1.0, "#26a69a"],
-            ],
-            zmid=0,
-            text=[[f"{v:+.1f}%" if v is not None else "—"
-                   for v in row] for row in z_data],
-            texttemplate="%{text}",
-            textfont=dict(size=10),
-            hovertemplate="Anno: %{y}<br>Mese: %{x}<br>PnL: %{z:+.1f}%<extra></extra>",
-            colorbar=dict(
-                title="PnL%", tickfont=dict(size=9, color=TV_TEXT),
-                bgcolor=TV_PANEL, bordercolor=TV_BORDER,
-            ),
-        ))
-        fig_hm2.update_layout(
-            title=dict(text="🗓️ <b>Performance mensile (PnL% somma trade)</b>",
-                       font=dict(size=12, color=TV_TEXT), x=0.01),
-            height=max(180, 80 + len(years) * 55),
-            paper_bgcolor=TV_BG,
-            plot_bgcolor=TV_PANEL,
-            xaxis=dict(side="top", tickfont=dict(size=10, color=TV_TEXT)),
-            yaxis=dict(tickfont=dict(size=10, color=TV_TEXT)),
-            margin=dict(l=10, r=10, t=60, b=10),
-            font=dict(color=TV_TEXT),
-        )
-        st.plotly_chart(fig_hm2, use_container_width=True, key="bt_monthly_heatmap")
+    # ── Heatmap mensile ────────────────────────────
+    _plot_monthly_heatmap(res, strategy)
 
     # ── Lista trade ───────────────────────────────
     with st.expander("📋 Lista trade dettagliata"):
