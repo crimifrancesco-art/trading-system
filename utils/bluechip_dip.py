@@ -484,6 +484,11 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
         unsafe_allow_html=True
     )
 
+    # Contatore globale per key univoche — stabile nel rerun
+    if "_gauge_counter" not in st.session_state:
+        st.session_state["_gauge_counter"] = 0
+    st.session_state["_gauge_counter"] = 0   # reset ad ogni render
+
     df_sorted = df.sort_values("Momentum", ascending=False).reset_index(drop=True)
     cols_per_row = 4
     tickers_list = list(df_sorted.iterrows())
@@ -491,7 +496,7 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
     for row_start in range(0, len(tickers_list), cols_per_row):
         chunk = tickers_list[row_start:row_start + cols_per_row]
         cols  = st.columns(cols_per_row)
-        for col, (abs_idx, row) in zip(cols, [(row_start + i, r) for i, (_, r) in enumerate(chunk)]):
+        for col, (_, row) in zip(cols, chunk):
             sym   = row["Ticker"]
             nome  = row["Nome"][:16]
             score = int(row["Momentum"])
@@ -502,11 +507,13 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
             dd    = row["_dd_raw"]
             tv_url= f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
 
+            gkey  = f"mom_gauge_{st.session_state['_gauge_counter']}"
+            st.session_state["_gauge_counter"] += 1
+
             with col:
                 fig = _momentum_gauge(score, label, color,
                                       title=f"{sym}", height=175)
-                st.plotly_chart(fig, use_container_width=True,
-                                key=f"gauge_{abs_idx}")
+                st.plotly_chart(fig, use_container_width=True, key=gkey)
 
                 # Mini dettagli sotto il gauge
                 macd_color = "#26a69a" if macd_h >= 0 else "#ef5350"
