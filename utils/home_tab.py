@@ -360,6 +360,15 @@ def _render_top5(df_ep: Optional[pd.DataFrame],
         wb    = "📅" if row.get("Weekly_Bull") else ""
         src_color = TV_GOLD if src == "EARLY" else TV_RED
 
+        # Converti simbolo Yahoo → TradingView
+        def _to_tv(sym):
+            if sym.endswith(".MI"):  return "MIL:"  + sym[:-3]
+            if sym.endswith(".L"):   return "LSE:"  + sym[:-2]
+            if sym.endswith(".PA"):  return "EURONEXT:" + sym[:-3]
+            if sym.endswith(".DE"):  return "XETRA:" + sym[:-3]
+            if sym.endswith(".AS"):  return "EURONEXT:" + sym[:-3]
+            return sym  # US ticker — nessuna modifica
+        tv_url = f"https://it.tradingview.com/chart/?symbol={_to_tv(tkr)}"
         st.markdown(
             f'<div style="background:{TV_PANEL};border:1px solid {TV_BORDER};'
             f'border-radius:6px;padding:10px 14px;margin-bottom:6px;'
@@ -368,8 +377,10 @@ def _render_top5(df_ep: Optional[pd.DataFrame],
             f'<div style="display:flex;justify-content:space-between;'
             f'align-items:center">'
             f'<div>'
-            f'<span style="color:{TV_TEXT};font-weight:700;font-size:0.95rem">'
-            f'{tkr}</span>'
+            f'<a href="{tv_url}" target="_blank" style="text-decoration:none">'
+            f'<span style="color:{TV_CYAN};font-weight:700;font-size:0.95rem;'
+            f'cursor:pointer" title="Apri su TradingView">'
+            f'{tkr} 🔗</span></a>'
             f'<span style="color:{TV_GRAY};font-size:0.78rem;margin-left:8px">'
             f'{nome}</span>'
             f'<span style="font-size:0.8rem;margin-left:6px">{sqz}{wb}</span>'
