@@ -165,6 +165,72 @@ def _fetch_ticker(symbol: str) -> dict:
         # Market cap da meta (spesso disponibile)
         mktcap = meta.get("marketCap", 0) or 0
 
+        # ── Momentum Score multi-segnale ──────────────
+        # Ogni segnale contribuisce +1 (bull) o -1 (bear) o 0 (neutro)
+        mom_signals = []
+
+        # 1. Trend EMA: prezzo vs EMA20/50/200
+        mom_signals.append(1 if price > ema20  else -1)
+        mom_signals.append(1 if price > ema50  else -1)
+        mom_signals.append(1 if price > ema200 else -1)
+        mom_signals.append(1 if ema20 > ema50  else -1)   # allineamento EMA
+
+        # 2. RSI momentum
+        mom_signals.append(1 if rsi > 55 else (-1 if rsi < 45 else 0))
+
+        # 3. RSI slope (ultimi 5 periodi)
+        rsi_arr = rsi_series.dropna().values
+        if len(rsi_arr) >= 5:
+            rsi_slope = rsi_arr[-1] - rsi_arr[-5]
+            mom_signals.append(1 if rsi_slope > 2 else (-1 if rsi_slope < -2 else 0))
+        else:
+            mom_signals.append(0)
+
+        # 4. MACD (12,26,9)
+        s_pd = pd.Series(c)
+        macd_line  = s_pd.ewm(span=12).mean() - s_pd.ewm(span=26).mean()
+        signal_line= macd_line.ewm(span=9).mean()
+        macd_hist  = macd_line - signal_line
+        if len(macd_hist.dropna()) >= 2:
+            m_last = float(macd_hist.dropna().iloc[-1])
+            m_prev = float(macd_hist.dropna().iloc[-2])
+            mom_signals.append(1 if m_last > 0 else -1)
+            mom_signals.append(1 if m_last > m_prev else (-1 if m_last < m_prev else 0))
+        else:
+            mom_signals.extend([0, 0])
+
+        # 5. Volume trend (media 5gg vs media 20gg)
+        if len(v) >= 20:
+            v_short = np.mean(v[-5:])
+            v_long  = np.mean(v[-20:])
+            mom_signals.append(1 if v_short > v_long * 1.1 else
+                               (-1 if v_short < v_long * 0.9 else 0))
+        else:
+            mom_signals.append(0)
+
+        # 6. Price momentum: close vs 20gg fa e 60gg fa
+        if len(c) >= 20:
+            mom_signals.append(1 if c[-1] > c[-20] else -1)
+        if len(c) >= 60:
+            mom_signals.append(1 if c[-1] > c[-60] else -1)
+
+        # Score finale: da -10 a +10 → normalizza 0-100
+        n_sig     = len(mom_signals)
+        mom_raw   = sum(mom_signals)                        # range [-n, +n]
+        mom_score = round((mom_raw / n_sig + 1) / 2 * 100) # 0-100
+
+        # Etichetta e colore
+        if mom_score >= 72:   mom_label, mom_color = "🚀 FORTE RIALZO",  "#26a69a"
+        elif mom_score >= 58: mom_label, mom_color = "📈 RIALZISTA",     "#66bb6a"
+        elif mom_score >= 43: mom_label, mom_color = "➡️ NEUTRO",        "#ffd700"
+        elif mom_score >= 28: mom_label, mom_color = "📉 RIBASSISTA",    "#ff9800"
+        else:                 mom_label, mom_color = "🔻 FORTE RIBASSO", "#ef5350"
+
+        # MACD values per chart
+        macd_val  = round(float(macd_line.iloc[-1]), 3)  if not macd_line.empty  else 0
+        signal_val= round(float(signal_line.iloc[-1]),3) if not signal_line.empty else 0
+        hist_val  = round(float(macd_hist.iloc[-1]), 3)  if not macd_hist.empty  else 0
+
         return {
             "ok":          True,
             "price":       round(price, 2),
@@ -181,6 +247,14 @@ def _fetch_ticker(symbol: str) -> dict:
             "mktcap":      mktcap,
             "currency":    meta.get("currency", "USD"),
             "name":        meta.get("longName") or meta.get("shortName", ""),
+            # Momentum
+            "mom_score":   mom_score,
+            "mom_label":   mom_label,
+            "mom_color":   mom_color,
+            "mom_signals": mom_signals,
+            "macd":        macd_val,
+            "macd_signal": signal_val,
+            "macd_hist":   hist_val,
         }
     except Exception as e:
         return {"ok": False, "err": str(e)}
@@ -207,6 +281,12 @@ def _scan_all() -> pd.DataFrame:
             "Vol×":        d["vol_ratio"],
             "Quality":     d["quality"],
             "Dip Score":   d["dip_score"],
+            "Momentum":    d.get("mom_score", 50),
+            "Mom Label":   d.get("mom_label", "➡️ NEUTRO"),
+            "Mom Color":   d.get("mom_color", "#ffd700"),
+            "MACD":        d.get("macd", 0),
+            "MACD Signal": d.get("macd_signal", 0),
+            "MACD Hist":   d.get("macd_hist", 0),
             "Currency":    d["currency"],
             "_dd_raw":     d["drawdown"],
             "_ema200_raw": d["ema200"],
@@ -255,6 +335,196 @@ def _sparkline(closes: list, color: str) -> go.Figure:
     return fig
 
 
+
+# ── Momentum Gauge semicircolare ──────────────────
+
+def _momentum_gauge(score: int, label: str, color: str,
+                    title: str = "", height: int = 200) -> go.Figure:
+    """
+    Gauge semicircolare 0-100:
+      0-28  → Forte Ribasso  (rosso)
+      28-43 → Ribassista     (arancio)
+      43-58 → Neutro         (giallo)
+      58-72 → Rialzista      (verde chiaro)
+      72-100→ Forte Rialzo   (verde)
+    """
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number={"font": {"size": 28, "color": color}, "suffix": ""},
+        title={"text": f"<b>{title}</b><br><span style='font-size:0.85em;color:{color}'>{label}</span>",
+               "font": {"size": 11, "color": "#d1d4dc"}},
+        gauge={
+            "axis": {
+                "range": [0, 100],
+                "tickvals": [0, 28, 43, 58, 72, 100],
+                "ticktext": ["", "Ribasso", "Neutro", "", "Rialzo", ""],
+                "tickfont": {"size": 8, "color": "#787b86"},
+                "linecolor": "#2a2e39",
+            },
+            "bar": {"color": color, "thickness": 0.25},
+            "bgcolor": "#1e222d",
+            "borderwidth": 0,
+            "steps": [
+                {"range": [0,   28],  "color": "rgba(239,83,80,0.25)"},
+                {"range": [28,  43],  "color": "rgba(255,152,0,0.20)"},
+                {"range": [43,  58],  "color": "rgba(255,215,0,0.15)"},
+                {"range": [58,  72],  "color": "rgba(102,187,106,0.20)"},
+                {"range": [72,  100], "color": "rgba(38,166,154,0.25)"},
+            ],
+            "threshold": {
+                "line": {"color": color, "width": 3},
+                "thickness": 0.8,
+                "value": score,
+            },
+        },
+    ))
+    fig.update_layout(
+        height=height,
+        paper_bgcolor="#131722",
+        plot_bgcolor="#131722",
+        margin=dict(l=10, r=10, t=30, b=10),
+        font=dict(color="#d1d4dc"),
+    )
+    return fig
+
+
+def _momentum_bar(score: int, color: str) -> str:
+    """HTML barra direzionale momentum -100% a +100%."""
+    # Converti score 0-100 in posizione -50/+50 per la barra
+    pct    = score - 50          # -50 a +50
+    width  = abs(pct) * 2        # 0-100%
+    left   = pct < 0
+    bg     = color
+    side   = "right" if left else "left"
+    return (
+        f'<div style="background:#2a2e39;border-radius:4px;height:8px;'
+        f'position:relative;margin:4px 0">'
+        f'<div style="position:absolute;top:0;bottom:0;{side}:50%;'
+        f'width:{width/2:.0f}%;background:{bg};border-radius:4px"></div>'
+        f'<div style="position:absolute;top:-1px;bottom:-1px;left:50%;'
+        f'width:2px;background:#787b86"></div>'
+        f'</div>'
+    )
+
+
+# ── Momentum Dashboard globale ────────────────────
+
+def _render_momentum_dashboard(df: pd.DataFrame) -> None:
+    """
+    Vista dedicata momentum: gauge griglia per ogni titolo filtrato.
+    Mostra anche distribuzione Bull/Neutro/Bear e heatmap momentum.
+    """
+    st.markdown(
+        f'<div style="background:#1e222d;border-left:3px solid #2962ff;'
+        f'padding:8px 14px;border-radius:0 4px 4px 0;margin-bottom:12px">'
+        f'<span style="color:#2962ff;font-weight:700">📡 MOMENTUM DASHBOARD</span>'
+        f'<span style="color:#787b86;font-size:0.78rem;margin-left:10px">'
+        f'Analisi direzionale multi-segnale: EMA · RSI · MACD · Volume · Price Momentum</span>'
+        f'</div>', unsafe_allow_html=True
+    )
+
+    # ── Distribuzione Bull/Neutro/Bear ────────────
+    bull  = (df["Momentum"] >= 58).sum()
+    bear  = (df["Momentum"] <  43).sum()
+    neut  = len(df) - bull - bear
+    total = len(df)
+
+    pct_bull = bull / total * 100
+    pct_bear = bear / total * 100
+    pct_neut = neut / total * 100
+
+    # Sentiment di mercato aggregato
+    avg_mom = df["Momentum"].mean()
+    if avg_mom >= 65:   mkt_label, mkt_color = "🚀 MERCATO RIALZISTA",  "#26a69a"
+    elif avg_mom >= 55: mkt_label, mkt_color = "📈 LIEVE RIALZO",       "#66bb6a"
+    elif avg_mom >= 45: mkt_label, mkt_color = "➡️ MERCATO NEUTRO",     "#ffd700"
+    elif avg_mom >= 35: mkt_label, mkt_color = "📉 LIEVE RIBASSO",      "#ff9800"
+    else:               mkt_label, mkt_color = "🔻 MERCATO RIBASSISTA", "#ef5350"
+
+    # Banner sentiment
+    st.markdown(
+        f'<div style="background:#1e222d;border:1px solid #2a2e39;'
+        f'border-radius:8px;padding:14px;text-align:center;margin-bottom:12px;'
+        f'border-top:3px solid {mkt_color}">'
+        f'<div style="font-size:1.3rem;font-weight:800;color:{mkt_color}">'
+        f'{mkt_label}</div>'
+        f'<div style="color:#787b86;font-size:0.8rem;margin-top:4px">'
+        f'Momentum medio Blue Chip: <b style="color:#d1d4dc">{avg_mom:.0f}/100</b> '
+        f'su {total} titoli analizzati</div>'
+        f'</div>', unsafe_allow_html=True
+    )
+
+    # Barre distribuzione
+    c1, c2, c3 = st.columns(3)
+    for col, label, count, pct, color in [
+        (c1, "🟢 RIALZISTI",  bull, pct_bull, "#26a69a"),
+        (c2, "🟡 NEUTRI",     neut, pct_neut, "#ffd700"),
+        (c3, "🔴 RIBASSISTI", bear, pct_bear, "#ef5350"),
+    ]:
+        with col:
+            st.markdown(
+                f'<div style="background:#1e222d;border:1px solid #2a2e39;'
+                f'border-radius:6px;padding:10px;text-align:center">'
+                f'<div style="color:#787b86;font-size:0.72rem">{label}</div>'
+                f'<div style="color:{color};font-size:1.6rem;font-weight:700">{count}</div>'
+                f'<div style="color:#787b86;font-size:0.75rem">{pct:.0f}% del totale</div>'
+                f'<div style="background:#2a2e39;border-radius:3px;height:5px;margin-top:6px">'
+                f'<div style="background:{color};width:{pct:.0f}%;height:5px;border-radius:3px">'
+                f'</div></div></div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Gauge griglia ─────────────────────────────
+    st.markdown(
+        f'<span style="color:#787b86;font-size:0.8rem">'
+        f'Gauge momentum per titolo — ordinati per score</span>',
+        unsafe_allow_html=True
+    )
+
+    df_sorted = df.sort_values("Momentum", ascending=False)
+    cols_per_row = 4
+    tickers_list = list(df_sorted.iterrows())
+
+    for row_start in range(0, len(tickers_list), cols_per_row):
+        chunk = tickers_list[row_start:row_start + cols_per_row]
+        cols  = st.columns(cols_per_row)
+        for col, (_, row) in zip(cols, chunk):
+            sym   = row["Ticker"]
+            nome  = row["Nome"][:16]
+            score = int(row["Momentum"])
+            label = row["Mom Label"]
+            color = row["Mom Color"]
+            rsi   = row["RSI"]
+            macd_h= row["MACD Hist"]
+            dd    = row["_dd_raw"]
+            tv_url= f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
+
+            with col:
+                fig = _momentum_gauge(score, label, color,
+                                      title=f"{sym}", height=175)
+                st.plotly_chart(fig, use_container_width=True,
+                                key=f"gauge_{sym}")
+
+                # Mini dettagli sotto il gauge
+                macd_color = "#26a69a" if macd_h >= 0 else "#ef5350"
+                st.markdown(
+                    f'<div style="background:#1e222d;border-radius:4px;'
+                    f'padding:4px 8px;font-size:0.72rem;margin-top:-8px">'
+                    f'<a href="{tv_url}" target="_blank" style="color:#50c4e0;'
+                    f'text-decoration:none;font-weight:700">{sym}</a>'
+                    f'<span style="color:#787b86"> {nome}</span><br>'
+                    f'RSI <b style="color:{"#26a69a" if rsi<45 else "#787b86"}">{rsi:.0f}</b>'
+                    f' · MACD <b style="color:{macd_color}">{"▲" if macd_h>=0 else "▼"}</b>'
+                    f' · DD <b style="color:#ef5350">{dd:.0f}%</b>'
+                    f'{_momentum_bar(score, color)}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+
 # ── Render card per top ticker ────────────────────
 
 def _render_card(row: pd.Series, rank: int):
@@ -268,6 +538,9 @@ def _render_card(row: pd.Series, rank: int):
     dist200   = row["Dist EMA200%"]
     vol       = row["Vol×"]
     currency  = row["Currency"]
+    mom_score = int(row.get("Momentum", 50))
+    mom_label = row.get("Mom Label", "➡️ NEUTRO")
+    mom_color = row.get("Mom Color", "#ffd700")
     curr_sym  = "€" if currency == "EUR" else ("£" if currency == "GBP" else "$")
     max52     = row["Max 52w"]
 
@@ -350,6 +623,13 @@ def _render_card(row: pd.Series, rank: int):
         f'height:5px;border-radius:3px"></div></div>'
         f'</div>'
 
+        # Momentum bar
+        f'<div style="margin-top:8px">'
+        f'<div style="color:{TV_GRAY};font-size:0.68rem;margin-bottom:2px">'
+        f'Momentum: <b style="color:{mom_color}">{mom_label}</b> ({mom_score}/100)</div>'
+        f'{_momentum_bar(mom_score, mom_color)}'
+        f'</div>'
+
         f'</div>',
         unsafe_allow_html=True
     )
@@ -430,10 +710,16 @@ def render_bluechip_dip():
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Vista ─────────────────────────────────────
-    view = st.radio("Vista", ["🃏 Cards", "📋 Tabella", "📊 Scatter"],
+    view = st.radio("Vista", ["📡 Momentum", "🃏 Cards", "📋 Tabella", "📊 Scatter"],
                     horizontal=True, key="bcd_view")
 
-    if view == "🃏 Cards":
+    if view == "📡 Momentum":
+        _render_momentum_dashboard(df_f)
+
+    if view == "📡 Momentum":
+        _render_momentum_dashboard(df_f)
+
+    elif view == "🃏 Cards":
         col_a, col_b = st.columns(2)
         for i, (_, row) in enumerate(df_f.iterrows()):
             with (col_a if i % 2 == 0 else col_b):
