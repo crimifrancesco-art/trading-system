@@ -491,7 +491,7 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
     for row_start in range(0, len(tickers_list), cols_per_row):
         chunk = tickers_list[row_start:row_start + cols_per_row]
         cols  = st.columns(cols_per_row)
-        for col, (_, row) in zip(cols, chunk):
+        for col, (ri, (_, row)) in zip(cols, enumerate(chunk)):
             sym   = row["Ticker"]
             nome  = row["Nome"][:16]
             score = int(row["Momentum"])
@@ -501,11 +501,16 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
             macd_h= row["MACD Hist"]
             dd    = row["_dd_raw"]
             tv_url= f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
+            # Key stabile: posizione assoluta nel dataset ordinato, mai duplicata
+            abs_pos = row_start + ri
 
             with col:
                 fig = _momentum_gauge(score, label, color,
                                       title=f"{sym}", height=175)
-                st.plotly_chart(fig, use_container_width=True)
+                # Inietta ticker nell'id figura per renderla unica a Streamlit
+                fig.update_layout(meta={"ticker": sym, "pos": abs_pos})
+                st.plotly_chart(fig, use_container_width=True,
+                                key=f"bcd_mg_{abs_pos}_{sym.replace('-','_').replace('.','_')}")
 
                 # Mini dettagli sotto il gauge
                 macd_color = "#26a69a" if macd_h >= 0 else "#ef5350"
