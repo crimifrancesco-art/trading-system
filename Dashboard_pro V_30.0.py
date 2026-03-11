@@ -1711,13 +1711,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 tabs=st.tabs(["🏠 Home",
               "📊 Comparatore",
+              "💎 Blue Chip Dip",
               "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "🎯 Serafini","🔎 Finviz Pro",
               "🛡️ Crisis Monitor",
-              "📋 Watchlist","📈 Backtest",
-              "💎 Blue Chip Dip"])
-(tab_home,tab_mtf,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_bcd)=tabs
+              "📋 Watchlist","📈 Backtest"])
+(tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
+ tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt)=tabs
 
 with tab_home:
     try:
