@@ -434,21 +434,37 @@ def _render_sector_heatmap(sectors: list):
         elif chg >= -2: return "#6a1a1a", TV_RED
         else:           return "#8b0000", "#ff5252"
 
+    # Link TradingView Heatmap settoriale Italia
+    tv_heatmap_url = "https://it.tradingview.com/heatmap/stock/#%7B%22dataSource%22%3A%22SPX500%22%2C%22blockColor%22%3A%22change%22%2C%22blockSize%22%3A%22market_cap_basic%22%2C%22grouping%22%3A%22sector%22%7D"
+    st.markdown(
+        f'<div style="text-align:right;margin-bottom:6px">'
+        f'<a href="{tv_heatmap_url}" target="_blank" '
+        f'style="color:{TV_CYAN};font-size:0.78rem;text-decoration:none">'
+        f'🔗 Apri Heatmap su TradingView →</a></div>',
+        unsafe_allow_html=True
+    )
+
     cols = st.columns(len(sectors))
     for col, s in zip(cols, sectors):
         chg = s["chg"]
         bg, fg = _color(chg)
         arrow = "▲" if chg >= 0 else "▼"
+        sym   = s["sym"]
+        tv_url = f"https://it.tradingview.com/chart/?symbol={sym}"
         with col:
             st.markdown(
+                f'<a href="{tv_url}" target="_blank" style="text-decoration:none">'
                 f'<div style="background:{bg};border-radius:6px;'
                 f'padding:10px 4px;text-align:center;'
-                f'border:1px solid {TV_BORDER}">'
+                f'border:1px solid {TV_BORDER};cursor:pointer;'
+                f'transition:border-color 0.2s" '
+                f'onmouseover="this.style.borderColor=\'{fg}\'" '
+                f'onmouseout="this.style.borderColor=\'{TV_BORDER}\'">'
                 f'<div style="color:{fg};font-size:0.68rem;font-weight:600'
                 f';margin-bottom:2px">{s["label"]}</div>'
                 f'<div style="color:{fg};font-size:0.85rem;font-weight:700">'
                 f'{arrow}{abs(chg):.1f}%</div>'
-                f'</div>',
+                f'</div></a>',
                 unsafe_allow_html=True
             )
 
