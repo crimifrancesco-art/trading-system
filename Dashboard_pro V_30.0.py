@@ -1850,76 +1850,121 @@ with tab_crisis:
     all_crisis_tickers = []
 
     # ── Scanner fisso Crisis Monitor ───────────────────────────────────────
+    # Scansiona TUTTI i ticker CRISIS_ASSETS (indipendente dalla sidebar)
+    # Cache unica per tutti gli scenari — si aggiorna solo su richiesta esplicita
+
     def _slug_fast(s):
         import re as _re2
         return _re2.sub(r'[^\w]','',s)[:16]
 
-    _all_crisis_tks = []
-    for _cn in active_categories:
-        _all_crisis_tks.extend([t for t,_,_ in CRISIS_ASSETS.get(_cn,{}).get("assets",[])])
-    _all_crisis_tks = list(dict.fromkeys(_all_crisis_tks))  # deduplica
+    # Lista COMPLETA di tutti i ticker crisis (tutte le categorie)
+    _ALL_CRISIS_TKS = list(dict.fromkeys(
+        t for _cat in CRISIS_ASSETS.values()
+        for t,_,_ in _cat.get("assets", [])
+    ))
+    _CRISIS_CACHE_KEY = "_crisis_scan_all"   # chiave unica per tutti gli scenari
 
-    _crisis_cache_key = f"_crisis_scan_{_slug_fast(selected_scenario)}"
+    _crisis_df_cached = st.session_state.get(_CRISIS_CACHE_KEY)
 
-    _c1, _c2, _c3 = st.columns([2, 2, 4])
-    with _c1:
+    # Barra di stato + bottone aggiorna
+    _hc1, _hc2, _hc3 = st.columns([3, 2, 3])
+    with _hc1:
+        if _crisis_df_cached is not None:
+            _ts = st.session_state.get("_crisis_scan_time", "")
+            st.markdown(
+                f'<div style="background:#1a2e1a;border:1px solid #2a4a2a;'
+                f'border-radius:6px;padding:8px 12px;font-size:0.82rem">'
+                f'✅ <b style="color:#26a69a">{len(_crisis_df_cached)} ticker</b>'
+                f' con dati live'
+                f'{"  ·  🕐 " + _ts if _ts else ""}'
+                f'</div>', unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                '<div style="background:#2e1a1a;border:1px solid #4a2a2a;'
+                'border-radius:6px;padding:8px 12px;font-size:0.82rem">'
+                '⚠️ <b style="color:#ef5350">Dati non disponibili</b>'
+                ' — premi Scansiona per popolare RSI, Quality, Vol×, etc.'
+                '</div>', unsafe_allow_html=True
+            )
+    with _hc2:
         _run_crisis = st.button(
-            f"🔍 Scansiona {len(_all_crisis_tks)} ticker",
+            f"🔍 Scansiona tutti ({len(_ALL_CRISIS_TKS)})",
             key="crisis_scan_btn",
             type="primary",
             use_container_width=True,
-            help="Scarica dati tecnici live per tutti gli asset dello scenario selezionato"
+            help=f"Scarica dati tecnici live per tutti i {len(_ALL_CRISIS_TKS)} asset difensivi — indipendente dalla selezione mercati"
         )
-    with _c2:
-        if st.session_state.get(_crisis_cache_key):
-            if st.button("🗑️ Reset dati", key="crisis_scan_reset",
-                         use_container_width=True):
-                st.session_state.pop(_crisis_cache_key, None)
-                st.rerun()
-    with _c3:
-        _crisis_df_cached = st.session_state.get(_crisis_cache_key)
-        if _crisis_df_cached is not None:
-            st.success(f"✅ Dati live: {len(_crisis_df_cached)} ticker scansionati")
-        else:
-            st.caption("⚠️ Dati tecnici non disponibili — premi Scansiona per popolare RSI, Quality, Vol×, etc.")
+    with _hc3:
+        _col_rf, _col_rs = st.columns(2)
+        with _col_rf:
+            if _crisis_df_cached is not None:
+                if st.button("🔄 Aggiorna", key="crisis_scan_refresh",
+                             use_container_width=True,
+                             help="Forza nuova scansione"):
+                    st.session_state.pop(_CRISIS_CACHE_KEY, None)
+                    st.session_state.pop("_crisis_scan_time", None)
+                    st.rerun()
+        with _col_rs:
+            if _crisis_df_cached is not None:
+                if st.button("🗑️ Reset", key="crisis_scan_reset",
+                             use_container_width=True):
+                    st.session_state.pop(_CRISIS_CACHE_KEY, None)
+                    st.session_state.pop("_crisis_scan_time", None)
+                    st.rerun()
 
+    # ── Esegui scansione ──────────────────────────────────────────────────
     if _run_crisis:
         _crisis_rows = []
-        _prog = st.progress(0, text="🔍 Scansione Crisis Monitor...")
-        _eh   = st.session_state.get("eh", 0.02)
-        _prmin= st.session_state.get("prmin", 30)
-        _prmax= st.session_state.get("prmax", 80)
-        _rpoc = st.session_state.get("rpoc", 0.02)
-        _vrh  = st.session_state.get("vol_ratio_hot", 1.5)
-        for _i, _tkr in enumerate(_all_crisis_tks):
-            _prog.progress((_i+1)/len(_all_crisis_tks),
-                           text=f"🔍 {_tkr} ({_i+1}/{len(_all_crisis_tks)})")
+        _crisis_errors = []
+        _prog = st.progress(0, text="🔍 Avvio scansione Crisis Monitor...")
+        _n = len(_ALL_CRISIS_TKS)
+        for _i, _tkr in enumerate(_ALL_CRISIS_TKS):
+            _prog.progress((_i + 1) / _n,
+                           text=f"🔍 {_tkr}  ({_i+1}/{_n})")
             try:
-                _ep_row, _rea_row = scan_ticker(_tkr, _eh, _prmin, _prmax, _rpoc, _vrh)
+                _ep_row, _rea_row = scan_ticker(
+                    _tkr,
+                    e_h=0.03,
+                    p_rmin=25,
+                    p_rmax=85,
+                    r_poc=0.03,
+                    vol_ratio_hot=1.2,
+                )
                 _row = _ep_row if _ep_row is not None else _rea_row
                 if _row is not None:
                     _crisis_rows.append(_row)
-            except Exception:
-                pass
+                else:
+                    _crisis_errors.append(f"{_tkr}: scan_ticker → (None, None)")
+            except Exception as _ex:
+                _crisis_errors.append(f"{_tkr}: {type(_ex).__name__}: {_ex}")
         _prog.empty()
         if _crisis_rows:
             _crisis_df = pd.DataFrame(_crisis_rows)
-            st.session_state[_crisis_cache_key] = _crisis_df
-            st.success(f"✅ Scansione completata: {len(_crisis_df)} ticker con dati")
+            st.session_state[_CRISIS_CACHE_KEY] = _crisis_df
+            st.session_state["_crisis_scan_time"] = datetime.now().strftime("%H:%M")
+            if _crisis_errors:
+                with st.expander(f"⚠️ {len(_crisis_errors)} ticker non caricati", expanded=False):
+                    st.code("\n".join(_crisis_errors[:20]))
+            st.success(f"✅ Scansione completata: {len(_crisis_df)}/{_n} ticker")
             st.rerun()
         else:
-            st.warning("⚠️ Nessun dato recuperato. Riprova tra qualche istante.")
+            st.error(f"⚠️ Nessun dato recuperato ({_n} ticker tentati). Errori:")
+            st.code("\n".join(_crisis_errors[:30]) if _crisis_errors else "Nessun errore registrato — scan_ticker ha restituito None per tutti")
 
-    # Usa dati live dalla scansione crisis o dallo scanner principale
-    _crisis_live = st.session_state.get(_crisis_cache_key)
+    # Dati live da usare nel merge per ogni categoria
+    _crisis_live = st.session_state.get(_CRISIS_CACHE_KEY)
+
+    # ── Per ogni categoria — lista ticker con filtro scenario attivo ───────
+    _all_crisis_tks = []   # mantieni compatibilità variabile downstream
 
     def _slug(s, maxlen=12):
         """Rimuove emoji e spazi per creare una chiave Streamlit valida."""
         import re as _re
-        clean = _re.sub(r'[^\w]', '', s)  # solo alfanumerici e _
+        clean = _re.sub(r'[^\w]', '', s)
         return clean[:maxlen] if clean else "cat"
 
-    # ── Per ogni categoria ─────────────────────────────────────────────
+# ── Per ogni categoria ─────────────────────────────────────────────
     for cat_name in active_categories:
         cat_data = CRISIS_ASSETS.get(cat_name, {})
         if not cat_data: continue
