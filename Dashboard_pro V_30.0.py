@@ -833,10 +833,10 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 27.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 30.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 30.0")
-st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · AI ANALYST · v30.0</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v30.0</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
