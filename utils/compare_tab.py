@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-compare_tab.py  —  📊 Comparatore Multi-Ticker  v30.0
+compare_tab.py  —  📊 Comparatore Multi-Ticker  v31.1
 ══════════════════════════════════════════════════════
 Confronto visuale fino a 4 ticker side-by-side.
 
@@ -550,7 +550,7 @@ def render_compare(df_scanner=None):
         f'<span style="color:{TV_BLUE};font-weight:700;font-size:1rem">'
         f'📊 COMPARATORE MULTI-TICKER</span>'
         f'<span style="color:{TV_GRAY};font-size:0.8rem;margin-left:12px">'
-        f'Confronto tecnico fino a 4 ticker · v30.0</span>'
+        f'Confronto tecnico fino a 4 ticker · v31.1</span>'
         f'</div>',
         unsafe_allow_html=True
     )
