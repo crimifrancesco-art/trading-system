@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-home_tab.py  —  🏠 Market Intelligence Home  v30.0
+home_tab.py  —  🏠 Market Intelligence Home  v31.1
 ════════════════════════════════════════════════════
 Prima cosa che vedi aprendo l'app.
 
@@ -598,7 +598,7 @@ def render_home(df_ep=None, df_rea=None):
             f'<span style="color:{TV_BLUE};font-weight:700;font-size:1rem">'
             f'🏠 MARKET INTELLIGENCE</span>'
             f'<span style="color:{TV_GRAY};font-size:0.8rem;margin-left:12px">'
-            f'Dashboard mercati in tempo reale · v30.0</span>'
+            f'Dashboard mercati in tempo reale · v31.1</span>'
             f'</div>',
             unsafe_allow_html=True
         )
