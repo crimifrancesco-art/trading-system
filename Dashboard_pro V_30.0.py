@@ -99,6 +99,10 @@ except ImportError:
 
 # Backtest tab opzionale — wrappato per gestire errori db v27
 try:
+    from utils.orderflow_tab import render_orderflow_tab as _of_render
+except Exception:
+    _of_render = None
+try:
     from utils.backtest_tab import render_backtest_tab as _bt_orig
     def render_backtest_tab():
         try:
@@ -1726,9 +1730,9 @@ tabs=st.tabs(["🏠 Home",
               "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
               "🎯 Serafini","🔎 Finviz Pro",
               "🛡️ Crisis Monitor",
-              "📋 Watchlist","📈 Backtest"])
+              "📋 Watchlist","📈 Backtest","🔬 Order Flow"])
 (tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt)=tabs
+ tab_ser,tab_fvpro,tab_crisis,tab_w,tab_bt,tab_of)=tabs
 
 with tab_home:
     try:
@@ -2566,6 +2570,21 @@ with tab_w:
 # =========================================================================
 with tab_bt:
     render_backtest_tab()
+
+with tab_of:
+    try:
+        if _of_render:
+            # Passa df_ep dallo scanner se disponibile
+            _df_of = df_ep if "df_ep" in dir() else None
+            _of_render(df_scanner=_df_of)
+        else:
+            from utils.orderflow_tab import render_orderflow_tab
+            render_orderflow_tab()
+    except Exception as _ofe:
+        import traceback
+        st.error(f"Order Flow error: {_ofe}")
+        st.code(traceback.format_exc())
+
 
 with tab_bcd:
     try:
