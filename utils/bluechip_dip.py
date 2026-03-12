@@ -379,49 +379,62 @@ def _sparkline(closes: list, color: str) -> go.Figure:
 def _momentum_gauge_html(score: int, label: str, color: str,
                          sym: str, nome: str,
                          rsi: float, macd_h: float, dd: float) -> str:
-    """Gauge semicircolare SVG puro — zero Plotly, zero key Streamlit."""
+    """Gauge semicircolare SVG puro — zero Plotly, zero key."""
     import math as _m
 
-    cx, cy, ro, ri = 100, 100, 85, 55
+    cx, cy = 100, 105
+    ro, ri = 80, 52
 
     def pt(r, deg):
         a = _m.radians(deg)
         return cx + r * _m.cos(a), cy + r * _m.sin(a)
 
-    def arc(s0, s1, ro2, ri2):
-        a0 = -180 + s0 * 1.8
-        a1 = -180 + s1 * 1.8
+    def ap(s0, s1, ro2, ri2):
+        a0 = 180 - s0 * 1.8;  a1 = 180 - s1 * 1.8
         x0o, y0o = pt(ro2, a0);  x1o, y1o = pt(ro2, a1)
         x0i, y0i = pt(ri2, a1);  x1i, y1i = pt(ri2, a0)
-        laf = 1 if (a1 - a0) > 180 else 0
-        return (f"M{x0o:.1f} {y0o:.1f} A{ro2} {ro2} 0 {laf} 1 {x1o:.1f} {y1o:.1f} "
-                f"L{x0i:.1f} {y0i:.1f} A{ri2} {ri2} 0 {laf} 0 {x1i:.1f} {y1i:.1f}Z")
+        laf = 1 if abs(a1 - a0) > 180 else 0
+        return (f"M{x0o:.1f},{y0o:.1f} A{ro2},{ro2} 0 {laf},1 {x1o:.1f},{y1o:.1f} "
+                f"L{x0i:.1f},{y0i:.1f} A{ri2},{ri2} 0 {laf},0 {x1i:.1f},{y1i:.1f}Z")
 
     zones = [
-        (0,  28, "rgba(239,83,80,0.35)"),
-        (28, 43, "rgba(255,152,0,0.30)"),
-        (43, 58, "rgba(255,215,0,0.25)"),
-        (58, 72, "rgba(102,187,106,0.30)"),
-        (72, 100,"rgba(38,166,154,0.35)"),
+        (0,  28, "rgba(239,83,80,0.40)"),
+        (28, 43, "rgba(255,152,0,0.35)"),
+        (43, 58, "rgba(255,215,0,0.30)"),
+        (58, 72, "rgba(102,187,106,0.35)"),
+        (72, 100, "rgba(38,166,154,0.40)"),
     ]
 
-    arcs = f'<path d="{arc(0,100,ro,ri)}" fill="#1e2535"/>'
+    svg = f'<path d="{ap(0,100,ro,ri)}" fill="#1a1e2e"/>'
     for s, e, c in zones:
-        arcs += f'<path d="{arc(s,e,ro,ri)}" fill="{c}"/>'
+        svg += f'<path d="{ap(s,e,ro,ri)}" fill="{c}"/>'
     if score > 0:
-        arcs += f'<path d="{arc(0,min(score,100),ro-6,ri+6)}" fill="{color}" opacity="0.85"/>'
+        svg += f'<path d="{ap(0,min(score,100),ro-3,ri+3)}" fill="{color}" opacity="0.9"/>'
 
-    na = -180 + score * 1.8
-    nx, ny = pt(ro - 4, na)
-    arcs += (f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}" '
-             f'stroke="{color}" stroke-width="3.5" stroke-linecap="round"/>'
-             f'<circle cx="{cx}" cy="{cy}" r="5" fill="{color}"/>')
+    na = 180 - score * 1.8
+    nx, ny = pt(ro - 2, na)
+    svg += (f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}"'
+            f' stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.35"/>'
+            f'<line x1="{cx}" y1="{cy}" x2="{nx:.1f}" y2="{ny:.1f}"'
+            f' stroke="{color}" stroke-width="1.5" stroke-linecap="round"/>'
+            f'<circle cx="{cx}" cy="{cy}" r="4" fill="{color}"'
+            f' stroke="#0e1117" stroke-width="1.5"/>')
 
-    ticks = ""
-    for v, t in [(0, "BEAR"), (50, "NEU"), (100, "BULL")]:
-        tx, ty = pt(ro + 13, -180 + v * 1.8)
-        ticks += (f'<text x="{tx:.1f}" y="{ty+3:.1f}" text-anchor="middle" '
-                  f'font-size="7" fill="#555b6e">{t}</text>')
+    lx0, ly0 = pt(ro + 14, 180)
+    lx1, ly1 = pt(ro + 14, 90)
+    lx2, ly2 = pt(ro + 14, 0)
+    svg += (f'<text x="{lx0:.0f}" y="{ly0+3:.0f}" text-anchor="middle"'
+            f' font-size="8" fill="#555b6e">BEAR</text>'
+            f'<text x="{lx1:.0f}" y="{ly1+3:.0f}" text-anchor="middle"'
+            f' font-size="8" fill="#555b6e">NEU</text>'
+            f'<text x="{lx2:.0f}" y="{ly2+3:.0f}" text-anchor="middle"'
+            f' font-size="8" fill="#555b6e">BULL</text>')
+
+    svg += (f'<text x="{cx}" y="{cy+2}" text-anchor="middle"'
+            f' dominant-baseline="middle" font-size="24" font-weight="900"'
+            f' fill="{color}">{score}</text>'
+            f'<text x="{cx}" y="{cy+16}" text-anchor="middle"'
+            f' font-size="8" fill="#555b6e">/100</text>')
 
     mc  = "#26a69a" if macd_h >= 0 else "#ef5350"
     ma  = "&#9650;" if macd_h >= 0 else "&#9660;"
@@ -429,26 +442,26 @@ def _momentum_gauge_html(score: int, label: str, color: str,
     bar = _momentum_bar(score, color)
     tvu = f"https://it.tradingview.com/chart/?symbol={sym.split('.')[0]}"
 
-    return f"""<div style="background:#1a1e2e;border:1px solid #2a2e39;border-radius:10px;
-padding:10px 8px 8px;text-align:center;border-top:3px solid {color};margin-bottom:6px">
-<a href="{tvu}" target="_blank"
-   style="color:#50c4e0;font-weight:700;font-size:0.82rem;text-decoration:none">{sym}</a>
-<div style="color:#787b86;font-size:0.67rem;overflow:hidden;text-overflow:ellipsis;
-white-space:nowrap;margin-bottom:2px">{nome[:18]}</div>
-<svg viewBox="10 20 180 90" width="100%" height="105" style="display:block;margin:0 auto">
-{arcs}{ticks}
-<text x="{cx}" y="{cy+10}" text-anchor="middle" font-size="22"
-      font-weight="bold" fill="{color}">{score}</text>
-<text x="{cx}" y="{cy+22}" text-anchor="middle" font-size="7" fill="#787b86">/100</text>
-</svg>
-<div style="color:{color};font-size:0.71rem;font-weight:700;
-            margin:-2px 0 4px">{label}</div>
-<div style="display:flex;justify-content:space-around;font-size:0.67rem;
-            color:#787b86;margin-bottom:4px">
-  <span>RSI <b style="color:{rc}">{rsi:.0f}</b></span>
-  <span>MACD <b style="color:{mc}">{ma}</b></span>
-  <span>DD <b style="color:#ef5350">{dd:.0f}%</b></span>
-</div>{bar}</div>"""
+    return (
+        f'<div style="background:#131722;border:1px solid #2a2e39;border-radius:8px;'
+        f'padding:8px 6px 6px;text-align:center;border-top:3px solid {color};margin-bottom:8px">'
+        f'<a href="{tvu}" target="_blank" style="color:#50c4e0;font-weight:700;'
+        f'font-size:0.80rem;text-decoration:none">{sym}</a>'
+        f'<div style="color:#555b6e;font-size:0.63rem;overflow:hidden;'
+        f'text-overflow:ellipsis;white-space:nowrap;margin:1px 0 3px">{nome[:20]}</div>'
+        f'<svg viewBox="15 15 170 115" width="100%" height="105"'
+        f' xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible">'
+        f'{svg}'
+        f'</svg>'
+        f'<div style="color:{color};font-size:0.68rem;font-weight:700;'
+        f'margin:2px 0 4px">{label}</div>'
+        f'<div style="display:flex;justify-content:space-between;padding:0 4px;'
+        f'font-size:0.65rem;color:#787b86;margin-bottom:3px">'
+        f'<span>RSI <b style="color:{rc}">{rsi:.0f}</b></span>'
+        f'<span>MACD <b style="color:{mc}">{ma}</b></span>'
+        f'<span>DD <b style="color:#ef5350">{dd:.0f}%</b></span>'
+        f'</div>{bar}</div>'
+    )
 
 
 def _momentum_bar(score: int, color: str) -> str:
@@ -548,11 +561,10 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
 
     df_sorted = df.sort_values("Momentum", ascending=False).reset_index(drop=True)
     cols_per_row = 4
-    rows_data = [df_sorted.iloc[i:i+cols_per_row]
-                 for i in range(0, len(df_sorted), cols_per_row)]
-    for row_df in rows_data:
+    for i in range(0, len(df_sorted), cols_per_row):
+        chunk = df_sorted.iloc[i:i+cols_per_row]
         st_cols = st.columns(cols_per_row)
-        for st_col, (_, row) in zip(st_cols, row_df.iterrows()):
+        for st_col, (_, row) in zip(st_cols, chunk.iterrows()):
             with st_col:
                 st.markdown(
                     _momentum_gauge_html(
@@ -561,9 +573,9 @@ def _render_momentum_dashboard(df: pd.DataFrame) -> None:
                         color  = row["Mom Color"],
                         sym    = row["Ticker"],
                         nome   = row["Nome"],
-                        rsi    = row["RSI"],
-                        macd_h = row["MACD Hist"],
-                        dd     = row["_dd_raw"],
+                        rsi    = float(row["RSI"]),
+                        macd_h = float(row["MACD Hist"]),
+                        dd     = float(row["_dd_raw"]),
                     ),
                     unsafe_allow_html=True
                 )
