@@ -1706,6 +1706,17 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         match=df_f[df_f["Ticker"]==ticker_sel]
         if not match.empty: show_charts(match.iloc[0],key_suffix=title)
 
+    # ── Strategy Chart widget ─────────────────────────────────────────────
+    # Usa tutti i ticker del tab come opzioni selectbox
+    try:
+        from utils.backtest_tab import strategy_chart_widget as _scw
+        _tkrs = df_f["Ticker"].dropna().tolist() if "Ticker" in df_f.columns else []
+        _default = selected_df.iloc[0].get("Ticker","") if not selected_df.empty else ""
+        st.markdown("---")
+        _scw(tickers=_tkrs, key_suffix=title, default_ticker=_default)
+    except Exception:
+        pass
+
 # =========================================================================
 # TABS
 # =========================================================================
@@ -2149,6 +2160,18 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="crisis_xlsx_exp")
 
+    # ── Strategy Chart ────────────────────────────────────────────────────
+    try:
+        from utils.backtest_tab import strategy_chart_widget as _scw
+        _crisis_tkrs = [
+            t for cat in active_categories
+            for t,_n,_d in CRISIS_ASSETS.get(cat,{}).get("assets",[])
+        ]
+        st.markdown("---")
+        _scw(tickers=_crisis_tkrs, key_suffix="CRISIS")
+    except Exception:
+        pass
+
 
 # =========================================================================
 # WATCHLIST — AgGrid + cards + multi-lista
@@ -2527,6 +2550,16 @@ with tab_w:
             help="Un ticker per riga — importabile direttamente in TradingView Watchlist"
         )
     if st.button("🔄 Refresh",key="wl_ref"): st.rerun()
+
+    # ── Strategy Chart ────────────────────────────────────────────────────
+    try:
+        from utils.backtest_tab import strategy_chart_widget as _scw
+        df_wl_sc = load_watchlist(list_name=st.session_state.get("current_list_name","DEFAULT"))
+        _wl_tkrs = df_wl_sc["ticker"].dropna().tolist() if not df_wl_sc.empty and "ticker" in df_wl_sc.columns else []
+        st.markdown("---")
+        _scw(tickers=_wl_tkrs, key_suffix="WL")
+    except Exception:
+        pass
 
 # =========================================================================
 # STORICO
