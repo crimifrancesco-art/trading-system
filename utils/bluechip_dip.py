@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-bluechip_dip.py  —  💎 Blue Chip Dip Screener  v31.0
+bluechip_dip.py  —  💎 Blue Chip Dip Screener  v31.1
 ══════════════════════════════════════════════════════
 Monitora le 60 maggiori aziende mondiali per market cap.
 Per ognuna calcola:
@@ -42,7 +42,7 @@ TV_GRAY   = "#787b86"
 TV_TEXT   = "#d1d4dc"
 TV_ORANGE = "#ff9800"
 
-# ── Universe: Top 60 Blue Chip globali ───────────
+# ── Universe: Top 100 Blue Chip globali ───────────
 BLUE_CHIPS = [
     # USA Mega Cap
     ("AAPL",  "Apple"),           ("MSFT",  "Microsoft"),
@@ -65,18 +65,33 @@ BLUE_CHIPS = [
     ("PM",    "Philip Morris"),   ("GE",    "GE Aerospace"),
     ("NOW",   "ServiceNow"),      ("CAT",   "Caterpillar"),
     ("IBM",   "IBM"),             ("GS",    "Goldman Sachs"),
+    ("AMGN",  "Amgen"),           ("T",     "AT&T"),
+    ("MS",    "Morgan Stanley"),  ("AXP",   "American Express"),
+    ("SPGI",  "S&P Global"),      ("BLK",   "BlackRock"),
+    ("RTX",   "RTX Corp"),        ("HON",   "Honeywell"),
+    ("DE",    "John Deere"),      ("MMM",   "3M"),
+    ("PFE",   "Pfizer"),          ("GILD",  "Gilead Sciences"),
+    ("BSX",   "Boston Scientific"),("ISRG", "Intuitive Surgical"),
+    ("PANW",  "Palo Alto Net."),  ("SNOW",  "Snowflake"),
+    ("ADBE",  "Adobe"),           ("INTU",  "Intuit"),
+    ("QCOM",  "Qualcomm"),        ("TXN",   "Texas Instruments"),
     # Europa
     ("NESN.SW","Nestlé"),         ("NOVN.SW","Novartis"),
     ("ROG.SW", "Roche"),          ("ASML",   "ASML"),
     ("SAP",    "SAP"),            ("LVMH.PA","LVMH"),
     ("TTE",    "TotalEnergies"),  ("SIE.DE", "Siemens"),
     ("AIR.PA", "Airbus"),         ("OR.PA",  "L'Oréal"),
+    ("BAYN.DE","Bayer"),          ("BAS.DE", "BASF"),
+    ("ALV.DE", "Allianz"),        ("HSBA.L", "HSBC"),
+    ("AZN",    "AstraZeneca"),    ("GSK",    "GSK"),
+    ("BP",     "BP"),             ("ENEL.MI","Enel"),
     # Asia / Altri
     ("TSM",   "TSMC"),            ("TM",    "Toyota"),
     ("BABA",  "Alibaba"),         ("NVO",   "Novo Nordisk"),
     ("SONY",  "Sony"),            ("UL",    "Unilever"),
     ("BTI",   "BAT"),             ("DEO",   "Diageo"),
-    ("RIO",   "Rio Tinto"),       ("BP",    "BP"),
+    ("RIO",   "Rio Tinto"),       ("BHP",   "BHP Group"),
+    ("VALE",  "Vale"),            ("SHOP",  "Shopify"),
 ]
 
 # ── Settori S&P500 per ticker ─────────────────────
@@ -110,6 +125,20 @@ SECTOR_MAP = {
     "RIO":"Materials",
     # Industrials
     "GE":"Industrials",  "CAT":"Industrials", "LIN":"Materials",
+    # USA extra
+    "AMGN":"Healthcare",  "T":"Communication",   "MS":"Financials",
+    "AXP":"Financials",   "SPGI":"Financials",   "BLK":"Financials",
+    "RTX":"Industrials",  "HON":"Industrials",   "DE":"Industrials",
+    "MMM":"Industrials",  "PFE":"Healthcare",    "GILD":"Healthcare",
+    "BSX":"Healthcare",   "ISRG":"Healthcare",   "PANW":"Technology",
+    "SNOW":"Technology",  "ADBE":"Technology",   "INTU":"Technology",
+    "QCOM":"Technology",  "TXN":"Technology",
+    # Europa extra
+    "BAYN.DE":"Healthcare","BAS.DE":"Materials",  "ALV.DE":"Financials",
+    "HSBA.L":"Financials", "AZN":"Healthcare",    "GSK":"Healthcare",
+    "ENEL.MI":"Utilities",
+    # Asia / Altri extra
+    "BHP":"Materials",    "VALE":"Materials",    "SHOP":"Cons. Discret.",
     # Materials / Other
 }
 
@@ -1430,24 +1459,25 @@ def _render_backtest(df: pd.DataFrame) -> None:
         f'</div>', unsafe_allow_html=True
     )
 
-    # ── Selectbox ticker: TICKER — Nome, ordinato alfabeticamente per nome
+    # ── Selectbox ticker: Nome (TICKER), ordinato alfabeticamente per nome
     ticker_nome = sorted(
         [(row["Ticker"], row["Nome"]) for _, row in df.iterrows()],
         key=lambda x: x[1].lower()
     )
-    ticker_options  = [f"{t} — {n}" for t, n in ticker_nome]
-    ticker_map      = {f"{t} — {n}": t for t, n in ticker_nome}
+    ticker_options  = [f"{n}  ({t})" for t, n in ticker_nome]
+    ticker_map      = {f"{n}  ({t})": t for t, n in ticker_nome}
+    name_map        = {f"{n}  ({t})": n for t, n in ticker_nome}
 
     c1, c2, c3 = st.columns([3, 2, 1])
     with c1:
         sel_option = st.selectbox(
-            "Ticker da testare",
+            "Azienda (ticker)",
             options=ticker_options,
             key="bt_ticker",
-            help="Ordinato alfabeticamente per nome azienda"
+            help=f"{len(ticker_options)} aziende · ordinate alfabeticamente per nome"
         )
         sel_ticker = ticker_map[sel_option]
-        sel_name   = sel_option.split(" — ", 1)[1]
+        sel_name   = name_map[sel_option]
 
     with c2:
         strategy = st.radio(
@@ -1581,7 +1611,7 @@ def render_bluechip_dip():
         f'<span style="color:{TV_GOLD};font-weight:700;font-size:1rem">'
         f'💎 BLUE CHIP DIP SCREENER</span>'
         f'<span style="color:{TV_GRAY};font-size:0.8rem;margin-left:12px">'
-        f'Top 60 aziende mondiali · Opportunità di rientro · v31.0</span>'
+        f'Top 100 aziende mondiali · Opportunità di rientro · v31.1</span>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -1608,7 +1638,7 @@ def render_bluechip_dip():
                             key="bcd_max_rsi",
                             help="Filtra via titoli in ipercomprato")
     with c3:
-        top_n = st.slider("Top N risultati", 5, 60, 20, 5,
+        top_n = st.slider("Top N risultati", 5, 100, 20, 5,
                           key="bcd_top_n")
     with c4:
         st.write("")
@@ -1763,12 +1793,34 @@ def render_bluechip_dip():
         )
         st.plotly_chart(fig, use_container_width=True, key="bcd_scatter")
 
+    # ── Strategy Chart widget (presente in tutte le viste) ────────────────
+    if not df_f.empty and "Ticker" in df_f.columns:
+        try:
+            from utils.backtest_tab import strategy_chart_widget as _scw
+            _bcd_tkrs_sorted = [
+                n for n, t in sorted(
+                    [(row["Nome"], row["Ticker"]) for _, row in df_f.iterrows()],
+                    key=lambda x: x[0].lower()
+                )
+            ]
+            # Costruisci options "Nome  (TICKER)" nello stesso formato del Backtest
+            _bcd_opts = sorted(
+                [(row["Nome"], row["Ticker"]) for _, row in df_f.iterrows()],
+                key=lambda x: x[0].lower()
+            )
+            _bcd_tickers = [t for _n, t in _bcd_opts]
+            _bcd_labels  = {t: f"{n}  ({t})" for n, t in _bcd_opts}
+            st.markdown("---")
+            _scw(tickers=_bcd_tickers, key_suffix="BCD", ticker_labels=_bcd_labels)
+        except Exception:
+            pass
+
     # ── Footer ────────────────────────────────────
     st.markdown(
         f'<div style="color:{TV_GRAY};font-size:0.72rem;text-align:center;'
         f'margin-top:16px;padding-top:8px;border-top:1px solid {TV_BORDER}">'
         f'Dati: Yahoo Finance · Cache 30 min · Universe: {len(BLUE_CHIPS)} Blue Chip globali · '
-        f'v31.0 · Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
+        f'v31.1 · Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
         f'</div>',
         unsafe_allow_html=True
     )
