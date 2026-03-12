@@ -833,10 +833,10 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 30.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 31.1",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 30.0")
-st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v30.0</div>',unsafe_allow_html=True)
+st.markdown("# 🧠 Trading Scanner PRO 31.1")
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v31.1</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -1035,7 +1035,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 30.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 31.1",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
