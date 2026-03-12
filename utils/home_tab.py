@@ -483,67 +483,104 @@ def _render_sector_heatmap(sectors: list):
 # ── Grafico sparkline indici ──────────────────────
 
 def _render_sparklines():
-    """Mini chart S&P500 + BTC ultimi 30 giorni."""
+    """
+    Mini chart S&P500 / NASDAQ / BTC — 90 giorni.
+    Row 1: linea close normalizzata % (fill area) + EMA20 punteggiata
+    Row 2: istogramma MACD per il momentum
+    """
     symbols = [
-        ("^GSPC", "S&P 500", TV_GREEN),
-        ("^IXIC", "NASDAQ",  TV_BLUE),
-        ("BTC-USD","Bitcoin", TV_GOLD),
+        ("^GSPC",   "S&P 500", TV_GREEN),
+        ("^IXIC",   "NASDAQ",  TV_BLUE),
+        ("BTC-USD", "Bitcoin", TV_GOLD),
     ]
 
+    def _ema_s(s, n):
+        return s.ewm(span=n, adjust=False).mean()
+
+    def _macd_h(s):
+        ml = s.ewm(span=12).mean() - s.ewm(span=26).mean()
+        return ml - ml.ewm(span=9).mean()
+
     fig = make_subplots(
-        rows=1, cols=3,
-        subplot_titles=[s[1] for s in symbols],
-        horizontal_spacing=0.06
+        rows=2, cols=3,
+        shared_xaxes=True,
+        row_heights=[0.65, 0.35],
+        vertical_spacing=0.04,
+        horizontal_spacing=0.06,
+        subplot_titles=[s[1] for s in symbols] + ["", "", ""],
     )
 
     for i, (sym, label, color) in enumerate(symbols, 1):
-        df = _fetch_history(sym, days=60)
+        df = _fetch_history(sym, days=90)
         if df.empty:
             continue
-        # Normalizza a 100
-        base = df["close"].iloc[0]
-        norm = (df["close"] / base * 100).tolist()
+
+        c     = df["close"]
         dates = df["date"].tolist()
-        chg = norm[-1] - 100
+        base  = float(c.dropna().iloc[0])
+        norm  = ((c / base - 1) * 100).tolist()
+        chg   = norm[-1]
+        chg_c = TV_GREEN if chg >= 0 else TV_RED
 
-        fig.add_trace(
-            go.Scatter(
-                x=dates, y=norm,
-                mode="lines",
-                line=dict(color=color, width=1.5),
-                fill="tozeroy",
-                fillcolor=f"rgba({int(color[1:3],16)},{int(color[3:5],16)},{int(color[5:7],16)},0.08)",
-                name=label,
-                hovertemplate=f"{label}: %{{y:.1f}}<extra></extra>",
-            ),
-            row=1, col=i
-        )
+        mh = _macd_h(c)
+        hist_colors = [TV_GREEN if v >= 0 else TV_RED for v in mh]
 
-        # Annotazione % change
+        # Row 1 — linea normalizzata + EMA20
+        try:
+            r, g, b_ = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+            fill_c = f"rgba({r},{g},{b_},0.10)"
+        except Exception:
+            fill_c = "rgba(38,166,154,0.10)"
+
+        fig.add_trace(go.Scatter(
+            x=dates, y=norm, mode="lines",
+            line=dict(color=color, width=2),
+            fill="tozeroy", fillcolor=fill_c,
+            name=label, showlegend=False,
+            hovertemplate=f"{label}: %{{y:.2f}}%<extra></extra>",
+        ), row=1, col=i)
+
+        ema20_norm = ((_ema_s(c, 20) / base - 1) * 100).tolist()
+        fig.add_trace(go.Scatter(
+            x=dates, y=ema20_norm, mode="lines",
+            line=dict(color=TV_GRAY, width=1, dash="dot"),
+            showlegend=False, hoverinfo="skip",
+        ), row=1, col=i)
+
         fig.add_annotation(
             text=f"{'▲' if chg>=0 else '▼'}{abs(chg):.1f}%",
             xref=f"x{'' if i==1 else i} domain",
             yref=f"y{'' if i==1 else i} domain",
-            x=0.98, y=0.95,
+            x=0.04, y=0.92,
             showarrow=False,
-            font=dict(size=11, color=TV_GREEN if chg>=0 else TV_RED),
-            xanchor="right",
+            font=dict(size=12, color=chg_c, family="monospace"),
+            xanchor="left",
         )
 
+        # Row 2 — MACD histogram
+        fig.add_trace(go.Bar(
+            x=dates, y=mh.tolist(),
+            marker_color=hist_colors, marker_line_width=0,
+            opacity=0.85, showlegend=False,
+            hovertemplate="MACD: %{y:.3f}<extra></extra>",
+        ), row=2, col=i)
+        fig.add_hline(y=0, row=2, col=i,
+            line=dict(color=TV_BORDER, width=1))
+
     fig.update_layout(
-        height=180,
+        height=240,
         paper_bgcolor=TV_BG,
         plot_bgcolor=TV_PANEL,
-        margin=dict(l=0, r=0, t=30, b=0),
+        margin=dict(l=0, r=0, t=28, b=0),
         showlegend=False,
         font=dict(color=TV_TEXT, size=10),
+        bargap=0.1,
     )
     fig.update_xaxes(showgrid=False, showticklabels=False,
                      zeroline=False, linecolor=TV_BORDER)
     fig.update_yaxes(showgrid=True, gridcolor=TV_BORDER,
                      zeroline=False, showticklabels=False)
     fig.update_annotations(font_color=TV_GRAY)
-
     st.plotly_chart(fig, use_container_width=True, key="home_sparklines")
 
 
