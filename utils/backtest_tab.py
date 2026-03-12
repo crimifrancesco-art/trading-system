@@ -310,6 +310,132 @@ PLOTLY_DARK = dict(
 )
 
 
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PUBLIC API — strategy_chart_widget
+# Chiamabile da qualsiasi tab: Dashboard principale, Backtest, Watchlist, ecc.
+#
+# Parametri:
+#   tickers     : lista di str ticker da mostrare nella selectbox
+#                 (es. df_ep["Ticker"].tolist())
+#                 Se [] → mostra "— libero —" e permette input manuale
+#   key_suffix  : stringa univoca per evitare conflitti chiavi Streamlit
+#                 (es. "EARLY", "PRO", "bt", "wl")
+#   default_ticker : ticker pre-selezionato (opzionale)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_SC_RULES = {
+    "RSI+VWAP": ("📊","#e91e63",
+                 "RSI incrocia sopra 30 + Prezzo > VWAP",
+                 "RSI incrocia sotto 70 o Prezzo < VWAP"),
+    "ADX+EMA":  ("📈","#ff9800",
+                 "EMA20 incrocia sopra EMA50 + ADX > 25",
+                 "EMA20 < EMA50 o ADX < 25"),
+    "MACD":     ("⚡","#2962ff",
+                 "MACD histogram incrocia sopra 0",
+                 "MACD histogram incrocia sotto 0"),
+    "EMA Cross":("🔀","#26a69a",
+                 "EMA20 incrocia sopra EMA50",
+                 "EMA20 incrocia sotto EMA50"),
+}
+
+def strategy_chart_widget(
+    tickers: list,
+    key_suffix: str = "sc",
+    default_ticker: str = "",
+) -> None:
+    """
+    Widget Strategy Chart riusabile.
+    Incollalo in qualsiasi tab con:
+        from utils.backtest_tab import strategy_chart_widget
+        strategy_chart_widget(df_ep["Ticker"].tolist(), key_suffix="EARLY")
+    """
+    ks = key_suffix.replace(" ", "_").replace("-", "_")
+
+    # ── Header ───────────────────────────────────────────────────────────
+    st.markdown(
+        f'<div style="background:{_TV_PANEL};border-left:3px solid {_TV_CYAN};'
+        f'padding:8px 14px;border-radius:0 4px 4px 0;margin:12px 0 10px">'
+        f'<span style="color:{_TV_CYAN};font-weight:700">📊 STRATEGY CHART</span>'
+        f'<span style="color:{_TV_GRAY};font-size:0.78rem;margin-left:10px">'
+        f'Candele + indicatori dedicati + segnali Entry ▲ / Exit ▼</span>'
+        f'</div>', unsafe_allow_html=True)
+
+    # ── Controlli ────────────────────────────────────────────────────────
+    # Colonne: ticker (largo) | strategia | periodo | bottone
+    c_tkr, c_str, c_per, c_btn = st.columns([3, 2, 1, 1])
+
+    with c_tkr:
+        # Se abbiamo una lista di ticker dal tab → selectbox
+        # Altrimenti → input libero (solo per tab Backtest senza dati)
+        if tickers:
+            # Rimuovi duplicati e ordina
+            opts = sorted(set(str(t) for t in tickers if t))
+            # Trova indice default (se passato e presente)
+            def_idx = opts.index(default_ticker) if default_ticker in opts else 0
+            sc_ticker = st.selectbox(
+                "Ticker",
+                opts,
+                index=def_idx,
+                key=f"sc_tkr_{ks}",
+                help=f"{len(opts)} ticker disponibili in questo tab"
+            )
+        else:
+            sc_ticker = st.text_input(
+                "Ticker",
+                value=default_ticker or "AAPL",
+                key=f"sc_tkr_{ks}",
+                placeholder="es. AAPL, ENI.MI",
+            ).strip().upper()
+
+    with c_str:
+        sc_strategy = st.selectbox(
+            "Strategia",
+            list(_SC_RULES.keys()),
+            key=f"sc_str_{ks}",
+        )
+
+    with c_per:
+        sc_range = st.selectbox(
+            "Periodo",
+            ["3mo", "6mo", "1y", "2y"],
+            index=2,
+            key=f"sc_per_{ks}",
+        )
+
+    with c_btn:
+        st.write(""); st.write("")
+        sc_run = st.button("▶ Mostra", key=f"sc_run_{ks}",
+                           use_container_width=True, type="primary")
+
+    # ── Banner Entry / Exit ───────────────────────────────────────────────
+    icon, sc_color, e_txt, x_txt = _SC_RULES[sc_strategy]
+    b_l, b_r = st.columns(2)
+    with b_l:
+        st.markdown(
+            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
+            f'border-left:4px solid {sc_color};border-radius:6px;'
+            f'padding:6px 12px;margin-bottom:8px">'
+            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▲ ENTRY {icon}</span><br>'
+            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{e_txt}</span>'
+            f'</div>', unsafe_allow_html=True)
+    with b_r:
+        st.markdown(
+            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
+            f'border-left:4px solid {_TV_RED};border-radius:6px;'
+            f'padding:6px 12px;margin-bottom:8px">'
+            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▼ EXIT</span><br>'
+            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{x_txt}</span>'
+            f'</div>', unsafe_allow_html=True)
+
+    # ── Render grafico ────────────────────────────────────────────────────
+    if sc_run and sc_ticker:
+        _bt_render_strategy_chart(sc_ticker, sc_strategy, sc_range)
+    else:
+        st.caption("👆 Seleziona ticker e strategia, poi clicca **▶ Mostra**")
+
+
 def render_backtest_tab():
     """
     Funzione principale da chiamare dentro il tab backtest.
@@ -374,75 +500,9 @@ def render_backtest_tab():
     df_summ = signal_summary_stats(days_back=days_back)
 
     # ══════════════════════════════════════════════════════════════════════
-    # 📊 SEZIONE STRATEGY CHART — candele + indicatori + Entry/Exit markers
+    # 📊 SEZIONE STRATEGY CHART — widget condiviso (nessun ticker pre-caricato)
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown("---")
-    st.markdown(
-        f'<div style="background:{_TV_PANEL};border-left:3px solid {_TV_CYAN};'
-        f'padding:8px 14px;border-radius:0 4px 4px 0;margin-bottom:12px">'
-        f'<span style="color:{_TV_CYAN};font-weight:700">📊 STRATEGY CHART</span>'
-        f'<span style="color:{_TV_GRAY};font-size:0.78rem;margin-left:10px">'
-        f'Candele + indicatori dedicati + segnali Entry ▲ / Exit ▼ per strategia</span>'
-        f'</div>', unsafe_allow_html=True)
-
-    sc1, sc2, sc3, sc4 = st.columns([2, 2, 1, 1])
-    with sc1:
-        sc_ticker = st.text_input(
-            "Ticker", value="AAPL", key="sc_ticker",
-            placeholder="es. AAPL, MSFT, TSLA",
-            help="Qualsiasi simbolo Yahoo Finance"
-        ).strip().upper()
-    with sc2:
-        sc_strategy = st.selectbox(
-            "Strategia",
-            ["RSI+VWAP", "ADX+EMA", "MACD", "EMA Cross"],
-            key="sc_strategy",
-        )
-    with sc3:
-        sc_range = st.selectbox("Periodo", ["6mo","1y","2y"], index=1,
-                                key="sc_range")
-    with sc4:
-        st.write(""); st.write("")
-        sc_run = st.button("▶ Mostra", key="sc_run", use_container_width=True)
-
-    # Info regole strategia
-    _sc_rules = {
-        "RSI+VWAP": ("📊","#e91e63",
-                     "RSI incrocia sopra 30 + Prezzo > VWAP",
-                     "RSI incrocia sotto 70 o Prezzo < VWAP"),
-        "ADX+EMA":  ("📈","#ff9800",
-                     "EMA20 incrocia sopra EMA50 + ADX > 25",
-                     "EMA20 < EMA50 o ADX < 25"),
-        "MACD":     ("⚡","#2962ff",
-                     "MACD histogram incrocia sopra 0",
-                     "MACD histogram incrocia sotto 0"),
-        "EMA Cross":("🔀","#26a69a",
-                     "EMA20 incrocia sopra EMA50",
-                     "EMA20 incrocia sotto EMA50"),
-    }
-    icon, sc_color, e_txt, x_txt = _sc_rules[sc_strategy]
-    r_l, r_r = st.columns(2)
-    with r_l:
-        st.markdown(
-            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
-            f'border-left:4px solid {sc_color};border-radius:6px;'
-            f'padding:7px 12px;margin-bottom:10px">'
-            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▲ ENTRY {icon}</span><br>'
-            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{e_txt}</span>'
-            f'</div>', unsafe_allow_html=True)
-    with r_r:
-        st.markdown(
-            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
-            f'border-left:4px solid {_TV_RED};border-radius:6px;'
-            f'padding:7px 12px;margin-bottom:10px">'
-            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▼ EXIT</span><br>'
-            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{x_txt}</span>'
-            f'</div>', unsafe_allow_html=True)
-
-    if sc_run and sc_ticker:
-        _bt_render_strategy_chart(sc_ticker, sc_strategy, sc_range)
-    elif not sc_run:
-        st.info("👆 Inserisci un ticker, scegli la strategia e clicca **▶ Mostra**")
+    strategy_chart_widget(tickers=[], key_suffix="bt")
 
     st.markdown("---")
 
