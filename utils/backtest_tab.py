@@ -1,5 +1,5 @@
 """
-backtest_tab.py  —  Upgrade #4
+backtest_tab.py  —  Upgrade #5 — v31.1
 ================================
 Tab "📈 Backtest" per il dashboard v28.
 Incolla questa funzione in Dashboard_pro V_28.0.py e aggiungila ai tabs.
@@ -344,7 +344,12 @@ def strategy_chart_widget(
     tickers: list,
     key_suffix: str = "sc",
     default_ticker: str = "",
+    ticker_labels: dict = None,
 ) -> None:
+    """
+    ticker_labels: dict opzionale {ticker: "Nome azienda  (TICKER)"}
+                   Se fornito, la selectbox mostra il nome invece del solo ticker.
+    """
     """
     Widget Strategy Chart riusabile.
     Incollalo in qualsiasi tab con:
@@ -370,17 +375,34 @@ def strategy_chart_widget(
         # Se abbiamo una lista di ticker dal tab → selectbox
         # Altrimenti → input libero (solo per tab Backtest senza dati)
         if tickers:
-            # Rimuovi duplicati e ordina
-            opts = sorted(set(str(t) for t in tickers if t))
-            # Trova indice default (se passato e presente)
-            def_idx = opts.index(default_ticker) if default_ticker in opts else 0
-            sc_ticker = st.selectbox(
-                "Ticker",
-                opts,
-                index=def_idx,
-                key=f"sc_tkr_{ks}",
-                help=f"{len(opts)} ticker disponibili in questo tab"
-            )
+            # Rimuovi duplicati, mantieni ordine passato (già ordinati per nome dal chiamante)
+            seen = set(); ordered = []
+            for t in tickers:
+                if t and t not in seen:
+                    seen.add(t); ordered.append(t)
+            if ticker_labels:
+                # Opzioni con nome: "Nome azienda  (TICKER)"
+                opts_display = [ticker_labels.get(t, t) for t in ordered]
+                opts_raw     = ordered
+                def_idx = opts_raw.index(default_ticker) if default_ticker in opts_raw else 0
+                sel_label = st.selectbox(
+                    "Azienda / Ticker",
+                    opts_display,
+                    index=def_idx,
+                    key=f"sc_tkr_{ks}",
+                    help=f"{len(ordered)} titoli · ordinati per nome"
+                )
+                sc_ticker = opts_raw[opts_display.index(sel_label)]
+            else:
+                opts = ordered
+                def_idx = opts.index(default_ticker) if default_ticker in opts else 0
+                sc_ticker = st.selectbox(
+                    "Ticker",
+                    opts,
+                    index=def_idx,
+                    key=f"sc_tkr_{ks}",
+                    help=f"{len(opts)} ticker disponibili in questo tab"
+                )
         else:
             sc_ticker = st.text_input(
                 "Ticker",
