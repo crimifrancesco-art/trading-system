@@ -1712,16 +1712,14 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     # ── Strategy Chart widget ─────────────────────────────────────────────
     # Usa tutti i ticker del tab come opzioni selectbox
-        # --- Strategy Chart GENERICO rimosso per evitare key duplicate ---
-    # try:
-    #     from utils.backtest_tab import strategy_chart_widget as _scw
-    #     tkrs = dff["Ticker"].dropna().tolist() if "Ticker" in dff.columns else []
-    #     default = selected_df.iloc[0].get("Ticker", "") if not selected_df.empty else ""
-    #     st.markdown("---")
-    #     _scw(tickers=tkrs, key_suffix=title, default_ticker=default)
-    # except Exception:
-    #     pass
-
+    try:
+        from utils.backtest_tab import strategy_chart_widget as _scw
+        _tkrs = df_f["Ticker"].dropna().tolist() if "Ticker" in df_f.columns else []
+        _default = selected_df.iloc[0].get("Ticker","") if not selected_df.empty else ""
+        st.markdown("---")
+        _scw(tickers=_tkrs, key_suffix=title, default_ticker=_default)
+    except Exception:
+        pass
 
 # =========================================================================
 # TABS
@@ -1747,263 +1745,31 @@ with tab_home:
         st.code(traceback.format_exc())
 
 with tab_e:
-    st.session_state.last_active_tab = "EARLY"
-    show_legend("EARLY")
-
-    # --- Scan table EARLY ---------------------------------------------------
-    render_scan_tab(
-        df_ep,
-        "EARLY",
-        ["Early_Score", "RSI"],
-        [False, True],
-        "EARLY",
-    )
-
-    # --- Strategy Chart EARLY ----------------------------------------------
-    try:
-        from utils.backtest_tab import strategy_chart_widget
-
-        df_src = df_ep.copy() if df_ep is not None else pd.DataFrame()
-
-        if not df_src.empty and "Ticker" in df_src.columns:
-            if "Nome" not in df_src.columns and "name" in df_src.columns:
-                df_src["Nome"] = df_src["name"]
-
-            df_src = df_src.dropna(subset=["Ticker"])
-            df_src["Ticker"] = df_src["Ticker"].astype(str).str.upper()
-            df_src["Nome"] = df_src.get("Nome", "").fillna("").astype(str)
-
-            # Mapping Nome (TICKER) ordinato alfabeticamente
-            base = (
-                df_src[["Ticker", "Nome"]]
-                .drop_duplicates(subset=["Ticker"])
-                .sort_values("Nome")
-            )
-            tickers = base["Ticker"].tolist()
-            ticker_labels = {
-                t: f"{n} ({t})" if n else t
-                for t, n in zip(base["Ticker"], base["Nome"])
-            }
-            default_ticker = tickers[0] if tickers else ""
-
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=tickers,
-                key_suffix="EARLY",
-                default_ticker=default_ticker,
-                ticker_labels=ticker_labels,
-            )
-        else:
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=[],
-                key_suffix="EARLY",
-                default_ticker="",
-                ticker_labels=None,
-            )
-    except Exception as _sce:
-        st.error(f"Errore Strategy Chart EARLY: {_sce}")
-
+    st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
+    render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
 
 with tab_p:
-    st.session_state.last_active_tab = "PRO"
-    show_legend("PRO")
-
-    _pro_sort = st.radio(
-        "Ordina per",
-        ["Quality", "Momentum (Pro×RSI)"],
-        horizontal=True,
-        key="pro_sort_mode",
-        label_visibility="collapsed",
-    )
-
+    st.session_state.last_active_tab="PRO"; show_legend("PRO")
+    _pro_sort = st.radio("Ordina per",["Quality","Momentum (Pro×RSI)"],
+                         horizontal=True, key="pro_sort_mode", label_visibility="collapsed")
     if _pro_sort == "Momentum (Pro×RSI)":
-        _df_pro = df_ep.copy() if df_ep is not None else pd.DataFrame()
-        if (
-            not _df_pro.empty
-            and "Pro_Score" in _df_pro.columns
-            and "RSI" in _df_pro.columns
-        ):
-            _df_pro["_Momentum"] = (
-                _df_pro["Pro_Score"].fillna(0) * 10
-                + _df_pro["RSI"].fillna(0)
-            )
+        # Aggiunge colonna Momentum temporanea per ordinamento
+        _df_pro = df_ep.copy()
+        if not _df_pro.empty and "Pro_Score" in _df_pro.columns and "RSI" in _df_pro.columns:
+            _df_pro["_Momentum"] = _df_pro["Pro_Score"].fillna(0)*10 + _df_pro["RSI"].fillna(0)
         else:
             _df_pro["_Momentum"] = 0
-        render_scan_tab(
-            _df_pro,
-            "PRO",
-            ["_Momentum", "Quality_Score"],
-            [False, False],
-            "PRO — Momentum",
-        )
-        df_src = _df_pro
-        title_for_sc = "PRO — Momentum"
+        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
     else:
-        render_scan_tab(
-            df_ep,
-            "PRO",
-            ["Quality_Score", "Pro_Score", "RSI"],
-            [False, False, True],
-            "PRO",
-        )
-        df_src = df_ep
-        title_for_sc = "PRO"
-
-    # --- Strategy Chart PRO -----------------------------------------------
-    try:
-        from utils.backtest_tab import strategy_chart_widget
-
-        df_sc = df_src.copy() if df_src is not None else pd.DataFrame()
-        if not df_sc.empty and "Ticker" in df_sc.columns:
-            if "Nome" not in df_sc.columns and "name" in df_sc.columns:
-                df_sc["Nome"] = df_sc["name"]
-
-            df_sc = df_sc.dropna(subset=["Ticker"])
-            df_sc["Ticker"] = df_sc["Ticker"].astype(str).str.upper()
-            df_sc["Nome"] = df_sc.get("Nome", "").fillna("").astype(str)
-
-            base = (
-                df_sc[["Ticker", "Nome"]]
-                .drop_duplicates(subset=["Ticker"])
-                .sort_values("Nome")
-            )
-            tickers = base["Ticker"].tolist()
-            ticker_labels = {
-                t: f"{n} ({t})" if n else t
-                for t, n in zip(base["Ticker"], base["Nome"])
-            }
-            default_ticker = tickers[0] if tickers else ""
-
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=tickers,
-                key_suffix="PRO",
-                default_ticker=default_ticker,
-                ticker_labels=ticker_labels,
-            )
-        else:
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=[],
-                key_suffix="PRO",
-                default_ticker="",
-                ticker_labels=None,
-            )
-    except Exception as _scp:
-        st.error(f"Errore Strategy Chart PRO: {_scp}")
-
+        render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
 with tab_r:
-    st.session_state.last_active_tab = "REA-HOT"
-    show_legend("REA-HOT")
-
-    render_scan_tab(
-        df_rea,
-        "HOT",
-        ["Vol_Ratio", "Dist_POC_%"],
-        [False, True],
-        "REA-HOT",
-    )
-
-    # --- Strategy Chart REA-HOT -------------------------------------------
-    try:
-        from utils.backtest_tab import strategy_chart_widget
-
-        df_src = df_rea.copy() if df_rea is not None else pd.DataFrame()
-        if not df_src.empty and "Ticker" in df_src.columns:
-            if "Nome" not in df_src.columns and "name" in df_src.columns:
-                df_src["Nome"] = df_src["name"]
-
-            df_src = df_src.dropna(subset=["Ticker"])
-            df_src["Ticker"] = df_src["Ticker"].astype(str).str.upper()
-            df_src["Nome"] = df_src.get("Nome", "").fillna("").astype(str)
-
-            base = (
-                df_src[["Ticker", "Nome"]]
-                .drop_duplicates(subset=["Ticker"])
-                .sort_values("Nome")
-            )
-            tickers = base["Ticker"].tolist()
-            ticker_labels = {
-                t: f"{n} ({t})" if n else t
-                for t, n in zip(base["Ticker"], base["Nome"])
-            }
-            default_ticker = tickers[0] if tickers else ""
-
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=tickers,
-                key_suffix="HOT",
-                default_ticker=default_ticker,
-                ticker_labels=ticker_labels,
-            )
-        else:
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=[],
-                key_suffix="HOT",
-                default_ticker="",
-                ticker_labels=None,
-            )
-    except Exception as _scr:
-        st.error(f"Errore Strategy Chart REA-HOT: {_scr}")
+    st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
+    render_scan_tab(df_rea,"HOT",["Vol_Ratio","Dist_POC_%"],[False,True],"REA-HOT")
 
 with tab_conf:
-    st.session_state.last_active_tab = "CONFLUENCE"
-    show_legend("⭐ CONFLUENCE")
-
-    render_scan_tab(
-        df_ep,
-        "CONFLUENCE",
-        ["Quality_Score", "Early_Score", "Pro_Score"],
-        [False, False, False],
-        "CONFLUENCE",
-    )
-
-    # --- Strategy Chart CONFLUENCE ----------------------------------------
-    try:
-        from utils.backtest_tab import strategy_chart_widget
-
-        df_src = df_ep.copy() if df_ep is not None else pd.DataFrame()
-        if not df_src.empty and "Ticker" in df_src.columns:
-            if "Nome" not in df_src.columns and "name" in df_src.columns:
-                df_src["Nome"] = df_src["name"]
-
-            df_src = df_src.dropna(subset=["Ticker"])
-            df_src["Ticker"] = df_src["Ticker"].astype(str).str.upper()
-            df_src["Nome"] = df_src.get("Nome", "").fillna("").astype(str)
-
-            base = (
-                df_src[["Ticker", "Nome"]]
-                .drop_duplicates(subset=["Ticker"])
-                .sort_values("Nome")
-            )
-            tickers = base["Ticker"].tolist()
-            ticker_labels = {
-                t: f"{n} ({t})" if n else t
-                for t, n in zip(base["Ticker"], base["Nome"])
-            }
-            default_ticker = tickers[0] if tickers else ""
-
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=tickers,
-                key_suffix="CONF",
-                default_ticker=default_ticker,
-                ticker_labels=ticker_labels,
-            )
-        else:
-            st.markdown("---")
-            strategy_chart_widget(
-                tickers=[],
-                key_suffix="CONF",
-                default_ticker="",
-                ticker_labels=None,
-            )
-    except Exception as _scc:
-        st.error(f"Errore Strategy Chart CONFLUENCE: {_scc}")
-
+    st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
+    render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
 
 with tab_mtf:
     try:
