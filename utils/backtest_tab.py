@@ -4,7 +4,7 @@ backtest_tab.py — v32.1
 Tab "📈 Backtest" + Strategy Chart riusabile.
 
 Dipende da:
-- utils.db: load_signals, signal_summary_stats, update_signal_performance
+- utils.db: load_signals, signal_summary_stats, update_signal_performance, cache_stats
 - st_aggrid (opzionale), plotly
 """
 
@@ -22,7 +22,19 @@ _TV_GREEN = "#26a69a"; _TV_RED = "#ef5350"; _TV_GOLD = "#ffd700"
 _TV_BLUE = "#2962ff"; _TV_CYAN = "#50c4e0"; _TV_GRAY = "#787b86"
 _TV_TEXT = "#d1d4dc"; _TV_ORANGE = "#ff9800"; _TV_PURPLE = "#9c27b0"
 
-# ── Colori per tipo segnale ────────────────────────────────────────────────
+# ── Import db functions ----------------------------------------------------
+try:
+    from utils.db import (
+        load_signals,
+        signal_summary_stats,
+        update_signal_performance,
+        cache_stats,
+    )
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+
+# ── Colori per tipo segnale ------------------------------------------------
 SIGNAL_COLORS = {
     "EARLY": "#60a5fa",
     "PRO": "#00ff88",
@@ -75,7 +87,7 @@ def _bt_fetch_ohlcv(symbol: str, range_: str = "1y") -> pd.DataFrame:
     except Exception:
         return pd.DataFrame()
 
-# ── Indicatori locali ──────────────────────────────────────────────────────
+# ── Indicatori locali ─────────────────────────────────────────────────────-
 def _bt_ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
 
@@ -603,8 +615,8 @@ def strategy_chart_widget(
 
     tickers: lista di ticker.
     default_ticker: ticker pre-selezionato.
-    ticker_labels: {ticker: "Nome (TICKER)"}; se presente, la select è
-    ordinata alfabeticamente per Nome.
+    ticker_labels: {ticker: "Nome (TICKER)"}; se presente, la select
+    usa queste etichette ordinate alfabeticamente per nome.
     """
     ks = key_suffix.replace(" ", "_").replace("-", "_")
 
@@ -740,3 +752,252 @@ def strategy_chart_widget(
             st.error(f"Errore nel caricamento grafico per {scticker}: {e}")
     else:
         st.caption("Seleziona ticker e strategia, poi clicca **Mostra**.")
+
+# ────────────────────────────────────────────────────────────────────────
+# BACKTEST TAB PRINCIPALE
+# ────────────────────────────────────────────────────────────────────────
+def render_backtest_tab():
+    """
+    Funzione principale del tab Backtest.
+    Da chiamare dal Dashboard dentro il tab '📈 Backtest'.
+    """
+    st.markdown("### 📈 Backtest segnali")
+
+    if not DB_AVAILABLE:
+        st.error("utils.db non disponibile — assicurati che db.py v32 sia in utils/.")
+        return
+
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 2, 2])
+
+    with col_ctrl1:
+        days_back = st.selectbox(
+            "📅 Periodo analisi",
+            [7, 14, 30, 60, 90, 180, 365],
+            index=2,
+            key="bt_days",
+        )
+
+    with col_ctrl2:
+        signal_filter = st.selectbox(
+            "🔍 Tipo segnale",
+            ["Tutti", "EARLY", "PRO", "HOT", "CONFLUENCE", "SERAFINI", "FINVIZ"],
+            key="bt_sig_type",
+        )
+
+    sig_type_arg = None if signal_filter == "Tutti" else signal_filter
+
+    with col_ctrl3:
+        st.write("")
+        if st.button(
+            "🔄 Aggiorna performance",
+            key="bt_update",
+            use_container_width=True,
+        ):
+            with st.spinner("Aggiorno prezzi forward..."):
+                n = update_signal_performance(max_signals=300)
+            st.success(f"✅ Aggiornati {n} segnali.")
+            st.rerun()
+
+    df_sigs = load_signals(signal_type=sig_type_arg, days_back=days_back, with_perf=True)
+    df_summ = signal_summary_stats(days_back=days_back)
+
+    # Strategy Chart “libero”
+    strategy_chart_widget(tickers=[], key_suffix="BT_FREE", default_ticker="")
+
+    st.markdown("---")
+
+    if df_sigs.empty:
+        st.info(
+            "📭 Nessun segnale registrato ancora.\n\n"
+            "Esegui lo scanner con db.py v32 e riprova tra qualche giorno."
+        )
+        return
+
+    st.caption(
+        f"📊 {len(df_sigs)} segnali negli ultimi {days_back} giorni · "
+        f"{df_sigs['ticker'].nunique()} ticker unici"
+    )
+
+    # Riepilogo
+    st.markdown("#### 📊 Riepilogo per tipo segnale")
+    if not df_summ.empty:
+        cols_show = [
+            "Signal",
+            "Periodo",
+            "N",
+            "Win",
+            "Avg",
+            "Med",
+            "Std",
+            "P25",
+            "P75",
+            "Max",
+            "Min",
+            "Sharpe",
+        ]
+        cols_show = [c for c in cols_show if c in df_summ.columns]
+        df_show = df_summ[cols_show].copy()
+        st.dataframe(df_show, use_container_width=True, height=320)
+
+    # Equity curve
+    st.markdown("#### 📈 Equity curve cumulata (+20g)")
+    df_valid = df_sigs.dropna(subset=["ret_20d", "scanned_at"]).copy()
+    if df_valid.empty:
+        st.info(
+            "Nessun segnale con ret_20d disponibile. "
+            "Clicca '🔄 Aggiorna performance'."
+        )
+    else:
+        df_valid["scanned_at"] = pd.to_datetime(df_valid["scanned_at"])
+        df_valid = df_valid.sort_values("scanned_at")
+        fig_eq = go.Figure()
+
+        types_to_plot = (
+            df_valid["signal_type"].unique().tolist()
+            if signal_filter == "Tutti"
+            else [signal_filter]
+        )
+        for stype in types_to_plot:
+            sub = df_valid[df_valid["signal_type"] == stype].copy()
+            if sub.empty:
+                continue
+            daily = (
+                sub.groupby(sub["scanned_at"].dt.date)["ret_20d"]
+                .mean()
+                .reset_index()
+            )
+            daily.columns = ["date", "avg_ret"]
+            daily["cumulative"] = (1 + daily["avg_ret"] / 100).cumprod() * 100 - 100
+            color = SIGNAL_COLORS.get(stype, "#c9d1d9")
+            fig_eq.add_trace(
+                go.Scatter(
+                    x=daily["date"].astype(str),
+                    y=daily["cumulative"].round(2),
+                    mode="lines+markers",
+                    name=stype,
+                    line=dict(color=color, width=2),
+                    marker=dict(size=5),
+                )
+            )
+
+        fig_eq.add_hline(y=0, line=dict(color="#374151", width=1, dash="dot"))
+        fig_eq.update_layout(
+            **PLOTLY_DARK,
+            title=dict(
+                text="Equity cumulata +20g",
+                font=dict(color="#00ff88", size=14),
+            ),
+            height=380,
+            yaxis=dict(title="Rendimento cumulato %", ticksuffix="%"),
+            xaxis=dict(title="Data segnale"),
+            legend=dict(
+                orientation="h",
+                y=1.05,
+                x=0,
+                bgcolor="rgba(0,0,0,0)",
+                font=dict(size=11),
+            ),
+            hovermode="x unified",
+            margin=dict(l=0, r=0, t=50, b=0),
+        )
+        st.plotly_chart(fig_eq, use_container_width=True)
+
+    # Dettaglio
+    st.markdown("#### 🔍 Dettaglio segnali registrati")
+    disp_cols = [
+        "scanned_at",
+        "ticker",
+        "nome",
+        "signal_type",
+        "prezzo",
+        "rsi",
+        "quality_score",
+        "ser_score",
+        "fv_score",
+        "squeeze",
+        "weekly_bull",
+        "ret_1d",
+        "ret_5d",
+        "ret_10d",
+        "ret_20d",
+    ]
+    disp_cols = [c for c in disp_cols if c in df_sigs.columns]
+    df_disp = df_sigs[disp_cols].copy()
+    df_disp = df_disp.rename(
+        columns={
+            "scanned_at": "Data",
+            "ticker": "Ticker",
+            "nome": "Nome",
+            "signal_type": "Tipo",
+            "prezzo": "Prezzo",
+            "rsi": "RSI",
+            "quality_score": "Quality",
+            "ser_score": "Ser",
+            "fv_score": "FV",
+            "squeeze": "SQ",
+            "weekly_bull": "W+",
+            "ret_1d": "+1d%",
+            "ret_5d": "+5d%",
+            "ret_10d": "+10d%",
+            "ret_20d": "+20d%",
+        }
+    )
+
+    try:
+        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+        gb = GridOptionsBuilder.from_dataframe(df_disp)
+        gb.configure_default_column(sortable=True, resizable=True, filterable=True)
+        gb.configure_column("Data", width=130)
+        gb.configure_column("Ticker", width=80, pinned="left")
+        gb.configure_column("Nome", width=170)
+        gb.configure_column("Tipo", width=100)
+
+        for rc in ["+1d%", "+5d%", "+10d%", "+20d%"]:
+            if rc in df_disp.columns:
+                gb.configure_column(
+                    rc,
+                    width=80,
+                    cellStyle={
+                        "function": (
+                            "params.value > 0 ? "
+                            "{'color':'#00ff88','fontWeight':'bold'} : "
+                            "params.value < 0 ? "
+                            "{'color':'#ef4444','fontWeight':'bold'} : {}"
+                        )
+                    },
+                )
+
+        go_bt = gb.build()
+        AgGrid(
+            df_disp,
+            gridOptions=go_bt,
+            height=440,
+            update_mode=GridUpdateMode.NO_UPDATE,
+            allow_unsafe_jscode=True,
+            theme="streamlit",
+            key="bt_detail_grid",
+        )
+    except Exception:
+        st.dataframe(df_disp, use_container_width=True, height=440)
+
+    # Export + cache stats
+    exp_col, cache_col = st.columns([2, 2])
+    with exp_col:
+        csv = df_sigs.to_csv(index=False).encode()
+        st.download_button(
+            "📥 Esporta segnali CSV",
+            csv,
+            f"segnali_backtest_{days_back}g.csv",
+            "text/csv",
+            key="bt_exp_csv",
+        )
+    with cache_col:
+        if st.button("📊 Stats cache", key="bt_cache_stats"):
+            cs = cache_stats()
+            st.info(
+                f"Cache SQLite: {cs.get('total_entries', 0)} entry · "
+                f"fresh {cs.get('fresh', 0)} · "
+                f"stale {cs.get('stale', 0)} · "
+                f"{cs.get('size_mb', 0)} MB"
+            )
