@@ -1,5 +1,5 @@
 """
-backtest_tab.py  —  Upgrade #5 — v31.1
+backtest_tab.py  —  Upgrade #5 — v32.0
 ================================
 Tab "📈 Backtest" per il dashboard v28.
 Incolla questa funzione in Dashboard_pro V_28.0.py e aggiungila ai tabs.
@@ -22,7 +22,7 @@ Struttura:
   • 🔄 Aggiorna performance — pulsante per aggiornare prezzi forward manualmente
 """
 
-import urllib.request, json
+import urllib.request, json, base64, os
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
@@ -34,6 +34,107 @@ _TV_BG    = "#131722"; _TV_PANEL = "#1e222d"; _TV_BORDER= "#2a2e39"
 _TV_GREEN = "#26a69a"; _TV_RED   = "#ef5350"; _TV_GOLD  = "#ffd700"
 _TV_BLUE  = "#2962ff"; _TV_CYAN  = "#50c4e0"; _TV_GRAY  = "#787b86"
 _TV_TEXT  = "#d1d4dc"; _TV_ORANGE= "#ff9800"; _TV_PURPLE= "#9c27b0"
+
+# ── Mappe legenda per strategia ──────────────────────────────────────────────
+# PNG caricate da Fingrad (in assets/) oppure SVG generati localmente
+_LEG_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
+_LEG_OUTPUTS_DIR = "/mnt/user-data/outputs"   # dev environment
+
+_STRATEGY_LEGEND = {
+    # formato: (filename_png_or_svg, mime, title, bullet_points)
+    "RSI+VWAP": (
+        "leg_rsi_vwap.png", "image/png",
+        "RSI + VWAP — Intraday Strategy",
+        ["▲ LONG entry: Price > VWAP + RSI sale da sotto 30",
+         "▼ EXIT: Price < VWAP o RSI scende da sopra 70",
+         "Stop-loss: sotto il minimo del segnale entry",
+         "Timeframe ideale: 15min–1h"],
+    ),
+    "ADX+EMA": (
+        "leg_adx_ema.svg", "image/svg+xml",
+        "ADX + EMA Cross",
+        ["▲ LONG: EMA20 incrocia sopra EMA50 + ADX > 25",
+         "▼ EXIT: EMA20 < EMA50 o ADX < 25",
+         "▲ SHORT: EMA20 incrocia sotto EMA50 + ADX > 25",
+         "ADX > 25 = trend forte, < 25 = mercato laterale"],
+    ),
+    "MACD": (
+        "leg_macd_ema.svg", "image/svg+xml",
+        "MACD (12,26,9)",
+        ["▲ LONG entry: MACD histogram incrocia sopra 0",
+         "▼ EXIT: MACD histogram incrocia sotto 0",
+         "Conferma con EMA20 > EMA50",
+         "Divergenza MACD/prezzo = segnale forte di inversione"],
+    ),
+    "EMA Cross": (
+        "leg_adx_ema.svg", "image/svg+xml",
+        "EMA 20/50 Cross",
+        ["▲ LONG: EMA20 incrocia sopra EMA50",
+         "▼ EXIT: EMA20 incrocia sotto EMA50",
+         "Più affidabile in trend forti (ADX > 25)",
+         "In laterale produce falsi segnali — combina con volume"],
+    ),
+}
+
+
+def _read_legend_image(filename: str) -> tuple[str, str]:
+    """
+    Cerca il file immagine legenda in:
+      1. assets/ relativo al file corrente
+      2. /mnt/user-data/outputs/ (dev)
+    Ritorna (base64_str, mime_type).
+    """
+    ext = filename.rsplit(".", 1)[-1].lower()
+    mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+    for directory in [_LEG_ASSETS_DIR, _LEG_OUTPUTS_DIR]:
+        path = os.path.join(directory, filename)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                return base64.b64encode(f.read()).decode(), mime
+    return "", mime
+
+
+def _render_strategy_legend(strategy: str) -> None:
+    """
+    Mostra la legenda visuale per la strategia selezionata
+    in un expander collassato sotto il banner entry/exit.
+    """
+    if strategy not in _STRATEGY_LEGEND:
+        return
+    filename, mime, title, bullets = _STRATEGY_LEGEND[strategy]
+    b64, actual_mime = _read_legend_image(filename)
+
+    with st.expander(f"📖 Guida visuale — {title}", expanded=False):
+        col_img, col_txt = st.columns([1.2, 1])
+        with col_img:
+            if b64:
+                st.markdown(
+                    f'<img src="data:{actual_mime};base64,{b64}" '
+                    f'style="width:100%;border-radius:6px;border:1px solid #2a2e39">',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f'<div style="background:#1e222d;border:1px dashed #2a2e39;'
+                    f'border-radius:6px;padding:20px;text-align:center;color:#787b86">'
+                    f'📊 {title}<br><small>Metti l\'immagine in <code>assets/{filename}</code></small>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+        with col_txt:
+            st.markdown(
+                f'<div style="background:#131722;border-radius:6px;padding:12px 14px">'
+                f'<div style="color:#ffd700;font-weight:700;font-size:0.85rem;'
+                f'margin-bottom:8px">📋 Regole operative</div>'
+                + "".join([
+                    f'<div style="color:#d1d4dc;font-size:0.78rem;padding:3px 0;'
+                    f'border-left:2px solid {"#26a69a" if "▲" in b else "#ef5350" if "▼" in b else "#787b86"};'
+                    f'padding-left:7px;margin:3px 0">{b}</div>'
+                    for b in bullets
+                ])
+                + '</div>',
+                unsafe_allow_html=True,
+            )
 
 # ── Fetch OHLCV per strategy chart ─────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -309,6 +410,239 @@ PLOTLY_DARK = dict(
     yaxis=dict(gridcolor="#1f2937", zerolinecolor="#1f2937"),
 )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# FUNZIONI STATISTICHE PROFESSIONALI
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _calc_sharpe(returns: pd.Series, rf_annual: float = 0.04) -> float:
+    """Sharpe Ratio annualizzato (rf = risk-free rate annuale, default 4%)."""
+    r = returns.dropna()
+    if len(r) < 5: return float("nan")
+    rf_daily = (1 + rf_annual) ** (1/252) - 1
+    excess   = r - rf_daily
+    std      = excess.std()
+    if std == 0: return float("nan")
+    return round(float(excess.mean() / std * np.sqrt(252)), 2)
+
+def _calc_sortino(returns: pd.Series, rf_annual: float = 0.04) -> float:
+    """Sortino Ratio (penalizza solo il downside)."""
+    r = returns.dropna()
+    if len(r) < 5: return float("nan")
+    rf_daily   = (1 + rf_annual) ** (1/252) - 1
+    excess     = r - rf_daily
+    downside   = excess[excess < 0]
+    down_std   = downside.std()
+    if down_std == 0 or len(downside) < 2: return float("nan")
+    return round(float(excess.mean() / down_std * np.sqrt(252)), 2)
+
+def _calc_max_drawdown(returns: pd.Series) -> float:
+    """Max Drawdown % da picco a valle sulla curva cumulata."""
+    r = returns.dropna()
+    if len(r) < 3: return float("nan")
+    equity  = (1 + r / 100).cumprod()
+    peak    = equity.cummax()
+    dd      = (equity - peak) / peak * 100
+    return round(float(dd.min()), 2)
+
+def _calc_profit_factor(returns: pd.Series) -> float:
+    """Profit Factor = somma vincite / |somma perdite|."""
+    r = returns.dropna()
+    wins  = r[r > 0].sum()
+    loss  = abs(r[r < 0].sum())
+    if loss == 0: return float("inf") if wins > 0 else float("nan")
+    return round(float(wins / loss), 2)
+
+def _calc_win_rate(returns: pd.Series) -> float:
+    r = returns.dropna()
+    if len(r) == 0: return float("nan")
+    return round(float((r > 0).sum() / len(r) * 100), 1)
+
+def _calc_avg_win(returns: pd.Series) -> float:
+    r = returns.dropna()
+    wins = r[r > 0]
+    return round(float(wins.mean()), 2) if len(wins) > 0 else float("nan")
+
+def _calc_avg_loss(returns: pd.Series) -> float:
+    r = returns.dropna()
+    losses = r[r < 0]
+    return round(float(losses.mean()), 2) if len(losses) > 0 else float("nan")
+
+def _calc_max_consec_losses(returns: pd.Series) -> int:
+    r = returns.dropna()
+    if r.empty: return 0
+    max_loss = cur = 0
+    for v in r:
+        if v < 0: cur += 1; max_loss = max(max_loss, cur)
+        else:     cur = 0
+    return max_loss
+
+def _build_stats_dict(returns: pd.Series, horizon_label: str) -> dict:
+    """Calcola tutte le metriche statistiche per un set di rendimenti."""
+    r = returns.dropna()
+    return {
+        "N segnali":       len(r),
+        "Win Rate %":      _calc_win_rate(r),
+        "Avg Ret %":       round(float(r.mean()), 2) if len(r) else float("nan"),
+        "Avg Win %":       _calc_avg_win(r),
+        "Avg Loss %":      _calc_avg_loss(r),
+        "Profit Factor":   _calc_profit_factor(r),
+        "Max Drawdown %":  _calc_max_drawdown(r),
+        "Sharpe":          _calc_sharpe(r),
+        "Sortino":         _calc_sortino(r),
+        "Max Consec Loss": _calc_max_consec_losses(r),
+        "Best Trade %":    round(float(r.max()), 2) if len(r) else float("nan"),
+        "Worst Trade %":   round(float(r.min()), 2) if len(r) else float("nan"),
+    }
+
+def _render_stats_panel(df_sigs: pd.DataFrame, horizon: str) -> None:
+    """
+    Pannello statistiche professionali per orizzonte selezionato.
+    Mostra metriche per tutti i setup + globale.
+    """
+    h_label = {"ret_1d": "+1g", "ret_5d": "+5g",
+                "ret_10d": "+10g", "ret_20d": "+20g"}.get(horizon, horizon)
+    st.markdown(f"### 📐 Statistiche Professionali — Orizzonte {h_label}")
+
+    if horizon not in df_sigs.columns:
+        st.warning(f"Colonna {horizon} non disponibile. Aggiorna le performance.")
+        return
+
+    # ── Statistiche globali ───────────────────────────────────────────────
+    stats_all = _build_stats_dict(df_sigs[horizon], h_label)
+
+    # ── Colori metriche ───────────────────────────────────────────────────
+    def _color_sharpe(v):
+        if pd.isna(v): return "#6b7280"
+        if v >= 1.5:   return "#00ff88"
+        if v >= 0.5:   return "#f59e0b"
+        return "#ef4444"
+
+    def _color_dd(v):
+        if pd.isna(v): return "#6b7280"
+        if v >= -5:    return "#00ff88"
+        if v >= -15:   return "#f59e0b"
+        return "#ef4444"
+
+    def _color_pf(v):
+        if pd.isna(v) or v == float("inf"): return "#6b7280"
+        if v >= 1.5:   return "#00ff88"
+        if v >= 1.0:   return "#f59e0b"
+        return "#ef4444"
+
+    # Riga KPI metriche principali
+    kc = st.columns(6)
+    sharpe_c = _color_sharpe(stats_all["Sharpe"])
+    dd_c     = _color_dd(stats_all["Max Drawdown %"])
+    pf_c     = _color_pf(stats_all["Profit Factor"])
+    wr_c     = "#00ff88" if (stats_all["Win Rate %"] or 0) >= 55 else \
+               "#f59e0b" if (stats_all["Win Rate %"] or 0) >= 45 else "#ef4444"
+
+    def _kpi(col, label, value, color="#d1d4dc", suffix=""):
+        v_str = f"{value:.2f}{suffix}" if isinstance(value, float) and not pd.isna(value) else str(value) if value is not None else "—"
+        col.markdown(
+            f'<div style="background:#1e222d;border:1px solid #2a2e39;border-radius:6px;'
+            f'padding:10px 14px;text-align:center">'
+            f'<div style="color:#787b86;font-size:0.72rem;margin-bottom:4px">{label}</div>'
+            f'<div style="color:{color};font-size:1.35rem;font-weight:bold;font-family:Courier New">{v_str}</div>'
+            f'</div>', unsafe_allow_html=True)
+
+    _kpi(kc[0], "Sharpe Ratio",    stats_all["Sharpe"],         sharpe_c)
+    _kpi(kc[1], "Sortino Ratio",   stats_all["Sortino"],        sharpe_c)
+    _kpi(kc[2], "Max Drawdown",    stats_all["Max Drawdown %"], dd_c, "%")
+    _kpi(kc[3], "Profit Factor",   stats_all["Profit Factor"],  pf_c)
+    _kpi(kc[4], "Win Rate",        stats_all["Win Rate %"],     wr_c, "%")
+    _kpi(kc[5], "N Segnali",       stats_all["N segnali"],      "#d1d4dc")
+
+    st.markdown("")
+
+    # Seconda riga: dettaglio trade
+    rc = st.columns(4)
+    _kpi(rc[0], "Avg Win",         stats_all["Avg Win %"],      "#00ff88", "%")
+    _kpi(rc[1], "Avg Loss",        stats_all["Avg Loss %"],     "#ef4444", "%")
+    _kpi(rc[2], "Best Trade",      stats_all["Best Trade %"],   "#00ff88", "%")
+    _kpi(rc[3], "Max Consec Loss", stats_all["Max Consec Loss"], "#ef4444")
+
+    st.markdown("")
+
+    # ── Tabella breakdown per setup ───────────────────────────────────────
+    if "signal_type" in df_sigs.columns:
+        st.markdown("**Breakdown per tipo segnale:**")
+        rows = []
+        signal_types = df_sigs["signal_type"].dropna().unique()
+        for stype in sorted(signal_types):
+            sub = df_sigs[df_sigs["signal_type"] == stype][horizon]
+            s   = _build_stats_dict(sub, h_label)
+            rows.append({
+                "Setup":           stype,
+                "N":               s["N segnali"],
+                "Win%":            s["Win Rate %"],
+                "Avg%":            s["Avg Ret %"],
+                "PF":              s["Profit Factor"],
+                "Sharpe":          s["Sharpe"],
+                "Max DD%":         s["Max Drawdown %"],
+                "Best%":           s["Best Trade %"],
+                "Worst%":          s["Worst Trade %"],
+                "MaxConsecLoss":   s["Max Consec Loss"],
+            })
+        df_stats = pd.DataFrame(rows)
+
+        def _color_val(v):
+            if pd.isna(v): return "color:#6b7280"
+            return f"color:{'#00ff88' if v > 0 else '#ef4444'};font-weight:bold"
+
+        def _color_wr(v):
+            if pd.isna(v): return "color:#6b7280"
+            if v >= 60:  return "color:#00ff88;font-weight:bold"
+            if v >= 50:  return "color:#f59e0b"
+            return "color:#ef4444"
+
+        def _color_sharpe_s(v):
+            if pd.isna(v): return "color:#6b7280"
+            if v >= 1.5:   return "color:#00ff88;font-weight:bold"
+            if v >= 0.5:   return "color:#f59e0b"
+            return "color:#ef4444"
+
+        styled = (df_stats.style
+            .applymap(_color_val,     subset=["Avg%","Best%","Worst%","Max DD%"])
+            .applymap(_color_wr,      subset=["Win%"])
+            .applymap(_color_sharpe_s,subset=["Sharpe"])
+            .format({"Win%": "{:.1f}%", "Avg%": "{:.2f}%",
+                     "PF":   "{:.2f}",  "Sharpe": "{:.2f}",
+                     "Max DD%": "{:.2f}%",
+                     "Best%": "{:.2f}%","Worst%": "{:.2f}%"},
+                    na_rep="—"))
+        st.dataframe(styled, use_container_width=True, height=260)
+
+    # ── Drawdown chart ────────────────────────────────────────────────────
+    with st.expander("📉 Curva Drawdown", expanded=False):
+        df_v = df_sigs.dropna(subset=[horizon, "scanned_at"]).copy()
+        df_v["scanned_at"] = pd.to_datetime(df_v["scanned_at"])
+        df_v = df_v.sort_values("scanned_at")
+        if not df_v.empty:
+            daily = df_v.groupby(df_v["scanned_at"].dt.date)[horizon].mean()
+            equity = (1 + daily / 100).cumprod()
+            peak   = equity.cummax()
+            dd_curve = (equity - peak) / peak * 100
+
+            fig_dd = go.Figure()
+            fig_dd.add_trace(go.Scatter(
+                x=dd_curve.index.astype(str), y=dd_curve.values,
+                fill="tozeroy",
+                fillcolor="rgba(239,83,80,0.18)",
+                line=dict(color=_TV_RED, width=1.5),
+                name="Drawdown",
+                hovertemplate="%{x}<br>DD: %{y:.2f}%<extra></extra>"
+            ))
+            fig_dd.add_hline(y=0, line=dict(color="#374151", width=1))
+            fig_dd.update_layout(
+                **PLOTLY_DARK,
+                height=260,
+                yaxis=dict(title="Drawdown %", ticksuffix="%"),
+                margin=dict(l=0, r=0, t=20, b=0),
+                title=dict(text="Max Drawdown nel tempo", font=dict(color=_TV_RED, size=12)),
+            )
+            st.plotly_chart(fig_dd, use_container_width=True, key="bt_dd_chart")
+
 
 
 
@@ -450,6 +784,9 @@ def strategy_chart_widget(
             f'<span style="color:{_TV_GRAY};font-size:0.65rem">▼ EXIT</span><br>'
             f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{x_txt}</span>'
             f'</div>', unsafe_allow_html=True)
+
+    # ── Legenda visuale strategia ─────────────────────────────────────────
+    _render_strategy_legend(sc_strategy)
 
     # ── Render grafico ────────────────────────────────────────────────────
     if sc_run and sc_ticker:
@@ -666,6 +1003,11 @@ Non è backtesting storico con curve ottimizzate — è più onesto.
             margin=dict(l=0, r=0, t=50, b=0)
         )
         st.plotly_chart(fig_eq, use_container_width=True)
+
+    # ---------------------------------------------------------------------
+    # 📐 STATISTICHE PROFESSIONALI — Sharpe, Sortino, Max DD, Profit Factor
+    # ---------------------------------------------------------------------
+    _render_stats_panel(df_sigs, horizon)
 
     # ---------------------------------------------------------------------
     # 🥇 TOP PERFORMER  — migliori e peggiori ticker
