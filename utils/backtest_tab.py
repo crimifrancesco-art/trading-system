@@ -1,17 +1,11 @@
 """
-backtest_tab.py — v32.0
+backtest_tab.py — v32.1
 ========================
-Tab "📈 Backtest" per il dashboard PRO.
+Tab "📈 Backtest" + Strategy Chart riusabile.
 
 Dipende da:
 - utils.db: load_signals, signal_summary_stats, update_signal_performance
 - st_aggrid (opzionale), plotly
-
-Struttura:
-• 📊 Riepilogo — tabella aggregata avanzata (Win, Avg, Med, Std, P25/P75, Max, Min, Sharpe)
-• 📈 Equity curve — curva cumulata con Sharpe/MaxDD aggregati
-• 🔍 Dettaglio segnali — griglia filtrabile con tutti i segnali registrati
-• 🔄 Aggiorna performance — pulsante per aggiornare prezzi forward manualmente
 """
 
 import urllib.request
@@ -28,7 +22,7 @@ _TV_GREEN = "#26a69a"; _TV_RED = "#ef5350"; _TV_GOLD = "#ffd700"
 _TV_BLUE = "#2962ff"; _TV_CYAN = "#50c4e0"; _TV_GRAY = "#787b86"
 _TV_TEXT = "#d1d4dc"; _TV_ORANGE = "#ff9800"; _TV_PURPLE = "#9c27b0"
 
-# ── Colori per tipo segnale (coerenti col dashboard) ──────────────────────
+# ── Colori per tipo segnale ────────────────────────────────────────────────
 SIGNAL_COLORS = {
     "EARLY": "#60a5fa",
     "PRO": "#00ff88",
@@ -37,6 +31,7 @@ SIGNAL_COLORS = {
     "SERAFINI": "#f59e0b",
     "FINVIZ": "#38bdf8",
 }
+
 PLOTLY_DARK = dict(
     paper_bgcolor="#0a0e1a",
     plot_bgcolor="#0d1117",
@@ -45,7 +40,7 @@ PLOTLY_DARK = dict(
     yaxis=dict(gridcolor="#1f2937", zerolinecolor="#1f2937"),
 )
 
-# ── Fetch OHLCV per strategy chart (riuso da v31.1) ───────────────────────
+# ── Fetch OHLCV per strategy chart ─────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
 def _bt_fetch_ohlcv(symbol: str, range_: str = "1y") -> pd.DataFrame:
     try:
@@ -53,30 +48,37 @@ def _bt_fetch_ohlcv(symbol: str, range_: str = "1y") -> pd.DataFrame:
             f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
             f"?interval=1d&range={range_}"
         )
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla5.0"})
-        with urllib.request.urlopen(req, timeout=12) as r:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read())
         result = data["chart"]["result"][0]
         ts = result["timestamp"]
         q = result["indicators"]["quote"][0]
-        df = pd.DataFrame(
-            {
-                "date": pd.to_datetime(ts, unit="s"),
-                "open": q.get("open", []),
-                "high": q.get("high", []),
-                "low": q.get("low", []),
-                "close": q.get("close", []),
-                "volume": q.get("volume", []),
-            }
-        ).dropna(subset=["close"]).reset_index(drop=True)
+        df = (
+            pd.DataFrame(
+                {
+                    "date": pd.to_datetime(ts, unit="s"),
+                    "open": q.get("open", []),
+                    "high": q.get("high", []),
+                    "low": q.get("low", []),
+                    "close": q.get("close", []),
+                    "volume": q.get("volume", []),
+                }
+            )
+            .dropna(subset=["close"])
+            .reset_index(drop=True)
+        )
         df["date"] = df["date"].dt.tz_localize(None)
         return df
     except Exception:
         return pd.DataFrame()
 
-# ── Indicatori locali (RSI / EMA / MACD / VWAP / ADX) ─────────────────────
+# ── Indicatori locali ──────────────────────────────────────────────────────
 def _bt_ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
+
 
 def _bt_rsi(s: pd.Series, n: int = 14) -> pd.Series:
     d = s.diff()
@@ -84,54 +86,77 @@ def _bt_rsi(s: pd.Series, n: int = 14) -> pd.Series:
     l = (-d.clip(upper=0)).rolling(n).mean()
     return 100 - 100 / (1 + g / l.replace(0, np.nan))
 
+
 def _bt_macd(s: pd.Series):
     ml = s.ewm(span=12).mean() - s.ewm(span=26).mean()
     sl = ml.ewm(span=9).mean()
     return ml, sl, ml - sl
 
+
 def _bt_vwap(c: pd.Series, v: pd.Series, win: int = 20) -> pd.Series:
     return (c * v).rolling(win).sum() / v.rolling(win).sum().replace(0, np.nan)
 
+
 def _bt_adx(h: pd.Series, lo: pd.Series, c: pd.Series, period: int = 14) -> pd.Series:
+    """
+    ADX robusto (periodo standard 14) con gestione sicura degli indici.
+    Restituisce una Series allineata a c, con NaN iniziali.
+    """
     h_ = h.values.astype(float)
     l_ = lo.values.astype(float)
     c_ = c.values.astype(float)
     n = len(c_)
-    tr_, dp_, dn_ = [], [], []
-    for i in range(1, n):
-        tr_.append(
-            max(
-                h_[i] - l_[i],
-                abs(h_[i] - c_[i - 1]),
-                abs(l_[i] - c_[i - 1]),
-            )
-        )
-        up, dn = h_[i] - h_[i - 1], l_[i - 1] - l_[i]
-        dp_.append(up if up > dn and up > 0 else 0)
-        dn_.append(dn if dn > up and dn > 0 else 0)
     out = np.full(n, np.nan)
-    if len(tr_) < period:
+
+    if n < period + 2:
         return pd.Series(out, index=c.index)
-    atr = np.mean(tr_[:period])
-    dp = np.mean(dp_[:period])
-    dn = np.mean(dn_[:period])
-    dx = []
-    for i in range(period, len(tr_)):
-        atr = atr - atr / period + tr_[i]
-        dp = dp - dp / period + dp_[i]
-        dn = dn - dn / period + dn_[i]
-        dip = 100 * dp / atr if atr > 0 else 0
-        din = 100 * dn / atr if atr > 0 else 0
-        dx.append(100 * abs(dip - din) / (dip + din) if (dip + din) > 0 else 0)
+
+    tr = np.zeros(n - 1)
+    dp = np.zeros(n - 1)
+    dn = np.zeros(n - 1)
+    for i in range(1, n):
+        tr[i - 1] = max(
+            h_[i] - l_[i],
+            abs(h_[i] - c_[i - 1]),
+            abs(l_[i] - c_[i - 1]),
+        )
+        up = h_[i] - h_[i - 1]
+        down = l_[i - 1] - l_[i]
+        dp[i - 1] = up if (up > down and up > 0) else 0
+        dn[i - 1] = down if (down > up and down > 0) else 0
+
+    atr = np.zeros_like(tr)
+    pdm = np.zeros_like(tr)
+    ndm = np.zeros_like(tr)
+
+    atr[0] = tr[:period].mean()
+    pdm[0] = dp[:period].mean()
+    ndm[0] = dn[:period].mean()
+
+    for i in range(1, len(tr)):
+        atr[i] = atr[i - 1] - atr[i - 1] / period + tr[i]
+        pdm[i] = pdm[i - 1] - pdm[i - 1] / period + dp[i]
+        ndm[i] = ndm[i - 1] - ndm[i - 1] / period + dn[i]
+
+    dip = np.where(atr > 0, 100 * pdm / atr, 0)
+    din = np.where(atr > 0, 100 * ndm / atr, 0)
+
+    denom = dip + din
+    dx = np.where(denom > 0, 100 * np.abs(dip - din) / denom, 0)
+
     if len(dx) < period:
         return pd.Series(out, index=c.index)
-    av = np.mean(dx[:period])
-    st2 = period + period
-    out_idx = 1 + st2
-    out[out_idx] = av
-    for k in range(1, len(dx) - period + 1):
-        av = (av * (period - 1) + dx[period - 1 + k]) / period
-        out[out_idx + k] = av
+
+    adx = np.zeros_like(dx)
+    adx[period - 1] = dx[:period].mean()
+    for i in range(period, len(dx)):
+        adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
+
+    start = period * 2
+    valid_len = min(len(adx) - start, n - start)
+    if valid_len > 0:
+        out[start : start + valid_len] = adx[start : start + valid_len]
+
     return pd.Series(out, index=c.index)
 
 # ── Strategy chart (riusabile) ─────────────────────────────────────────────
@@ -161,6 +186,7 @@ _SC_RULES = {
         "EMA20 incrocia sotto EMA50",
     ),
 }
+
 
 def _bt_detect_signals(df: pd.DataFrame, strategy: str):
     c = df["close"].reset_index(drop=True)
@@ -210,6 +236,7 @@ def _bt_detect_signals(df: pd.DataFrame, strategy: str):
             in_t = False
 
     return e_d, e_p, x_d, x_p
+
 
 def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y"):
     with st.spinner(f"⏳ Caricamento dati {ticker} ({range_})..."):
@@ -282,6 +309,7 @@ def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y"):
         row=1,
         col=1,
     )
+
     if strategy == "RSI+VWAP":
         fig.add_trace(
             go.Scatter(
@@ -504,11 +532,9 @@ def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y"):
             line=dict(color=_TV_BORDER, width=1),
         )
 
-    # Layout
     last_p = float(c.iloc[-1])
     first_p = float(c.dropna().iloc[0])
     chg = (last_p / first_p - 1) * 100
-    chg_c = _TV_GREEN if chg >= 0 else _TV_RED
     n_e, n_x = len(e_d), len(x_d)
 
     fig.update_layout(
@@ -565,6 +591,7 @@ def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y"):
     k = strategy.replace("+", "_").replace(" ", "_")
     st.plotly_chart(fig, use_container_width=True, key=f"bt_sc_{ticker}_{k}")
 
+
 def strategy_chart_widget(
     tickers: list,
     key_suffix: str = "bt",
@@ -574,10 +601,10 @@ def strategy_chart_widget(
     """
     Widget Strategy Chart riusabile in qualsiasi tab.
 
-    tickers: lista di ticker (es. df["Ticker"].tolist()).
+    tickers: lista di ticker.
     default_ticker: ticker pre-selezionato.
-    ticker_labels: dict opzionale {ticker: "Nome azienda (TICKER)"}.
-    Se fornito, la select è ordinata alfabeticamente per etichetta.
+    ticker_labels: {ticker: "Nome (TICKER)"}; se presente, la select è
+    ordinata alfabeticamente per Nome.
     """
     ks = key_suffix.replace(" ", "_").replace("-", "_")
 
@@ -596,10 +623,8 @@ def strategy_chart_widget(
 
     c_tkr, c_str, c_per, c_btn = st.columns((3, 2, 2, 1))
 
-    # --- Selettore ticker con nome ordinato alfabeticamente -----------------
     with c_tkr:
         if tickers:
-            # Unici e ordinati alfabeticamente per etichetta
             base = [str(t).upper() for t in tickers if str(t).strip()]
             uniq = []
             seen = set()
@@ -609,18 +634,14 @@ def strategy_chart_widget(
                     uniq.append(t)
 
             if ticker_labels:
-                # Costruisci etichette finali "Nome (TICKER)"
                 options = []
                 for t in uniq:
                     lbl = ticker_labels.get(t, t)
                     options.append((t, str(lbl)))
-
-                # Ordina per etichetta
                 options = sorted(options, key=lambda x: x[1].lower())
                 display_labels = [lbl for (_, lbl) in options]
                 raw_tickers = [t for (t, _) in options]
 
-                # Default: primo in lista o default_ticker se presente
                 if default_ticker and default_ticker in raw_tickers:
                     idx = raw_tickers.index(default_ticker)
                 else:
@@ -633,11 +654,11 @@ def strategy_chart_widget(
                     key=f"sc_tkr_{ks}",
                     help=f"{len(raw_tickers)} titoli disponibili",
                 )
-                # Mappa etichetta → ticker
                 label_to_tkr = {lbl: t for t, lbl in options}
-                scticker = label_to_tkr.get(sel_label, raw_tickers[0] if raw_tickers else "")
+                scticker = label_to_tkr.get(
+                    sel_label, raw_tickers[0] if raw_tickers else ""
+                )
             else:
-                # Solo ticker, ordinati alfabeticamente
                 uniq_sorted = sorted(uniq)
                 if default_ticker and default_ticker in uniq_sorted:
                     idx = uniq_sorted.index(default_ticker)
@@ -662,7 +683,6 @@ def strategy_chart_widget(
                 .upper()
             )
 
-    # --- Strategia / periodo / bottone --------------------------------------
     with c_str:
         scstrategy = st.selectbox(
             "Strategia",
@@ -713,7 +733,6 @@ def strategy_chart_widget(
             unsafe_allow_html=True,
         )
 
-    # --- Esecuzione grafico -------------------------------------------------
     if scrun and scticker:
         try:
             _bt_render_strategy_chart(scticker, scstrategy, scrange)
@@ -721,356 +740,3 @@ def strategy_chart_widget(
             st.error(f"Errore nel caricamento grafico per {scticker}: {e}")
     else:
         st.caption("Seleziona ticker e strategia, poi clicca **Mostra**.")
-
-
-# ── Funzione principale tab Backtest ----------------------------------------
-def render_backtest_tab():
-    st.markdown('<div class="section-pill">📈 BACKTEST SEGNALI</div>', unsafe_allow_html=True)
-
-    if not DB_AVAILABLE:
-        st.error("utils.db non disponibile: assicurati che db.py v32 sia installato.")
-        return
-
-    # Controlli
-    colctrl1, colctrl2, colctrl3 = st.columns((2, 2, 2))
-    with colctrl1:
-        days_back = st.selectbox(
-            "Periodo analisi",
-            [7, 14, 30, 60, 90, 180, 365],
-            index=2,
-            key="bt_days",
-        )
-    with colctrl2:
-        signal_filter = st.selectbox(
-            "Tipo segnale",
-            ["Tutti", "EARLY", "PRO", "HOT", "CONFLUENCE", "SERAFINI", "FINVIZ"],
-            key="bt_sigtype",
-        )
-        sigtype_arg = None if signal_filter == "Tutti" else signal_filter
-    with colctrl3:
-        if st.button("Aggiorna performance", key="bt_update", use_container_width=True):
-            with st.spinner("Aggiorno prezzi forward (yfinance)..."):
-                n = update_signal_performance(max_signals=300)
-            st.success(f"Aggiornati {n} segnali.")
-            st.experimental_rerun()
-
-    # Pulsante reset elenco segnali
-    bc1, bc2 = st.columns((1, 5))
-    with bc1:
-        if st.button(
-            "Reset Elenco Segnali",
-            key="bt_resetsigs",
-            type="secondary",
-            help="Cancella tutti i segnali registrati dal DB. I dati scanner rimangono intatti.",
-        ):
-            try:
-                from utils.db import _get_db_path  # opzionale, se esposto
-                import sqlite3 as sq
-
-                dbp = _get_db_path()
-                c = sq.connect(str(dbp))
-                c.execute("DELETE FROM signals")
-                c.commit()
-                c.close()
-                st.success("Elenco segnali cancellato!")
-                st.experimental_rerun()
-            except Exception as re:
-                st.error(f"Errore reset: {re}")
-    with bc2:
-        pass
-
-    # Carica dati
-    dfsigs = load_signals(signal_type=sigtype_arg, days_back=days_back, with_perf=True)
-    dfsumm = signal_summary_stats(days_back=days_back)
-
-    strategy_chart_widget(
-        dfsigs["ticker"].dropna().unique().tolist() if not dfsigs.empty else [],
-        key_suffix="bt",
-    )
-
-    st.markdown("---")
-
-    if dfsigs.empty:
-        st.info(
-            "Nessun segnale registrato ancora.\n\n"
-            "Come iniziare:\n"
-            "1. Esegui lo scanner almeno una volta con db.py v32 attivo.\n"
-            "2. Il giorno dopo clicca **Aggiorna performance** per popolare ret_1d/5d/10d/20d."
-        )
-        return
-
-    st.caption(
-        f"{len(dfsigs)} segnali negli ultimi {days_back} giorni · "
-        f"{dfsigs['ticker'].nunique()} ticker unici · "
-        f"{dfsigs['ret_20d'].notna().sum()} con performance completa (20g)"
-    )
-
-    # ── 1) Riepilogo per tipo segnale ──────────────────────────────────────
-    st.markdown("### 📊 Riepilogo per tipo segnale")
-
-    if not dfsumm.empty:
-        view_all = st.checkbox(
-            "Mostra tutti gli orizzonti (1g/5g/10g/20g)",
-            value=False,
-            key="bt_show_all_horizons",
-        )
-
-        dfs_view = dfsumm.copy()
-        if not view_all:
-            dfs_view = dfs_view[dfs_view["Periodo"] == "20g"]
-
-        colsshow = [
-            "Signal",
-            "Periodo",
-            "N",
-            "N_tot",
-            "Win",
-            "Avg",
-            "Med",
-            "Std",
-            "P25",
-            "P75",
-            "Max",
-            "Min",
-            "Sharpe",
-        ]
-        colsshow = [c for c in colsshow if c in dfs_view.columns]
-        dfshow = dfs_view[colsshow].copy()
-
-        def color_ret(v):
-            if pd.isna(v):
-                return "color: #374151"
-            return "color: #00ff88; font-weight: bold" if v > 0 else "color: #ef4444; font-weight: bold"
-
-        def color_win(v):
-            if pd.isna(v):
-                return "color: #374151"
-            if v >= 60:
-                return "color: #00ff88; font-weight: bold"
-            if v >= 50:
-                return "color: #f59e0b"
-            return "color: #ef4444"
-
-        def color_sharpe(v):
-            if pd.isna(v):
-                return "color: #374151"
-            if v >= 1.0:
-                return "color: #00ff88; font-weight: bold"
-            if v >= 0.5:
-                return "color: #f59e0b"
-            return "color: #ef4444"
-
-        retcols = [c for c in dfshow.columns if c in ("Avg", "Med", "Max", "Min")]
-        wcols = ["Win"] if "Win" in dfshow.columns else []
-        scol = ["Sharpe"] if "Sharpe" in dfshow.columns else []
-
-        styled = (
-            dfshow.style.applymap(color_ret, subset=retcols)
-            .applymap(color_win, subset=wcols)
-            .applymap(color_sharpe, subset=scol)
-            .format(
-                {
-                    "Win": "{:.1f}",
-                    "Avg": "{:.2f}",
-                    "Med": "{:.2f}",
-                    "Std": "{:.2f}",
-                    "P25": "{:.2f}",
-                    "P75": "{:.2f}",
-                    "Max": "{:.2f}",
-                    "Min": "{:.2f}",
-                    "Sharpe": "{:.2f}",
-                },
-                na_rep="",
-            )
-        )
-
-        st.dataframe(styled, use_container_width=True, height=260)
-    else:
-        st.info("Nessuna statistica disponibile per il periodo selezionato.")
-
-    # ── 2) Equity curve cumulata ───────────────────────────────────────────
-    st.markdown("### 📈 Equity curve cumulata")
-
-    horizon_map = {
-        "ret_1d": "1 giorno",
-        "ret_5d": "5 giorni",
-        "ret_10d": "10 giorni",
-        "ret_20d": "20 giorni",
-    }
-    horizon = st.radio(
-        "Orizzonte temporale",
-        list(horizon_map.keys()),
-        format_func=lambda x: horizon_map[x],
-        horizontal=True,
-        key="bt_horizon",
-    )
-
-    eqcol = horizon
-    if eqcol not in dfsigs.columns:
-        st.info("Colonne performance non ancora calcolate per questo orizzonte.")
-    else:
-        dfvalid = dfsigs.dropna(subset=[eqcol, "scanned_at"]).copy()
-        if dfvalid.empty:
-            st.info(
-                "Nessun segnale con performance disponibile per questo orizzonte. "
-                "Clicca **Aggiorna performance**."
-            )
-        else:
-            dfvalid["scanned_at"] = pd.to_datetime(dfvalid["scanned_at"])
-            dfvalid = dfvalid.sort_values("scanned_at")
-
-            figeq = go.Figure()
-            typestoplot = (
-                dfvalid["signal_type"].unique().tolist()
-                if signal_filter == "Tutti"
-                else [signal_filter]
-            )
-
-            all_rets = []
-            for stype in typestoplot:
-                sub = dfvalid[dfvalid["signal_type"] == stype].copy()
-                if sub.empty:
-                    continue
-
-                daily = (
-                    sub.groupby(sub["scanned_at"].dt.date)[eqcol]
-                    .mean()
-                    .reset_index()
-                )
-                daily.columns = ["date", "avgret"]
-                daily["equity"] = (1 + daily["avgret"] / 100.0).cumprod() * 100.0
-                all_rets.append(daily["avgret"])
-
-                color = SIGNAL_COLORS.get(stype, "#c9d1d9")
-                figeq.add_trace(
-                    go.Scatter(
-                        x=daily["date"].astype(str),
-                        y=daily["equity"].round(2),
-                        mode="lines+markers",
-                        name=stype,
-                        line=dict(color=color, width=2),
-                        marker=dict(size=5),
-                        hovertemplate=(
-                            f"<b>{stype}</b><br>%{{x}}<br>Equity %{y:.1f}<extra></extra>"
-                        ),
-                    )
-                )
-
-            if all_rets:
-                concat_rets = pd.concat(all_rets, ignore_index=True).dropna()
-                if not concat_rets.empty:
-                    avg = concat_rets.mean()
-                    std = concat_rets.std()
-                    sharpe = avg / std if std and std > 0 else 0.0
-
-                    eq_all = (1 + concat_rets / 100.0).cumprod() * 100.0
-                    peak = eq_all.cummax()
-                    dd = (eq_all - peak) / peak * 100.0
-                    maxdd = dd.min()
-
-                    kc1, kc2, kc3 = st.columns(3)
-                    kc1.metric("Sharpe (aggregato)", f"{sharpe:.2f}")
-                    kc2.metric("Max Drawdown agg.", f"{maxdd:.1f}%")
-                    kc3.metric("N segnali", f"{len(concat_rets)}")
-
-            figeq.add_hline(
-                y=100,
-                line=dict(color="#374151", width=1, dash="dash"),
-            )
-            figeq.update_layout(
-                PLOTLY_DARK,
-                title=dict(
-                    text=f"Rendimento cumulato {horizon_map[eqcol]}",
-                    font=dict(color="#00ff88", size=14),
-                ),
-                height=380,
-                yaxis=dict(title="Equity (base 100)", ticksuffix=""),
-                xaxis=dict(title="Data segnale"),
-                legend=dict(
-                    orientation="h",
-                    y=1.05,
-                    x=0,
-                    bgcolor="rgba(0,0,0,0)",
-                ),
-                hovermode="x unified",
-                margin=dict(l=0, r=0, t=50, b=0),
-            )
-            st.plotly_chart(figeq, use_container_width=True)
-
-    # ── 3) Dettaglio segnali registrati ────────────────────────────────────
-    st.markdown("### 🔍 Dettaglio segnali registrati")
-
-    dispcols = [
-        "scanned_at",
-        "ticker",
-        "nome",
-        "signal_type",
-        "prezzo",
-        "rsi",
-        "quality_score",
-        "ser_score",
-        "fv_score",
-        "squeeze",
-        "weekly_bull",
-        "ret_1d",
-        "ret_5d",
-        "ret_10d",
-        "ret_20d",
-    ]
-    dispcols = [c for c in dispcols if c in dfsigs.columns]
-    dfdisp = dfsigs[dispcols].copy()
-
-    rename_map = {
-        "scanned_at": "Data",
-        "ticker": "Ticker",
-        "nome": "Nome",
-        "signal_type": "Tipo",
-        "prezzo": "Prezzo",
-        "rsi": "RSI",
-        "quality_score": "Quality",
-        "ser_score": "Ser",
-        "fv_score": "FV",
-        "squeeze": "SQ",
-        "weekly_bull": "W",
-        "ret_1d": "1d",
-        "ret_5d": "5d",
-        "ret_10d": "10d",
-        "ret_20d": "20d",
-    }
-    dfdisp = dfdisp.rename(columns=rename_map)
-
-    try:
-        from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-
-        gb = GridOptionsBuilder.from_dataframe(dfdisp)
-        gb.configure_default_column(sortable=True, resizable=True, filter=True)
-        gb.configure_column("Data", width=130)
-        gb.configure_column("Ticker", width=75, pinned="left")
-        gb.configure_column("Nome", width=160)
-        gb.configure_column("Tipo", width=100)
-        gb.configure_column("Prezzo", width=80)
-        for rc in ["1d", "5d", "10d", "20d"]:
-            if rc in dfdisp.columns:
-                gb.configure_column(
-                    rc,
-                    width=80,
-                    cellStyle="""
-                        function(params) {
-                            if (params.value == null) return {color: '#374151'};
-                            if (params.value >= 0) return {color: '#00ff88', fontWeight: 'bold'};
-                            return {color: '#ef4444', fontWeight: 'bold'};
-                        }
-                    """,
-                )
-        gobt = gb.build()
-        AgGrid(
-            dfdisp,
-            gridOptions=gobt,
-            height=440,
-            update_mode=GridUpdateMode.NO_UPDATE,
-            allow_unsafe_jscode=True,
-            theme="streamlit",
-            key="bt_detail_grid",
-        )
-    except Exception:
-        st.dataframe(dfdisp, use_container_width=True, height=440)
