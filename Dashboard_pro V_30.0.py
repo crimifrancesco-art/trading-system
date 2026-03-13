@@ -224,14 +224,19 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     # Soglie:  > 5M  = minimo operabile (retail con posizioni moderate)
     #          > 20M = swing trading professionale
     #          > 50M = intraday / grandi posizioni
-    # Usa Vol_Today (volume del giorno); fallback su Vol_7d_Avg
+    # Catena fallback: Vol_Today (intraday) → Vol_7d_Avg → Avg_Vol_20
+    # Vol_Today puo' essere basso a inizio seduta: usiamo il massimo tra
+    # giornaliero e media 7gg per evitare esclusioni errate.
     if "Prezzo" in df.columns:
-        pr       = pd.to_numeric(df["Prezzo"], errors="coerce").fillna(0)
-        vol_day  = pd.to_numeric(df.get("Vol_Today",  pd.Series(0, index=df.index)), errors="coerce").fillna(0)
-        vol_avg  = pd.to_numeric(df.get("Vol_7d_Avg", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
-        vol_use  = vol_day.where(vol_day > 0, vol_avg)   # preferisce giornaliero
-        df["Dollar_Vol"]  = (pr * vol_use / 1_000_000).round(2)  # in milioni $
-        df["Liq_OK"]      = df["Dollar_Vol"] >= 5.0              # >= 5M$ soglia minima
+        pr      = pd.to_numeric(df["Prezzo"],    errors="coerce").fillna(0)
+        vol_day = pd.to_numeric(df.get("Vol_Today",  pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+        vol_7d  = pd.to_numeric(df.get("Vol_7d_Avg", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+        vol_20  = pd.to_numeric(df.get("Avg_Vol_20", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+        # Prende il massimo disponibile per evitare false esclusioni intraday
+        vol_best = vol_day.where(vol_day > vol_7d, vol_7d)   # max(today, 7d)
+        vol_best = vol_best.where(vol_best > 0, vol_20)       # fallback su 20d se entrambi 0
+        df["Dollar_Vol"]  = (pr * vol_best / 1_000_000).round(2)   # milioni $
+        df["Liq_OK"]      = df["Dollar_Vol"] >= 5.0
         df["Liq_Grade"]   = df["Dollar_Vol"].apply(
             lambda x: "L3-Institutional" if x >= 50  else
                       "L2-Professional"  if x >= 20  else
@@ -651,9 +656,49 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                 fig.update_yaxes(showticklabels=False,showgrid=False,
                                  col=_vp_col,row=_rv)
 
+    # ── ATR Stop / Target levels (linee orizzontali operative) ──────────────
+    # Visibili solo se ATR e Prezzo sono disponibili nella row dello scanner.
+    # Stop  = Entry - 1.5×ATR  (rosso tratteggiato)
+    # T1    = Entry + 1.5×ATR  (arancione, R:R 1:1)
+    # T2    = Entry + 3.0×ATR  (verde,     R:R 2:1)
+    _atr_val   = float(row.get("ATR", 0) or 0)
+    _entry_val = float(row.get("Prezzo", 0) or 0)
+    if _atr_val > 0 and _entry_val > 0:
+        _sl  = round(_entry_val - 1.5 * _atr_val, 4)
+        _t1  = round(_entry_val + 1.5 * _atr_val, 4)
+        _t2  = round(_entry_val + 3.0 * _atr_val, 4)
+        _slp = round((_sl - _entry_val) / _entry_val * 100, 1)
+        _t1p = round((_t1 - _entry_val) / _entry_val * 100, 1)
+        _t2p = round((_t2 - _entry_val) / _entry_val * 100, 1)
+        # Linea entry (bianca tratteggiata)
+        fig.add_hline(y=_entry_val,
+            line=dict(color="rgba(255,255,255,0.50)", width=1.5, dash="dot"),
+            annotation_text=f" Entry {_entry_val:.2f}",
+            annotation_font_color="#d1d4dc", annotation_font_size=9,
+            row=1, col=1)
+        # Stop loss (rosso)
+        fig.add_hline(y=_sl,
+            line=dict(color="rgba(239,83,80,0.85)", width=1.5, dash="dash"),
+            annotation_text=f" SL {_sl:.2f} ({_slp:+.1f}%)",
+            annotation_font_color="#ef5350", annotation_font_size=9,
+            row=1, col=1)
+        # Target 1 (arancione, R:1)
+        fig.add_hline(y=_t1,
+            line=dict(color="rgba(255,152,0,0.85)", width=1.5, dash="dash"),
+            annotation_text=f" T1 {_t1:.2f} ({_t1p:+.1f}%) R:1",
+            annotation_font_color="#ff9800", annotation_font_size=9,
+            row=1, col=1)
+        # Target 2 (verde, R:2)
+        fig.add_hline(y=_t2,
+            line=dict(color="rgba(38,166,154,0.85)", width=1.5, dash="dash"),
+            annotation_text=f" T2 {_t2:.2f} ({_t2p:+.1f}%) R:2",
+            annotation_font_color="#26a69a", annotation_font_size=9,
+            row=1, col=1)
+
     tkr=row.get("Ticker",""); sq="  🔥" if row.get("Squeeze") else ""
+    _atr_label = f"  ATR:{_atr_val:.2f}" if _atr_val > 0 else ""
     fig.update_layout(**PLOTLY_DARK,
-        title=dict(text=f"<b>{tkr}</b> — {row.get('Nome','')}  |  {row.get('Prezzo','')}  |  RSI {row.get('RSI','')}{sq}",
+        title=dict(text=f"<b>{tkr}</b> — {row.get('Nome','')}  |  {row.get('Prezzo','')}  |  RSI {row.get('RSI','')}{sq}{_atr_label}",
             font=dict(color="#50c4e0",size=13),x=0.01,xanchor="left"),
         height=160+180*n_rows,xaxis_rangeslider_visible=False,
         legend=dict(orientation="h",y=1.01,x=0,bgcolor="rgba(0,0,0,0)",font=dict(size=10)),
@@ -932,27 +977,38 @@ def csv_btn(df,fname,key):
 # PRESETS
 # =========================================================================
 PRESETS={
-    "Aggressivo":   dict(eh=0.01,prmin=45,prmax=65,rpoc=0.01,vol_ratio_hot=1.2,top=20,
-                         min_early_score=2.0,min_quality=3,min_pro_score=2.0,
+    # Aggressivo: molti segnali, soglie basse, size ridotta consigliata
+    "⚡ Aggressivo":   dict(eh=0.01,prmin=45,prmax=65,rpoc=0.01,vol_ratio_hot=1.2,top=25,
+                         min_early_score=1.5,min_quality=2,min_pro_score=1.5,
                          liq_filter_enabled=True,min_dollar_vol=5,
                          atr_filter_enabled=True,atr_pct_min=1.0,atr_pct_max=8.0,
                          show_strong_only=False),
-    "Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
+    # Bilanciato: rapporto qualita'/quantita' ottimale per swing trading
+    "⚖️ Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
                          min_early_score=3.0,min_quality=5,min_pro_score=3.0,
                          liq_filter_enabled=True,min_dollar_vol=10,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
                          show_strong_only=False),
-    "Conservativo": dict(eh=0.04,prmin=35,prmax=75,rpoc=0.04,vol_ratio_hot=2.0,top=10,
+    # Conservativo: alta selettivita', meno segnali ma piu' affidabili
+    "🛡️ Conservativo": dict(eh=0.04,prmin=35,prmax=75,rpoc=0.04,vol_ratio_hot=2.0,top=10,
                          min_early_score=5.0,min_quality=7,min_pro_score=5.0,
                          liq_filter_enabled=True,min_dollar_vol=20,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=4.0,
                          show_strong_only=False),
-    "Solo STRONG":  dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=10,
+    # Solo STRONG: massima convinzione, pochissimi segnali ad alta probabilita'
+    "★ Solo STRONG":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=10,
                          min_early_score=4.0,min_quality=7,min_pro_score=7.0,
                          liq_filter_enabled=True,min_dollar_vol=20,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
                          show_strong_only=True),
-    "Nessun Filtro":dict(eh=0.05,prmin=10,prmax=90,rpoc=0.05,vol_ratio_hot=0.3,top=100,
+    # Istituzionale: alta liquidita', grandi cap, per posizioni importanti
+    "🏦 Istituzionale":dict(eh=0.02,prmin=38,prmax=72,rpoc=0.02,vol_ratio_hot=1.3,top=10,
+                         min_early_score=4.0,min_quality=8,min_pro_score=6.0,
+                         liq_filter_enabled=True,min_dollar_vol=50,
+                         atr_filter_enabled=True,atr_pct_min=1.0,atr_pct_max=4.0,
+                         show_strong_only=False),
+    # Nessun Filtro: debug / esplorazione completa
+    "🔓 Nessun Filtro":dict(eh=0.05,prmin=10,prmax=90,rpoc=0.05,vol_ratio_hot=0.3,top=100,
                          min_early_score=0.0,min_quality=0,min_pro_score=0.0,
                          liq_filter_enabled=False,min_dollar_vol=1,
                          atr_filter_enabled=False,atr_pct_min=0.5,atr_pct_max=12.0,
@@ -962,10 +1018,10 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 31.1",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 32.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 31.1")
-st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v32.0</div>',unsafe_allow_html=True)
+st.markdown("# 🧠 Trading Scanner PRO 32.0")
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · RISK MANAGER · MULTI-WATCHLIST · BLUE CHIP DIP · v32.0</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -1832,9 +1888,21 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     elif status_filter=="CONFLUENCE":
         if "Stato_Early" not in df.columns or "Stato_Pro" not in df.columns:
             st.warning("Colonne Stato mancanti."); return
-        # CONFLUENCE: EARLY + PRO (o STRONG) contemporaneamente
+        # CONFLUENCE v32: EARLY + PRO/STRONG + Weekly_Bull (vera confluenza multi-timeframe)
+        # La combinazione daily+weekly è il filtro più selettivo e affidabile.
         _pro_valid = ["PRO","STRONG"] if not _strong_only else ["STRONG"]
-        df_f=df[(df["Stato_Early"]=="EARLY") & (df["Stato_Pro"].isin(_pro_valid))].copy()
+        _base_mask = (df["Stato_Early"]=="EARLY") & (df["Stato_Pro"].isin(_pro_valid))
+        # Requisito Weekly_Bull: se la colonna esiste, è obbligatoria per CONFLUENCE
+        if "Weekly_Bull" in df.columns:
+            _wb_mask = df["Weekly_Bull"].isin([True,"True","true",1])
+            df_f = df[_base_mask & _wb_mask].copy()
+            if df_f.empty:
+                # Fallback: mostra anche senza Weekly_Bull con avviso
+                df_f = df[_base_mask].copy()
+                if not df_f.empty:
+                    st.caption("⚠️ Nessun segnale con Weekly Bull attivo — mostrati EARLY+PRO senza conferma weekly.")
+        else:
+            df_f = df[_base_mask].copy()
         if "Early_Score"   in df_f.columns and s_e>0: df_f=df_f[df_f["Early_Score"]  >=s_e]
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
