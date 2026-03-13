@@ -979,19 +979,19 @@ def csv_btn(df,fname,key):
 PRESETS={
     # Aggressivo: molti segnali, soglie basse, size ridotta consigliata
     "⚡ Aggressivo":   dict(eh=0.01,prmin=45,prmax=65,rpoc=0.01,vol_ratio_hot=1.2,top=25,
-                         min_early_score=1.5,min_quality=2,min_pro_score=1.5,
+                         min_early_score=0.0,min_quality=0,min_pro_score=0.0,
                          liq_filter_enabled=True,min_dollar_vol=5,
                          atr_filter_enabled=True,atr_pct_min=1.0,atr_pct_max=8.0,
                          show_strong_only=False),
     # Bilanciato: rapporto qualita'/quantita' ottimale per swing trading
     "⚖️ Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
-                         min_early_score=3.0,min_quality=5,min_pro_score=3.0,
+                         min_early_score=2.0,min_quality=4,min_pro_score=0.0,
                          liq_filter_enabled=True,min_dollar_vol=10,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
                          show_strong_only=False),
     # Conservativo: alta selettivita', meno segnali ma piu' affidabili
     "🛡️ Conservativo": dict(eh=0.04,prmin=35,prmax=75,rpoc=0.04,vol_ratio_hot=2.0,top=10,
-                         min_early_score=5.0,min_quality=7,min_pro_score=5.0,
+                         min_early_score=4.0,min_quality=6,min_pro_score=0.0,
                          liq_filter_enabled=True,min_dollar_vol=20,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=4.0,
                          show_strong_only=False),
@@ -1041,7 +1041,8 @@ defaults=dict(
     mSP500=True,mNasdaq=True,mFTSE=True,mEurostoxx=False,
     mDow=False,mRussell=False,mStoxxEmerging=False,mUSSmallCap=False,
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
-    min_early_score=2.0,min_quality=3,min_pro_score=2.0,
+    min_early_score=2.0,min_quality=3,
+    min_pro_score=0.0,   # 0 = nessun filtro extra: la classificazione PRO/STRONG basta
     # Nuovi filtri qualita' v32
     min_dollar_vol=5.0,         # Dollar Volume minimo in milioni $ (liquidita')
     atr_filter_enabled=True,    # Filtro ATR% attivo di default
@@ -1953,30 +1954,100 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
             st.caption(f"ATR%: rimossi {_removed_atr} titoli fuori range [{_atr_min:.1f}%-{_atr_max:.1f}%]")
 
     if df_f.empty:
-        # Conta quanti aveva prima dei filtri soglia (per diagnostica)
-        _n_pre = len(df)
-        _tipo_check = {
-            "EARLY":     df.get("Stato_Early","").eq("EARLY").sum() if "Stato_Early" in df.columns else 0,
-            "PRO":       df.get("Stato_Pro","").eq("PRO").sum()     if "Stato_Pro"   in df.columns else 0,
-            "HOT":       df.get("Stato","").eq("HOT").sum()         if "Stato"       in df.columns else 0,
-            "CONFLUENCE":((df.get("Stato_Early","").eq("EARLY"))&(df.get("Stato_Pro","").eq("PRO"))).sum()
-                          if ("Stato_Early" in df.columns and "Stato_Pro" in df.columns) else 0,
-            "SERAFINI":  df.get("Ser_OK","").isin([True,"True","true"]).sum() if "Ser_OK" in df.columns else 0,
-            "FINVIZ_PRO":df.get("FV_OK","").isin([True,"True","true"]).sum()  if "FV_OK"  in df.columns else 0,
-            "MTF":       df.get("Weekly_Bull","").isin([True,"True","true",1]).sum() if "Weekly_Bull" in df.columns else 0,
-        }.get(status_filter, 0)
-        if _tipo_check > 0:
-            st.warning(
-                f"⚠️ **{title}**: {_tipo_check} segnali trovati, ma tutti filtrati via soglie "
-                f"(Early≥{s_e} | Quality≥{s_q} | Pro≥{s_p}).\n\n"
-                f"👉 Abbassa le soglie nella sidebar → 🔬 Soglie oppure portale a 0."
+        # ── Diagnostica cascata filtri ────────────────────────────────────
+        # Mostra quanti segnali ci sono ad ogni step per identificare il filtro bloccante
+        _n_tot   = len(df)
+        _n_stato = 0
+
+        # Conta prima dell'applicazione delle soglie numeriche
+        if status_filter == "EARLY" and "Stato_Early" in df.columns:
+            _n_stato = int((df["Stato_Early"]=="EARLY").sum())
+        elif status_filter == "PRO" and "Stato_Pro" in df.columns:
+            _pro_v = ["STRONG"] if _strong_only else ["PRO","STRONG"]
+            _n_stato = int(df["Stato_Pro"].isin(_pro_v).sum())
+        elif status_filter == "HOT" and "Stato" in df.columns:
+            _n_stato = int((df["Stato"]=="HOT").sum())
+        elif status_filter == "CONFLUENCE" and "Stato_Early" in df.columns and "Stato_Pro" in df.columns:
+            _pro_v = ["PRO","STRONG"]
+            _n_stato = int(((df["Stato_Early"]=="EARLY") & df["Stato_Pro"].isin(_pro_v)).sum())
+        elif status_filter == "SERAFINI" and "Ser_OK" in df.columns:
+            _n_stato = int(df["Ser_OK"].isin([True,"True","true"]).sum())
+        elif status_filter == "FINVIZ_PRO" and "FV_OK" in df.columns:
+            _n_stato = int(df["FV_OK"].isin([True,"True","true"]).sum())
+        elif status_filter == "MTF" and "Weekly_Bull" in df.columns:
+            _n_stato = int(df["Weekly_Bull"].isin([True,"True","true",1]).sum())
+
+        # Conta dopo soglie numeriche (senza liquidità/ATR)
+        _df_post_score = df.copy()
+        if status_filter == "EARLY" and "Stato_Early" in _df_post_score.columns:
+            _df_post_score = _df_post_score[_df_post_score["Stato_Early"]=="EARLY"]
+            if "Early_Score" in _df_post_score.columns and s_e>0:
+                _df_post_score = _df_post_score[_df_post_score["Early_Score"]>=s_e]
+        elif status_filter == "PRO" and "Stato_Pro" in _df_post_score.columns:
+            _pro_v = ["STRONG"] if _strong_only else ["PRO","STRONG"]
+            _df_post_score = _df_post_score[_df_post_score["Stato_Pro"].isin(_pro_v)]
+            if "Pro_Score" in _df_post_score.columns and s_p>0:
+                _df_post_score = _df_post_score[_df_post_score["Pro_Score"]>=s_p]
+            if "Quality_Score" in _df_post_score.columns and s_q>0:
+                _df_post_score = _df_post_score[_df_post_score["Quality_Score"]>=s_q]
+        _n_post_score = len(_df_post_score)
+
+        # Conta dopo filtro liquidità
+        _n_post_liq = _n_post_score
+        if _liq_enabled and "Dollar_Vol" in _df_post_score.columns:
+            _n_post_liq = int((_df_post_score["Dollar_Vol"].fillna(0) >= _min_dvol).sum())
+
+        # Conta dopo filtro ATR%
+        _n_post_atr = _n_post_liq
+        if _atr_enabled and "ATR_pct" in _df_post_score.columns:
+            _mask_atr = _df_post_score["ATR_pct"].isna() | _df_post_score["ATR_pct"].between(_atr_min, _atr_max, inclusive="both")
+            if _liq_enabled and "Dollar_Vol" in _df_post_score.columns:
+                _mask_liq = _df_post_score["Dollar_Vol"].fillna(0) >= _min_dvol
+                _n_post_atr = int((_mask_atr & _mask_liq).sum())
+            else:
+                _n_post_atr = int(_mask_atr.sum())
+
+        # Mostra diagnostica completa
+        _diag_lines = [
+            f"**Totale analizzati:** {_n_tot}",
+            f"**Dopo classificazione {status_filter}:** {_n_stato}",
+        ]
+        if s_e > 0 or s_p > 0 or s_q > 0:
+            _diag_lines.append(f"**Dopo soglie** (Early≥{s_e} Pro≥{s_p} Q≥{s_q}): {_n_post_score}")
+        if _liq_enabled:
+            _diag_lines.append(f"**Dopo filtro Liquidità** (DolVol≥${_min_dvol:.0f}M): {_n_post_liq}")
+        if _atr_enabled:
+            _diag_lines.append(f"**Dopo filtro ATR%** ({_atr_min:.1f}%–{_atr_max:.1f}%): {_n_post_atr}")
+
+        # Individua il filtro bloccante e suggerisci rimedio
+        if _n_stato == 0:
+            _rimedio = (
+                "👉 **Nessun segnale classificato.** Abbassa i parametri scanner nella sidebar "
+                "(EMA %, RSI range, POC %) o seleziona più mercati."
+            )
+        elif _n_post_score == 0:
+            _rimedio = (
+                f"👉 **Filtro soglie troppo restrittivo.** "
+                f"Vai sidebar → 🔬 Soglie → abbassa Pro Score ≥ (attuale: {s_p}) "
+                f"o Quality ≥ (attuale: {s_q}) oppure usa preset **⚡ Aggressivo**."
+            )
+        elif _n_post_liq == 0:
+            _rimedio = (
+                f"👉 **Filtro liquidità troppo alto.** "
+                f"Abbassa Dollar Volume minimo (attuale: ${_min_dvol:.0f}M) "
+                f"oppure disabilita il filtro — sidebar → 🔬 Soglie."
             )
         else:
-            st.info(
-                f"📭 **{title}**: nessun segnale in questo scan "
-                f"({_n_pre} titoli analizzati totali).\n\n"
-                f"💡 Riprova con mercati diversi o parametri scanner più permissivi."
+            _rimedio = (
+                f"👉 **Filtro ATR% troppo stretto.** "
+                f"Allarga il range ATR% (attuale: {_atr_min:.1f}%–{_atr_max:.1f}%) "
+                f"oppure disabilita — sidebar → 🔬 Soglie."
             )
+
+        st.warning(
+            f"⚠️ **{title}** — 0 segnali dopo tutti i filtri\n\n"
+            + "\n\n".join(_diag_lines) + f"\n\n{_rimedio}"
+        )
         return
 
     valid_sort=[c for c in sort_cols if c in df_f.columns]
@@ -2028,13 +2099,28 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         if not match.empty: show_charts(match.iloc[0],key_suffix=title)
 
     # ── Strategy Chart widget ─────────────────────────────────────────────
-    # Usa tutti i ticker del tab come opzioni selectbox
+    # Ticker auto-selezionato dalla riga scelta nella griglia.
+    # Mostra "Nome Azienda (TICKER)" nel dropdown per identificazione rapida.
     try:
         from utils.backtest_tab import strategy_chart_widget as _scw
-        _tkrs = df_f["Ticker"].dropna().tolist() if "Ticker" in df_f.columns else []
-        _default = selected_df.iloc[0].get("Ticker","") if not selected_df.empty else ""
+        if "Ticker" in df_f.columns:
+            _tkrs = df_f["Ticker"].dropna().tolist()
+            # Costruisci labels "Nome Azienda  (TICKER)" se colonna Nome disponibile
+            if "Nome" in df_f.columns:
+                _tlabels = {
+                    row["Ticker"]: f"{str(row.get('Nome',''))[:28]}  ({row['Ticker']})"
+                    for _, row in df_f[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows()
+                }
+            else:
+                _tlabels = None
+            # Auto-selezione: usa il ticker dalla riga selezionata nella griglia
+            _default = selected_df.iloc[0].get("Ticker","") if not selected_df.empty else (
+                _tkrs[0] if _tkrs else "")
+        else:
+            _tkrs = []; _tlabels = None; _default = ""
         st.markdown("---")
-        _scw(tickers=_tkrs, key_suffix=title, default_ticker=_default)
+        _scw(tickers=_tkrs, key_suffix=title, default_ticker=_default,
+             ticker_labels=_tlabels)
     except Exception:
         pass
 
