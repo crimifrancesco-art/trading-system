@@ -1712,14 +1712,16 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     # ── Strategy Chart widget ─────────────────────────────────────────────
     # Usa tutti i ticker del tab come opzioni selectbox
-    try:
-        from utils.backtest_tab import strategy_chart_widget as _scw
-        _tkrs = df_f["Ticker"].dropna().tolist() if "Ticker" in df_f.columns else []
-        _default = selected_df.iloc[0].get("Ticker","") if not selected_df.empty else ""
-        st.markdown("---")
-        _scw(tickers=_tkrs, key_suffix=title, default_ticker=_default)
-    except Exception:
-        pass
+        # --- Strategy Chart GENERICO rimosso per evitare key duplicate ---
+    # try:
+    #     from utils.backtest_tab import strategy_chart_widget as _scw
+    #     tkrs = dff["Ticker"].dropna().tolist() if "Ticker" in dff.columns else []
+    #     default = selected_df.iloc[0].get("Ticker", "") if not selected_df.empty else ""
+    #     st.markdown("---")
+    #     _scw(tickers=tkrs, key_suffix=title, default_ticker=default)
+    # except Exception:
+    #     pass
+
 
 # =========================================================================
 # TABS
