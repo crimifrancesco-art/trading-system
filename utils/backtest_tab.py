@@ -571,7 +571,14 @@ def strategy_chart_widget(
     default_ticker: str = "",
     ticker_labels: dict = None,
 ) -> None:
-    """Widget Strategy Chart riusabile in qualsiasi tab."""
+    """
+    Widget Strategy Chart riusabile in qualsiasi tab.
+
+    tickers: lista di ticker (es. df["Ticker"].tolist()).
+    default_ticker: ticker pre-selezionato.
+    ticker_labels: dict opzionale {ticker: "Nome azienda (TICKER)"}.
+    Se fornito, la select è ordinata alfabeticamente per etichetta.
+    """
     ks = key_suffix.replace(" ", "_").replace("-", "_")
 
     st.markdown(
@@ -589,43 +596,73 @@ def strategy_chart_widget(
 
     c_tkr, c_str, c_per, c_btn = st.columns((3, 2, 2, 1))
 
+    # --- Selettore ticker con nome ordinato alfabeticamente -----------------
     with c_tkr:
         if tickers:
+            # Unici e ordinati alfabeticamente per etichetta
+            base = [str(t).upper() for t in tickers if str(t).strip()]
+            uniq = []
             seen = set()
-            ordered = []
-            for t in tickers:
-                if t and t not in seen:
+            for t in base:
+                if t not in seen:
                     seen.add(t)
-                    ordered.append(t)
+                    uniq.append(t)
+
             if ticker_labels:
-                opts_display = [ticker_labels.get(t, t) for t in ordered]
-                opts_raw = ordered
-                idx = opts_raw.index(default_ticker) if default_ticker in opts_raw else 0
+                # Costruisci etichette finali "Nome (TICKER)"
+                options = []
+                for t in uniq:
+                    lbl = ticker_labels.get(t, t)
+                    options.append((t, str(lbl)))
+
+                # Ordina per etichetta
+                options = sorted(options, key=lambda x: x[1].lower())
+                display_labels = [lbl for (_, lbl) in options]
+                raw_tickers = [t for (t, _) in options]
+
+                # Default: primo in lista o default_ticker se presente
+                if default_ticker and default_ticker in raw_tickers:
+                    idx = raw_tickers.index(default_ticker)
+                else:
+                    idx = 0
+
                 sel_label = st.selectbox(
-                    "Azienda / Ticker",
-                    opts_display,
-                    index=idx,
+                    "Ticker",
+                    display_labels,
+                    index=idx if display_labels else 0,
                     key=f"sc_tkr_{ks}",
-                    help=f"{len(ordered)} titoli disponibili",
+                    help=f"{len(raw_tickers)} titoli disponibili",
                 )
-                scticker = opts_raw[opts_display.index(sel_label)]
+                # Mappa etichetta → ticker
+                label_to_tkr = {lbl: t for t, lbl in options}
+                scticker = label_to_tkr.get(sel_label, raw_tickers[0] if raw_tickers else "")
             else:
-                idx = ordered.index(default_ticker) if default_ticker in ordered else 0
+                # Solo ticker, ordinati alfabeticamente
+                uniq_sorted = sorted(uniq)
+                if default_ticker and default_ticker in uniq_sorted:
+                    idx = uniq_sorted.index(default_ticker)
+                else:
+                    idx = 0
                 scticker = st.selectbox(
                     "Ticker",
-                    ordered,
-                    index=idx,
+                    uniq_sorted,
+                    index=idx if uniq_sorted else 0,
                     key=f"sc_tkr_{ks}",
-                    help=f"{len(ordered)} ticker disponibili",
+                    help=f"{len(uniq_sorted)} ticker disponibili",
                 )
         else:
-            scticker = st.text_input(
-                "Ticker",
-                value=default_ticker or "AAPL",
-                key=f"sc_tkr_{ks}",
-                placeholder="es. AAPL, ENEL.MI, ...",
-            ).strip().upper()
+            scticker = (
+                st.text_input(
+                    "Ticker",
+                    value=default_ticker or "AAPL",
+                    key=f"sc_tkr_{ks}",
+                    placeholder="es. AAPL, ENEL.MI, ...",
+                )
+                .strip()
+                .upper()
+            )
 
+    # --- Strategia / periodo / bottone --------------------------------------
     with c_str:
         scstrategy = st.selectbox(
             "Strategia",
@@ -642,7 +679,12 @@ def strategy_chart_widget(
         )
 
     with c_btn:
-        scrun = st.button("Mostra", key=f"sc_run_{ks}", use_container_width=True, type="primary")
+        scrun = st.button(
+            "Mostra",
+            key=f"sc_run_{ks}",
+            use_container_width=True,
+            type="primary",
+        )
 
     icon, sccolor, etxt, xtxt = _SC_RULES[scstrategy]
     bl, br = st.columns(2)
@@ -671,23 +713,15 @@ def strategy_chart_widget(
             unsafe_allow_html=True,
         )
 
+    # --- Esecuzione grafico -------------------------------------------------
     if scrun and scticker:
-        _bt_render_strategy_chart(scticker, scstrategy, scrange)
+        try:
+            _bt_render_strategy_chart(scticker, scstrategy, scrange)
+        except Exception as e:
+            st.error(f"Errore nel caricamento grafico per {scticker}: {e}")
     else:
         st.caption("Seleziona ticker e strategia, poi clicca **Mostra**.")
 
-# ── Import funzioni DB ------------------------------------------------------
-try:
-    from utils.db import (
-        load_signals,
-        signal_summary_stats,
-        update_signal_performance,
-        cache_stats,
-    )
-
-    DB_AVAILABLE = True
-except ImportError:
-    DB_AVAILABLE = False
 
 # ── Funzione principale tab Backtest ----------------------------------------
 def render_backtest_tab():
