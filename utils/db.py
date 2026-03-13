@@ -767,3 +767,70 @@ def cache_clear(*a, **k):
 
 # Inizializza DB all'import
 init_db()
+# ── Grid layouts (layout colonne AgGrid) ───────────────────────────────────
+
+def _ensure_grid_layouts_table(conn: sqlite3.Connection) -> None:
+    """Crea tabella grid_layouts se non esiste."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS grid_layouts (
+            grid_key    TEXT PRIMARY KEY,
+            layout_json TEXT,
+            updated_at  TEXT
+        )
+        """
+    )
+    conn.commit()
+
+
+def save_grid_layout(grid_key: str, layout: dict | None) -> None:
+    """
+    Salva il layout (colState/sortState) di una griglia nel DB.
+    Se layout è None, cancella il layout salvato (reset).
+    """
+    import json
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        _ensure_grid_layouts_table(conn)
+        if layout is None:
+            conn.execute(
+                "DELETE FROM grid_layouts WHERE grid_key = ?",
+                (grid_key,),
+            )
+        else:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            conn.execute(
+                """
+                INSERT INTO grid_layouts (grid_key, layout_json, updated_at)
+                VALUES (?,?,?)
+                ON CONFLICT(grid_key) DO UPDATE SET
+                    layout_json = excluded.layout_json,
+                    updated_at  = excluded.updated_at
+                """,
+                (grid_key, json.dumps(layout, default=str), now),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def load_grid_layout(grid_key: str) -> dict | None:
+    """Carica il layout salvato per una griglia. Ritorna None se non esiste."""
+    import json
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        _ensure_grid_layouts_table(conn)
+        row = conn.execute(
+            "SELECT layout_json FROM grid_layouts WHERE grid_key = ?",
+            (grid_key,),
+        ).fetchone()
+        if row and row[0]:
+            try:
+                return json.loads(row[0])
+            except Exception:
+                return None
+        return None
+    finally:
+        conn.close()
