@@ -1745,8 +1745,61 @@ with tab_home:
         st.code(traceback.format_exc())
 
 with tab_e:
-    st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
-    render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
+    st.session_state.last_active_tab = "EARLY"
+    show_legend("EARLY")
+
+    # --- Tab EARLY: tabella principale ---
+    render_scan_tab(df_ep, "EARLY", ["EarlyScore", "RSI"], [False, True], "EARLY")
+
+    # --- Strategy Chart con Nome (TICKER) ordinato ---
+    try:
+        from utils.backtest_tab import strategy_chart_widget
+
+        df_src = df_ep.copy() if df_ep is not None else pd.DataFrame()
+
+        if not df_src.empty and "Ticker" in df_src.columns:
+            # Normalizza colonne
+            if "Nome" not in df_src.columns and "name" in df_src.columns:
+                df_src["Nome"] = df_src["name"]
+
+            df_src = df_src.dropna(subset=["Ticker"])
+            df_src["Ticker"] = df_src["Ticker"].astype(str).str.upper()
+
+            # Tickers unici
+            tickers = df_src["Ticker"].unique().tolist()
+
+            # Costruisci mapping {ticker: "Nome (TICKER)"} ordinato per Nome
+            base = (
+                df_src[["Ticker", "Nome"]]
+                .dropna(subset=["Ticker"])
+                .drop_duplicates(subset=["Ticker"])
+            )
+            base["Nome"] = base["Nome"].fillna("").astype(str)
+            base = base.sort_values("Nome")
+
+            ticker_labels = {
+                str(row["Ticker"]).upper(): f"{row['Nome']} ({str(row['Ticker']).upper()})"
+                for _, row in base.iterrows()
+            }
+
+            default_ticker = tickers[0] if tickers else ""
+
+            strategy_chart_widget(
+                tickers=tickers,
+                key_suffix="EARLY",
+                default_ticker=default_ticker,
+                ticker_labels=ticker_labels,
+            )
+        else:
+            strategy_chart_widget(
+                tickers=[],
+                key_suffix="EARLY",
+                default_ticker="",
+                ticker_labels=None,
+            )
+    except Exception as e:
+        st.error(f"Errore Strategy Chart EARLY: {e}")
+
 
 with tab_p:
     st.session_state.last_active_tab="PRO"; show_legend("PRO")
