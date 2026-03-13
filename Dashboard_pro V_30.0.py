@@ -147,10 +147,18 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     }
     df = df.rename(columns={k: v for k, v in _col_map.items() if k in df.columns})
 
-    # ── Stato_Pro con soglia 6 ───────────────────────────────────────────
+    # ── Stato_Pro con soglie calibrate ──────────────────────────────────
+    # STRONG >= 9/10  -> alta convinzione, quasi tutti i criteri OK
+    # PRO    >= 7/10  -> setup solido, maggioranza criteri soddisfatti
+    # (vecchia soglia 4/10 produceva troppi segnali deboli)
     if "Pro_Score" in df.columns:
-        df["Stato_Pro"] = df["Pro_Score"].apply(
-            lambda x: "PRO" if pd.notna(x) and float(x) >= 4 else "-")
+        def _classify_pro(x):
+            if pd.isna(x): return "-"
+            v = float(x)
+            if v >= 9: return "STRONG"
+            if v >= 7: return "PRO"
+            return "-"
+        df["Stato_Pro"] = df["Pro_Score"].apply(_classify_pro)
 
     # ── Stato_Early assicurato ───────────────────────────────────────────
     if "Stato_Early" not in df.columns:
@@ -198,6 +206,42 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         df["FV_OK"]    = f1 & f2 & f3 & f4 & f5
         df["FV_Score"] = (f1.astype(int) + f2.astype(int) + f3.astype(int) +
                           f4.astype(int) + f5.astype(int))
+
+    # ── ATR% = volatilità normalizzata sul prezzo ────────────────────────
+    # Range ideale per swing: 1.5% - 6.0%
+    # < 1.5%: titolo troppo fermo, profitto difficile
+    # > 6.0%: rischio gap overnight eccessivo
+    if "ATR" in df.columns and "Prezzo" in df.columns:
+        pr  = df["Prezzo"].replace(0, pd.NA)
+        atr = pd.to_numeric(df["ATR"], errors="coerce")
+        df["ATR_pct"] = (atr / pr * 100).round(2)
+        df["ATR_OK"]  = df["ATR_pct"].between(1.5, 6.0, inclusive="both")
+    else:
+        df["ATR_pct"] = pd.NA
+        df["ATR_OK"]  = pd.NA
+
+    # ── Dollar Volume = liquidita' in dollari giornaliera ────────────────
+    # Soglie:  > 5M  = minimo operabile (retail con posizioni moderate)
+    #          > 20M = swing trading professionale
+    #          > 50M = intraday / grandi posizioni
+    # Usa Vol_Today (volume del giorno); fallback su Vol_7d_Avg
+    if "Prezzo" in df.columns:
+        pr       = pd.to_numeric(df["Prezzo"], errors="coerce").fillna(0)
+        vol_day  = pd.to_numeric(df.get("Vol_Today",  pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+        vol_avg  = pd.to_numeric(df.get("Vol_7d_Avg", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+        vol_use  = vol_day.where(vol_day > 0, vol_avg)   # preferisce giornaliero
+        df["Dollar_Vol"]  = (pr * vol_use / 1_000_000).round(2)  # in milioni $
+        df["Liq_OK"]      = df["Dollar_Vol"] >= 5.0              # >= 5M$ soglia minima
+        df["Liq_Grade"]   = df["Dollar_Vol"].apply(
+            lambda x: "L3-Institutional" if x >= 50  else
+                      "L2-Professional"  if x >= 20  else
+                      "L1-Retail"        if x >=  5  else
+                      "Illiquido")
+    else:
+        df["Dollar_Vol"] = pd.NA
+        df["Liq_OK"]     = pd.NA
+        df["Liq_Grade"]  = pd.NA
+
     return df
 
 
@@ -798,6 +842,66 @@ const m=map[v]||{c:'#6b7280',e:v||'—'};
 this.eGui.innerText=m.e;this.eGui.style.color=m.c;this.eGui.style.fontWeight='bold';}
 getGui(){return this.eGui;}}""")
 
+# Renderer Stato_Pro — distingue STRONG (oro) da PRO (verde) da - (grigio)
+stato_pro_renderer=JsCode("""class SP{init(p){this.eGui=document.createElement('span');
+const v=(p.value||'').toUpperCase();
+if(v==='STRONG'){
+  this.eGui.innerText='★ STRONG';
+  this.eGui.style.cssText='color:#ffd700;font-weight:bold;font-family:Courier New;'
+    +'background:rgba(255,215,0,0.12);padding:2px 6px;border-radius:4px;border:1px solid #ffd70044;';
+}else if(v==='PRO'){
+  this.eGui.innerText='✦ PRO';
+  this.eGui.style.cssText='color:#00ff88;font-weight:bold;font-family:Courier New;'
+    +'background:rgba(0,255,136,0.10);padding:2px 6px;border-radius:4px;border:1px solid #00ff8844;';
+}else{
+  this.eGui.innerText='—';this.eGui.style.color='#374151';
+}
+}getGui(){return this.eGui;}}""")
+
+# Renderer Dollar Volume (in M$)
+dollar_vol_renderer=JsCode("""class DV{init(p){this.eGui=document.createElement('span');
+const v=parseFloat(p.value);
+let txt='—';let color='#ef4444';
+if(!isNaN(v)&&v>0){
+  txt='$'+v.toFixed(1)+'M';
+  if(v>=50)color='#00ff88';
+  else if(v>=20)color='#26a69a';
+  else if(v>=5)color='#f59e0b';
+  else color='#ef4444';
+}
+this.eGui.innerText=txt;this.eGui.style.color=color;
+this.eGui.style.fontFamily='Courier New';this.eGui.style.fontWeight='bold';
+}getGui(){return this.eGui;}}""")
+
+# Renderer ATR% con semaforo
+atr_pct_renderer=JsCode("""class AP{init(p){this.eGui=document.createElement('span');
+const v=parseFloat(p.value);
+let txt='—';let color='#6b7280';
+if(!isNaN(v)){
+  txt=v.toFixed(2)+'%';
+  if(v>=1.5&&v<=6.0)color='#00ff88';
+  else if(v<1.5)color='#6b7280';
+  else color='#ef4444';
+}
+this.eGui.innerText=txt;this.eGui.style.color=color;
+this.eGui.style.fontFamily='Courier New';
+}getGui(){return this.eGui;}}""")
+
+# Renderer Liq_Grade badge
+liq_grade_renderer=JsCode("""class LG{init(p){this.eGui=document.createElement('span');
+const v=(p.value||'');
+const map={
+  'L3-Institutional':{c:'#00ff88',bg:'rgba(0,255,136,0.12)'},
+  'L2-Professional': {c:'#26a69a',bg:'rgba(38,166,154,0.12)'},
+  'L1-Retail':       {c:'#f59e0b',bg:'rgba(245,158,11,0.12)'},
+  'Illiquido':       {c:'#ef4444',bg:'rgba(239,68,68,0.12)'},
+};
+const m=map[v]||{c:'#6b7280',bg:'transparent'};
+this.eGui.innerText=v||'—';
+this.eGui.style.cssText='color:'+m.c+';background:'+m.bg+';padding:1px 5px;'
+  +'border-radius:3px;font-size:0.78rem;font-family:Courier New;';
+}getGui(){return this.eGui;}}""")
+
 pct_renderer=JsCode("""class Pct{init(p){this.eGui=document.createElement('span');
 const v=parseFloat(p.value);
 if(isNaN(v)){this.eGui.innerText='—';this.eGui.style.color='#6b7280';}
@@ -828,10 +932,31 @@ def csv_btn(df,fname,key):
 # PRESETS
 # =========================================================================
 PRESETS={
-    "⚡ Aggressivo":   dict(eh=0.01,prmin=45,prmax=65,rpoc=0.01,vol_ratio_hot=1.2,top=20,min_early_score=2.0,min_quality=3,min_pro_score=2.0),
-    "⚖️ Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,min_early_score=4.0,min_quality=5,min_pro_score=4.0),
-    "🛡️ Conservativo": dict(eh=0.04,prmin=35,prmax=75,rpoc=0.04,vol_ratio_hot=2.0,top=10,min_early_score=6.0,min_quality=7,min_pro_score=6.0),
-    "🔓 Nessun Filtro":dict(eh=0.05,prmin=10,prmax=90,rpoc=0.05,vol_ratio_hot=0.3,top=100,min_early_score=0.0,min_quality=0,min_pro_score=0.0),
+    "Aggressivo":   dict(eh=0.01,prmin=45,prmax=65,rpoc=0.01,vol_ratio_hot=1.2,top=20,
+                         min_early_score=2.0,min_quality=3,min_pro_score=2.0,
+                         liq_filter_enabled=True,min_dollar_vol=5,
+                         atr_filter_enabled=True,atr_pct_min=1.0,atr_pct_max=8.0,
+                         show_strong_only=False),
+    "Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
+                         min_early_score=3.0,min_quality=5,min_pro_score=3.0,
+                         liq_filter_enabled=True,min_dollar_vol=10,
+                         atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
+                         show_strong_only=False),
+    "Conservativo": dict(eh=0.04,prmin=35,prmax=75,rpoc=0.04,vol_ratio_hot=2.0,top=10,
+                         min_early_score=5.0,min_quality=7,min_pro_score=5.0,
+                         liq_filter_enabled=True,min_dollar_vol=20,
+                         atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=4.0,
+                         show_strong_only=False),
+    "Solo STRONG":  dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=10,
+                         min_early_score=4.0,min_quality=7,min_pro_score=7.0,
+                         liq_filter_enabled=True,min_dollar_vol=20,
+                         atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
+                         show_strong_only=True),
+    "Nessun Filtro":dict(eh=0.05,prmin=10,prmax=90,rpoc=0.05,vol_ratio_hot=0.3,top=100,
+                         min_early_score=0.0,min_quality=0,min_pro_score=0.0,
+                         liq_filter_enabled=False,min_dollar_vol=1,
+                         atr_filter_enabled=False,atr_pct_min=0.5,atr_pct_max=12.0,
+                         show_strong_only=False),
 }
 
 # =========================================================================
@@ -840,7 +965,7 @@ PRESETS={
 st.set_page_config(page_title="Trading Scanner PRO 31.1",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 31.1")
-st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v31.1</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · MULTI-WATCHLIST · BLUE CHIP DIP · v32.0</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -861,6 +986,13 @@ defaults=dict(
     mDow=False,mRussell=False,mStoxxEmerging=False,mUSSmallCap=False,
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=1.5,top=15,
     min_early_score=2.0,min_quality=3,min_pro_score=2.0,
+    # Nuovi filtri qualita' v32
+    min_dollar_vol=5.0,         # Dollar Volume minimo in milioni $ (liquidita')
+    atr_filter_enabled=True,    # Filtro ATR% attivo di default
+    atr_pct_min=1.5,            # ATR% minimo (titolo troppo fermo se sotto)
+    atr_pct_max=6.0,            # ATR% massimo (troppo volatile se sopra)
+    liq_filter_enabled=True,    # Filtro liquidita' attivo di default
+    show_strong_only=False,     # Mostra solo STRONG (Pro>=9) invece di PRO+STRONG
     current_list_name="DEFAULT",last_active_tab="EARLY",
     active_indicators=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"],
     wl_view_mode="cards",
@@ -877,16 +1009,25 @@ def render_kpi_bar(df_ep,df_rea):
         pr=hist.iloc[1];p_e=int(pr.get("n_early",0));p_p=int(pr.get("n_pro",0))
         p_h=int(pr.get("n_rea",0));p_c=int(pr.get("n_confluence",0))
     n_e=int((df_ep.get("Stato_Early",pd.Series())=="EARLY").sum()) if not df_ep.empty else 0
-    n_p=int((df_ep.get("Stato_Pro",pd.Series())=="PRO").sum()) if not df_ep.empty else 0
+    n_p=int((df_ep.get("Stato_Pro",pd.Series()).isin(["PRO","STRONG"])).sum()) if not df_ep.empty else 0
+    n_str=int((df_ep.get("Stato_Pro",pd.Series())=="STRONG").sum()) if not df_ep.empty else 0
     n_h=len(df_rea) if not df_rea.empty else 0
     n_c=0
     if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-        n_c=int(((df_ep["Stato_Early"]=="EARLY")&(df_ep["Stato_Pro"]=="PRO")).sum())
-    k1,k2,k3,k4=st.columns(4)
-    k1.metric("📡 EARLY",n_e,delta=n_e-p_e if p_e else None)
-    k2.metric("💪 PRO",n_p,delta=n_p-p_p if p_p else None)
-    k3.metric("🔥 REA-HOT",n_h,delta=n_h-p_h if p_h else None)
-    k4.metric("⭐ CONFLUENCE",n_c,delta=n_c-p_c if p_c else None)
+        n_c=int(((df_ep["Stato_Early"]=="EARLY") &
+                  (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))).sum())
+    # Liquidita' media (Dollar_Vol)
+    n_liq = 0
+    if not df_ep.empty and "Liq_OK" in df_ep.columns:
+        n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum())
+
+    k1,k2,k3,k4,k5,k6=st.columns(6)
+    k1.metric("EARLY",n_e,delta=n_e-p_e if p_e else None)
+    k2.metric("PRO+STRONG",n_p,delta=n_p-p_p if p_p else None)
+    k3.metric("STRONG",n_str)
+    k4.metric("REA-HOT",n_h,delta=n_h-p_h if p_h else None)
+    k5.metric("CONFLUENCE",n_c,delta=n_c-p_c if p_c else None)
+    k6.metric("Liquidita' OK",n_liq)
 
 # =========================================================================
 # SIDEBAR
@@ -930,13 +1071,73 @@ with st.sidebar.expander("🎛️ Parametri Scanner",expanded=False):
     eh,prmin,prmax,rpoc,vol_ratio_hot,top)
 
 with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
-    st.caption("⬇️ Abbassa per vedere più segnali  |  0 = nessun filtro")
-    min_early_score=st.slider("Early Score ≥",0.0,10.0,float(st.session_state.min_early_score),0.5)
-    min_quality    =st.slider("Quality ≥",0,12,int(st.session_state.min_quality),1)
-    min_pro_score  =st.slider("Pro Score ≥",0.0,10.0,float(st.session_state.min_pro_score),0.5)
+    st.caption("Abbassa per vedere piu' segnali  |  0 = nessun filtro")
+    min_early_score=st.slider("Early Score >=",0.0,10.0,float(st.session_state.min_early_score),0.5)
+    min_quality    =st.slider("Quality >=",0,12,int(st.session_state.min_quality),1)
+    min_pro_score  =st.slider("Pro Score >=",0.0,10.0,float(st.session_state.min_pro_score),0.5)
     st.session_state.min_early_score=min_early_score
     st.session_state.min_quality    =min_quality
     st.session_state.min_pro_score  =min_pro_score
+
+    st.divider()
+    # ── Filtro STRONG ────────────────────────────────────────────────────
+    show_strong_only = st.checkbox(
+        "Solo STRONG (Pro >= 9)",
+        value=bool(st.session_state.show_strong_only),
+        help="Mostra solo i setup di massima qualita' (Pro_Score >= 9/10). "
+             "Pochi segnali, altissima selettivita'.",
+        key="sb_strong_only",
+    )
+    st.session_state.show_strong_only = show_strong_only
+
+    st.divider()
+    # ── Filtro Liquidita' (Dollar Volume) ────────────────────────────────
+    liq_filter_enabled = st.checkbox(
+        "Filtro Liquidita' (Dollar Vol)",
+        value=bool(st.session_state.liq_filter_enabled),
+        help="Esclude titoli con volume giornaliero in $ troppo basso. "
+             "Riduce slippage e rischio di non poter uscire dalla posizione.",
+        key="sb_liq_enabled",
+    )
+    st.session_state.liq_filter_enabled = liq_filter_enabled
+    if liq_filter_enabled:
+        min_dollar_vol = st.select_slider(
+            "Dollar Volume min ($M)",
+            options=[1, 2, 5, 10, 20, 50, 100],
+            value=int(st.session_state.min_dollar_vol),
+            help="5M = retail OK | 20M = swing pro | 50M = intraday/istituzionale",
+            key="sb_dollar_vol",
+        )
+        st.session_state.min_dollar_vol = float(min_dollar_vol)
+        _liq_labels = {1:"illiquido",2:"illiquido",5:"retail",
+                       10:"retail+",20:"swing pro",50:"intraday",100:"istituzionale"}
+        st.caption(f"Soglia: >= **${min_dollar_vol}M/gg** — livello _{_liq_labels.get(min_dollar_vol,'')}_")
+
+    st.divider()
+    # ── Filtro ATR% (volatilita' operativa) ──────────────────────────────
+    atr_filter_enabled = st.checkbox(
+        "Filtro ATR% (volatilita')",
+        value=bool(st.session_state.atr_filter_enabled),
+        help="Seleziona titoli con volatilita' giornaliera (ATR/Prezzo%) "
+             "nel range ideale per lo swing trading.",
+        key="sb_atr_enabled",
+    )
+    st.session_state.atr_filter_enabled = atr_filter_enabled
+    if atr_filter_enabled:
+        atr_range = st.slider(
+            "ATR% range",
+            min_value=0.5, max_value=12.0,
+            value=(float(st.session_state.atr_pct_min),
+                   float(st.session_state.atr_pct_max)),
+            step=0.5,
+            help="1.5-6%: zona ideale swing. < 1.5% titolo fermo. > 6% gap risk elevato.",
+            key="sb_atr_range",
+        )
+        st.session_state.atr_pct_min = atr_range[0]
+        st.session_state.atr_pct_max = atr_range[1]
+        _atr_label = ("ottimale" if 1.5 <= atr_range[0] and atr_range[1] <= 6.0
+                      else "allargato")
+        st.caption(f"ATR% in [{atr_range[0]:.1f}% – {atr_range[1]:.1f}%] — range _{_atr_label}_")
 
 with st.sidebar.expander("📊 Indicatori Grafici",expanded=False):
     ind_opts_all=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex"]
@@ -1248,18 +1449,21 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
     col_w={"Ticker":100,"Nome":230,"Prezzo":95,"Prezzo_fmt":105,"MarketCap":130,"MarketCap_fmt":130,
            "Early_Score":105,"Pro_Score":95,"Quality_Score":145,"Ser_Score":100,"FV_Score":100,
            "RSI":80,"Vol_Ratio":100,"Squeeze":85,"RSI_Div":95,
-           "Weekly_Bull":95,"Stato_Early":100,"Stato_Pro":95,
+           "Weekly_Bull":95,"Stato_Early":100,"Stato_Pro":110,
            "Vol_Today":110,"Vol_7d_Avg":110,"Avg_Vol_20":110,
            "trend":115,"note":230,"origine":105,"created_at":115,
            "EPS_NY_Gr":100,"EPS_5Y_Gr":100,"PE":80,"Fwd_PE":85,
            "Earnings_Soon":105,"Optionable":95,"OBV_Trend":95,
            "EMA20":95,"EMA50":95,"EMA200":100,"EMA200_fmt":105,"ATR":85,"Rel_Vol":90,
-           "Dist_POC_%":105,"POC":95,"Currency":85}
+           "Dist_POC_%":105,"POC":95,"Currency":85,
+           # Nuove colonne v32
+           "Dollar_Vol":110,"Liq_Grade":130,"ATR_pct":90,"ATR_OK":85,"Liq_OK":80}
     for c,w in col_w.items():
         if c in df_disp.columns: gb.configure_column(c,width=w)
     hide_cols=["id","_chart_data","_quality_components","_ser_criteri","_fv_criteri",
                "Ser_OK","FV_OK","ATR_Exp","Stato",
-               "Prezzo","MarketCap","EMA200","Currency"]
+               "Prezzo","MarketCap","EMA200","Currency",
+               "ATR_OK","Liq_OK"]   # boolean interni - info nei renderer Liq_Grade/ATR_pct
     for c in hide_cols:
         if c in df_disp.columns: gb.configure_column(c,hide=True)
 
@@ -1276,6 +1480,11 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
           "ROE":pct_renderer,"Gross_Mgn":pct_renderer,"Op_Mgn":pct_renderer,
           "Earnings_Soon":bool_renderer,"Optionable":bool_renderer,
           "Ser_OK":bool_renderer,"FV_OK":bool_renderer,
+          # Nuovi renderer v32
+          "Stato_Pro":stato_pro_renderer,
+          "Dollar_Vol":dollar_vol_renderer,
+          "ATR_pct":atr_pct_renderer,
+          "Liq_Grade":liq_grade_renderer,
           "Dist_POC_%":JsCode("""class DP{init(p){this.eGui=document.createElement('span');const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'\u2014':v.toFixed(2)+'%';this.eGui.style.fontFamily='Courier New';}getGui(){return this.eGui;}}""")}
     for c,r in rmap.items():
         if c in df_disp.columns: gb.configure_column(c,cellRenderer=r)
@@ -1576,7 +1785,24 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     s_e=float(st.session_state.min_early_score)
     s_q=int(st.session_state.min_quality)
     s_p=float(st.session_state.min_pro_score)
-    st.caption(f"🔬 Filtri: Early≥**{s_e}** | Quality≥**{s_q}** | Pro≥**{s_p}** _(sidebar → 🔬)_")
+    # Nuovi filtri v32
+    _strong_only    = bool(st.session_state.get("show_strong_only", False))
+    _liq_enabled    = bool(st.session_state.get("liq_filter_enabled", True))
+    _min_dvol       = float(st.session_state.get("min_dollar_vol", 5.0))
+    _atr_enabled    = bool(st.session_state.get("atr_filter_enabled", True))
+    _atr_min        = float(st.session_state.get("atr_pct_min", 1.5))
+    _atr_max        = float(st.session_state.get("atr_pct_max", 6.0))
+
+    # Caption dinamica che mostra filtri attivi
+    _active_flags = []
+    if _strong_only:               _active_flags.append("STRONG only")
+    if _liq_enabled:               _active_flags.append(f"DolVol>=${_min_dvol:.0f}M")
+    if _atr_enabled:               _active_flags.append(f"ATR%[{_atr_min:.1f}-{_atr_max:.1f}]")
+    _extra = "  |  " + "  |  ".join(_active_flags) if _active_flags else ""
+    st.caption(
+        f"Filtri: Early>={s_e} | Quality>={s_q} | Pro>={s_p}{_extra}  "
+        f"_(sidebar -> Soglie)_"
+    )
 
     if status_filter=="EARLY":
         if "Stato_Early" not in df.columns: st.warning("Colonna Stato_Early mancante."); return
@@ -1585,7 +1811,9 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="PRO":
         if "Stato_Pro" not in df.columns: st.warning("Colonna Stato_Pro mancante."); return
-        df_f=df[df["Stato_Pro"]=="PRO"].copy()
+        # Se show_strong_only: filtra solo STRONG (Pro>=9), altrimenti PRO+STRONG
+        _pro_valid = ["STRONG"] if _strong_only else ["PRO","STRONG"]
+        df_f=df[df["Stato_Pro"].isin(_pro_valid)].copy()
         if "Pro_Score"     in df_f.columns and s_p>0: df_f=df_f[df_f["Pro_Score"]    >=s_p]
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -1604,7 +1832,9 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     elif status_filter=="CONFLUENCE":
         if "Stato_Early" not in df.columns or "Stato_Pro" not in df.columns:
             st.warning("Colonne Stato mancanti."); return
-        df_f=df[(df["Stato_Early"]=="EARLY")&(df["Stato_Pro"]=="PRO")].copy()
+        # CONFLUENCE: EARLY + PRO (o STRONG) contemporaneamente
+        _pro_valid = ["PRO","STRONG"] if not _strong_only else ["STRONG"]
+        df_f=df[(df["Stato_Early"]=="EARLY") & (df["Stato_Pro"].isin(_pro_valid))].copy()
         if "Early_Score"   in df_f.columns and s_e>0: df_f=df_f[df_f["Early_Score"]  >=s_e]
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -1635,6 +1865,24 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     else:
         df_f=df.copy()
+
+    # ── Filtri qualita' condivisi (applicati a tutti i tab) ──────────────
+    # 1. Dollar Volume (liquidita')
+    if _liq_enabled and "Dollar_Vol" in df_f.columns:
+        _before_liq = len(df_f)
+        df_f = df_f[df_f["Dollar_Vol"].fillna(0) >= _min_dvol]
+        _removed_liq = _before_liq - len(df_f)
+        if _removed_liq > 0:
+            st.caption(f"Liquidita': rimossi {_removed_liq} titoli con Dollar_Vol < ${_min_dvol:.0f}M")
+
+    # 2. ATR% range (volatilita' operativa)
+    if _atr_enabled and "ATR_pct" in df_f.columns:
+        _before_atr = len(df_f)
+        _mask_atr = df_f["ATR_pct"].isna() | df_f["ATR_pct"].between(_atr_min, _atr_max, inclusive="both")
+        df_f = df_f[_mask_atr]
+        _removed_atr = _before_atr - len(df_f)
+        if _removed_atr > 0:
+            st.caption(f"ATR%: rimossi {_removed_atr} titoli fuori range [{_atr_min:.1f}%-{_atr_max:.1f}%]")
 
     if df_f.empty:
         # Conta quanti aveva prima dei filtri soglia (per diagnostica)
@@ -1684,7 +1932,8 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     # Ordine: Ticker, Nome, Prezzo_fmt, MarketCap_fmt, poi segnali, poi resto
     cols=list(df_disp.columns)
     priority=["Ticker","Nome","Prezzo_fmt","MarketCap_fmt","Early_Score","Pro_Score",
-               "RSI","Vol_Ratio","Quality_Score","Stato_Early","Stato_Pro","EMA200_fmt"]
+               "RSI","Dollar_Vol","Liq_Grade","ATR_pct",
+               "Vol_Ratio","Quality_Score","Stato_Early","Stato_Pro","EMA200_fmt"]
     base=[c for c in priority if c in cols]
     rest=[c for c in cols if c not in base]
     df_disp=df_disp[base+rest].reset_index(drop=True)
@@ -1731,9 +1980,10 @@ tabs=st.tabs(["🏠 Home",
               "🎯 Serafini","🔎 Finviz Pro",
               "🔬 Order Flow",
               "🛡️ Crisis Monitor",
+              "⚖️ Risk Manager",
               "📋 Watchlist","📈 Backtest"])
 (tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_of,tab_crisis,tab_w,tab_bt)=tabs
+ tab_ser,tab_fvpro,tab_of,tab_crisis,tab_rm,tab_w,tab_bt)=tabs
 
 with tab_home:
     try:
@@ -2179,6 +2429,25 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 
 
 # =========================================================================
+# RISK MANAGER TAB
+# =========================================================================
+with tab_rm:
+    try:
+        from utils.risk_manager import render_risk_manager
+        # Passa df_ep dallo scanner (ticker disponibili + prezzi)
+        _df_rm = df_ep if (df_ep is not None and not df_ep.empty) else None
+        render_risk_manager(df_scanner=_df_rm)
+    except ImportError:
+        st.warning(
+            "⚠️ `utils/risk_manager.py` non trovato.\n\n"
+            "Copia il file `risk_manager.py` generato nella cartella `utils/` del progetto."
+        )
+    except Exception as _rme:
+        import traceback
+        st.error(f"Risk Manager error: {_rme}")
+        st.code(traceback.format_exc())
+
+# =========================================================================
 # WATCHLIST — AgGrid + cards + multi-lista
 # =========================================================================
 with tab_w:
@@ -2554,6 +2823,170 @@ with tab_w:
             key="wl_tv_export",
             help="Un ticker per riga — importabile direttamente in TradingView Watchlist"
         )
+
+    # ── IMPORT DA TRADINGVIEW / CSV ──────────────────────────────────────
+    with st.expander("📥 Importa da TradingView / CSV", expanded=False):
+        st.markdown("""
+**Formati supportati:**
+
+| Formato | Descrizione |
+|---|---|
+| TradingView export | File `.txt` / `.csv` — un ticker per riga (es. `NASDAQ:AAPL`) |
+| CSV semplice | Colonna `ticker` (obbligatoria) + `nome` (opzionale) |
+| Testo libero | Incolla ticker separati da virgola, spazio o newline |
+""")
+
+        imp_tab1, imp_tab2 = st.tabs(["📄 Upload file", "✏️ Incolla testo"])
+
+        # ── Tab 1: Upload file ────────────────────────────────────────────
+        with imp_tab1:
+            _tv_file = st.file_uploader(
+                "Carica file watchlist (.csv / .txt)",
+                type=["csv","txt"],
+                key="wl_tv_upload",
+                help="TradingView: Watchlist → Export → scarica il file .txt"
+            )
+            _imp_list_sel = st.selectbox(
+                "Importa nella lista",
+                options=all_lists,
+                index=all_lists.index(st.session_state.current_list_name)
+                      if st.session_state.current_list_name in all_lists else 0,
+                key="wl_imp_list_upload"
+            )
+            _imp_skip_dup = st.checkbox(
+                "Salta duplicati (non reimportare ticker gia' presenti)",
+                value=True, key="wl_imp_skip_dup_file"
+            )
+
+            if _tv_file:
+                # Parse file
+                _raw = _tv_file.read().decode("utf-8", errors="ignore")
+                _lines = [l.strip() for l in _raw.replace(",", "\n").splitlines()]
+                _tickers_raw = [l for l in _lines if l and not l.startswith("#")]
+
+                # Normalizza: rimuove prefisso exchange TradingView (NASDAQ:AAPL → AAPL)
+                def _normalize_tv_ticker(t: str) -> str:
+                    # Gestisce NASDAQ:AAPL, NYSE:MSFT, MIL:ENI, etc.
+                    if ":" in t:
+                        t = t.split(":", 1)[1]
+                    # Rimuove caratteri non alfanumerici tranne punto e trattino
+                    import re as _re
+                    t = _re.sub(r"[^\w.\-]", "", t).upper()
+                    return t
+
+                _tickers_clean = [_normalize_tv_ticker(t) for t in _tickers_raw]
+                _tickers_clean = [t for t in _tickers_clean if 1 <= len(t) <= 12]
+                _tickers_clean = list(dict.fromkeys(_tickers_clean))  # deduplica mantendo ordine
+
+                if _tickers_clean:
+                    # Preview prima di importare
+                    st.success(f"✅ {len(_tickers_clean)} ticker trovati nel file")
+                    with st.expander(f"Preview — {len(_tickers_clean)} ticker", expanded=True):
+                        _prev_cols = st.columns(min(8, len(_tickers_clean)))
+                        for _pi, _pt in enumerate(_tickers_clean[:40]):
+                            _prev_cols[_pi % len(_prev_cols)].code(_pt)
+                        if len(_tickers_clean) > 40:
+                            st.caption(f"... e altri {len(_tickers_clean) - 40} ticker")
+
+                    if st.button(
+                        f"⬆️ Importa {len(_tickers_clean)} ticker in '{_imp_list_sel}'",
+                        key="wl_do_import_file",
+                        type="primary"
+                    ):
+                        # Filtra duplicati se richiesto
+                        _existing_tks = set()
+                        if _imp_skip_dup and not df_wl_full.empty:
+                            _ex_col = "ticker" if "ticker" in df_wl_full.columns else "Ticker"
+                            _existing_tks = set(
+                                df_wl_full[df_wl_full["list_name"] == _imp_list_sel][_ex_col]
+                                .str.upper().dropna().tolist()
+                            )
+
+                        _to_import = [t for t in _tickers_clean
+                                      if t.upper() not in _existing_tks]
+                        _skipped   = len(_tickers_clean) - len(_to_import)
+
+                        if _to_import:
+                            gh_add_to_watchlist(
+                                _to_import,
+                                _to_import,   # Nome = Ticker (aggiornato dallo scanner al prossimo run)
+                                "Importato",
+                                "TradingView/CSV",
+                                "LONG",
+                                _imp_list_sel
+                            )
+                            _msg = f"✅ Importati **{len(_to_import)}** ticker in '{_imp_list_sel}'"
+                            if _skipped > 0:
+                                _msg += f"  |  ⏭️ {_skipped} duplicati saltati"
+                            st.success(_msg)
+                            import time as _t; _t.sleep(0.5); st.rerun()
+                        else:
+                            st.warning("Tutti i ticker sono gia' presenti nella lista — nessuna importazione.")
+                else:
+                    st.warning("Nessun ticker valido trovato nel file.")
+
+        # ── Tab 2: Incolla testo libero ───────────────────────────────────
+        with imp_tab2:
+            _paste_text = st.text_area(
+                "Incolla ticker (uno per riga, o separati da virgola/spazio)",
+                height=150,
+                placeholder="AAPL\nMSFT\nNVDA\n\noppure: AAPL, MSFT, NVDA, TSLA",
+                key="wl_paste_text",
+            )
+            _imp_list_paste = st.selectbox(
+                "Importa nella lista",
+                options=all_lists,
+                index=all_lists.index(st.session_state.current_list_name)
+                      if st.session_state.current_list_name in all_lists else 0,
+                key="wl_imp_list_paste"
+            )
+            _imp_skip_dup_p = st.checkbox(
+                "Salta duplicati",
+                value=True, key="wl_imp_skip_dup_paste"
+            )
+
+            if _paste_text.strip():
+                import re as _re
+                _paste_tks_raw = _re.split(r"[\s,;|\n]+", _paste_text.strip())
+                _paste_tks = []
+                for _pt in _paste_tks_raw:
+                    _pt = _pt.strip().upper()
+                    if ":" in _pt: _pt = _pt.split(":", 1)[1]
+                    _pt = _re.sub(r"[^\w.\-]", "", _pt)
+                    if 1 <= len(_pt) <= 12:
+                        _paste_tks.append(_pt)
+                _paste_tks = list(dict.fromkeys(_paste_tks))
+
+                if _paste_tks:
+                    st.caption(f"Trovati: **{', '.join(_paste_tks[:20])}**"
+                               + (f" ...+{len(_paste_tks)-20}" if len(_paste_tks) > 20 else ""))
+
+                    if st.button(
+                        f"⬆️ Importa {len(_paste_tks)} ticker in '{_imp_list_paste}'",
+                        key="wl_do_import_paste",
+                        type="primary"
+                    ):
+                        _existing_p = set()
+                        if _imp_skip_dup_p and not df_wl_full.empty:
+                            _ex_col = "ticker" if "ticker" in df_wl_full.columns else "Ticker"
+                            _existing_p = set(
+                                df_wl_full[df_wl_full["list_name"] == _imp_list_paste][_ex_col]
+                                .str.upper().dropna().tolist()
+                            )
+                        _to_imp_p  = [t for t in _paste_tks if t not in _existing_p]
+                        _skipped_p = len(_paste_tks) - len(_to_imp_p)
+                        if _to_imp_p:
+                            gh_add_to_watchlist(
+                                _to_imp_p, _to_imp_p,
+                                "Importato", "Testo", "LONG", _imp_list_paste
+                            )
+                            _msg2 = f"✅ Importati **{len(_to_imp_p)}** ticker in '{_imp_list_paste}'"
+                            if _skipped_p > 0: _msg2 += f"  |  ⏭️ {_skipped_p} duplicati saltati"
+                            st.success(_msg2)
+                            import time as _t2; _t2.sleep(0.5); st.rerun()
+                        else:
+                            st.warning("Tutti i ticker gia' presenti — nessuna importazione.")
+
     if st.button("🔄 Refresh",key="wl_ref"): st.rerun()
 
     # ── Strategy Chart ────────────────────────────────────────────────────
