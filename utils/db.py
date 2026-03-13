@@ -219,27 +219,57 @@ def load_signals(signal_type: str = None, days_back: int = 90,
 
 
 def signal_summary_stats(days_back: int = 90) -> pd.DataFrame:
-    """Statistiche aggregate: win rate e avg return per tipo segnale."""
+    """Statistiche aggregate avanzate per tipo segnale e orizzonte."""
     df = load_signals(days_back=days_back, with_perf=True)
     if df.empty:
         return pd.DataFrame()
+
     rows = []
     for stype, grp in df.groupby("signal_type"):
-        n = len(grp)
-        for col, label in [("ret_1d","1g"),("ret_5d","5g"),
-                           ("ret_10d","10g"),("ret_20d","20g")]:
-            if col not in grp.columns: continue
+        n_all = len(grp)
+        for col, label in [
+            ("ret_1d", "1g"),
+            ("ret_5d", "5g"),
+            ("ret_10d", "10g"),
+            ("ret_20d", "20g"),
+        ]:
+            if col not in grp.columns:
+                continue
             vals = grp[col].dropna()
-            if vals.empty: continue
-            rows.append({
-                "Tipo": stype, "Periodo": label, "N": n,
-                "Win%":  round((vals > 0).mean() * 100, 1),
-                "Avg%":  round(vals.mean(), 2),
-                "Med%":  round(vals.median(), 2),
-                "Max%":  round(vals.max(), 2),
-                "Min%":  round(vals.min(), 2),
-            })
+            if vals.empty:
+                continue
+
+            n = len(vals)
+            win = (vals > 0).mean() * 100.0
+            avg = vals.mean()
+            med = vals.median()
+            std = vals.std()
+            p25 = vals.quantile(0.25)
+            p75 = vals.quantile(0.75)
+            vmax = vals.max()
+            vmin = vals.min()
+            sharpe = avg / std if std and std > 0 else 0.0
+
+            rows.append(
+                dict(
+                    Signal=stype,
+                    Periodo=label,
+                    N=n,
+                    N_tot=n_all,
+                    Win=round(win, 1),
+                    Avg=round(avg, 2),
+                    Med=round(med, 2),
+                    Std=round(std, 2) if std == std else None,
+                    P25=round(p25, 2),
+                    P75=round(p75, 2),
+                    Max=round(vmax, 2),
+                    Min=round(vmin, 2),
+                    Sharpe=round(sharpe, 2),
+                )
+            )
+
     return pd.DataFrame(rows)
+
 
 
 def update_signal_performance(max_signals: int = 300) -> int:
