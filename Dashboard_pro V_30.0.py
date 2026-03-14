@@ -148,15 +148,17 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={k: v for k, v in _col_map.items() if k in df.columns})
 
     # ── Stato_Pro con soglie calibrate ──────────────────────────────────
-    # STRONG >= 9/10  -> alta convinzione, quasi tutti i criteri OK
-    # PRO    >= 7/10  -> setup solido, maggioranza criteri soddisfatti
-    # (vecchia soglia 4/10 produceva troppi segnali deboli)
+    # Pro_Score scale 0-10 prodotta dallo scanner.
+    # Soglie realistiche sui dati reali (scanner produce spesso 3-7):
+    #   STRONG >= 8 : top 5-10% dei segnali — massima convinzione
+    #   PRO    >= 5 : buon setup — trend + RSI + volume tutti OK
+    #   sotto 5     : segnale debole — escluso di default
     if "Pro_Score" in df.columns:
         def _classify_pro(x):
             if pd.isna(x): return "-"
             v = float(x)
-            if v >= 9: return "STRONG"
-            if v >= 7: return "PRO"
+            if v >= 8: return "STRONG"
+            if v >= 5: return "PRO"
             return "-"
         df["Stato_Pro"] = df["Pro_Score"].apply(_classify_pro)
 
@@ -2588,8 +2590,24 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 with tab_rm:
     try:
         from utils.risk_manager import render_risk_manager
-        # Passa df_ep dallo scanner (ticker disponibili + prezzi)
-        _df_rm = df_ep if (df_ep is not None and not df_ep.empty) else None
+        # Combina df_ep + df_rea per avere tutti i ticker disponibili
+        # Ordina alfabeticamente per Nome (fallback su Ticker)
+        _rm_frames = [d for d in [df_ep, df_rea]
+                      if d is not None and not d.empty]
+        if _rm_frames:
+            _df_rm = pd.concat(_rm_frames, ignore_index=True)
+            # Deduplicazione: mantieni il record con score più alto per ticker
+            if "Ticker" in _df_rm.columns:
+                _score_col = "Pro_Score" if "Pro_Score" in _df_rm.columns else None
+                if _score_col:
+                    _df_rm = (_df_rm
+                              .sort_values(_score_col, ascending=False)
+                              .drop_duplicates(subset=["Ticker"], keep="first"))
+                # Ordine alfabetico per Nome (per selectbox leggibile)
+                _sort_col = "Nome" if "Nome" in _df_rm.columns else "Ticker"
+                _df_rm = _df_rm.sort_values(_sort_col, key=lambda s: s.str.lower()).reset_index(drop=True)
+        else:
+            _df_rm = None
         render_risk_manager(df_scanner=_df_rm)
     except ImportError:
         st.warning(
