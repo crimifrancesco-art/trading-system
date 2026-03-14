@@ -709,29 +709,34 @@ def strategy_chart_widget(
         # Se abbiamo una lista di ticker dal tab → selectbox
         # Altrimenti → input libero (solo per tab Backtest senza dati)
         if tickers:
-            # Rimuovi duplicati, mantieni ordine passato (già ordinati per nome dal chiamante)
+            # Rimuovi duplicati
             seen = set(); ordered = []
             for t in tickers:
                 if t and t not in seen:
                     seen.add(t); ordered.append(t)
             if ticker_labels:
-                # Opzioni con nome: "Nome azienda  (TICKER)"
-                opts_display = [ticker_labels.get(t, t) for t in ordered]
-                opts_raw     = ordered
+                # Ordina alfabeticamente per nome display (A→Z)
+                pairs = sorted(
+                    [(t, ticker_labels.get(t, t)) for t in ordered],
+                    key=lambda x: x[1].lower()
+                )
+                opts_raw     = [p[0] for p in pairs]
+                opts_display = [p[1] for p in pairs]
                 def_idx = opts_raw.index(default_ticker) if default_ticker in opts_raw else 0
                 sel_label = st.selectbox(
-                    "Azienda / Ticker",
+                    f"Azienda / Ticker  ({len(opts_raw)} — A→Z)",
                     opts_display,
                     index=def_idx,
                     key=f"sc_tkr_{ks}",
-                    help=f"{len(ordered)} titoli · ordinati per nome"
+                    help=f"{len(opts_raw)} titoli ordinati per nome A→Z"
                 )
                 sc_ticker = opts_raw[opts_display.index(sel_label)]
             else:
-                opts = ordered
+                # Ordina per ticker alfabetico se no labels
+                opts = sorted(set(ordered))
                 def_idx = opts.index(default_ticker) if default_ticker in opts else 0
                 sc_ticker = st.selectbox(
-                    "Ticker",
+                    f"Ticker  ({len(opts)})",
                     opts,
                     index=def_idx,
                     key=f"sc_tkr_{ks}",
