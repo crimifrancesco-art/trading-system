@@ -274,51 +274,68 @@ def render_risk_manager(df_scanner: pd.DataFrame = None) -> None:
 
     st.markdown("---")
 
+
     # ── Selezione ticker ──────────────────────────────────────────────────
     st.markdown("### 🎯 Selezione Ticker")
 
-    # Costruisce lista ticker dallo scanner (se disponibile)
-    scanner_tickers = []
+    # Costruisce lista (label, ticker_raw) ordinata A→Z per Nome
+    scanner_rows = []
     if df_scanner is not None and not df_scanner.empty and "Ticker" in df_scanner.columns:
-        scanner_tickers = df_scanner["Ticker"].dropna().unique().tolist()
-
-    ts1, ts2 = st.columns([2, 2])
-    with ts1:
-        if scanner_tickers:
-            # Crea etichette Nome (TICKER) se disponibile
-            if "Nome" in df_scanner.columns:
-                label_map = {
-                    row["Ticker"]: f"{row.get('Nome', row['Ticker'])}  ({row['Ticker']})"
-                    for _, row in df_scanner.iterrows()
-                    if pd.notna(row.get("Ticker"))
-                }
-                labels = [label_map.get(t, t) for t in scanner_tickers]
-                sel_label = st.selectbox(
-                    "Ticker dallo scanner",
-                    options=["— Inserisci manualmente —"] + labels,
-                    key="rm_ticker_sel",
-                )
-                if sel_label != "— Inserisci manualmente —":
-                    ticker_from_scanner = sel_label.split("(")[-1].rstrip(")")
-                else:
-                    ticker_from_scanner = ""
+        _df_s = df_scanner.dropna(subset=["Ticker"]).copy()
+        _sort_col = "Nome" if "Nome" in _df_s.columns else "Ticker"
+        _df_s = _df_s.sort_values(_sort_col, key=lambda s: s.str.lower())
+        for _, row in _df_s.iterrows():
+            t = str(row["Ticker"]).strip()
+            if not t:
+                continue
+            if "Nome" in _df_s.columns and pd.notna(row.get("Nome")):
+                nome = str(row["Nome"])[:32].strip()
+                _icons = ""
+                if row.get("Stato_Pro") == "STRONG": _icons += " ★"
+                elif row.get("Stato_Pro") == "PRO":  _icons += " ❖"
+                if row.get("Squeeze"):               _icons += " 🔥"
+                if row.get("Weekly_Bull"):            _icons += " 📈"
+                label = f"{nome}  ({t}){_icons}"
             else:
-                sel_t = st.selectbox(
-                    "Ticker dallo scanner",
-                    options=["— Inserisci manualmente —"] + scanner_tickers,
-                    key="rm_ticker_sel",
-                )
-                ticker_from_scanner = sel_t if sel_t != "— Inserisci manualmente —" else ""
+                label = t
+            scanner_rows.append((label, t))
+
+    ts1, ts2 = st.columns([2.5, 1.5])
+    with ts1:
+        if scanner_rows:
+            labels_disp = [r[0] for r in scanner_rows]
+            tickers_raw = [r[1] for r in scanner_rows]
+            sel_idx = st.selectbox(
+                f"Ticker dallo scanner  ({len(scanner_rows)} disponibili — A→Z)",
+                options=range(len(labels_disp)),
+                format_func=lambda i: labels_disp[i],
+                index=0,
+                key="rm_ticker_sel",
+            )
+            ticker_from_scanner = tickers_raw[sel_idx]
+            # Mini-info del titolo selezionato
+            _row_sel = df_scanner[df_scanner["Ticker"] == ticker_from_scanner]
+            if not _row_sel.empty:
+                _r = _row_sel.iloc[0]
+                _inf = []
+                if _r.get("Prezzo"):   _inf.append(f"💲 {_r['Prezzo']}")
+                if _r.get("RSI"):      _inf.append(f"RSI {_r['RSI']}")
+                if _r.get("Pro_Score"):_inf.append(f"Pro {_r['Pro_Score']}")
+                if _r.get("Dollar_Vol"):_inf.append(f"Vol ${float(_r['Dollar_Vol']):.1f}M")
+                if _r.get("ATR_pct"):  _inf.append(f"ATR {float(_r['ATR_pct']):.1f}%")
+                if _inf:
+                    st.caption("  ·  ".join(str(x) for x in _inf))
         else:
             ticker_from_scanner = ""
-            st.info("Esegui lo scanner per popolare la lista ticker.")
+            st.info("🔍 Esegui lo scanner per popolare la lista. Oppure inserisci il ticker a destra →")
 
     with ts2:
         manual_ticker = st.text_input(
-            "Ticker manuale (override)",
+            "Oppure inserisci manualmente",
             value=st.session_state.get("rm_manual_ticker", ""),
-            placeholder="es. AAPL, MSFT, NVDA...",
+            placeholder="es. AAPL, ENI.MI…",
             key="rm_manual_ticker_input",
+            help="Sovrascrive la selezione dalla lista scanner",
         )
         st.session_state["rm_manual_ticker"] = manual_ticker
 
@@ -333,6 +350,7 @@ def render_risk_manager(df_scanner: pd.DataFrame = None) -> None:
 
     st.markdown("")
     ba1, ba2, ba3 = st.columns([1, 1, 3])
+
 
     with ba1:
         calc_btn = st.button(
