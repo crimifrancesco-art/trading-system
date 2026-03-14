@@ -29,21 +29,33 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 # ══════════════════════════════════════════════════════════════
-# PALETTE TradingView Dark
+# BLOOMBERG TERMINAL PALETTE  v33
 # ══════════════════════════════════════════════════════════════
-BG     = "#131722"
-PANEL  = "#1e222d"
-BORDER = "#2a2e39"
-BLUE   = "#2962ff"
-GREEN  = "#26a69a"
-RED    = "#ef5350"
-GOLD   = "#ffd700"
-CYAN   = "#50c4e0"
-GRAY   = "#787b86"
-TEXT   = "#d1d4dc"
-ORANGE = "#ff9800"
-PURPLE = "#9c27b0"
-LIME   = "#00e676"
+BG     = "#070b14"
+PANEL  = "#0d1117"
+PANEL2 = "#111923"
+BORDER = "#1c2333"
+BORDER2= "#243044"
+BLUE   = "#2979ff"
+GREEN  = "#00d4aa"
+RED    = "#ff3d57"
+GOLD   = "#ffb800"
+CYAN   = "#00b8d4"
+GRAY   = "#5a6478"
+TEXT   = "#c8d0e0"
+ORANGE = "#ff6d00"
+PURPLE = "#7c4dff"
+LIME   = "#00d4aa"
+MONO   = "'IBM Plex Mono','Courier New',monospace"
+
+_PLOTLY = dict(
+    paper_bgcolor=BG, plot_bgcolor=PANEL,
+    font=dict(color=TEXT, family="IBM Plex Mono, Courier New, monospace", size=10),
+    xaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER2, linecolor=BORDER,
+               tickfont=dict(color=GRAY, size=9)),
+    yaxis=dict(gridcolor=BORDER, zerolinecolor=BORDER2, linecolor=BORDER,
+               tickfont=dict(color=GRAY, size=9)),
+)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -906,76 +918,143 @@ def _render_correlations():
 # ══════════════════════════════════════════════════════════════
 
 def render_home(df_ep=None, df_rea=None):
-    """Renderizza il tab Home completo -- v32.0."""
+    """
+    Bloomberg Terminal cockpit layout v33.
+    Layout a 3 zone verticali — tutto above-the-fold come un terminale vero:
 
-    c_title, c_ref = st.columns([9, 1])
-    with c_title:
-        st.markdown(
-            f'<div style="background:{PANEL};border-left:3px solid {BLUE};'
-            f'padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:10px">'
-            f'<span style="color:{BLUE};font-weight:700;font-size:1rem">'
-            f'🏠 MARKET INTELLIGENCE PRO</span>'
-            f'<span style="color:{GRAY};font-size:0.8rem;margin-left:12px">'
-            f'Dashboard pre-trade · v32.0 · {datetime.now().strftime("%d/%m/%Y")}</span>'
-            f'</div>',
-            unsafe_allow_html=True
+    ┌─ TICKER BAR ─────────────────────────────────────────────────────────┐
+    │  REGIME · S&P · NDX · DOW · RUT · BTC · GOLD · OIL · DXY · VIX    │
+    ├─ ROW A: CHART ──────────────┬─ TOP SIGNALS ──┬─ MACRO CALENDAR ─────┤
+    │  S&P sparkline + MACD      │  8 best CSS    │  FOMC/CPI/NFP rules  │
+    │  NDX + BTC mini            │  R:R + ATR     │  Earnings calendar   │
+    ├─ ROW B: BREADTH ───────────┬─ SECTOR HEAT ──┴─ CORRELATION MATRIX ──┤
+    │  Fear&Greed · Breadth      │  12 settori ranking + heatmap bar      │
+    │  RSI Distribution          │  Risk-on vs Risk-off 30gg              │
+    └────────────────────────────┴────────────────────────────────────────┘
+    """
+
+    # ── HEADER BAR Bloomberg ────────────────────────────────────────────
+    now_str = datetime.now().strftime("%d %b %Y  %H:%M")
+    hcol, rcol = st.columns([11, 1])
+    with hcol:
+        _hdr = (
+            f'<div style="background:{PANEL};border-bottom:1px solid {ORANGE};'
+            f'border-top:2px solid {ORANGE};padding:7px 16px;'
+            f'display:flex;align-items:center;gap:12px;margin-bottom:1px">'
+            f'<span style="background:{ORANGE};color:#000;font-family:{MONO};'
+            f'font-size:0.68rem;font-weight:700;padding:2px 8px;letter-spacing:2px">BLOOMBERG</span>'
+            f'<span style="color:{ORANGE};font-family:{MONO};font-size:0.68rem;'
+            f'font-weight:700;letter-spacing:2px">TRADING SCANNER PRO v33</span>'
+            f'<span style="color:{GRAY};font-family:{MONO};font-size:0.65rem;'
+            f'margin-left:auto">{now_str}</span>'
+            f'</div>'
         )
-    with c_ref:
-        st.write("")
-        if st.button("🔄", key="home_refresh_v32", help="Svuota cache e aggiorna tutti i dati"):
-            st.cache_data.clear()
-            st.rerun()
+        st.markdown(_hdr, unsafe_allow_html=True)
+    with rcol:
+        if st.button("⟳", key="home_refresh_v33", help="Svuota cache e aggiorna"):
+            st.cache_data.clear(); st.rerun()
 
-    # 0 -- REGIME BAR
+    # ── TICKER BAR: REGIME + 9 asset in una riga compatta ───────────────
     vix_q = _fetch_quote("^VIX")
     sp_q  = _fetch_quote("^GSPC")
     btc_q = _fetch_quote("BTC-USD")
     _render_regime_bar(vix_q["price"], sp_q["chg"], btc_q["chg"])
-
-    # 1 -- INDICI LIVE
     _render_indices()
 
-    # 2 -- SPARKLINES
-    _render_sparklines()
-
-    st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
-
-    # 3 -- BREADTH ROW
-    dfs_scan = [d for d in [df_ep, df_rea] if d is not None and not d.empty]
-    df_all   = pd.concat(dfs_scan, ignore_index=True) if dfs_scan else None
-
-    sp_hist = _fetch_history("^GSPC", 30)
-    sp_rsi  = _rsi_last(sp_hist["close"]) if not sp_hist.empty else 50.0
-    breadth = _calc_breadth(df_all)
-    fg_score, fg_label, fg_color = _fear_greed(vix_q["price"], sp_rsi, breadth["pct"])
-
-    bc1, bc2, bc3 = st.columns([1, 1.2, 1.8])
-    with bc1: _render_fear_greed_card(fg_score, fg_label, fg_color)
-    with bc2: _render_breadth_card(breadth)
-    with bc3: _render_rsi_distribution(df_all)
-
-    st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
-
-    # 4+5 -- TOP SEGNALI  |  CALENDARIO MACRO
-    sc, cc = st.columns([1.55, 1])
-    with sc: _render_top_signals(df_ep, df_rea, n=8)
-    with cc: _render_macro_calendar()
-
-    st.markdown("<div style='margin-top:10px'></div>", unsafe_allow_html=True)
-
-    # 6 -- HEATMAP SETTORIALE
-    sectors = _fetch_sector_perf()
-    _render_sector_heatmap(sectors)
-
-    # 7 -- CORRELAZIONI
-    _render_correlations()
-
-    # FOOTER
     st.markdown(
-        f'<div style="color:{GRAY};font-size:0.69rem;text-align:center;'
-        f'margin-top:16px;padding-top:10px;border-top:1px solid {BORDER}">'
-        f'Dati: Yahoo Finance · cache indici 3min · settori 10min · correlazioni 30min · '
-        f'Ultimo aggiornamento: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
+        f'<div style="height:1px;background:{BORDER};margin:4px 0"></div>',
+        unsafe_allow_html=True
+    )
+
+    # ══ ROW A: 3 colonne ════════════════════════════════════════════════
+    col_chart, col_signals, col_cal = st.columns([1.6, 1.2, 1.0])
+
+    with col_chart:
+        # Pannello A1 — Sparklines compatte Bloomberg
+        st.markdown(
+            f'<div style="background:{PANEL};border-top:2px solid {CYAN};'
+            f'border:1px solid {BORDER};border-radius:2px;padding:6px 10px;margin-bottom:4px">'
+            f'<span style="color:{CYAN};font-family:{MONO};font-size:0.65rem;'
+            f'letter-spacing:1.5px;text-transform:uppercase">▶ PERFORMANCE 90D</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        _render_sparklines()
+
+    with col_signals:
+        # Pannello A2 — Top Signals
+        st.markdown(
+            f'<div style="background:{PANEL};border-top:2px solid {ORANGE};'
+            f'border:1px solid {BORDER};border-radius:2px;padding:6px 10px;margin-bottom:4px">'
+            f'<span style="color:{ORANGE};font-family:{MONO};font-size:0.65rem;'
+            f'letter-spacing:1.5px;text-transform:uppercase">▶ TOP SIGNALS CSS</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        _render_top_signals(df_ep, df_rea, n=8)
+
+    with col_cal:
+        # Pannello A3 — Macro Calendar
+        st.markdown(
+            f'<div style="background:{PANEL};border-top:2px solid {GOLD};'
+            f'border:1px solid {BORDER};border-radius:2px;padding:6px 10px;margin-bottom:4px">'
+            f'<span style="color:{GOLD};font-family:{MONO};font-size:0.65rem;'
+            f'letter-spacing:1.5px;text-transform:uppercase">▶ MACRO CALENDAR</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        _render_macro_calendar()
+
+    st.markdown(
+        f'<div style="height:1px;background:{BORDER};margin:6px 0"></div>',
+        unsafe_allow_html=True
+    )
+
+    # ══ ROW B: BREADTH + SECTOR + CORRELATION ════════════════════════════
+    col_breadth, col_sector = st.columns([1.1, 1.9])
+
+    with col_breadth:
+        st.markdown(
+            f'<div style="background:{PANEL};border-top:2px solid {GREEN};'
+            f'border:1px solid {BORDER};border-radius:2px;padding:6px 10px;margin-bottom:4px">'
+            f'<span style="color:{GREEN};font-family:{MONO};font-size:0.65rem;'
+            f'letter-spacing:1.5px;text-transform:uppercase">▶ MARKET BREADTH</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        dfs_scan = [d for d in [df_ep, df_rea] if d is not None and not d.empty]
+        df_all   = pd.concat(dfs_scan, ignore_index=True) if dfs_scan else None
+        sp_hist  = _fetch_history("^GSPC", 30)
+        sp_rsi   = _rsi_last(sp_hist["close"]) if not sp_hist.empty else 50.0
+        breadth  = _calc_breadth(df_all)
+        fg_score, fg_label, fg_color = _fear_greed(vix_q["price"], sp_rsi, breadth["pct"])
+        # Fear & Greed + Breadth affiancati compatti
+        b1, b2 = st.columns(2)
+        with b1: _render_fear_greed_card(fg_score, fg_label, fg_color)
+        with b2: _render_breadth_card(breadth)
+        _render_rsi_distribution(df_all)
+
+    with col_sector:
+        st.markdown(
+            f'<div style="background:{PANEL};border-top:2px solid {PURPLE};'
+            f'border:1px solid {BORDER};border-radius:2px;padding:6px 10px;margin-bottom:4px">'
+            f'<span style="color:{PURPLE};font-family:{MONO};font-size:0.65rem;'
+            f'letter-spacing:1.5px;text-transform:uppercase">▶ SECTOR ROTATION · CORRELATIONS</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        sectors = _fetch_sector_perf()
+        s1, s2 = st.columns([1, 1])
+        with s1: _render_sector_heatmap(sectors)
+        with s2: _render_correlations()
+
+    # ── FOOTER Bloomberg ─────────────────────────────────────────────────
+    st.markdown(
+        f'<div style="color:{GRAY};font-family:{MONO};font-size:0.60rem;'
+        f'text-align:center;margin-top:10px;padding-top:8px;'
+        f'border-top:1px solid {BORDER}">'
+        f'DATA: YAHOO FINANCE  ·  CACHE: IDX 3MIN · SETTORI 10MIN · CORR 30MIN  ·  '
+        f'{datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
         f'</div>',
         unsafe_allow_html=True
     )
