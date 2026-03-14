@@ -14,22 +14,25 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 
-# ─── Palette TradingView Dark ────────────────────────────────────────────────
-BG     = "#131722"
-PANEL  = "#1e222d"
-BORDER = "#2a2e39"
-GREEN  = "#26a69a"
-RED    = "#ef5350"
-GOLD   = "#f0b90b"
-BLUE   = "#2962ff"
-CYAN   = "#50c4e0"
-GRAY   = "#787b86"
-TEXT   = "#d1d4dc"
-ORANGE = "#ff9800"
-PURPLE = "#9c27b0"
+# ─── Bloomberg Terminal Palette v33 ──────────────────────────────────────────
+BG     = "#070b14"
+PANEL  = "#0d1117"
+PANEL2 = "#111923"
+BORDER = "#1c2333"
+BORDER2= "#243044"
+GREEN  = "#00d4aa"
+RED    = "#ff3d57"
+GOLD   = "#ffb800"
+BLUE   = "#2979ff"
+CYAN   = "#00b8d4"
+GRAY   = "#5a6478"
+TEXT   = "#c8d0e0"
+ORANGE = "#ff6d00"
+PURPLE = "#7c4dff"
 VWAP_C = "#ff6d00"
-G_DARK = "rgba(38,166,154,0.15)"
-R_DARK = "rgba(239,83,80,0.15)"
+G_DARK = "rgba(0,212,170,0.12)"
+R_DARK = "rgba(255,61,87,0.12)"
+MONO   = "'IBM Plex Mono','Courier New',monospace"
 
 # ─── Slide legende per vista ─────────────────────────────────────────────────
 # Cartella base dove cercare le immagini (outputs di Streamlit Cloud = assets/)
@@ -280,6 +283,260 @@ def _indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["di_p"] = di_p.values
     df["di_m"] = di_m.values
     return df
+
+    return df
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v33 UPGRADE — LARGE TRADE DETECTOR
+# ══════════════════════════════════════════════════════════════════════════════
+def _large_trades(df: pd.DataFrame, sigma: float = 2.0) -> pd.DataFrame:
+    """
+    Identifica barre con volume anomalo (> media + N*sigma).
+    Output colonne aggiunte: vol_zscore, is_large, large_side ('BUY'|'SELL'|'NEUTRAL')
+    """
+    df = df.copy()
+    vol_mean = df["volume"].rolling(20, min_periods=5).mean()
+    vol_std  = df["volume"].rolling(20, min_periods=5).std().replace(0, np.nan)
+    df["vol_zscore"] = ((df["volume"] - vol_mean) / vol_std).round(2)
+    df["is_large"]   = df["vol_zscore"] >= sigma
+    # Lato dominante: se delta > 20% del volume → BUY, < -20% → SELL
+    delta_pct = df.get("delta_pct", pd.Series(0, index=df.index))
+    df["large_side"] = np.where(
+        ~df["is_large"], "",
+        np.where(delta_pct >= 20, "BUY",
+        np.where(delta_pct <= -20, "SELL", "NEUTRAL"))
+    )
+    return df
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v33 UPGRADE — PRICE-LEVEL IMBALANCE HEATMAP (Footprint semplificato)
+# ══════════════════════════════════════════════════════════════════════════════
+def _imbalance_heatmap(df: pd.DataFrame, n_bins: int = 30) -> dict:
+    """
+    Distribuisce buy_vol e sell_vol per livello di prezzo.
+    Restituisce {centers, buy_by_price, sell_by_price, imbalance_pct, poc, vah, val}
+    per costruire la heatmap laterale stile footprint.
+    """
+    if df.empty or len(df) < 5:
+        return {}
+    try:
+        p_min = float(df["low"].min())
+        p_max = float(df["high"].max())
+        if p_max <= p_min:
+            return {}
+        bins    = np.linspace(p_min, p_max, n_bins + 1)
+        centers = (bins[:-1] + bins[1:]) / 2
+        buy_acc  = np.zeros(n_bins)
+        sell_acc = np.zeros(n_bins)
+
+        for _, row in df.iterrows():
+            h, l = float(row["high"]), float(row["low"])
+            bv   = float(row.get("buy_vol",  row["volume"] * 0.5))
+            sv   = float(row.get("sell_vol", row["volume"] * 0.5))
+            span = h - l if h > l else 1e-9
+            for b in range(n_bins):
+                lo_b = max(bins[b],   l)
+                hi_b = min(bins[b+1], h)
+                if hi_b <= lo_b:
+                    continue
+                frac = (hi_b - lo_b) / span
+                buy_acc[b]  += bv * frac
+                sell_acc[b] += sv * frac
+
+        total = buy_acc + sell_acc
+        imb   = np.where(total > 0,
+                         (buy_acc - sell_acc) / total * 100, 0)
+
+        # POC & Value Area 70% (sul volume totale)
+        poc_i = int(np.argmax(total))
+        poc   = float(centers[poc_i])
+        tgt   = total.sum() * 0.70
+        acc_v = total[poc_i]; lo_i = hi_i = poc_i
+        while acc_v < tgt and (lo_i > 0 or hi_i < n_bins - 1):
+            add_lo = total[lo_i-1] if lo_i > 0 else 0
+            add_hi = total[hi_i+1] if hi_i < n_bins-1 else 0
+            if add_hi >= add_lo and hi_i < n_bins-1:
+                hi_i += 1; acc_v += add_hi
+            elif lo_i > 0:
+                lo_i -= 1; acc_v += add_lo
+            else:
+                hi_i += 1; acc_v += add_hi
+        vah = float(centers[hi_i])
+        val = float(centers[lo_i])
+
+        return {
+            "centers":       centers.tolist(),
+            "buy":           buy_acc.tolist(),
+            "sell":          sell_acc.tolist(),
+            "imbalance_pct": imb.tolist(),
+            "poc":  poc, "vah": vah, "val": val,
+        }
+    except Exception:
+        return {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v33 UPGRADE — CHART LARGE TRADES (candele con spike evidenziati)
+# ══════════════════════════════════════════════════════════════════════════════
+def _chart_large_trades(df: pd.DataFrame, symbol: str) -> go.Figure:
+    """
+    Candele normali + overlay Large Trade markers + Volume Z-score bar.
+    Barre con Z ≥ 2 → cerchio colorato sul grafico (verde=BUY dom, rosso=SELL dom, giallo=NEUTRAL).
+    """
+    df = _large_trades(df, sigma=2.0)
+    x  = df["date"].dt.strftime("%Y-%m-%d %H:%M").tolist()
+
+    fig = make_subplots(
+        rows=3, cols=1,
+        row_heights=[0.55, 0.25, 0.20],
+        shared_xaxes=True,
+        vertical_spacing=0.02,
+    )
+
+    # Row 1 — Candele
+    fig.add_trace(go.Candlestick(
+        x=x, open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        increasing=dict(line=dict(color=GREEN), fillcolor=f"rgba(0,212,170,0.7)"),
+        decreasing=dict(line=dict(color=RED),   fillcolor=f"rgba(255,61,87,0.7)"),
+        name="Price", showlegend=False,
+    ), row=1, col=1)
+
+    # Large trade markers
+    for side, col_m, sym_m in [("BUY","#00d4aa","circle"), ("SELL","#ff3d57","circle"), ("NEUTRAL","#ffb800","diamond")]:
+        mask = (df["is_large"]) & (df["large_side"] == side)
+        if mask.any():
+            sub = df[mask]
+            y_pos = sub["high"] * 1.003 if side != "SELL" else sub["low"] * 0.997
+            fig.add_trace(go.Scatter(
+                x=[x[i] for i in sub.index],
+                y=y_pos.tolist(),
+                mode="markers",
+                marker=dict(size=10, color=col_m, symbol=sym_m,
+                            line=dict(color="#000", width=1)),
+                name=f"LT {side}",
+                hovertemplate=(
+                    f"<b>LARGE {side}</b><br>"
+                    "Vol Z: %{customdata[0]:.1f}σ<br>"
+                    "Delta%: %{customdata[1]:+.1f}%<extra></extra>"
+                ),
+                customdata=sub[["vol_zscore","delta_pct"]].values,
+            ), row=1, col=1)
+
+    # Row 2 — Delta bars colorati
+    dc = [GREEN if v >= 0 else RED for v in df["delta"]]
+    fig.add_trace(go.Bar(
+        x=x, y=df["delta"],
+        marker_color=dc, marker_line_width=0,
+        name="Delta", opacity=0.85,
+        hovertemplate="Delta: %{y:+,.0f}<extra></extra>",
+    ), row=2, col=1)
+    # CVD line
+    fig.add_trace(go.Scatter(
+        x=x, y=df["cum_delta"],
+        line=dict(color=CYAN, width=1.5),
+        name="CVD", yaxis="y4",
+        hovertemplate="CVD: %{y:+,.0f}<extra></extra>",
+    ), row=2, col=1)
+
+    # Row 3 — Volume Z-score
+    zc = [GREEN if z >= 2 else (ORANGE if z >= 1 else GRAY)
+          for z in df["vol_zscore"].fillna(0)]
+    fig.add_trace(go.Bar(
+        x=x, y=df["vol_zscore"].fillna(0),
+        marker_color=zc, marker_line_width=0,
+        name="Vol Z-score", opacity=0.9,
+        hovertemplate="Z: %{y:.2f}σ<extra></extra>",
+    ), row=3, col=1)
+    fig.add_hline(y=2, line=dict(color=ORANGE, width=1, dash="dot"), row=3, col=1)
+    fig.add_hline(y=0, line=dict(color=BORDER, width=1), row=3, col=1)
+
+    _layout(fig, f"<b>{symbol}</b>  Large Trade Detector  (σ≥2.0)", 540)
+    fig.update_yaxes(title_text="Price",   row=1, col=1, **{k:v for k,v in _AX.items()})
+    fig.update_yaxes(title_text="Delta",   row=2, col=1, **{k:v for k,v in _AX.items()})
+    fig.update_yaxes(title_text="Z-score", row=3, col=1, **{k:v for k,v in _AX.items()})
+    return fig
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v33 UPGRADE — CHART IMBALANCE HEATMAP
+# ══════════════════════════════════════════════════════════════════════════════
+def _chart_imbalance(df: pd.DataFrame, symbol: str) -> go.Figure:
+    """
+    2 colonne: Candele (70%) | Imbalance Heatmap laterale (30%)
+    La heatmap mostra per ogni livello di prezzo: % imbalance buy vs sell.
+    Verde = buy dominante, rosso = sell dominante.
+    """
+    imb = _imbalance_heatmap(df)
+    if not imb:
+        fig = go.Figure()
+        fig.update_layout(title="Dati insufficienti", **{k:v for k,v in
+            dict(paper_bgcolor=BG, plot_bgcolor=PANEL).items()})
+        return fig
+
+    x = df["date"].dt.strftime("%Y-%m-%d %H:%M").tolist()
+
+    fig = make_subplots(
+        rows=2, cols=2,
+        row_heights=[0.75, 0.25],
+        column_widths=[0.72, 0.28],
+        shared_xaxes=False, shared_yaxes=False,
+        vertical_spacing=0.02, horizontal_spacing=0.01,
+        subplot_titles=["", "IMBALANCE MAP", "", ""],
+    )
+
+    # Col 1 Row 1 — Candele
+    fig.add_trace(go.Candlestick(
+        x=x, open=df["open"], high=df["high"], low=df["low"], close=df["close"],
+        increasing=dict(line=dict(color=GREEN), fillcolor="rgba(0,212,170,0.7)"),
+        decreasing=dict(line=dict(color=RED),   fillcolor="rgba(255,61,87,0.7)"),
+        name="Price", showlegend=False,
+    ), row=1, col=1)
+
+    # POC / VAH / VAL lines
+    for lvl, col_l, lbl in [
+        (imb["poc"], GOLD,  "POC"),
+        (imb["vah"], CYAN,  "VAH"),
+        (imb["val"], CYAN,  "VAL"),
+    ]:
+        fig.add_hline(y=lvl, line=dict(color=col_l, width=1.2, dash="dot"),
+                      annotation_text=f" {lbl}", annotation_font_color=col_l,
+                      annotation_font_size=9, row=1, col=1)
+
+    # Col 2 Row 1 — Imbalance heatmap (barre orizzontali)
+    centers = imb["centers"]
+    imb_pct = imb["imbalance_pct"]
+    bar_colors = [
+        f"rgba(0,212,170,{min(abs(v)/100*0.9+0.1, 0.95):.2f})" if v >= 0
+        else f"rgba(255,61,87,{min(abs(v)/100*0.9+0.1, 0.95):.2f})"
+        for v in imb_pct
+    ]
+    bin_w = (centers[1] - centers[0]) * 0.85 if len(centers) > 1 else 1.0
+    fig.add_trace(go.Bar(
+        x=imb_pct, y=centers,
+        orientation="h",
+        marker=dict(color=bar_colors, line=dict(width=0)),
+        width=[bin_w] * len(centers),
+        name="Imbalance %",
+        hovertemplate="Price: %{y:.2f}<br>Imbalance: %{x:+.1f}%<extra></extra>",
+    ), row=1, col=2)
+
+    # Linea zero e POC sull'heatmap
+    fig.add_vline(x=0, line=dict(color=GRAY, width=1), row=1, col=2)
+    fig.add_hline(y=imb["poc"], line=dict(color=GOLD, width=1.5, dash="dot"), row=1, col=2)
+
+    # Col 1 Row 2 — Volume bar
+    vc = [GREEN if c >= o else RED for c, o in zip(df["close"], df["open"])]
+    fig.add_trace(go.Bar(
+        x=x, y=df["volume"], marker_color=vc, marker_line_width=0,
+        opacity=0.7, name="Volume", showlegend=False,
+    ), row=2, col=1)
+
+    _layout(fig, f"<b>{symbol}</b>  Footprint Imbalance Heatmap", 500)
+    fig.update_xaxes(showticklabels=False, showgrid=False, zeroline=False, row=1, col=2)
+    fig.update_yaxes(showticklabels=False, showgrid=False, row=1, col=2)
+    fig.update_yaxes(title_text="Vol", row=2, col=1, **{k:v for k,v in _AX.items()})
+    return fig
 
 # ─── Chart builders ──────────────────────────────────────────────────────────
 _AX = dict(showgrid=True, gridcolor=BORDER, zeroline=False,
@@ -607,15 +864,287 @@ def _chart_indicators(df, symbol, ind_sel):
 
 # ─── Entry point ─────────────────────────────────────────────────────────────
 def render_orderflow_tab(df_scanner=None):
-    # ── Header ──
+    # ── Bloomberg Header ──────────────────────────────────────────────────
+    now_str = datetime.now().strftime("%d %b %Y  %H:%M")
     st.markdown(
-        f'<div style="background:{PANEL};border-left:3px solid {ORANGE};'
-        f'padding:10px 18px;border-radius:0 6px 6px 0;margin-bottom:14px">'
-        f'<span style="color:{ORANGE};font-weight:700;font-size:1.05rem">'
-        f'🔬 ORDER FLOW</span>'
-        f'<span style="color:{GRAY};font-size:.8rem;margin-left:12px">'
-        f'Candele · VWAP ±σ · Volume Profile · Delta · CVD · Indicatori · v31.1'
+        f'<div style="background:{PANEL};border-top:2px solid {ORANGE};'
+        f'border-bottom:1px solid {BORDER};padding:7px 16px;'
+        f'display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+        f'<span style="background:{ORANGE};color:#000;font-family:{MONO};'
+        f'font-size:0.67rem;font-weight:700;padding:2px 8px;letter-spacing:2px">FLOW</span>'
+        f'<span style="color:{ORANGE};font-family:{MONO};font-size:0.67rem;'
+        f'font-weight:700;letter-spacing:2px">ORDER FLOW ANALYZER v33</span>'
+        f'<span style="color:{GRAY};font-family:{MONO};font-size:0.62rem;'
+        f'margin-left:auto">'
+        f'VWAP·VP·DELTA·CVD·LARGE TRADES·IMBALANCE  ·  {now_str}'
         f'</span></div>',
+        unsafe_allow_html=True)
+
+    # ── Ticker list ──
+    sc_tickers = []
+    if df_scanner is not None and not df_scanner.empty:
+        tc = "Ticker" if "Ticker" in df_scanner.columns else "ticker"
+        if tc in df_scanner.columns:
+            sc_tickers = df_scanner[tc].dropna().unique().tolist()[:30]
+    merged = list(dict.fromkeys(sc_tickers + _DEFAULT_TKS))
+    opts   = sorted([_label(t) for t in merged], key=str.lower)
+    d2t    = {_label(t): t for t in merged}
+
+    # ── Controlli compatti Bloomberg style ──
+    c1, c2, c3, c4 = st.columns([3, 1.5, 2.2, 1])
+    with c1:
+        sel  = st.selectbox("Strumento", opts, key="of_sel")
+        sym  = d2t.get(sel, sel.split("(")[-1].rstrip(")").strip())
+        man  = st.text_input("Ticker manuale", placeholder="es. BTC-USD · ES=F · EURUSD=X",
+                             key="of_man").strip().upper()
+        if man: sym = man
+    with c2:
+        tf_lbl = st.selectbox("Timeframe", list(TF_MAP.keys()), index=2, key="of_tf")
+        sub_iv, main_freq, range_ = TF_MAP[tf_lbl]
+    with c3:
+        vista = st.radio("Vista",
+            ["📊 Principale", "📈 CVD + Divergenze", "📉 Indicatori",
+             "🔴 Large Trades v33", "🟥 Imbalance Map v33"],
+            key="of_vista", horizontal=False)
+    with c4:
+        st.write(""); st.write("")
+        show_vwap = st.checkbox("VWAP ±σ",    value=True, key="of_vwap")
+        show_ema  = st.checkbox("EMA 20/50",  value=True, key="of_ema")
+        show_vp   = st.checkbox("Vol Profile", value=True, key="of_vp")
+        lt_sigma  = st.slider("Large σ", 1.0, 3.5, 2.0, 0.5, key="of_sigma",
+                              help="Soglia Z-score per Large Trade Detector")
+
+    # Indicatori selezionabili solo per vista Indicatori
+    ind_sel = []
+    if vista == "📉 Indicatori":
+        st.markdown(
+            f'<div style="color:{GRAY};font-family:{MONO};font-size:0.72rem;margin-bottom:4px">'
+            f'INDICATORI ATTIVI:</div>', unsafe_allow_html=True)
+        ic = st.columns(4)
+        with ic[0]: ind_sel += ["RSI 14"]  if st.checkbox("RSI 14",  value=True,  key="of_rsi")  else []
+        with ic[1]: ind_sel += ["MACD"]    if st.checkbox("MACD",    value=True,  key="of_macd") else []
+        with ic[2]: ind_sel += ["ADX 14"]  if st.checkbox("ADX 14",  value=False, key="of_adx")  else []
+        with ic[3]: pass
+        ic2 = st.columns(4)
+        with ic2[0]: ind_sel += ["SMA 9/21"]  if st.checkbox("SMA 9/21",  value=False, key="of_sma")  else []
+        with ic2[1]: ind_sel += ["EMA 20/50"] if st.checkbox("EMA 20/50", value=True,  key="of_ema2") else []
+        with ic2[2]: ind_sel += ["Bollinger"] if st.checkbox("Bollinger",  value=False, key="of_bb")   else []
+
+    c_run, c_ref = st.columns([5, 1])
+    with c_run:
+        run = st.button("▶ CARICA", key="of_run", use_container_width=True, type="primary")
+    with c_ref:
+        if st.button("⟳", key="of_ref", help="Svuota cache"):
+            st.cache_data.clear(); st.rerun()
+
+    if not run:
+        st.markdown(
+            f'<div style="background:{PANEL};border:1px solid {BORDER};'
+            f'border-top:2px solid {ORANGE};'
+            f'border-radius:2px;padding:48px;text-align:center;margin-top:8px">'
+            f'<div style="font-family:{MONO};font-size:0.65rem;color:{GRAY};'
+            f'letter-spacing:2px;text-transform:uppercase">ORDER FLOW ANALYZER</div>'
+            f'<div style="color:{TEXT};font-family:{MONO};font-size:0.9rem;'
+            f'font-weight:700;margin:10px 0">'
+            f'Seleziona strumento e clicca <span style="color:{ORANGE}">▶ CARICA</span></div>'
+            f'<div style="color:{GRAY};font-family:{MONO};font-size:0.68rem;margin-top:6px">'
+            f'VWAP ±1σ/±2σ  ·  Volume Profile POC/VAH/VAL  ·  Delta  ·  CVD'
+            f'  ·  Large Trade Detector  ·  Imbalance Heatmap'
+            f'</div></div>',
+            unsafe_allow_html=True)
+        return
+
+    # ── Caricamento dati ──────────────────────────────────────────────────
+    n_display = _name(sym)
+    spin_lbl  = f"{sym} — {n_display}" if n_display != sym else sym
+    with st.spinner(f"⏳ {spin_lbl}  [{tf_lbl}]…"):
+        df_sub = _fetch(sym, sub_iv, range_)
+        if df_sub.empty:
+            st.error(
+                f"❌ Dati non trovati per **{sym}**.\n\n"
+                "Verifica il simbolo Yahoo Finance: `AAPL` · `BTC-USD` · `ES=F` · `EUR=X`")
+            return
+        df = _resample(df_sub, main_freq)
+        if df.empty:
+            st.error("❌ Errore nel campionamento. Prova un timeframe diverso."); return
+        df      = _indicators(df)
+        df_vwap = _vwap_bands(df_sub) if show_vwap else pd.DataFrame()
+
+    # ── KPI Bar Bloomberg style ───────────────────────────────────────────
+    last = df.iloc[-1]; first = df.iloc[0]
+    chg  = (last["close"]/first["open"]-1)*100 if first["open"] else 0
+    tb   = float(df["buy_vol"].sum()); ts_ = float(df["sell_vol"].sum())
+    td   = float(df["delta"].sum())
+    bp   = tb/(tb+ts_)*100 if (tb+ts_) > 0 else 50
+    dc   = GREEN if td >= 0 else RED
+    vwap_v = (float(df_vwap["vwap"].iloc[-1])
+              if not df_vwap.empty and "vwap" in df_vwap.columns else 0)
+    vs_v = ("▲ sopra" if last["close"] > vwap_v and vwap_v > 0
+            else "▼ sotto" if vwap_v > 0 else "–")
+    rsi_v = float(df["rsi"].iloc[-1]) if "rsi" in df.columns else 0
+    rsi_c = RED if rsi_v > 70 else (GREEN if rsi_v < 30 else GOLD)
+    rsi_s = "Overbought" if rsi_v > 70 else ("Oversold" if rsi_v < 30 else "Neutro")
+
+    # v33: Large Trade count
+    df_lt = _large_trades(df, sigma=lt_sigma)
+    n_lt  = int(df_lt["is_large"].sum())
+    lt_buy  = int(((df_lt["large_side"] == "BUY")  & df_lt["is_large"]).sum())
+    lt_sell = int(((df_lt["large_side"] == "SELL") & df_lt["is_large"]).sum())
+    lt_col  = (GREEN if lt_buy > lt_sell else RED if lt_sell > lt_buy else GOLD)
+    lt_lbl  = (f"▲{lt_buy}B ▼{lt_sell}S" if n_lt > 0 else "nessuno")
+
+    k = st.columns(8)
+    for (lbl, val, col, sub), kcol in zip([
+        ("TICKER",    sym,                    ORANGE, n_display if n_display != sym else ""),
+        ("CLOSE",     f"${last['close']:.2f}",GREEN if chg >= 0 else RED,
+                                              f"{'▲' if chg>=0 else '▼'} {abs(chg):.2f}%"),
+        ("VWAP",      f"${vwap_v:.2f}" if vwap_v else "–", VWAP_C, vs_v),
+        ("RSI 14",    f"{rsi_v:.1f}",         rsi_c,  rsi_s),
+        ("DELTA TOT", f"{'+' if td>=0 else ''}{_fv(td)}", dc,
+                                              "Buy dom" if td >= 0 else "Sell dom"),
+        ("BUY %",     f"{bp:.0f}%",           GREEN,  _fv(tb)),
+        ("SELL %",    f"{100-bp:.0f}%",       RED,    _fv(ts_)),
+        ("LARGE TR",  str(n_lt),              lt_col, lt_lbl),
+    ], k):
+        with kcol:
+            st.markdown(_kpi(lbl, val, col, sub), unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div style="height:1px;background:{BORDER};margin:8px 0"></div>',
+        unsafe_allow_html=True)
+
+    # ── Grafico + Legenda ─────────────────────────────────────────────────
+    if vista == "📊 Principale":
+        fig = _chart_main(df, df_vwap, sym, show_vwap, show_ema, show_vp)
+        st.plotly_chart(fig, use_container_width=True, key="of_main")
+        _legend_strip([
+            ("━", "VWAP",      VWAP_C), ("░", "±1σ", VWAP_C),
+            ("━", "EMA 20",    ORANGE), ("┄", "EMA 50",    BLUE),
+            ("◆", "POC",       GOLD),   ("┄", "VAH/VAL",   CYAN),
+            ("▌", "Buy Delta", GREEN),  ("▌", "Sell Delta", RED),
+            ("━", "CVD",       CYAN),
+        ])
+        _slide_block("principale")
+
+    elif vista == "📈 CVD + Divergenze":
+        fig = _chart_cvd(df, df_vwap, sym, show_vwap)
+        st.plotly_chart(fig, use_container_width=True, key="of_cvd")
+        _legend_strip([
+            ("━", "Prezzo Close", CYAN), ("┄", "VWAP", VWAP_C),
+            ("━", "CVD norm",     ORANGE), ("░", "Divergenza", ORANGE),
+            ("▌", "Delta Buy",    GREEN),  ("▌", "Delta Sell",  RED),
+        ])
+        _slide_block("cvd")
+
+    elif vista == "📉 Indicatori":
+        if not ind_sel:
+            st.info("ℹ️ Seleziona almeno un indicatore sopra.")
+        else:
+            fig = _chart_indicators(df, sym, ind_sel)
+            st.plotly_chart(fig, use_container_width=True, key="of_ind")
+            items = [("━","EMA 20",ORANGE),("┄","EMA 50",BLUE)]
+            if "SMA 9/21"  in ind_sel: items += [("━","SMA 9",PURPLE),("━","SMA 21",GOLD)]
+            if "Bollinger" in ind_sel: items += [("░","BB band",BLUE),("┄","BB mid",CYAN)]
+            if "RSI 14"    in ind_sel: items += [("━","RSI 14",PURPLE),("┄","OB 70",RED),("┄","OS 30",GREEN)]
+            if "MACD"      in ind_sel: items += [("━","MACD",CYAN),("━","Signal",ORANGE),("▌","Hist",GREEN)]
+            if "ADX 14"    in ind_sel: items += [("━","ADX",GOLD),("┄","+DI",GREEN),("┄","-DI",RED)]
+            _legend_strip(items)
+            _slide_block("indicatori")
+
+    elif vista == "🔴 Large Trades v33":
+        # Usa df_lt già calcolato con sigma sidebar
+        fig = _chart_large_trades(df_lt, sym)
+        st.plotly_chart(fig, use_container_width=True, key="of_lt")
+        _legend_strip([
+            ("●", "Large BUY",     GREEN),
+            ("●", "Large SELL",    RED),
+            ("◆", "Large NEUTRAL", GOLD),
+            ("▌", "Delta bar",     CYAN),
+            ("━", "CVD",           CYAN),
+            ("▌", "Z-score ≥2σ",   ORANGE),
+            ("▌", "Z-score ≥1σ",   GRAY),
+        ])
+        # Tabella large trades
+        lt_rows = df_lt[df_lt["is_large"]].copy()
+        if not lt_rows.empty:
+            with st.expander(f"📋 Large Trades rilevati ({len(lt_rows)})", expanded=True):
+                disp = lt_rows[["date","close","volume","vol_zscore","delta","delta_pct","large_side"]].copy()
+                disp["date"]      = disp["date"].dt.strftime("%H:%M")
+                disp["volume"]    = disp["volume"].apply(_fv)
+                disp["vol_zscore"]= disp["vol_zscore"].apply(lambda v: f"{v:.1f}σ")
+                disp["delta"]     = disp["delta"].apply(lambda v: f"{v:+,.0f}")
+                disp["delta_pct"] = disp["delta_pct"].apply(lambda v: f"{v:+.1f}%")
+                disp.columns = ["Ora","Close","Volume","Z-Score","Delta","Δ%","Side"]
+                st.dataframe(disp, use_container_width=True, hide_index=True)
+        else:
+            st.info(f"Nessun Large Trade con Z-score ≥ {lt_sigma:.1f}σ nel periodo selezionato.")
+
+    elif vista == "🟥 Imbalance Map v33":
+        fig = _chart_imbalance(df, sym)
+        st.plotly_chart(fig, use_container_width=True, key="of_imb")
+        _legend_strip([
+            ("█", "Buy Imbalance",  GREEN),
+            ("█", "Sell Imbalance", RED),
+            ("◆", "POC",            GOLD),
+            ("┄", "VAH/VAL",        CYAN),
+        ])
+        # Metriche imbalance
+        imb_data = _imbalance_heatmap(df)
+        if imb_data:
+            ia, ib, ic_, id_ = st.columns(4)
+            ia.metric("POC",  f"${imb_data['poc']:.2f}", help="Point of Control — max volume")
+            ib.metric("VAH",  f"${imb_data['vah']:.2f}", help="Value Area High (70%)")
+            ic_.metric("VAL", f"${imb_data['val']:.2f}", help="Value Area Low (70%)")
+            # Imbalance dominante (media pesata)
+            imb_mean = float(np.mean(imb_data["imbalance_pct"]))
+            id_.metric("Imb. medio",
+                       f"{imb_mean:+.1f}%",
+                       delta=None,
+                       help="+= buy dominante globalmente, -= sell dominante")
+
+    # ── Tabella dati candle ──────────────────────────────────────────────
+    with st.expander("📋 Dati candle (ultimi 30)", expanded=False):
+        scols = ["date","open","high","low","close","volume",
+                 "buy_vol","sell_vol","delta","delta_pct","cum_delta"]
+        ds = df[scols].tail(30).copy()
+        ds["date"]      = ds["date"].dt.strftime("%Y-%m-%d %H:%M")
+        for c in ["volume","buy_vol","sell_vol"]:
+            ds[c] = ds[c].apply(_fv)
+        ds["delta"]     = ds["delta"].apply(lambda v: f"{'+' if v>=0 else ''}{_fv(v)}")
+        ds["delta_pct"] = ds["delta_pct"].apply(lambda v: f"{v:+.1f}%")
+        ds["cum_delta"] = ds["cum_delta"].apply(_fv)
+        ds.columns = ["Data","Open","High","Low","Close","Volume",
+                      "Buy Vol","Sell Vol","Delta","Δ%","CVD"]
+        st.dataframe(ds, use_container_width=True, hide_index=True)
+
+    # ── Nota metodologica ────────────────────────────────────────────────
+    with st.expander("ℹ️ Metodologia dati", expanded=False):
+        st.markdown(f"""
+**Fonte:** Yahoo Finance OHLCV intraday (gratuito).
+
+**Delta Buy/Sell** — *Candle Body Ratio*:
+`buy_vol ≈ volume × (close − low) / (high − low)` · Accuratezza ~70-80% su strumenti liquidi.
+
+**Large Trade Detector v33** — Rileva barre con volume Z-score ≥ soglia impostata (default 2σ).
+Il Z-score è calcolato su rolling 20 barre. Il lato dominante è determinato dal delta_pct:
+≥+20% → BUY, ≤-20% → SELL, tra i due → NEUTRAL.
+
+**Imbalance Heatmap v33** — Footprint semplificato: distribuisce buy_vol/sell_vol per livello di prezzo
+in {30} bin. Il colore indica % di imbalance: verde = buy dominante, rosso = sell dominante.
+POC e Value Area (70%) calcolati sul volume totale per livello.
+
+**VWAP** con bande ±1σ / ±2σ, reset giornaliero.
+**CVD:** Cumulative Volume Delta — divergenze con il prezzo segnalano potenziali inversioni.
+""")
+
+    # ── Footer Bloomberg ─────────────────────────────────────────────────
+    st.markdown(
+        f'<div style="color:{GRAY};font-family:{MONO};font-size:0.60rem;'
+        f'text-align:center;margin-top:10px;padding-top:8px;'
+        f'border-top:1px solid {BORDER}">'
+        f'YAHOO FINANCE OHLCV  ·  CANDLE BODY RATIO  ·  CACHE 5MIN  ·  v33  ·  '
+        f'{datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        f'</div>',
         unsafe_allow_html=True)
 
     # ── Ticker list ──
