@@ -757,131 +757,62 @@ _SC_RULES = {
                  "EMA20 incrocia sotto EMA50"),
 }
 
-def strategy_chart_widget(
-    tickers: list,
-    key_suffix: str = "sc",
-    default_ticker: str = "",
-    ticker_labels: dict = None,
-) -> None:
-    """
-    ticker_labels: dict opzionale {ticker: "Nome azienda  (TICKER)"}
-                   Se fornito, la selectbox mostra il nome invece del solo ticker.
-    """
-    """
-    Widget Strategy Chart riusabile.
-    Incollalo in qualsiasi tab con:
-        from utils.backtest_tab import strategy_chart_widget
-        strategy_chart_widget(df_ep["Ticker"].tolist(), key_suffix="EARLY")
-    """
-    ks = key_suffix.replace(" ", "_").replace("-", "_")
+# ── 📊 STRATEGY CHART — candele + indicatori dedicati + segnali Entry / Exit ──
+st.markdown(
+    '<div style="background:#1e222d;border:1px solid #2a2e39;'
+    'border-radius:6px;padding:8px 12px;margin-top:12px;">'
+    '<span style="font-weight:700;color:#50c4e0;">📊 STRATEGY CHART</span>'
+    '<span style="color:#787b86;font-size:0.78rem;margin-left:8px;">'
+    'Candele + indicatori dedicati + segnali Entry / Exit</span>'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
-    # ── Header ───────────────────────────────────────────────────────────
-    st.markdown(
-        f'<div style="background:{_TV_PANEL};border-left:3px solid {_TV_CYAN};'
-        f'padding:8px 14px;border-radius:0 4px 4px 0;margin:12px 0 10px">'
-        f'<span style="color:{_TV_CYAN};font-weight:700">📊 STRATEGY CHART</span>'
-        f'<span style="color:{_TV_GRAY};font-size:0.78rem;margin-left:10px">'
-        f'Candele + indicatori dedicati + segnali Entry ▲ / Exit ▼</span>'
-        f'</div>', unsafe_allow_html=True)
+c_tkr, c_strat, c_period = st.columns([2.5, 2.2, 1.0])
 
-    # ── Controlli ────────────────────────────────────────────────────────
-    # Colonne: ticker (largo) | strategia | periodo | bottone
-    c_tkr, c_str, c_per, c_btn = st.columns([3, 2, 1, 1])
+with c_tkr:
+    ticker = st.selectbox(
+        "Azienda / Ticker (A→Z)",
+        sorted(df_sigs["ticker"].dropna().unique().tolist()) if not df_sigs.empty else [],
+        index=0 if not df_sigs.empty else None,
+        key="bt_strategy_ticker",
+    )
 
-    with c_tkr:
-        # Se abbiamo una lista di ticker dal tab → selectbox
-        # Altrimenti → input libero (solo per tab Backtest senza dati)
-        if tickers:
-            # Rimuovi duplicati
-            seen = set(); ordered = []
-            for t in tickers:
-                if t and t not in seen:
-                    seen.add(t); ordered.append(t)
-            if ticker_labels:
-                # Ordina alfabeticamente per nome display (A→Z)
-                pairs = sorted(
-                    [(t, ticker_labels.get(t, t)) for t in ordered],
-                    key=lambda x: x[1].lower()
-                )
-                opts_raw     = [p[0] for p in pairs]
-                opts_display = [p[1] for p in pairs]
-                def_idx = opts_raw.index(default_ticker) if default_ticker in opts_raw else 0
-                sel_label = st.selectbox(
-                    f"Azienda / Ticker  ({len(opts_raw)} — A→Z)",
-                    opts_display,
-                    index=def_idx,
-                    key=f"sc_tkr_{ks}",
-                    help=f"{len(opts_raw)} titoli ordinati per nome A→Z"
-                )
-                sc_ticker = opts_raw[opts_display.index(sel_label)]
-            else:
-                # Ordina per ticker alfabetico se no labels
-                opts = sorted(set(ordered))
-                def_idx = opts.index(default_ticker) if default_ticker in opts else 0
-                sc_ticker = st.selectbox(
-                    f"Ticker  ({len(opts)})",
-                    opts,
-                    index=def_idx,
-                    key=f"sc_tkr_{ks}",
-                    help=f"{len(opts)} ticker disponibili in questo tab"
-                )
-        else:
-            sc_ticker = st.text_input(
-                "Ticker",
-                value=default_ticker or "AAPL",
-                key=f"sc_tkr_{ks}",
-                placeholder="es. AAPL, ENI.MI",
-            ).strip().upper()
+# elenco strategie coerente con _STRATEGY_LEGEND (niente duplicati)
+_strategy_options = [
+    "RSI+VWAP",
+    "ADX+EMA",
+    "MACD",
+    "RSI+BOLL Short",
+    "OBV+HMA Short",
+    "ADX+Candle",
+    "Supertrend",
+    "Parabolic SAR",
+]
 
-    with c_str:
-        sc_strategy = st.selectbox(
-            "Strategia",
-            list(_SC_RULES.keys()),
-            key=f"sc_str_{ks}",
-        )
+with c_strat:
+    strategy = st.selectbox(
+        "Strategia",
+        _strategy_options,
+        index=_strategy_options.index("RSI+VWAP"),
+        key="bt_strategy_name",
+    )
 
-    with c_per:
-        sc_range = st.selectbox(
-            "Periodo",
-            ["3mo", "6mo", "1y", "2y"],
-            index=2,
-            key=f"sc_per_{ks}",
-        )
+with c_period:
+    period = st.selectbox(
+        "Periodo",
+        ["6mo", "1y", "2y"],
+        index=1,
+        key="bt_strategy_period",
+    )
 
-    with c_btn:
-        st.write(""); st.write("")
-        sc_run = st.button("▶ Mostra", key=f"sc_run_{ks}",
-                           use_container_width=True, type="primary")
+show_btn = st.button("▶ Mostra", key="bt_strategy_show")
 
-    # ── Banner Entry / Exit ───────────────────────────────────────────────
-    icon, sc_color, e_txt, x_txt = _SC_RULES[sc_strategy]
-    b_l, b_r = st.columns(2)
-    with b_l:
-        st.markdown(
-            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
-            f'border-left:4px solid {sc_color};border-radius:6px;'
-            f'padding:6px 12px;margin-bottom:8px">'
-            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▲ ENTRY {icon}</span><br>'
-            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{e_txt}</span>'
-            f'</div>', unsafe_allow_html=True)
-    with b_r:
-        st.markdown(
-            f'<div style="background:{_TV_PANEL};border:1px solid {_TV_BORDER};'
-            f'border-left:4px solid {_TV_RED};border-radius:6px;'
-            f'padding:6px 12px;margin-bottom:8px">'
-            f'<span style="color:{_TV_GRAY};font-size:0.65rem">▼ EXIT</span><br>'
-            f'<span style="color:{_TV_TEXT};font-size:0.8rem;font-weight:600">{x_txt}</span>'
-            f'</div>', unsafe_allow_html=True)
-
-    # ── Legenda visuale strategia ─────────────────────────────────────────
-    _render_strategy_legend(sc_strategy)
-
-    # ── Render grafico ────────────────────────────────────────────────────
-    if sc_run and sc_ticker:
-        _bt_render_strategy_chart(sc_ticker, sc_strategy, sc_range)
-    else:
-        st.caption("👆 Seleziona ticker e strategia, poi clicca **▶ Mostra**")
-
+if show_btn and ticker:
+    # grafico principale (usa solo le strategie effettivamente implementate
+    # in bt_detect_signals; le altre per ora avranno solo la guida visiva)
+    bt_render_strategy_chart(ticker, strategy, period)
+    _render_strategy_legend(strategy)
 
 def render_backtest_tab():
     """
