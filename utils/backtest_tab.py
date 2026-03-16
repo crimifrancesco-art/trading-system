@@ -36,43 +36,114 @@ _TV_BLUE  = "#2962ff"; _TV_CYAN  = "#50c4e0"; _TV_GRAY  = "#787b86"
 _TV_TEXT  = "#d1d4dc"; _TV_ORANGE= "#ff9800"; _TV_PURPLE= "#9c27b0"
 
 # ── Mappe legenda per strategia ──────────────────────────────────────────────
-# PNG caricate da Fingrad (in assets/) oppure SVG generati localmente
+# PNG/SVG caricati da Fingrad (in assets/) oppure generati localmente
 _LEG_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
-_LEG_OUTPUTS_DIR = "/mnt/user-data/outputs"   # dev environment
+_LEG_OUTPUTS_DIR = "/mnt/user-data/outputs"  # dev environment
 
+# formato: strategy_key -> (filename_png_or_svg, mime, title, bullet_points)
+# Ogni strategia ha UNA sola immagine dedicata, niente duplicati.
 _STRATEGY_LEGEND = {
-    # formato: (filename_png_or_svg, mime, title, bullet_points)
     "RSI+VWAP": (
-        "leg_rsi_vwap.png", "image/png",
+        "leg_rsi_vwap.png",
+        "image/png",
         "RSI + VWAP — Intraday Strategy",
-        ["▲ LONG entry: Price > VWAP + RSI sale da sotto 30",
-         "▼ EXIT: Price < VWAP o RSI scende da sopra 70",
-         "Stop-loss: sotto il minimo del segnale entry",
-         "Timeframe ideale: 15min–1h"],
+        [
+            "▲ LONG entry: Price > VWAP + RSI sale da sotto 30.",
+            "▼ EXIT: Price < VWAP oppure RSI scende da sopra 70.",
+            "Stop-loss: sotto il minimo del segnale di entry.",
+            "Timeframe ideale: 15min–1h su titoli liquidi.",
+        ],
     ),
+
+    # ADX + EMA 20/50 — usa SOLO questa chiave per i cross con filtro ADX
     "ADX+EMA": (
-        "leg_adx_ema.svg", "image/svg+xml",
-        "ADX + EMA Cross",
-        ["▲ LONG: EMA20 incrocia sopra EMA50 + ADX > 25",
-         "▼ EXIT: EMA20 < EMA50 o ADX < 25",
-         "▲ SHORT: EMA20 incrocia sotto EMA50 + ADX > 25",
-         "ADX > 25 = trend forte, < 25 = mercato laterale"],
+        "leg_adx_ema.svg",
+        "image/svg+xml",
+        "ADX + EMA 20/50 Cross",
+        [
+            "▲ LONG: EMA20 incrocia sopra EMA50 con ADX > 25.",
+            "▼ EXIT: EMA20 torna sotto EMA50 oppure ADX < 25.",
+            "▲ SHORT: EMA20 incrocia sotto EMA50 con ADX > 25.",
+            "ADX > 25 = trend forte; ADX < 25 = mercato laterale (più falsi segnali).",
+        ],
     ),
+
+    # MACD classico 12,26,9 con conferma EMA
     "MACD": (
-        "leg_macd_ema.svg", "image/svg+xml",
+        "leg_macd_ema.svg",
+        "image/svg+xml",
         "MACD (12,26,9)",
-        ["▲ LONG entry: MACD histogram incrocia sopra 0",
-         "▼ EXIT: MACD histogram incrocia sotto 0",
-         "Conferma con EMA20 > EMA50",
-         "Divergenza MACD/prezzo = segnale forte di inversione"],
+        [
+            "▲ LONG entry: MACD line incrocia sopra la Signal line.",
+            "▼ EXIT: MACD line incrocia sotto la Signal line.",
+            "Conferma: prezzo sopra EMA20/EMA50, trend rialzista.",
+            "Divergenza MACD/prezzo = segnale forte di possibile inversione.",
+        ],
     ),
-    "EMA Cross": (
-        "leg_adx_ema.svg", "image/svg+xml",
-        "EMA 20/50 Cross",
-        ["▲ LONG: EMA20 incrocia sopra EMA50",
-         "▼ EXIT: EMA20 incrocia sotto EMA50",
-         "Più affidabile in trend forti (ADX > 25)",
-         "In laterale produce falsi segnali — combina con volume"],
+
+    # RSI + Bollinger Bands – Short (immagine: trading with RSI & Bollinger)
+    "RSI+BOLL Short": (
+        "leg_rsi_boll_short.svg",
+        "image/svg+xml",
+        "RSI + Bollinger Bands — Short Setup",
+        [
+            "ENTRY: candela rompe la banda superiore e RSI è sopra 70 (overbought).",
+            "EXIT: candela rompe la banda inferiore e RSI scende verso/o sotto 30.",
+            "Setup ideale dopo forte uptrend, evita mercati laterali troppo rumorosi.",
+            "Usa stop sopra il massimo locale della rottura di banda.",
+        ],
+    ),
+
+    # OBV + Hull Moving Average – Short (immagine: trading with OBV & HMA)
+    "OBV+HMA Short": (
+        "leg_obv_hma_short.svg",
+        "image/svg+xml",
+        "OBV + Hull Moving Average — Short",
+        [
+            "ENTRY: prezzo chiude sotto la HMA e OBV inizia a scendere (selling pressure).",
+            "EXIT: prezzo chiude sopra la HMA oppure OBV torna a salire con decisione.",
+            "Funziona bene su trend ribassisti puliti, con volumi in aumento.",
+            "Evita fasce orarie a bassa liquidità per ridurre falsi segnali.",
+        ],
+    ),
+
+    # ADX + Candlestick pattern (immagine: ADX + Piercing Line)
+    "ADX+Candle": (
+        "leg_adx_candle.svg",
+        "image/svg+xml",
+        "ADX + Candlestick Reversal",
+        [
+            "ENTRY: pattern di inversione (es. Piercing Line / Engulfing) confermato.",
+            "Filtro: ADX sopra 25 per privilegiare i trend ben strutturati.",
+            "STOP-LOSS: al di sotto del minimo del pattern di reversal.",
+            "Target: primi livelli di resistenza / zone di volume importanti.",
+        ],
+    ),
+
+    # Supertrend (immagine: Supertrend indicator)
+    "Supertrend": (
+        "leg_supertrend.svg",
+        "image/svg+xml",
+        "Supertrend Indicator — Trend Following",
+        [
+            "▲ LONG: il prezzo chiude sopra la linea Supertrend (verde).",
+            "▼ EXIT / SHORT: il prezzo chiude sotto la linea Supertrend (rossa).",
+            "Ottimo per seguire trend prolungati; soffre nelle fasi laterali.",
+            "Regola il moltiplicatore ATR per bilanciare tra segnali e noise.",
+        ],
+    ),
+
+    # Parabolic SAR (immagine: Parabolic SAR)
+    "Parabolic SAR": (
+        "leg_parabolic_sar.svg",
+        "image/svg+xml",
+        "Parabolic SAR — Trailing Stop dinamico",
+        [
+            "▲ LONG: il prezzo rompe al rialzo e i punti SAR passano sotto le candele.",
+            "▼ EXIT: i punti SAR passano sopra le candele (segnale di inversione).",
+            "Usalo come trailing stop su trend forti; evita range molto stretti.",
+            "Accelera il parametro SAR per time frame brevi, riducilo per il daily.",
+        ],
     ),
 }
 
@@ -86,11 +157,13 @@ def _read_legend_image(filename: str) -> tuple[str, str]:
     """
     ext = filename.rsplit(".", 1)[-1].lower()
     mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
+
     for directory in [_LEG_ASSETS_DIR, _LEG_OUTPUTS_DIR]:
         path = os.path.join(directory, filename)
         if os.path.exists(path):
             with open(path, "rb") as f:
                 return base64.b64encode(f.read()).decode(), mime
+
     return "", mime
 
 
@@ -101,40 +174,50 @@ def _render_strategy_legend(strategy: str) -> None:
     """
     if strategy not in _STRATEGY_LEGEND:
         return
+
     filename, mime, title, bullets = _STRATEGY_LEGEND[strategy]
     b64, actual_mime = _read_legend_image(filename)
 
     with st.expander(f"📖 Guida visuale — {title}", expanded=False):
         col_img, col_txt = st.columns([1.2, 1])
+
         with col_img:
             if b64:
                 st.markdown(
                     f'<img src="data:{actual_mime};base64,{b64}" '
-                    f'style="width:100%;border-radius:6px;border:1px solid #2a2e39">',
+                    'style="width:100%;border-radius:6px;'
+                    'border:1px solid #2a2e39;" />',
                     unsafe_allow_html=True,
                 )
             else:
                 st.markdown(
                     f'<div style="background:#1e222d;border:1px dashed #2a2e39;'
-                    f'border-radius:6px;padding:20px;text-align:center;color:#787b86">'
-                    f'📊 {title}<br><small>Metti l\'immagine in <code>assets/{filename}</code></small>'
-                    f'</div>',
+                    'border-radius:6px;padding:20px;text-align:center;'
+                    'color:#787b86;font-size:0.8rem;">'
+                    f'Metti l\'immagine in <code>assets/{filename}</code>'
+                    "</div>",
                     unsafe_allow_html=True,
                 )
+
         with col_txt:
             st.markdown(
-                f'<div style="background:#131722;border-radius:6px;padding:12px 14px">'
-                f'<div style="color:#ffd700;font-weight:700;font-size:0.85rem;'
-                f'margin-bottom:8px">📋 Regole operative</div>'
-                + "".join([
-                    f'<div style="color:#d1d4dc;font-size:0.78rem;padding:3px 0;'
-                    f'border-left:2px solid {"#26a69a" if "▲" in b else "#ef5350" if "▼" in b else "#787b86"};'
-                    f'padding-left:7px;margin:3px 0">{b}</div>'
+                '<div style="background:#131722;border-radius:6px;'
+                'padding:12px 14px;">'
+                '<div style="color:#ffd700;font-weight:700;'
+                'font-size:0.85rem;margin-bottom:8px;">'
+                'Regole operative</div>'
+                + "".join(
+                    f'<div style="color:#d1d4dc;font-size:0.78rem;'
+                    f'padding:3px 0;border-left:2px solid '
+                    f'{"#26a69a" if "▲" in b else "#ef5350" if "▼" in b else "#787b86"};'
+                    'padding-left:7px;margin:3px 0;">'
+                    f"{b}</div>"
                     for b in bullets
-                ])
-                + '</div>',
+                )
+                + "</div>",
                 unsafe_allow_html=True,
             )
+
 
 # ── Fetch OHLCV per strategy chart ─────────────────────────────────────────
 @st.cache_data(ttl=3600, show_spinner=False)
