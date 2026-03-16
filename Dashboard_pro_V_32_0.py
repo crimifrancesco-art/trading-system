@@ -122,20 +122,31 @@ try:
     from utils.orderflow_tab import render_orderflow_tab as _of_render
 except Exception:
     _of_render = None
+# Backtest tab opzionale — wrappato per gestire errori db v27 o moduli mancanti
+_HAS_BACKTEST = False
+
+def render_backtest_tab():
+    st.warning("⚠️ Modulo di Backtest non configurato correttamente.")
+    st.info("Carica `utils/backtest_tab.py` nel repo e fai redeploy.")
+
 try:
     from utils.backtest_tab import render_backtest_tab as _bt_orig
+    # Se l'import va a buon fine, sovrascriviamo la funzione dummy con quella reale
     def render_backtest_tab():
         try:
             _bt_orig()
         except Exception as _e:
-            st.error(f"❌ Errore Backtest: {_e}")
-            import traceback as _tbc; st.code(_tbc.format_exc())
+            st.error(f"❌ Errore durante l'esecuzione del Backtest: {_e}")
+            import traceback
+            st.code(traceback.format_exc())
     _HAS_BACKTEST = True
-except ImportError as _bt_ie:
+
+except ImportError as e:
+    # Qui catturiamo l'errore di importazione nella variabile 'e'
+    # La funzione render_backtest_tab rimane quella dummy definita sopra
     _HAS_BACKTEST = False
-    def render_backtest_tab():
-        st.warning(f"⚠️ backtest_tab.py non trovato: {_bt_ie}")
-        st.info("Carica utils/backtest_tab.py nel repo e fai redeploy.")
+    # Opzionale: loggare l'errore specifico se serve debugging, ma non usarlo nello streamlit principale se non sicuro
+    # print(f"Backtest import error: {e}") 
 # =========================================================================
 # ENRICH: normalizza e arricchisce DataFrame dallo scanner
 # Compatibile con scanner v22 (repo) e v28 (aggiornato)
