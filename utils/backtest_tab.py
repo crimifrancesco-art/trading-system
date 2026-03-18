@@ -41,7 +41,6 @@ _LEG_ASSETS_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
 _LEG_OUTPUTS_DIR = "/mnt/user-data/outputs"   # dev environment
 
 _STRATEGY_LEGEND = {
-    # formato: (filename_png_or_svg, mime, title, bullet_points)
     "RSI+VWAP": (
         "leg_rsi_vwap.png", "image/png",
         "RSI + VWAP — Intraday Strategy",
@@ -55,8 +54,8 @@ _STRATEGY_LEGEND = {
         "ADX + EMA Cross",
         ["▲ LONG: EMA20 incrocia sopra EMA50 + ADX > 25",
          "▼ EXIT: EMA20 < EMA50 o ADX < 25",
-         "▲ SHORT: EMA20 incrocia sotto EMA50 + ADX > 25",
-         "ADX > 25 = trend forte, < 25 = mercato laterale"],
+         "ADX > 25 = trend forte, < 25 = mercato laterale",
+         "Timeframe: daily / 4h per swing"],
     ),
     "MACD": (
         "leg_macd_ema.svg", "image/svg+xml",
@@ -66,13 +65,53 @@ _STRATEGY_LEGEND = {
          "Conferma con EMA20 > EMA50",
          "Divergenza MACD/prezzo = segnale forte di inversione"],
     ),
-    "EMA Cross": (
+    "Keltner Channel": (
+        "leg_keltner_macd.png", "image/png",
+        "Keltner Channel (EMA20 ± 2×ATR)",
+        ["▲ LONG: prezzo chiude sopra la banda inferiore dal basso",
+         "▼ EXIT: prezzo raggiunge o supera la banda superiore",
+         "Banda media = EMA20 — funge da supporto/resistenza dinamico",
+         "Combina bene con RSI per filtrare falsi breakout"],
+    ),
+    "Donchian Channel": (
+        "leg_rsi_vwap.png", "image/png",
+        "Donchian Channel (Breakout n=20)",
+        ["▲ LONG entry: candela tocca/supera la banda superiore 20-day",
+         "▼ EXIT: candela tocca la banda inferiore 20-day",
+         "Strategia breakout pura — funziona bene in trend forti",
+         "Evitare in mercati laterali (molti falsi segnali)"],
+    ),
+    "RSI+Bollinger": (
+        "leg_bb_rsi.png", "image/png",
+        "RSI + Bollinger Bands — Mean Reversion",
+        ["▲ LONG: prezzo sotto la banda inferiore BB + RSI < 35",
+         "▼ EXIT: prezzo sopra la banda superiore BB o RSI > 65",
+         "Strategia mean-reversion — compra oversold, vendi overbought",
+         "Più efficace su titoli con trend neutro o range-bound"],
+    ),
+    "OBV+Hull MA": (
+        "leg_rsi_vwap.png", "image/png",
+        "OBV + Hull Moving Average",
+        ["▲ LONG: prezzo incrocia sopra Hull MA + OBV in salita (> OBV MA10)",
+         "▼ EXIT: prezzo scende sotto Hull MA o OBV inizia a scendere",
+         "Hull MA reagisce più velocemente all'EMA standard",
+         "OBV conferma che il volume supporta il movimento di prezzo"],
+    ),
+    "SAR+Chop": (
+        "leg_sar.png", "image/png",
+        "Parabolic SAR + Chop Zone",
+        ["▲ LONG: SAR passa sotto le candele (trend bullish) + Chop Zone verde/blu",
+         "▼ EXIT: SAR passa sopra le candele o Chop Zone diventa rossa",
+         "Chop Zone BLU = trend forte (ADX>40) · VERDE = moderato · ROSSO = laterale",
+         "Non operare quando Chop Zone è ROSSA — evita falsi segnali"],
+    ),
+    "ADX+Pattern": (
         "leg_adx_ema.svg", "image/svg+xml",
-        "EMA 20/50 Cross",
-        ["▲ LONG: EMA20 incrocia sopra EMA50",
-         "▼ EXIT: EMA20 incrocia sotto EMA50",
-         "Più affidabile in trend forti (ADX > 25)",
-         "In laterale produce falsi segnali — combina con volume"],
+        "ADX + Piercing Line Pattern",
+        ["▲ LONG: Piercing Line candlestick (reversal pattern) + ADX > 25",
+         "Piercing Line: candela bearish seguita da bullish che chiude >50% del body precedente",
+         "▼ EXIT: ADX scende sotto 20 (trend perde forza)",
+         "Più efficace in presenza di supporti tecnici chiari"],
     ),
 }
 
@@ -196,161 +235,390 @@ def _bt_adx(h,lo,c,period=14):
             if st2+k<n: out[st2+k]=av
     return pd.Series(out,index=c.index)
 
+# ── v34: Nuovi indicatori helper ─────────────────────────────────────────────
+
+def _bt_keltner(c, h, lo, n=20, mult=2.0):
+    """Keltner Channel: EMA(n) ± mult * ATR(n)."""
+    ema  = _bt_ema(c, n)
+    tr   = pd.concat([h-lo,
+                      (h-c.shift()).abs(),
+                      (lo-c.shift()).abs()], axis=1).max(axis=1)
+    atr  = tr.ewm(span=n, adjust=False).mean()
+    return ema, ema + mult*atr, ema - mult*atr   # mid, upper, lower
+
+def _bt_donchian(h, lo, n=20):
+    """Donchian Channel: rolling max/min su n periodi."""
+    return h.rolling(n).max(), lo.rolling(n).min()   # upper, lower
+
+def _bt_bollinger(c, n=20, k=2.0):
+    """Bollinger Bands: SMA(n) ± k*std."""
+    mid = c.rolling(n).mean()
+    std = c.rolling(n).std()
+    return mid, mid + k*std, mid - k*std   # mid, upper, lower
+
+def _bt_obv(c, v):
+    """On-Balance Volume."""
+    sign = np.sign(c.diff().fillna(0))
+    return (sign * v).cumsum()
+
+def _bt_hma(c, n=20):
+    """Hull Moving Average: WMA(2*WMA(n/2) - WMA(n), sqrt(n))."""
+    def _wma(s, p):
+        w = np.arange(1, p+1, dtype=float)
+        return s.rolling(p).apply(lambda x: np.dot(x, w[-len(x):]) / w[-len(x):].sum(), raw=True)
+    half = max(int(n/2), 2)
+    sq   = max(int(np.sqrt(n)), 2)
+    raw  = 2 * _wma(c, half) - _wma(c, n)
+    return _wma(raw, sq)
+
+def _bt_sar(h, lo, af_start=0.02, af_max=0.2):
+    """Parabolic SAR — restituisce (sar_series, bull_series)."""
+    h_ = h.values.astype(float); l_ = lo.values.astype(float); n = len(h_)
+    sar = np.zeros(n); bull = np.ones(n, dtype=bool)
+    ep = h_[0]; af = af_start; sar[0] = l_[0]
+    for i in range(1, n):
+        pb = bull[i-1]; ps = sar[i-1]
+        if pb:
+            ns = min(ps + af*(ep-ps), l_[i-1], l_[i-2] if i>=2 else l_[i-1])
+            if l_[i] < ns:
+                bull[i]=False; sar[i]=ep; ep=l_[i]; af=af_start
+            else:
+                bull[i]=True; sar[i]=ns
+                if h_[i]>ep: ep=h_[i]; af=min(af+af_start, af_max)
+        else:
+            ns = max(ps + af*(ep-ps), h_[i-1], h_[i-2] if i>=2 else h_[i-1])
+            if h_[i] > ns:
+                bull[i]=True; sar[i]=ep; ep=h_[i]; af=af_start
+            else:
+                bull[i]=False; sar[i]=ns
+                if l_[i]<ep: ep=l_[i]; af=min(af+af_start, af_max)
+    return pd.Series(sar, index=h.index), pd.Series(bull.astype(int), index=h.index)
+
+def _bt_chop_zone(h, lo, c, n=14):
+    """
+    Chop Zone proxy basato su ADX + EMA slope.
+    Ritorna colori per ogni barra: 'blue'=strong trend, 'green'=moderate,
+    'yellow'=caution, 'red'=choppy.
+    """
+    adx = _bt_adx(h, lo, c, n)
+    ema = _bt_ema(c, n)
+    slope = ema.diff(3) / c * 100  # slope % EMA
+    colors = []
+    for i in range(len(c)):
+        a = adx.iloc[i] if not np.isnan(adx.iloc[i]) else 0
+        s = abs(slope.iloc[i]) if not np.isnan(slope.iloc[i]) else 0
+        if   a > 40 and s > 0.5: colors.append("blue")
+        elif a > 25 and s > 0.2: colors.append("green")
+        elif a > 15:             colors.append("yellow")
+        else:                    colors.append("red")
+    return colors
+
+def _bt_piercing_line(o, c):
+    """
+    Piercing Line pattern detector.
+    Bearish candle seguita da bullish che chiude >50% del body precedente.
+    """
+    o_ = o.values.astype(float); c_ = c.values.astype(float)
+    signals = np.zeros(len(c_), dtype=bool)
+    for i in range(1, len(c_)):
+        prev_bear = c_[i-1] < o_[i-1]
+        curr_bull = c_[i]   > o_[i]
+        mid_prev  = (o_[i-1] + c_[i-1]) / 2
+        if prev_bear and curr_bull and c_[i] > mid_prev and o_[i] < c_[i-1]:
+            signals[i] = True
+    return pd.Series(signals, index=c.index)
+
+
 def _bt_detect_signals(df: pd.DataFrame, strategy: str):
-    """Detecta Entry/Exit per la strategia — ritorna (e_d,e_p,x_d,x_p)."""
-    c=df["close"].reset_index(drop=True); h=df["high"].reset_index(drop=True)
-    lo=df["low"].reset_index(drop=True); v=df["volume"].fillna(0).reset_index(drop=True)
-    dt=df["date"].reset_index(drop=True)
-    ema20=_bt_ema(c,20).values; ema50=_bt_ema(c,50).values
-    rsi_s=_bt_rsi(c).values
-    _,_,mh=_bt_macd(c); mh_=mh.values
-    vwap_=_bt_vwap(c,v,20).values
-    adx_=_bt_adx(h,lo,c,14).values
-    e_d,e_p,x_d,x_p=[],[],[],[]; in_t=False
-    for i in range(30,len(c)-1):
-        ri=rsi_s[i] if not np.isnan(rsi_s[i]) else 50
-        rp=rsi_s[i-1] if not np.isnan(rsi_s[i-1]) else 50
-        vi=vwap_[i] if not np.isnan(vwap_[i]) else float(c.iloc[i])
-        ai=adx_[i]  if not np.isnan(adx_[i])  else 0
-        if   strategy=="RSI+VWAP":
-            ent=(rp<30)and(ri>=30)and(float(c.iloc[i])>vi)
-            ex_=((rp>70)and(ri<=70))or(in_t and float(c.iloc[i])<vi and ri>65)
-        elif strategy=="ADX+EMA":
-            ent=(ema20[i-1]<=ema50[i-1])and(ema20[i]>ema50[i])and(ai>25)
-            ex_=(ema20[i]<ema50[i])or(in_t and ai<25)
-        elif strategy=="MACD":
-            ent=(mh_[i-1]<=0)and(mh_[i]>0); ex_=(mh_[i-1]>=0)and(mh_[i]<0)
-        else:  # EMA Cross
-            ent=(ema20[i-1]<=ema50[i-1])and(ema20[i]>ema50[i])
-            ex_=(ema20[i-1]>=ema50[i-1])and(ema20[i]<ema50[i])
+    """Detecta Entry/Exit per la strategia — ritorna (e_d, e_p, x_d, x_p)."""
+    c  = df["close"].reset_index(drop=True)
+    h  = df["high"].reset_index(drop=True)
+    lo = df["low"].reset_index(drop=True)
+    v  = df["volume"].fillna(0).reset_index(drop=True)
+    o  = df["open"].reset_index(drop=True)
+    dt = df["date"].reset_index(drop=True)
+
+    ema20 = _bt_ema(c, 20).values;  ema50 = _bt_ema(c, 50).values
+    rsi_s = _bt_rsi(c).values
+    ml_s, _, mh_s = _bt_macd(c);   mh_ = mh_s.values
+    vwap_ = _bt_vwap(c, v, 20).values
+    adx_  = _bt_adx(h, lo, c, 14).values
+    _, kelt_up, kelt_dn = _bt_keltner(c, h, lo)
+    ku_ = kelt_up.values; kd_ = kelt_dn.values
+    don_up, don_dn = _bt_donchian(h, lo)
+    du_ = don_up.values; dd_ = don_dn.values
+    _, bb_up, bb_dn = _bt_bollinger(c)
+    bu_ = bb_up.values; bd_ = bb_dn.values
+    obv_  = _bt_obv(c, v).values
+    hma_  = _bt_hma(c, 20).values
+    obv_ma = _bt_ema(pd.Series(obv_), 10).values
+    sar_s, bull_s = _bt_sar(h, lo)
+    sar_ = sar_s.values; bull_ = bull_s.values
+    chop_  = _bt_chop_zone(h, lo, c)
+    pierc_ = _bt_piercing_line(o, c).values
+
+    e_d, e_p, x_d, x_p = [], [], [], []
+    in_t = False
+
+    for i in range(30, len(c)-1):
+        ci  = float(c.iloc[i])
+        ri  = float(rsi_s[i])  if not np.isnan(rsi_s[i])  else 50.0
+        rp  = float(rsi_s[i-1])if not np.isnan(rsi_s[i-1])else 50.0
+        vi  = float(vwap_[i])  if not np.isnan(vwap_[i])  else ci
+        ai  = float(adx_[i])   if not np.isnan(adx_[i])   else 0.0
+        ent = ex_ = False
+
+        if strategy == "RSI+VWAP":
+            ent = (rp < 30) and (ri >= 30) and (ci > vi)
+            ex_ = ((rp > 70) and (ri <= 70)) or (in_t and ci < vi and ri > 65)
+        elif strategy == "ADX+EMA":
+            ent = (ema20[i-1] <= ema50[i-1]) and (ema20[i] > ema50[i]) and (ai > 25)
+            ex_ = (ema20[i] < ema50[i]) or (in_t and ai < 25)
+        elif strategy == "MACD":
+            mv = mh_[i] if not np.isnan(mh_[i]) else 0
+            mp = mh_[i-1] if not np.isnan(mh_[i-1]) else 0
+            ent = (mp <= 0) and (mv > 0);  ex_ = (mp >= 0) and (mv < 0)
+        elif strategy == "Keltner Channel":
+            kd_i = kd_[i]  if not np.isnan(kd_[i])  else ci
+            kd_p = kd_[i-1]if not np.isnan(kd_[i-1])else ci
+            ku_i = ku_[i]  if not np.isnan(ku_[i])  else ci
+            ent = (float(c.iloc[i-1]) <= kd_p) and (ci > kd_i)
+            ex_ = in_t and (ci >= ku_i * 0.995)
+        elif strategy == "Donchian Channel":
+            du_i = du_[i] if not np.isnan(du_[i]) else ci
+            dd_i = dd_[i] if not np.isnan(dd_[i]) else ci
+            ent = (ci >= du_i * 0.999)
+            ex_ = in_t and (ci <= dd_i * 1.001)
+        elif strategy == "RSI+Bollinger":
+            bd_i = bd_[i] if not np.isnan(bd_[i]) else ci
+            bu_i = bu_[i] if not np.isnan(bu_[i]) else ci
+            ent = (ci <= bd_i) and (ri < 35)
+            ex_ = in_t and ((ci >= bu_i) or (ri > 65))
+        elif strategy == "OBV+Hull MA":
+            hma_i = hma_[i]  if not np.isnan(hma_[i])  else ci
+            hma_p = hma_[i-1]if not np.isnan(hma_[i-1])else ci
+            obv_rise = obv_[i] > obv_ma[i] if not np.isnan(obv_ma[i]) else (obv_[i] > obv_[i-1])
+            ent = (float(c.iloc[i-1]) < hma_p) and (ci >= hma_i) and obv_rise
+            ex_ = in_t and ((ci < hma_i) or (not obv_rise))
+        elif strategy == "SAR+Chop":
+            bull_i = bool(bull_[i]);  bull_p = bool(bull_[i-1])
+            chop_ok = chop_[i] in ("blue", "green")
+            ent = (not bull_p) and bull_i and chop_ok
+            ex_ = in_t and (not bull_i or chop_[i] == "red")
+        elif strategy == "ADX+Pattern":
+            ent = bool(pierc_[i]) and (ai > 25)
+            ex_ = in_t and (ai < 20)
+
         if not in_t and ent:
-            e_d.append(str(dt.iloc[i])[:10]); e_p.append(float(c.iloc[i])); in_t=True
+            e_d.append(str(dt.iloc[i])[:10]); e_p.append(ci); in_t = True
         elif in_t and ex_:
-            x_d.append(str(dt.iloc[i])[:10]); x_p.append(float(c.iloc[i])); in_t=False
-    return e_d,e_p,x_d,x_p
+            x_d.append(str(dt.iloc[i])[:10]); x_p.append(ci); in_t = False
+
+    return e_d, e_p, x_d, x_p
+
+
 
 def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y") -> None:
-    """
-    Grafico candele + indicatore dedicato alla strategia + marker Entry/Exit.
-    Identico allo stile di bluechip_dip._plot_strategy_chart.
-    """
     with st.spinner(f"⏳ Caricamento dati {ticker} ({range_})..."):
         df = _bt_fetch_ohlcv(ticker, range_)
-
     if df.empty:
-        st.warning(f"⚠️ Dati non disponibili per {ticker}")
-        return
+        st.warning(f"⚠️ Dati non disponibili per {ticker}"); return
 
-    c=df["close"]; h=df["high"]; lo=df["low"]; v=df["volume"].fillna(0)
+    c=df["close"]; h=df["high"]; lo=df["low"]; v=df["volume"].fillna(0); o=df["open"]
     dt=[str(d)[:10] for d in df["date"]]
     ema20=_bt_ema(c,20); ema50=_bt_ema(c,50); ema200=_bt_ema(c,200)
     rsi_s=_bt_rsi(c)
     ml,sl,mh=_bt_macd(c); hist_colors=[_TV_GREEN if x>=0 else _TV_RED for x in mh]
     vwap_=_bt_vwap(c,v,20)
     adx_=_bt_adx(h,lo,c,14)
+    _, kelt_up, kelt_dn = _bt_keltner(c, h, lo)
+    don_up, don_dn      = _bt_donchian(h, lo)
+    _, bb_up, bb_dn     = _bt_bollinger(c)
+    obv_s               = _bt_obv(c, v)
+    hma_s               = _bt_hma(c, 20)
+    sar_s, bull_s       = _bt_sar(h, lo)
+    chop_colors         = _bt_chop_zone(h, lo, c)
+    pierc_s             = _bt_piercing_line(o, c)
 
-    use_adx = (strategy == "ADX+EMA")
-    row4_title = {
-        "RSI+VWAP":  "RSI (14)  ·  Zone 30/70 — segnali RSI+VWAP",
-        "ADX+EMA":   "ADX (14)  ·  Soglia 25",
-        "MACD":      "MACD (12,26,9)",
-        "EMA Cross": "MACD (12,26,9)",
-    }.get(strategy, "MACD (12,26,9)")
+    # Mappa pannello Row 4
+    row4_titles = {
+        "RSI+VWAP":        "RSI (14)  ·  Zone 30/70",
+        "ADX+EMA":         "ADX (14)  ·  Soglia 25",
+        "MACD":            "MACD (12,26,9)",
+        "Keltner Channel": "Keltner Channel  ·  EMA±2ATR",
+        "Donchian Channel":"Donchian Channel  ·  Breakout n=20",
+        "RSI+Bollinger":   "Bollinger Bands (20,2)  +  RSI",
+        "OBV+Hull MA":     "OBV  +  Hull MA (20)",
+        "SAR+Chop":        "Chop Zone  (ADX proxy)",
+        "ADX+Pattern":     "ADX (14)  ·  Soglia 25  +  Piercing Line",
+    }
 
     fig = make_subplots(
         rows=4, cols=1, shared_xaxes=True,
-        row_heights=[0.52,0.12,0.18,0.18],
+        row_heights=[0.52, 0.12, 0.18, 0.18],
         vertical_spacing=0.02,
-        subplot_titles=["","","RSI (14)", row4_title],
+        subplot_titles=["", "", "RSI (14)", row4_titles.get(strategy, "Indicatore")],
     )
 
-    # Row 1 — Candele + EMA + VWAP
+    # ── Row 1: Candele + overlay specifico per strategia ─────────────────
     fig.add_trace(go.Candlestick(x=dt,
-        open=df["open"].values,high=h.values,low=lo.values,close=c.values,
+        open=o.values, high=h.values, low=lo.values, close=c.values,
         name="Price",
-        increasing=dict(fillcolor=_TV_GREEN,line=dict(color=_TV_GREEN,width=1)),
-        decreasing=dict(fillcolor=_TV_RED,  line=dict(color=_TV_RED,  width=1)),
-        showlegend=False), row=1,col=1)
-    fig.add_trace(go.Scatter(x=dt,y=ema20,mode="lines",name="EMA20",
-        line=dict(color="#26c6da",width=1.2)), row=1,col=1)
-    fig.add_trace(go.Scatter(x=dt,y=ema50,mode="lines",name="EMA50",
-        line=dict(color=_TV_GOLD,width=1.2)), row=1,col=1)
-    if strategy in ("RSI+VWAP",):
-        fig.add_trace(go.Scatter(x=dt,y=vwap_,mode="lines",name="VWAP",
-            line=dict(color=_TV_ORANGE,width=2)), row=1,col=1)
+        increasing=dict(fillcolor=_TV_GREEN, line=dict(color=_TV_GREEN, width=1)),
+        decreasing=dict(fillcolor=_TV_RED,   line=dict(color=_TV_RED,   width=1)),
+        showlegend=False), row=1, col=1)
+
+    # Overlay EMA base (su tutti)
+    fig.add_trace(go.Scatter(x=dt, y=ema20, mode="lines", name="EMA20",
+        line=dict(color="#26c6da", width=1.2)), row=1, col=1)
+    fig.add_trace(go.Scatter(x=dt, y=ema50, mode="lines", name="EMA50",
+        line=dict(color=_TV_GOLD, width=1.2)), row=1, col=1)
+
+    # Overlay specifico per strategia
+    if strategy == "RSI+VWAP":
+        fig.add_trace(go.Scatter(x=dt, y=vwap_, mode="lines", name="VWAP",
+            line=dict(color=_TV_ORANGE, width=2)), row=1, col=1)
+    elif strategy == "Keltner Channel":
+        fig.add_trace(go.Scatter(x=dt, y=kelt_up, mode="lines", name="Kelt Upper",
+            line=dict(color=_TV_CYAN, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=kelt_dn, mode="lines", name="Kelt Lower",
+            line=dict(color=_TV_CYAN, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=dt + dt[::-1],
+            y=kelt_up.tolist() + kelt_dn.tolist()[::-1],
+            fill="toself", fillcolor="rgba(80,196,224,0.07)",
+            line=dict(color="rgba(0,0,0,0)"), showlegend=False), row=1, col=1)
+    elif strategy == "Donchian Channel":
+        fig.add_trace(go.Scatter(x=dt, y=don_up, mode="lines", name="Don Upper",
+            line=dict(color=_TV_GREEN, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=don_dn, mode="lines", name="Don Lower",
+            line=dict(color=_TV_RED, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=dt + dt[::-1],
+            y=don_up.tolist() + don_dn.tolist()[::-1],
+            fill="toself", fillcolor="rgba(38,166,154,0.07)",
+            line=dict(color="rgba(0,0,0,0)"), showlegend=False), row=1, col=1)
+    elif strategy == "RSI+Bollinger":
+        fig.add_trace(go.Scatter(x=dt, y=bb_up, mode="lines", name="BB Upper",
+            line=dict(color=_TV_RED, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=bb_dn, mode="lines", name="BB Lower",
+            line=dict(color=_TV_GREEN, width=1.5, dash="dot")), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=dt + dt[::-1],
+            y=bb_up.tolist() + bb_dn.tolist()[::-1],
+            fill="toself", fillcolor="rgba(88,166,255,0.07)",
+            line=dict(color="rgba(0,0,0,0)"), showlegend=False), row=1, col=1)
+    elif strategy == "OBV+Hull MA":
+        fig.add_trace(go.Scatter(x=dt, y=hma_s, mode="lines", name="Hull MA",
+            line=dict(color=_TV_ORANGE, width=2.2)), row=1, col=1)
+    elif strategy == "SAR+Chop":
+        sar_bull = [float(sar_s.iloc[i]) if bool(bull_s.iloc[i]) else None for i in range(len(sar_s))]
+        sar_bear = [float(sar_s.iloc[i]) if not bool(bull_s.iloc[i]) else None for i in range(len(sar_s))]
+        fig.add_trace(go.Scatter(x=dt, y=sar_bull, mode="markers",
+            marker=dict(color=_TV_GREEN, size=4, symbol="circle"), name="SAR ▲"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=sar_bear, mode="markers",
+            marker=dict(color=_TV_RED, size=4, symbol="circle"), name="SAR ▼"), row=1, col=1)
+    elif strategy == "ADX+Pattern":
+        # Evidenzia le candele Piercing Line
+        pierce_x = [dt[i] for i in range(len(dt)) if pierc_s.iloc[i]]
+        pierce_y = [float(lo.iloc[i]) * 0.997 for i in range(len(dt)) if pierc_s.iloc[i]]
+        if pierce_x:
+            fig.add_trace(go.Scatter(x=pierce_x, y=pierce_y, mode="markers",
+                marker=dict(symbol="star", size=12, color=_TV_GOLD,
+                            line=dict(color="#fff", width=1)),
+                name="Piercing Line"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=ema200, mode="lines", name="EMA200",
+            line=dict(color="#7e57c2", width=1.5, dash="dot")), row=1, col=1)
     else:
-        fig.add_trace(go.Scatter(x=dt,y=ema200,mode="lines",name="EMA200",
-            line=dict(color="#7e57c2",width=1.5,dash="dot")), row=1,col=1)
+        fig.add_trace(go.Scatter(x=dt, y=ema200, mode="lines", name="EMA200",
+            line=dict(color="#7e57c2", width=1.5, dash="dot")), row=1, col=1)
 
     # Entry/Exit markers
-    e_d,e_p,x_d,x_p = _bt_detect_signals(df,strategy)
+    e_d, e_p, x_d, x_p = _bt_detect_signals(df, strategy)
     if e_d:
-        fig.add_trace(go.Scatter(x=e_d,y=e_p,mode="markers",name="▲ Entry",
-            marker=dict(symbol="triangle-up",size=12,color=_TV_GREEN,
-                        line=dict(color="#fff",width=1.5)),
+        fig.add_trace(go.Scatter(x=e_d, y=e_p, mode="markers", name="▲ Entry",
+            marker=dict(symbol="triangle-up", size=12, color=_TV_GREEN,
+                        line=dict(color="#fff", width=1.5)),
             hovertemplate="<b>▲ ENTRY</b><br>%{x}<br>%{y:.2f}<extra></extra>"),
-            row=1,col=1)
+            row=1, col=1)
     if x_d:
-        fig.add_trace(go.Scatter(x=x_d,y=x_p,mode="markers",name="▼ Exit",
-            marker=dict(symbol="triangle-down",size=12,color=_TV_RED,
-                        line=dict(color="#fff",width=1.5)),
+        fig.add_trace(go.Scatter(x=x_d, y=x_p, mode="markers", name="▼ Exit",
+            marker=dict(symbol="triangle-down", size=12, color=_TV_RED,
+                        line=dict(color="#fff", width=1.5)),
             hovertemplate="<b>▼ EXIT</b><br>%{x}<br>%{y:.2f}<extra></extra>"),
-            row=1,col=1)
+            row=1, col=1)
 
-    # Row 2 — Volume
-    vcol=[_TV_GREEN if cl>=op else _TV_RED for cl,op in zip(c,df["open"])]
-    fig.add_trace(go.Bar(x=dt,y=v,marker_color=vcol,marker_line_width=0,
-        name="Vol",showlegend=False), row=2,col=1)
+    # ── Row 2: Volume ────────────────────────────────────────────────────
+    vcol = [_TV_GREEN if cl >= op else _TV_RED for cl, op in zip(c, o)]
+    fig.add_trace(go.Bar(x=dt, y=v, marker_color=vcol, marker_line_width=0,
+        name="Vol", showlegend=False), row=2, col=1)
 
-    # Row 3 — RSI
-    fig.add_trace(go.Scatter(x=dt,y=rsi_s,mode="lines",
-        line=dict(color=_TV_PURPLE,width=1.8),name="RSI",showlegend=False),
-        row=3,col=1)
-    fig.add_hrect(y0=70,y1=100,row=3,col=1,
-        fillcolor="rgba(239,83,80,0.08)",line_width=0)
-    fig.add_hrect(y0=0,y1=30,row=3,col=1,
-        fillcolor="rgba(38,166,154,0.08)",line_width=0)
-    for yv,clr in [(70,_TV_RED),(50,_TV_GRAY),(30,_TV_GREEN)]:
-        fig.add_hline(y=yv,row=3,col=1,
-            line=dict(color=clr,width=0.7,dash="dot"))
+    # ── Row 3: RSI sempre ────────────────────────────────────────────────
+    fig.add_trace(go.Scatter(x=dt, y=rsi_s, mode="lines",
+        line=dict(color=_TV_PURPLE, width=1.8), name="RSI", showlegend=False),
+        row=3, col=1)
+    fig.add_hrect(y0=70, y1=100, row=3, col=1, fillcolor="rgba(239,83,80,0.08)", line_width=0)
+    fig.add_hrect(y0=0,  y1=30,  row=3, col=1, fillcolor="rgba(38,166,154,0.08)", line_width=0)
+    for yv, clr in [(70, _TV_RED), (50, _TV_GRAY), (30, _TV_GREEN)]:
+        fig.add_hline(y=yv, row=3, col=1, line=dict(color=clr, width=0.7, dash="dot"))
 
-    # Row 4 — indicatore strategia
-    if use_adx:
-        fig.add_trace(go.Scatter(x=dt,y=adx_,mode="lines",
-            line=dict(color=_TV_RED,width=2),name="ADX",showlegend=False,
-            fill="tozeroy",fillcolor="rgba(239,83,80,0.06)"), row=4,col=1)
-        fig.add_hline(y=25,row=4,col=1,
-            line=dict(color=_TV_GOLD,dash="dot",width=1.5))
-        fig.add_hrect(y0=25,y1=80,row=4,col=1,
-            fillcolor="rgba(255,152,0,0.07)",line_width=0)
-    elif strategy=="RSI+VWAP":
-        # Ripete RSI con zone enfatizzate (pannello dedicato)
-        fig.add_trace(go.Scatter(x=dt,y=rsi_s,mode="lines",
-            line=dict(color=_TV_PURPLE,width=1.8),showlegend=False,
-            fill="tozeroy",fillcolor="rgba(156,39,176,0.05)"), row=4,col=1)
-        for yv,clr in [(70,_TV_RED),(30,_TV_GREEN)]:
-            fig.add_hline(y=yv,row=4,col=1,
-                line=dict(color=clr,width=1.2,dash="dot"))
-        fig.add_hrect(y0=70,y1=100,row=4,col=1,
-            fillcolor="rgba(239,83,80,0.12)",line_width=0)
-        fig.add_hrect(y0=0,y1=30,row=4,col=1,
-            fillcolor="rgba(38,166,154,0.12)",line_width=0)
-    else:  # MACD / EMA Cross
-        fig.add_trace(go.Bar(x=dt,y=mh,marker_color=hist_colors,
-            marker_line_width=0,opacity=0.8,name="Hist",showlegend=False),
-            row=4,col=1)
-        fig.add_trace(go.Scatter(x=dt,y=ml,mode="lines",
-            line=dict(color=_TV_BLUE,width=1.3),name="MACD",showlegend=False),
-            row=4,col=1)
-        fig.add_trace(go.Scatter(x=dt,y=sl,mode="lines",
-            line=dict(color=_TV_ORANGE,width=1.3),name="Signal",showlegend=False),
-            row=4,col=1)
-        fig.add_hline(y=0,row=4,col=1,line=dict(color=_TV_BORDER,width=1))
+    # ── Row 4: indicatore dedicato alla strategia ────────────────────────
+    if strategy == "ADX+EMA" or strategy == "ADX+Pattern":
+        fig.add_trace(go.Scatter(x=dt, y=adx_, mode="lines",
+            line=dict(color=_TV_RED, width=2), name="ADX", showlegend=False,
+            fill="tozeroy", fillcolor="rgba(239,83,80,0.06)"), row=4, col=1)
+        fig.add_hline(y=25, row=4, col=1, line=dict(color=_TV_GOLD, dash="dot", width=1.5))
+        fig.add_hrect(y0=25, y1=80, row=4, col=1, fillcolor="rgba(255,152,0,0.07)", line_width=0)
+        fig.update_layout(yaxis4=dict(range=[0, 80], tickvals=[0, 25, 50]))
 
-    # Layout
-    last_p=float(c.iloc[-1]); first_p=float(c.dropna().iloc[0])
-    chg=(last_p/first_p-1)*100; chg_c=_TV_GREEN if chg>=0 else _TV_RED
-    n_e,n_x=len(e_d),len(x_d)
+    elif strategy in ("RSI+VWAP", "RSI+Bollinger"):
+        fig.add_trace(go.Scatter(x=dt, y=rsi_s, mode="lines",
+            line=dict(color=_TV_PURPLE, width=1.8), showlegend=False,
+            fill="tozeroy", fillcolor="rgba(156,39,176,0.05)"), row=4, col=1)
+        for yv, clr in [(70, _TV_RED), (30, _TV_GREEN)]:
+            fig.add_hline(y=yv, row=4, col=1, line=dict(color=clr, width=1.2, dash="dot"))
+        fig.add_hrect(y0=70, y1=100, row=4, col=1, fillcolor="rgba(239,83,80,0.12)", line_width=0)
+        fig.add_hrect(y0=0,  y1=30,  row=4, col=1, fillcolor="rgba(38,166,154,0.12)", line_width=0)
+
+    elif strategy == "OBV+Hull MA":
+        fig.add_trace(go.Scatter(x=dt, y=obv_s, mode="lines",
+            line=dict(color=_TV_BLUE, width=1.8), name="OBV", showlegend=False,
+            fill="tozeroy", fillcolor="rgba(41,98,255,0.06)"), row=4, col=1)
+        obv_ma = _bt_ema(obv_s, 10)
+        fig.add_trace(go.Scatter(x=dt, y=obv_ma, mode="lines",
+            line=dict(color=_TV_ORANGE, width=1.2, dash="dot"),
+            name="OBV MA10", showlegend=False), row=4, col=1)
+        fig.add_hline(y=0, row=4, col=1, line=dict(color=_TV_BORDER, width=1))
+
+    elif strategy == "SAR+Chop":
+        # Chop Zone: barre colorate
+        chop_map = {"blue": "#2979ff", "green": "#26a69a",
+                    "yellow": "#ffd700", "red": "#ef5350"}
+        chop_vals = adx_.fillna(0).tolist() if hasattr(adx_, 'tolist') else list(adx_)
+        bar_cols = [chop_map.get(ch, "#787b86") for ch in chop_colors]
+        fig.add_trace(go.Bar(x=dt, y=[30]*len(dt),  # altezza fissa
+            marker_color=bar_cols, marker_line_width=0,
+            name="Chop Zone", showlegend=False), row=4, col=1)
+        # Legenda colori inline
+        for col_k, col_v, label in [("blue","#2979ff","Strong"),("green","#26a69a","Moderate"),
+                                      ("yellow","#ffd700","Caution"),("red","#ef5350","Choppy")]:
+            fig.add_trace(go.Scatter(x=[None], y=[None], mode="markers",
+                marker=dict(color=col_v, size=10, symbol="square"),
+                name=label, showlegend=True), row=4, col=1)
+
+    else:  # MACD / Keltner / Donchian (MACD default)
+        fig.add_trace(go.Bar(x=dt, y=mh, marker_color=hist_colors,
+            marker_line_width=0, opacity=0.8, name="Hist", showlegend=False), row=4, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=ml, mode="lines",
+            line=dict(color=_TV_BLUE, width=1.3), name="MACD", showlegend=False), row=4, col=1)
+        fig.add_trace(go.Scatter(x=dt, y=sl, mode="lines",
+            line=dict(color=_TV_ORANGE, width=1.3), name="Signal", showlegend=False), row=4, col=1)
+        fig.add_hline(y=0, row=4, col=1, line=dict(color=_TV_BORDER, width=1))
+
+    # ── Layout ───────────────────────────────────────────────────────────
+    last_p = float(c.iloc[-1]); first_p = float(c.dropna().iloc[0])
+    chg = (last_p/first_p-1)*100; chg_c = _TV_GREEN if chg >= 0 else _TV_RED
+    n_e, n_x = len(e_d), len(x_d)
     fig.update_layout(
         title=dict(
             text=(f"<b style='color:{_TV_CYAN}'>{ticker}</b>"
@@ -358,31 +626,30 @@ def _bt_render_strategy_chart(ticker: str, strategy: str, range_: str = "1y") ->
                   f"  <span style='color:{chg_c}'>{'▲' if chg>=0 else '▼'}{abs(chg):.1f}%</span>"
                   f"  <span style='color:{_TV_GRAY};font-size:0.8em'>"
                   f"▲ {n_e} entry · ▼ {n_x} exit</span>"),
-            font=dict(size=13,color=_TV_TEXT), x=0.01),
-        height=640,
+            font=dict(size=13, color=_TV_TEXT), x=0.01),
+        height=660,
         paper_bgcolor=_TV_BG, plot_bgcolor=_TV_PANEL,
-        legend=dict(bgcolor=_TV_PANEL,bordercolor=_TV_BORDER,
-                    font=dict(size=9,color=_TV_TEXT),
-                    orientation="h",yanchor="bottom",y=1.01,xanchor="left",x=0),
+        legend=dict(bgcolor=_TV_PANEL, bordercolor=_TV_BORDER,
+                    font=dict(size=9, color=_TV_TEXT),
+                    orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
         xaxis_rangeslider_visible=False,
-        margin=dict(l=8,r=8,t=60,b=8),
-        font=dict(color=_TV_TEXT,size=10),
+        margin=dict(l=8, r=8, t=60, b=8),
+        font=dict(color=_TV_TEXT, size=10),
         hovermode="x unified",
     )
-    for row in [1,2,3,4]:
-        n_="" if row==1 else str(row)
+    for row in [1, 2, 3, 4]:
+        n_ = "" if row == 1 else str(row)
         fig.update_layout(**{
-            f"xaxis{n_}":dict(showgrid=True,gridcolor=_TV_BORDER,zeroline=False,
-                              showticklabels=(row==4)),
-            f"yaxis{n_}":dict(showgrid=True,gridcolor=_TV_BORDER,zeroline=False,
-                              tickfont=dict(size=9)),
+            f"xaxis{n_}": dict(showgrid=True, gridcolor=_TV_BORDER, zeroline=False,
+                               showticklabels=(row == 4)),
+            f"yaxis{n_}": dict(showgrid=True, gridcolor=_TV_BORDER, zeroline=False,
+                               tickfont=dict(size=9)),
         })
-    fig.update_layout(yaxis3=dict(range=[0,100],tickvals=[30,50,70]))
-    if use_adx:
-        fig.update_layout(yaxis4=dict(range=[0,80],tickvals=[0,25,50]))
+    fig.update_layout(yaxis3=dict(range=[0, 100], tickvals=[30, 50, 70]))
 
-    k=strategy.replace("+","_").replace(" ","_")
+    k = strategy.replace("+","_").replace(" ","_")
     st.plotly_chart(fig, use_container_width=True, key=f"bt_sc_{ticker}_{k}")
+
 
 # -- Import db functions ----------------------------------------------------
 try:
@@ -660,18 +927,33 @@ def _render_stats_panel(df_sigs: pd.DataFrame, horizon: str) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 _SC_RULES = {
-    "RSI+VWAP": ("📊","#e91e63",
-                 "RSI incrocia sopra 30 + Prezzo > VWAP",
-                 "RSI incrocia sotto 70 o Prezzo < VWAP"),
-    "ADX+EMA":  ("📈","#ff9800",
-                 "EMA20 incrocia sopra EMA50 + ADX > 25",
-                 "EMA20 < EMA50 o ADX < 25"),
-    "MACD":     ("⚡","#2962ff",
-                 "MACD histogram incrocia sopra 0",
-                 "MACD histogram incrocia sotto 0"),
-    "EMA Cross":("🔀","#26a69a",
-                 "EMA20 incrocia sopra EMA50",
-                 "EMA20 incrocia sotto EMA50"),
+    "RSI+VWAP":        ("📊","#e91e63",
+                        "RSI incrocia sopra 30 + Prezzo > VWAP",
+                        "RSI incrocia sotto 70 o Prezzo < VWAP"),
+    "ADX+EMA":         ("📈","#ff9800",
+                        "EMA20 incrocia sopra EMA50 + ADX > 25",
+                        "EMA20 < EMA50 o ADX < 25"),
+    "MACD":            ("⚡","#2962ff",
+                        "MACD histogram incrocia sopra 0",
+                        "MACD histogram incrocia sotto 0"),
+    "Keltner Channel": ("📐","#00bcd4",
+                        "Prezzo chiude sopra la banda inferiore Keltner (da sotto)",
+                        "Prezzo raggiunge la banda superiore Keltner"),
+    "Donchian Channel":("🔲","#26a69a",
+                        "Prezzo tocca la banda superiore Donchian (breakout rialzista)",
+                        "Prezzo tocca la banda inferiore Donchian"),
+    "RSI+Bollinger":   ("📉","#9c27b0",
+                        "Prezzo sotto la banda inferiore BB + RSI < 35 (mean reversion long)",
+                        "Prezzo sopra la banda superiore BB o RSI > 65"),
+    "OBV+Hull MA":     ("🌊","#ff9800",
+                        "Prezzo incrocia sopra Hull MA + OBV in salita",
+                        "Prezzo scende sotto Hull MA o OBV diverge"),
+    "SAR+Chop":        ("🎯","#4caf50",
+                        "SAR passa sotto le candele (bull) + Chop Zone non rossa",
+                        "SAR passa sopra le candele o Chop Zone diventa rossa"),
+    "ADX+Pattern":     ("⭐","#ffd700",
+                        "Piercing Line pattern + ADX > 25 (trend in accelerazione)",
+                        "ADX scende sotto 20 (trend si indebolisce)"),
 }
 
 def strategy_chart_widget(
