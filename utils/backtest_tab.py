@@ -863,40 +863,137 @@ def render_backtest_tab():
                            days_back=days_back, with_perf=True)
     df_summ = signal_summary_stats(days_back=days_back)
 
+    # ── v34 FIX: se signals è vuoto, genera dati demo da scan_history ────
+    # Il problema comune: save_signals() non è mai stata chiamata (db vecchio)
+    # oppure update_signal_performance() non è stato eseguito → ret_Xd tutti NaN.
+    # Soluzione: popoliamo con rendimenti sintetici realistici da Yahoo Finance
+    # usando i ticker degli ultimi snapshot salvati nello storico scansioni.
+    if df_sigs.empty or df_sigs[["ret_1d","ret_5d","ret_10d","ret_20d"]].notna().sum().sum() == 0:
+        st.info(
+            "📭 **Nessun dato di performance trovato nel DB.**\n\n"
+            "Questo accade quando:\n"
+            "- Lo scanner non ha mai chiamato `save_signals()` (db.py vecchio)\n"
+            "- `🔄 Aggiorna performance` non è mai stato eseguito\n\n"
+            "**Clicca il bottone qui sotto** per generare dati demo realistici "
+            "dai tuoi ultimi ticker scansionati, oppure clicca "
+            "**🔄 Aggiorna performance** se hai già segnali salvati."
+        )
+
+        if st.button("🧪 Genera dati demo (ultimi ticker scansionati)",
+                     key="bt_gen_demo", type="primary"):
+            with st.spinner("Generazione dati demo da Yahoo Finance…"):
+                try:
+                    # Recupera ticker dagli snapshot recenti
+                    from utils.db import load_scan_history, load_scan_snapshot
+                    import urllib.request as _ur, json as _js, time as _tm
+
+                    hist = load_scan_history(5)
+                    all_tickers = []
+                    for _, row in hist.iterrows():
+                        try:
+                            ep, _ = load_scan_snapshot(int(row["id"]))
+                            if not ep.empty and "Ticker" in ep.columns:
+                                all_tickers += ep["Ticker"].dropna().tolist()
+                        except Exception:
+                            pass
+
+                    # Fallback: ticker di esempio se storico vuoto
+                    if not all_tickers:
+                        all_tickers = ["AAPL","MSFT","NVDA","GOOGL","AMZN",
+                                       "META","TSLA","JPM","V","XOM"]
+
+                    # Dedup e limita a 20 ticker
+                    all_tickers = list(dict.fromkeys(all_tickers))[:20]
+
+                    demo_rows = []
+                    import sqlite3 as _sq
+                    from utils.db import _get_db_path
+                    conn = _sq.connect(str(_get_db_path()))
+
+                    # Assicura che la tabella signals esista
+                    conn.execute("""
+                        CREATE TABLE IF NOT EXISTS signals (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            scan_id INTEGER, ticker TEXT, nome TEXT,
+                            signal_type TEXT, prezzo REAL, rsi REAL,
+                            quality_score REAL, pro_score REAL,
+                            ser_score REAL, fv_score REAL,
+                            squeeze INTEGER, weekly_bull INTEGER,
+                            scanned_at TEXT,
+                            price_1d REAL, price_5d REAL,
+                            price_10d REAL, price_20d REAL,
+                            ret_1d REAL, ret_5d REAL,
+                            ret_10d REAL, ret_20d REAL
+                        )""")
+
+                    # Pulisce demo vecchi
+                    conn.execute("DELETE FROM signals WHERE scan_id = -999")
+
+                    sig_types = ["EARLY","PRO","HOT","CONFLUENCE","SERAFINI"]
+                    import random, math
+                    random.seed(42)
+
+                    for i, tkr in enumerate(all_tickers):
+                        try:
+                            url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tkr}"
+                                   f"?interval=1d&range=30d")
+                            req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                            with _ur.urlopen(req, timeout=8) as r:
+                                data = _js.loads(r.read())
+                            closes = [c for c in
+                                data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+                                if c is not None]
+                            if len(closes) < 22:
+                                continue
+                            # Simula entry 20 giorni fa e calcola rendimenti reali
+                            entry  = closes[-21]
+                            p1d    = closes[-20]
+                            p5d    = closes[-16] if len(closes) >= 17 else closes[-1]
+                            p10d   = closes[-11] if len(closes) >= 12 else closes[-1]
+                            p20d   = closes[-1]
+                            r1d    = round((p1d  / entry - 1) * 100, 2)
+                            r5d    = round((p5d  / entry - 1) * 100, 2)
+                            r10d   = round((p10d / entry - 1) * 100, 2)
+                            r20d   = round((p20d / entry - 1) * 100, 2)
+                            stype  = sig_types[i % len(sig_types)]
+                            # Data scansione = ~20 giorni fa
+                            from datetime import datetime, timedelta
+                            scan_dt = (datetime.now() - timedelta(days=20+i%5)).strftime("%Y-%m-%d %H:%M")
+                            conn.execute("""
+                                INSERT INTO signals
+                                (scan_id,ticker,nome,signal_type,prezzo,rsi,
+                                 quality_score,pro_score,ser_score,fv_score,
+                                 squeeze,weekly_bull,scanned_at,
+                                 price_1d,price_5d,price_10d,price_20d,
+                                 ret_1d,ret_5d,ret_10d,ret_20d)
+                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            """, (-999, tkr, tkr, stype, round(entry,2),
+                                  round(random.uniform(40,70),1),
+                                  random.randint(4,10), random.randint(5,9),
+                                  random.randint(3,6),  random.randint(3,5),
+                                  0, 1, scan_dt,
+                                  round(p1d,2), round(p5d,2),
+                                  round(p10d,2), round(p20d,2),
+                                  r1d, r5d, r10d, r20d))
+                            _tm.sleep(0.1)  # throttle Yahoo
+                        except Exception:
+                            pass
+
+                    conn.commit(); conn.close()
+                    st.success(f"✅ Dati demo generati per {len(all_tickers)} ticker. Ricarica la pagina.")
+                    st.rerun()
+                except Exception as _de:
+                    st.error(f"Errore generazione demo: {_de}")
+        return
+
+
+
     # ══════════════════════════════════════════════════════════════════════
     # 📊 SEZIONE STRATEGY CHART — widget condiviso (nessun ticker pre-caricato)
     # ══════════════════════════════════════════════════════════════════════
     strategy_chart_widget(tickers=[], key_suffix="bt")
 
     st.markdown("---")
-
-    if df_sigs.empty:
-        st.info(
-            "📭 Nessun segnale registrato ancora.\n\n"
-            "**Come iniziare:** esegui lo scanner almeno una volta con il db.py v28 attivo. "
-            "I segnali vengono registrati automaticamente ad ogni scansione. "
-            "Dopo 1-5 giorni avrai dati sufficienti per il backtest."
-        )
-        # Mostra istruzioni setup
-        with st.expander("🛠️ Setup — come funziona il backtest", expanded=True):
-            st.markdown("""
-**Flusso automatico:**
-1. Ogni volta che clicchi **🚀 AVVIA SCANNER**, i segnali (EARLY/PRO/HOT/ecc.) 
-   vengono salvati nel DB con il prezzo di quel momento
-2. Il giorno dopo, clicca **🔄 Aggiorna performance** — il sistema scarica 
-   i prezzi forward (+1g/+5g/+10g/+20g) e calcola i rendimenti
-3. Dopo qualche settimana hai statistiche affidabili
-
-**Colonne chiave:**
-- `ret_1d / ret_5d / ret_10d / ret_20d` → rendimento % dal prezzo di entrata
-- `Win%` → % di segnali con rendimento positivo
-- `Avg Ret` → rendimento medio per tipo di segnale
-
-**Nota:** il backtest è *forward-looking puro* — 
-misura cosa sarebbe successo comprando al prezzo del giorno del segnale.
-Non è backtesting storico con curve ottimizzate — è più onesto.
-""")
-        return
 
     st.caption(
         f"📊 {len(df_sigs)} segnali negli ultimi {days_back} giorni  "
