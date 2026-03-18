@@ -610,12 +610,12 @@ def render_orderflow_tab(df_scanner=None):
     # ── Header ──
     st.markdown(
         f'<div style="background:{PANEL};border-left:3px solid {ORANGE};'
-        f'padding:10px 18px;border-radius:0 6px 6px 0;margin-bottom:14px">'
+        f'padding:10px 18px;border-radius:0 6px 6px 0;margin-bottom:10px">'
         f'<span style="color:{ORANGE};font-weight:700;font-size:1.05rem">'
-        f'🔬 ORDER FLOW</span>'
-        f'<span style="color:{GRAY};font-size:.8rem;margin-left:12px">'
-        f'Candele · VWAP ±σ · Volume Profile · Delta · CVD · Indicatori · v31.1'
-        f'</span></div>',
+        f'🔬 ORDER FLOW ANALYZER</span>'
+        f'<span style="color:{GRAY};font-size:.78rem;margin-left:12px">'
+        f'Scegli un ticker e una vista — il grafico si carica automaticamente</span>'
+        f'</div>',
         unsafe_allow_html=True)
 
     # ── Ticker list ──
@@ -628,71 +628,117 @@ def render_orderflow_tab(df_scanner=None):
     opts   = sorted([_label(t) for t in merged], key=str.lower)
     d2t    = {_label(t): t for t in merged}
 
-    # ── Controlli ──
-    c1, c2, c3, c4 = st.columns([3, 1.5, 1.8, 1])
+    # ── ROW 1: Ticker + Timeframe + Ticker manuale ───────────────────────
+    c1, c2, c3 = st.columns([2.5, 1.5, 2])
     with c1:
-        sel  = st.selectbox("Strumento", opts, key="of_sel")
+        # Evidenzia i ticker dallo scanner (quelli tuoi) rispetto ai default
+        group_label = "📡 Scanner" if sc_tickers else "📋 Default"
+        sel  = st.selectbox(
+            f"Strumento  ({group_label} + default)",
+            opts, key="of_sel",
+            help="I ticker dallo scanner appaiono prima. Puoi anche digitare un ticker a destra.")
         sym  = d2t.get(sel, sel.split("(")[-1].rstrip(")").strip())
-        man  = st.text_input("Ticker manuale", placeholder="es. BTC-USD · ES=F · EURUSD=X",
-                             key="of_man").strip().upper()
-        if man: sym = man
     with c2:
-        tf_lbl = st.selectbox("Timeframe", list(TF_MAP.keys()), index=2, key="of_tf")
+        tf_lbl = st.selectbox(
+            "⏱ Timeframe",
+            list(TF_MAP.keys()), index=2, key="of_tf",
+            help="15m / 1h = intraday  |  1d / 1W = swing")
         sub_iv, main_freq, range_ = TF_MAP[tf_lbl]
     with c3:
-        vista = st.radio("Vista",
-            ["📊 Principale", "📈 CVD + Divergenze", "📉 Indicatori"],
-            key="of_vista")
-    with c4:
-        st.write(""); st.write("")
-        show_vwap = st.checkbox("VWAP ±σ",    value=True, key="of_vwap")
-        show_ema  = st.checkbox("EMA 20/50",  value=True, key="of_ema")
-        show_vp   = st.checkbox("Vol Profile", value=True, key="of_vp")
+        man = st.text_input(
+            "✏️ Ticker manuale (opzionale)",
+            placeholder="es. ENI.MI · BTC-USD · ES=F · EURUSD=X",
+            key="of_man",
+            help="Scrivi qualsiasi ticker Yahoo Finance. Sovrascrive la selectbox a sinistra."
+        ).strip().upper()
+        if man: sym = man
 
-    # Indicatori selezionabili solo per vista Indicatori
+    # ── ROW 2: Vista (orizzontale) + Overlay checkboxes ─────────────────
+    st.markdown(
+        f'<div style="color:{GRAY};font-size:.74rem;margin:6px 0 2px">📐 Vista grafico:</div>',
+        unsafe_allow_html=True)
+
+    v_col, o_col = st.columns([3, 1])
+    with v_col:
+        vista = st.radio(
+            "Vista",
+            ["📊 Principale", "📈 CVD + Divergenze", "📉 Indicatori"],
+            key="of_vista", horizontal=True,
+            help=(
+                "Principale: candele + VWAP + Volume Profile + Delta + CVD  |  "
+                "CVD: prezzo vs CVD normalizzato con divergenze evidenziate  |  "
+                "Indicatori: RSI · MACD · ADX · SMA · Bollinger personalizzabili"
+            ),
+            label_visibility="collapsed")
+    with o_col:
+        oc1, oc2, oc3 = st.columns(3)
+        with oc1: show_vwap = st.checkbox("VWAP",    value=True,  key="of_vwap",
+                                          help="VWAP ±1σ/±2σ — reset giornaliero")
+        with oc2: show_ema  = st.checkbox("EMA",     value=True,  key="of_ema",
+                                          help="EMA 20 (arancio) + EMA 50 (blu)")
+        with oc3: show_vp   = st.checkbox("Vol.Prof",value=True,  key="of_vp",
+                                          help="Volume Profile: POC (oro) + VAH/VAL (blu)")
+
+    # ── Indicatori (solo vista Indicatori) ───────────────────────────────
     ind_sel = []
     if vista == "📉 Indicatori":
         st.markdown(
-            f'<div style="color:{GRAY};font-size:.78rem;margin-bottom:4px">'
-            f'Seleziona gli indicatori da visualizzare:</div>',
+            f'<div style="background:{PANEL};border:1px solid {BORDER};'
+            f'border-radius:4px;padding:8px 12px;margin:4px 0">'
+            f'<span style="color:{GRAY};font-size:.74rem">🔧 Indicatori attivi:</span>'
+            f'</div>',
             unsafe_allow_html=True)
-        ic = st.columns(4)
-        with ic[0]: ind_sel += ["RSI 14"] if st.checkbox("RSI 14", value=True, key="of_rsi") else []
-        with ic[1]: ind_sel += ["MACD"]   if st.checkbox("MACD",   value=True, key="of_macd") else []
-        with ic[2]: ind_sel += ["ADX 14"] if st.checkbox("ADX 14", value=False,key="of_adx") else []
-        with ic[3]: pass
-        ic2 = st.columns(4)
-        with ic2[0]: ind_sel += ["SMA 9/21"]  if st.checkbox("SMA 9/21",  value=False,key="of_sma") else []
-        with ic2[1]: ind_sel += ["EMA 20/50"] if st.checkbox("EMA 20/50", value=True, key="of_ema2") else []
-        with ic2[2]: ind_sel += ["Bollinger"] if st.checkbox("Bollinger",  value=False,key="of_bb") else []
+        ic1, ic2, ic3, ic4, ic5, ic6 = st.columns(6)
+        with ic1: ind_sel += ["RSI 14"]   if st.checkbox("RSI 14",   value=True,  key="of_rsi")  else []
+        with ic2: ind_sel += ["MACD"]     if st.checkbox("MACD",     value=True,  key="of_macd") else []
+        with ic3: ind_sel += ["EMA 20/50"]if st.checkbox("EMA 20/50",value=True,  key="of_ema2") else []
+        with ic4: ind_sel += ["ADX 14"]   if st.checkbox("ADX 14",   value=False, key="of_adx")  else []
+        with ic5: ind_sel += ["SMA 9/21"] if st.checkbox("SMA 9/21", value=False, key="of_sma")  else []
+        with ic6: ind_sel += ["Bollinger"]if st.checkbox("Bollinger", value=False, key="of_bb")   else []
 
-    c_run, c_ref = st.columns([5, 1])
+    # ── Pulsante + Refresh ───────────────────────────────────────────────
+    c_run, c_ref = st.columns([6, 1])
     with c_run:
-        run = st.button("▶ Carica", key="of_run", use_container_width=True, type="primary")
+        run = st.button(
+            f"▶ Carica  {sym}  [{tf_lbl}]",
+            key="of_run", use_container_width=True, type="primary")
     with c_ref:
-        if st.button("🔄", key="of_ref", help="Svuota cache e ricarica"):
+        if st.button("🔄", key="of_ref", help="Svuota cache Yahoo e ricarica"):
             st.cache_data.clear(); st.rerun()
 
+    # ── Placeholder se non ancora caricato ──────────────────────────────
     if not run:
+        # Mostra guida rapida per orientarsi
         st.markdown(
-            f'<div style="background:{PANEL};border:1px dashed {BORDER};'
-            f'border-radius:8px;padding:55px;text-align:center;margin-top:8px">'
-            f'<div style="font-size:2.2rem">📊</div>'
-            f'<div style="color:{TEXT};font-size:1rem;font-weight:600;margin-top:8px">'
-            f'Seleziona strumento e clicca '
-            f'<b style="color:{ORANGE}">▶ Carica</b></div>'
-            f'<div style="color:{GRAY};font-size:.83rem;margin-top:5px">'
-            f'VWAP ±1σ/±2σ · Volume Profile POC/VAH/VAL · Delta · CVD · '
-            f'RSI · MACD · ADX · SMA · Bollinger</div>'
-            f'</div>',
+            f'<div style="background:{PANEL};border:1px solid {BORDER};'
+            f'border-radius:8px;padding:20px 24px;margin-top:10px">'
+            f'<div style="color:{TEXT};font-size:.92rem;font-weight:600;margin-bottom:12px">'
+            f'📖 Guida rapida Order Flow</div>'
+            f'<table style="width:100%;border-collapse:collapse;font-size:.80rem">'
+            f'<tr><td style="color:{ORANGE};font-weight:700;padding:4px 12px 4px 0;white-space:nowrap">📊 Principale</td>'
+            f'<td style="color:{GRAY}">Candele + VWAP ±1σ/±2σ + Volume Profile (POC/VAH/VAL) + Delta bar + CVD.<br>'
+            f'<span style="color:{TEXT}">Usa questa vista per capire dove sta il flusso di volume e i livelli chiave.</span></td></tr>'
+            f'<tr><td style="color:{CYAN};font-weight:700;padding:4px 12px 4px 0;white-space:nowrap">📈 CVD</td>'
+            f'<td style="color:{GRAY}">Prezzo vs Cumulative Volume Delta normalizzato. Le zone arancioni sono divergenze.<br>'
+            f'<span style="color:{TEXT}">CVD sale ma prezzo scende = pressione compratori nascosta (bullish).</span></td></tr>'
+            f'<tr><td style="color:{BLUE};font-weight:700;padding:4px 12px 4px 0;white-space:nowrap">📉 Indicatori</td>'
+            f'<td style="color:{GRAY}">Scegli liberamente RSI · MACD · ADX · EMA · SMA · Bollinger.<br>'
+            f'<span style="color:{TEXT}">Ogni indicatore aggiunge un pannello dedicato sotto le candele.</span></td></tr>'
+            f'</table>'
+            f'<div style="color:{GRAY};font-size:.72rem;margin-top:10px;border-top:1px solid {BORDER};padding-top:8px">'
+            f'💡 VWAP, EMA e Vol.Profile si attivano/disattivano con i checkbox in alto a destra &nbsp;·&nbsp; '
+            f'Ticker manuale sovrascrive la selectbox &nbsp;·&nbsp; '
+            f'🔄 svuota la cache Yahoo se i dati sembrano vecchi'
+            f'</div></div>',
             unsafe_allow_html=True)
         return
 
-    # ── Caricamento ──
+    # ── Caricamento ──────────────────────────────────────────────────────
     n_display = _name(sym)
     spin_lbl  = f"{sym} — {n_display}" if n_display != sym else sym
-    with st.spinner(f"⏳ {spin_lbl}  [{tf_lbl}]…"):
+    with st.spinner(f"⏳ Caricamento  {spin_lbl}  [{tf_lbl}]…"):
         df_sub = _fetch(sym, sub_iv, range_)
+
         if df_sub.empty:
             st.error(
                 f"❌ Dati non trovati per **{sym}**.\n\n"
@@ -813,7 +859,7 @@ def render_orderflow_tab(df_scanner=None):
     st.markdown(
         f'<div style="color:{GRAY};font-size:.69rem;text-align:center;'
         f'margin-top:12px;padding-top:8px;border-top:1px solid {BORDER}">'
-        f'Yahoo Finance OHLCV · Candle Body Ratio · Cache 5min · v31.1 · '
+        f'Yahoo Finance OHLCV · Candle Body Ratio · Cache 5min · v34.0 · '
         f'{datetime.now().strftime("%d/%m/%Y %H:%M")}'
         f'</div>',
         unsafe_allow_html=True)
