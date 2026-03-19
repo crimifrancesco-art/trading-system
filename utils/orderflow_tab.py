@@ -827,20 +827,91 @@ def render_orderflow_tab(df_scanner=None):
             _legend_strip(items)
             _slide_block("indicatori")
 
-    # ── Tabella dati ──
+    # ── Dati candle visuale ───────────────────────────────────────────────
     with st.expander("📋 Dati candle (ultimi 30)", expanded=False):
         scols = ["date","open","high","low","close","volume",
                  "buy_vol","sell_vol","delta","delta_pct","cum_delta"]
         ds = df[scols].tail(30).copy()
-        ds["date"]      = ds["date"].dt.strftime("%Y-%m-%d %H:%M")
-        for c in ["volume","buy_vol","sell_vol"]:
-            ds[c] = ds[c].apply(_fv)
-        ds["delta"]     = ds["delta"].apply(lambda v: f"{'+' if v>=0 else ''}{_fv(v)}")
-        ds["delta_pct"] = ds["delta_pct"].apply(lambda v: f"{v:+.1f}%")
-        ds["cum_delta"] = ds["cum_delta"].apply(_fv)
-        ds.columns = ["Data","Open","High","Low","Close","Volume",
-                      "Buy Vol","Sell Vol","Delta","Δ%","CVD"]
-        st.dataframe(ds, use_container_width=True, hide_index=True)
+
+        # ── Mini chart candele + delta ────────────────────────────────────
+        x_dates = ds["date"].dt.strftime("%H:%M").tolist()
+        fig_c = make_subplots(
+            rows=2, cols=1, shared_xaxes=True,
+            row_heights=[0.65, 0.35], vertical_spacing=0.04,
+        )
+        fig_c.add_trace(go.Candlestick(
+            x=x_dates,
+            open=ds["open"], high=ds["high"],
+            low=ds["low"],  close=ds["close"],
+            increasing=dict(line=dict(color=GREEN), fillcolor="rgba(38,166,154,0.75)"),
+            decreasing=dict(line=dict(color=RED),   fillcolor="rgba(239,83,80,0.75)"),
+            name="Price", showlegend=False,
+        ), row=1, col=1)
+        fig_c.add_trace(go.Bar(
+            x=x_dates, y=ds["delta"],
+            marker_color=[GREEN if v >= 0 else RED for v in ds["delta"]],
+            marker_line_width=0, name="Delta", opacity=0.85,
+        ), row=2, col=1)
+        fig_c.add_hline(y=0, row=2, col=1, line=dict(color=BORDER, width=1))
+        fig_c.update_layout(
+            height=320, paper_bgcolor=BG, plot_bgcolor=PANEL,
+            margin=dict(l=0, r=0, t=10, b=0),
+            xaxis_rangeslider_visible=False,
+            font=dict(color=TEXT, size=9),
+            hovermode="x unified",
+            legend=dict(orientation="h", y=1.02, bgcolor="rgba(0,0,0,0)"),
+        )
+        fig_c.update_xaxes(showgrid=True, gridcolor=BORDER, tickangle=-30)
+        fig_c.update_yaxes(showgrid=True, gridcolor=BORDER,
+                           tickfont=dict(size=8))
+        fig_c.update_yaxes(title_text="Delta", row=2, col=1,
+                           title_font=dict(size=8, color=GRAY))
+        st.plotly_chart(fig_c, use_container_width=True, key="of_candle_chart")
+
+        # ── Tabella stilizzata sotto il chart ─────────────────────────────
+        ds_disp = ds.copy()
+        ds_disp["date"]      = ds_disp["date"].dt.strftime("%Y-%m-%d %H:%M")
+        for col in ["volume","buy_vol","sell_vol"]:
+            ds_disp[col] = ds_disp[col].apply(_fv)
+        ds_disp["delta"]     = ds_disp["delta"].apply(lambda v: f"{'+' if v>=0 else ''}{_fv(v)}")
+        ds_disp["delta_pct"] = ds_disp["delta_pct"].apply(lambda v: f"{v:+.1f}%")
+        ds_disp["cum_delta"] = ds_disp["cum_delta"].apply(_fv)
+        ds_disp["close"]     = ds_disp["close"].apply(lambda v: f"{v:.2f}")
+        ds_disp["open"]      = ds_disp["open"].apply(lambda v: f"{v:.2f}")
+        ds_disp["high"]      = ds_disp["high"].apply(lambda v: f"{v:.2f}")
+        ds_disp["low"]       = ds_disp["low"].apply(lambda v: f"{v:.2f}")
+        ds_disp.columns = ["Data","Open","High","Low","Close","Volume",
+                           "Buy Vol","Sell Vol","Delta","Δ%","CVD"]
+
+        # Colora Delta e Δ% con HTML
+        def _color_cell(val, col_name):
+            if col_name in ("Delta", "Δ%"):
+                c = GREEN if str(val).startswith("+") else RED
+                return f'<span style="color:{c};font-weight:600;font-family:Courier New">{val}</span>'
+            return f'<span style="font-family:Courier New;font-size:0.82rem">{val}</span>'
+
+        rows_html = ""
+        for _, row_ in ds_disp.iterrows():
+            rows_html += "<tr>"
+            for cn in ds_disp.columns:
+                rows_html += f"<td style='padding:3px 8px;border-bottom:1px solid {BORDER};white-space:nowrap'>{_color_cell(row_[cn], cn)}</td>"
+            rows_html += "</tr>"
+
+        headers = "".join(
+            f'<th style="color:{CYAN};font-family:Courier New;font-size:0.72rem;'
+            f'text-transform:uppercase;letter-spacing:0.5px;padding:5px 8px;'
+            f'border-bottom:1px solid {ORANGE};text-align:left">{h}</th>'
+            for h in ds_disp.columns
+        )
+        st.markdown(
+            f'<div style="overflow-x:auto;margin-top:10px">'
+            f'<table style="width:100%;border-collapse:collapse;font-size:0.80rem;'
+            f'background:{PANEL};border-radius:4px">'
+            f'<thead><tr>{headers}</tr></thead>'
+            f'<tbody>{rows_html}</tbody>'
+            f'</table></div>',
+            unsafe_allow_html=True
+        )
 
     # ── Nota metodologica ──
     with st.expander("ℹ️ Metodologia dati", expanded=False):
