@@ -74,7 +74,7 @@ _STRATEGY_LEGEND = {
          "Combina bene con RSI per filtrare falsi breakout"],
     ),
     "Donchian Channel": (
-        "leg_rsi_vwap.png", "image/png",
+        "__svg_donchian__", "image/svg+xml",
         "Donchian Channel (Breakout n=20)",
         ["▲ LONG entry: candela tocca/supera la banda superiore 20-day",
          "▼ EXIT: candela tocca la banda inferiore 20-day",
@@ -90,7 +90,7 @@ _STRATEGY_LEGEND = {
          "Più efficace su titoli con trend neutro o range-bound"],
     ),
     "OBV+Hull MA": (
-        "leg_rsi_vwap.png", "image/png",
+        "__svg_obv_hull__", "image/svg+xml",
         "OBV + Hull Moving Average",
         ["▲ LONG: prezzo incrocia sopra Hull MA + OBV in salita (> OBV MA10)",
          "▼ EXIT: prezzo scende sotto Hull MA o OBV inizia a scendere",
@@ -116,13 +116,107 @@ _STRATEGY_LEGEND = {
 }
 
 
+def _svg_donchian() -> str:
+    """SVG inline che illustra la logica Donchian Channel."""
+    return """<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" style="background:#131722;border-radius:8px">
+  <defs>
+    <linearGradient id="dcfill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#26a69a" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#26a69a" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <!-- Upper band -->
+  <polyline points="20,60 80,58 140,55 200,52 260,50 320,48 380,45"
+    fill="none" stroke="#26a69a" stroke-width="2.5" stroke-dasharray="6,3"/>
+  <!-- Lower band -->
+  <polyline points="20,170 80,175 140,172 200,170 260,168 320,165 380,162"
+    fill="none" stroke="#ef5350" stroke-width="2.5" stroke-dasharray="6,3"/>
+  <!-- Fill between bands -->
+  <polygon points="20,60 80,58 140,55 200,52 260,50 320,48 380,45 380,162 320,165 260,168 200,170 140,172 80,175 20,170"
+    fill="url(#dcfill)"/>
+  <!-- Price bars (candele stilizzate) -->
+  <rect x="30"  y="148" width="14" height="22" fill="#ef5350" rx="1"/>
+  <rect x="55"  y="135" width="14" height="30" fill="#26a69a" rx="1"/>
+  <rect x="80"  y="125" width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="105" y="115" width="14" height="25" fill="#26a69a" rx="1"/>
+  <rect x="130" y="100" width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="155" y="90"  width="14" height="30" fill="#26a69a" rx="1"/>
+  <rect x="180" y="78"  width="14" height="26" fill="#26a69a" rx="1"/>
+  <!-- ENTRY marker -->
+  <rect x="180" y="68"  width="14" height="26" fill="#26a69a" rx="1" opacity="0.5"/>
+  <polygon points="187,38 194,52 180,52" fill="#26a69a"/>
+  <text x="200" y="50" fill="#26a69a" font-size="11" font-family="Courier New" font-weight="bold">▲ ENTRY</text>
+  <!-- Candele dopo entry -->
+  <rect x="205" y="68"  width="14" height="25" fill="#26a69a" rx="1"/>
+  <rect x="230" y="60"  width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="255" y="55"  width="14" height="25" fill="#26a69a" rx="1"/>
+  <rect x="280" y="50"  width="14" height="28" fill="#ef5350" rx="1"/>
+  <rect x="305" y="60"  width="14" height="35" fill="#ef5350" rx="1"/>
+  <rect x="330" y="82"  width="14" height="40" fill="#ef5350" rx="1"/>
+  <!-- EXIT marker near lower band -->
+  <rect x="330" y="155" width="14" height="30" fill="#ef5350" rx="1" opacity="0.8"/>
+  <polygon points="337,195 330,182 344,182" fill="#ef5350"/>
+  <text x="248" y="208" fill="#ef5350" font-size="11" font-family="Courier New" font-weight="bold">▼ EXIT (lower band)</text>
+  <!-- Labels -->
+  <text x="22" y="50"  fill="#26a69a" font-size="10" font-family="Courier New">Upper (20-day max)</text>
+  <text x="22" y="186" fill="#ef5350" font-size="10" font-family="Courier New">Lower (20-day min)</text>
+  <text x="150" y="228" fill="#787b86" font-size="9" font-family="Courier New">Donchian Channel — Breakout Strategy</text>
+</svg>"""
+
+
+def _svg_obv_hull() -> str:
+    """SVG inline che illustra la logica OBV + Hull MA."""
+    return """<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" style="background:#131722;border-radius:8px">
+  <!-- Price bars -->
+  <rect x="20"  y="155" width="14" height="35" fill="#ef5350" rx="1"/>
+  <rect x="42"  y="160" width="14" height="30" fill="#ef5350" rx="1"/>
+  <rect x="64"  y="158" width="14" height="28" fill="#ef5350" rx="1"/>
+  <rect x="86"  y="145" width="14" height="30" fill="#26a69a" rx="1"/>
+  <rect x="108" y="132" width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="130" y="115" width="14" height="30" fill="#26a69a" rx="1"/>
+  <rect x="152" y="100" width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="174" y="88"  width="14" height="26" fill="#26a69a" rx="1"/>
+  <rect x="196" y="78"  width="14" height="25" fill="#26a69a" rx="1"/>
+  <rect x="218" y="70"  width="14" height="28" fill="#26a69a" rx="1"/>
+  <rect x="240" y="65"  width="14" height="30" fill="#26a69a" rx="1"/>
+  <rect x="262" y="72"  width="14" height="35" fill="#ef5350" rx="1"/>
+  <rect x="284" y="85"  width="14" height="40" fill="#ef5350" rx="1"/>
+  <rect x="306" y="100" width="14" height="38" fill="#ef5350" rx="1"/>
+  <!-- Hull MA line (arancione, smooth) -->
+  <polyline points="20,178 42,175 64,170 86,158 108,145 130,128 152,112 174,98 196,85 218,76 240,72 262,80 284,96 306,118 330,140 352,158"
+    fill="none" stroke="#ff9800" stroke-width="3" stroke-linejoin="round"/>
+  <!-- ENTRY: price crosses above Hull MA -->
+  <rect x="86" y="140" width="14" height="30" fill="#26a69a" rx="1" opacity="0.6"/>
+  <polygon points="93,112 100,126 86,126" fill="#26a69a"/>
+  <text x="106" y="120" fill="#26a69a" font-size="11" font-family="Courier New" font-weight="bold">▲ ENTRY</text>
+  <text x="106" y="133" fill="#787b86" font-size="9" font-family="Courier New">price &gt; Hull MA</text>
+  <!-- OBV panel -->
+  <rect x="20" y="200" width="370" height="1" fill="#2a2e39"/>
+  <text x="22" y="215" fill="#787b86" font-size="9" font-family="Courier New">OBV</text>
+  <polyline points="20,230 42,228 64,226 86,220 108,213 130,205 152,198 174,193 196,188 218,184 240,181 262,186 284,193 306,200"
+    fill="none" stroke="#2962ff" stroke-width="2"/>
+  <!-- OBV rising annotation -->
+  <text x="108" y="210" fill="#2962ff" font-size="9" font-family="Courier New">OBV ↑ conferma</text>
+  <!-- Hull MA label -->
+  <text x="310" y="136" fill="#ff9800" font-size="10" font-family="Courier New">Hull MA</text>
+  <text x="130" y="248" fill="#787b86" font-size="9" font-family="Courier New">OBV + Hull MA — Trend + Volume Confirm</text>
+</svg>"""
+
+
 def _read_legend_image(filename: str) -> tuple[str, str]:
     """
     Cerca il file immagine legenda in:
       1. assets/ relativo al file corrente
       2. /mnt/user-data/outputs/ (dev)
     Ritorna (base64_str, mime_type).
+    Per i placeholder __svg_*__ ritorna l'SVG inline direttamente (non base64).
     """
+    # SVG inline dedicati — non richiedono file esterni
+    if filename == "__svg_donchian__":
+        return _svg_donchian(), "__inline_svg__"
+    if filename == "__svg_obv_hull__":
+        return _svg_obv_hull(), "__inline_svg__"
+
     ext = filename.rsplit(".", 1)[-1].lower()
     mime = "image/svg+xml" if ext == "svg" else f"image/{ext}"
     for directory in [_LEG_ASSETS_DIR, _LEG_OUTPUTS_DIR]:
@@ -134,10 +228,6 @@ def _read_legend_image(filename: str) -> tuple[str, str]:
 
 
 def _render_strategy_legend(strategy: str) -> None:
-    """
-    Mostra la legenda visuale per la strategia selezionata
-    in un expander collassato sotto il banner entry/exit.
-    """
     if strategy not in _STRATEGY_LEGEND:
         return
     filename, mime, title, bullets = _STRATEGY_LEGEND[strategy]
@@ -146,7 +236,14 @@ def _render_strategy_legend(strategy: str) -> None:
     with st.expander(f"📖 Guida visuale — {title}", expanded=False):
         col_img, col_txt = st.columns([1.2, 1])
         with col_img:
-            if b64:
+            if actual_mime == "__inline_svg__":
+                # SVG inline: renderizza direttamente come HTML
+                st.markdown(
+                    f'<div style="border-radius:8px;overflow:hidden;border:1px solid #2a2e39">'
+                    f'{b64}</div>',
+                    unsafe_allow_html=True,
+                )
+            elif b64:
                 st.markdown(
                     f'<img src="data:{actual_mime};base64,{b64}" '
                     f'style="width:100%;border-radius:6px;border:1px solid #2a2e39">',
@@ -1266,7 +1363,12 @@ def render_backtest_tab():
                     st.rerun()
                 except Exception as _de:
                     st.error(f"Errore generazione demo: {_de}")
-        return
+
+        # ── Strategy Chart sempre visibile anche senza dati performance ──
+        st.markdown("---")
+        st.markdown("### 📊 Strategy Chart — disponibile sempre")
+        strategy_chart_widget(tickers=[], key_suffix="bt_empty")
+        return  # ferma solo le statistiche (non ha senso mostrarle senza dati)
 
 
 
