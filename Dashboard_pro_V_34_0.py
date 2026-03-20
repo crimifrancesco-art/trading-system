@@ -84,8 +84,61 @@ except ImportError:
 
 # Scanner: prova scan_universe (v34), fallback a scan_ticker (v34)
 try:
-    from utils.scanner import load_universe, scan_universe, scan_ticker
+    from utils.scanner import load_universe, scan_universe as _scan_universe_orig, scan_ticker
     _HAS_SCAN_UNIVERSE = True
+
+    # v34: wrappa scan_universe esterno con cache per-ticker + dedup
+    # per velocizzare re-scan (stessa logica del fallback)
+    def scan_universe(universe, e_h, p_rmin, p_rmax, r_poc,
+                      vol_ratio_hot=2.0, cache_enabled=True, finviz_enabled=False,
+                      n_workers=12, progress_callback=None):
+        import time as _t_su, threading as _th_su
+        _CACHE_TTL_SU = 600
+        if not hasattr(scan_universe, "_su_cache"):
+            scan_universe._su_cache = {}
+        _suc = scan_universe._su_cache
+        _lock_su = _th_su.Lock()
+        _ch_su = [0]
+
+        def _inject_cache(tkr, *a, **k):
+            entry = _suc.get(tkr)
+            if cache_enabled and entry and (_t_su.time() - entry["ts"]) < _CACHE_TTL_SU:
+                with _lock_su: _ch_su[0] += 1
+                return entry["ep"], entry["rea"]
+            ep, rea = scan_ticker(tkr, *a, **k)
+            _suc[tkr] = {"ep": ep, "rea": rea, "ts": _t_su.time()}
+            return ep, rea
+
+        # Sostituisce temporaneamente scan_ticker nel modulo
+        import utils.scanner as _sc_orig_mod
+        _real_scan = _sc_orig_mod.scan_ticker
+        _sc_orig_mod.scan_ticker = _inject_cache
+        try:
+            df_ep, df_rea, stats = _scan_universe_orig(
+                universe, e_h, p_rmin, p_rmax, r_poc,
+                vol_ratio_hot=vol_ratio_hot,
+                cache_enabled=cache_enabled,
+                finviz_enabled=finviz_enabled,
+                n_workers=n_workers,
+                progress_callback=progress_callback,
+            )
+        finally:
+            _sc_orig_mod.scan_ticker = _real_scan  # sempre ripristina
+        stats["cache_hits"] = _ch_su[0]
+        stats["downloaded"] = len(universe) - _ch_su[0]
+        # Dedup per ticker
+        if not df_ep.empty and "Ticker" in df_ep.columns:
+            _sc = next((c for c in ["CSS","Pro_Score","Quality_Score"] if c in df_ep.columns), None)
+            if _sc:
+                df_ep = (df_ep.sort_values(_sc, ascending=False)
+                              .drop_duplicates("Ticker", keep="first")
+                              .reset_index(drop=True))
+        if not df_rea.empty and "Ticker" in df_rea.columns and "Vol_Ratio" in df_rea.columns:
+            df_rea = (df_rea.sort_values("Vol_Ratio", ascending=False)
+                            .drop_duplicates("Ticker", keep="first")
+                            .reset_index(drop=True))
+        return df_ep, df_rea, stats
+
 except ImportError:
     from utils.scanner import load_universe, scan_ticker
     _HAS_SCAN_UNIVERSE = False
@@ -2901,15 +2954,30 @@ with tab_mtf:
                     use_container_width=True, hide_index=True,
                 )
 
-    # ── Se compare_tab.py esiste, mostrane anche il contenuto ────────────
+    # ── Se compare_tab.py esiste, passagli i ticker di default ─────────
     try:
         from utils.compare_tab import render_compare
         _df_scan_all = pd.concat(
             [df for df in [df_ep, df_rea] if df is not None and not df.empty],
             ignore_index=True
         ) if any(df is not None and not df.empty for df in [df_ep, df_rea]) else None
+
+        # Inietta i ticker di default nel session_state usato da compare_tab
+        # (i text_area di compare_tab leggono tipicamente da questi key)
+        _cmp_ticker_keys = [
+            "compare_tickers", "cmp_input", "compare_input",
+            "ticker_input", "tickers_input", "multi_tickers"
+        ]
+        _default_val = "\n".join(t for t,_,_,_ in _CMP_DEFAULTS)
+        for _ck in _cmp_ticker_keys:
+            if _ck not in st.session_state:
+                st.session_state[_ck] = _default_val
+
         with st.expander("📊 Comparatore avanzato (compare_tab.py)", expanded=False):
-            render_compare(_df_scan_all)
+            try:
+                render_compare(_df_scan_all, default_tickers=[t for t,_,_,_ in _CMP_DEFAULTS])
+            except TypeError:
+                render_compare(_df_scan_all)
     except ImportError:
         pass
     except Exception as _ce:
