@@ -145,7 +145,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     Aggiunge/ricalcola colonne che il vecchio scanner.py non produce:
     - Stato_Pro  con soglia >= 6 (il vecchio usa >= 8, troppo restrittivo)
     - Stato_Early assicurato
-    - Ser_OK / Ser_Score  (metodo Serafini v34 — 7 criteri hard + 1 bonus weekly)
+    - Ser_OK / Ser_Score  (metodo Serafini — 6 criteri tecnici)
     - FV_OK  / FV_Score   (filtri Finviz base)
     """
     if df is None or df.empty:
@@ -190,44 +190,30 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         else:
             df["Stato_Early"] = "-"
 
-    # ── Ser_OK / Ser_Score ───────────────────────────────────────────────
-    # v34 UPGRADE: criteri Serafini rivisti per allineamento agli standard professionali
-    #
-    #  C1: RSI > 50             (momentum positivo — invariato)
-    #  C2: Prezzo > EMA20       (trend breve — invariato)
-    #  C2b: Prezzo > EMA50      (NUOVO: conferma trend medio — standard swing)
-    #  C3: EMA20 > EMA50        (golden alignment — invariato)
-    #  C4: OBV_Trend == "UP"    (volume conferma direzione — invariato)
-    #  C5: Vol_Ratio >= 1.5     (FIX: alzato da >1.0 a >=1.5 — soglia professionale)
-    #  C6: No Earnings prossimi (invariato)
-    #  C7: Weekly_Bull (opz.)   (NUOVO: confluenza timeframe weekly)
-    #
-    #  Ser_OK = C1 & C2 & C2b & C3 & C4 & C5 & C6  (7 criteri hard)
-    #  Ser_Score = somma 0-8 (include C7 come punto bonus)
+    # ── Ser_OK / Ser_Score — v34 UPGRADE ────────────────────────────────
+    # C1 RSI>50 | C2 Pr>EMA20 | C2b Pr>EMA50 (NUOVO) | C3 EMA20>EMA50
+    # C4 OBV UP | C5 Vol_Ratio>=1.5 (alzato) | C6 No Earnings
+    # C7 Weekly_Bull bonus (+1 score, non blocca Ser_OK)
     if "RSI" in df.columns and "OBV_Trend" in df.columns and "Vol_Ratio" in df.columns:
         pr  = df["Prezzo"]   if "Prezzo"   in df.columns else pd.Series(0.0, index=df.index)
         e20 = df["EMA20"]    if "EMA20"    in df.columns else pd.Series(dtype=float)
         e50 = df["EMA50"]    if "EMA50"    in df.columns else pd.Series(dtype=float)
 
-        c1   = df["RSI"] > 50                                                          # RSI bull
-        c2   = (pr > e20)  if "EMA20" in df.columns else (df["Quality_Score"] >= 4)   # sopra EMA20
-        c2b  = (pr > e50)  if "EMA50" in df.columns else (df["Quality_Score"] >= 5)   # v34: sopra EMA50
-        c3   = (e20 > e50) if ("EMA20" in df.columns and "EMA50" in df.columns) \
-               else (df["Quality_Score"] >= 6)                                          # golden align
-        c4   = df["OBV_Trend"] == "UP"                                                 # OBV crescente
-        c5   = df["Vol_Ratio"] >= 1.5                                                  # v34: 1.0→1.5
+        c1   = df["RSI"] > 50
+        c2   = (pr > e20)  if "EMA20" in df.columns else (df["Quality_Score"] >= 4)
+        c2b  = (pr > e50)  if "EMA50" in df.columns else (df["Quality_Score"] >= 5)
+        c3   = (e20 > e50) if ("EMA20" in df.columns and "EMA50" in df.columns)                else (df["Quality_Score"] >= 6)
+        c4   = df["OBV_Trend"] == "UP"
+        c5   = df["Vol_Ratio"] >= 1.5  # v34: alzato da 1.0
         c6_raw = df.get("Earnings_Soon", pd.Series(False, index=df.index))
-        c6   = ~c6_raw.astype(bool)                                                    # no earnings
-        # C7: Weekly Bull — opzionale (bonus score, non blocca Ser_OK)
+        c6   = ~c6_raw.astype(bool)
         c7_raw = df.get("Weekly_Bull", pd.Series(False, index=df.index))
-        c7   = c7_raw.isin([True, "True", "true", 1])                                 # v34: weekly confirm
+        c7   = c7_raw.isin([True, "True", "true", 1])  # v34: bonus weekly
 
-        # Ser_OK: tutti e 7 i criteri hard (C2b aggiunto, C7 resta bonus)
         df["Ser_OK"]    = c1 & c2 & c2b & c3 & c4 & c5 & c6
-        # Ser_Score 0-8: 7 criteri + 1 bonus weekly
-        df["Ser_Score"] = (c1.astype(int)  + c2.astype(int)  + c2b.astype(int) +
-                           c3.astype(int)  + c4.astype(int)  + c5.astype(int)  +
-                           c6.astype(int)  + c7.astype(int))
+        df["Ser_Score"] = (c1.astype(int) + c2.astype(int) + c2b.astype(int) +
+                           c3.astype(int) + c4.astype(int) + c5.astype(int) +
+                           c6.astype(int) + c7.astype(int))
 
     # ── FV_OK / FV_Score ─────────────────────────────────────────────────
     if "Prezzo" in df.columns and "Vol_Ratio" in df.columns:
@@ -369,7 +355,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     # numero ordinabile. Pesi calibrati per swing trading:
     #
     #   Pro_Score      (0-10) × 4.0  → max 40 pt  (peso principale)
-    #   Ser_Score      (0-8)  × 2.25 → max 18 pt  (metodo Serafini v34: 7 criteri + 1 bonus weekly)
+    #   Ser_Score      (0-6)  × 3.0  → max 18 pt  (metodo Serafini)
     #   FV_Score       (0-5)  × 2.0  → max 10 pt  (filtri Finviz)
     #   ADX_Proxy      (0-100)× 0.15 → max 15 pt  (trend strength)
     #   ATR_OK         bool   × 5    → max  5 pt  (volatilità OK)
@@ -385,7 +371,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     if "Pro_Score" in df.columns:
         _css += pd.to_numeric(df["Pro_Score"], errors="coerce").fillna(0).clip(0, 10) * 4.0
     if "Ser_Score" in df.columns:
-        _css += pd.to_numeric(df["Ser_Score"], errors="coerce").fillna(0).clip(0, 8)  * 2.25  # v34: 0-8 × 2.25 = max 18pt invariato
+        _css += pd.to_numeric(df["Ser_Score"], errors="coerce").fillna(0).clip(0, 6)  * 3.0
     if "FV_Score" in df.columns:
         _css += pd.to_numeric(df["FV_Score"],  errors="coerce").fillna(0).clip(0, 5)  * 2.0
     if "ADX_Proxy" in df.columns:
@@ -1041,9 +1027,9 @@ getGui(){return this.eGui;}}""")
 
 ser_score_renderer=JsCode("""class S{init(p){this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:6px';
-const v=parseInt(p.value||0);const pct=Math.round((v/8)*100);
-const c=v>=7?'#00ff88':v>=5?'#f59e0b':'#ef4444';
-this.eGui.innerHTML=`<span style="font-family:Courier New;font-weight:bold;color:${c};min-width:20px">${v}/8</span>
+const v=parseInt(p.value||0);const pct=Math.round((v/6)*100);
+const c=v>=6?'#00ff88':v>=4?'#f59e0b':'#ef4444';
+this.eGui.innerHTML=`<span style="font-family:Courier New;font-weight:bold;color:${c};min-width:20px">${v}/6</span>
 <div style="flex:1;background:#1f2937;border-radius:3px;height:6px">
 <div style="width:${pct}%;background:${c};height:6px;border-radius:3px"></div></div>`;}
 getGui(){return this.eGui;}}""")
@@ -1260,7 +1246,7 @@ PRESETS={
                          atr_filter_enabled=True,atr_pct_min=1.0,atr_pct_max=8.0,
                          show_strong_only=False),
     # Bilanciato: rapporto qualita'/quantita' ottimale per swing trading
-    "⚖️ Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34: 1.5→2.0
+    "⚖️ Bilanciato":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34
                          min_early_score=2.0,min_quality=4,min_pro_score=0.0,
                          liq_filter_enabled=True,min_dollar_vol=10,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
@@ -1272,7 +1258,7 @@ PRESETS={
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=4.0,
                          show_strong_only=False),
     # Solo STRONG: massima convinzione, pochissimi segnali ad alta probabilita'
-    "★ Solo STRONG":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.5,top=10,  # v34: 1.5→2.5
+    "★ Solo STRONG":   dict(eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.5,top=10,  # v34
                          min_early_score=4.0,min_quality=7,min_pro_score=7.0,
                          liq_filter_enabled=True,min_dollar_vol=20,
                          atr_filter_enabled=True,atr_pct_min=1.5,atr_pct_max=6.0,
@@ -1316,7 +1302,7 @@ if _GH_SYNC and not st.session_state.get("_gh_pulled"):
 defaults=dict(
     mSP500=True,mNasdaq=True,mFTSE=True,mEurostoxx=False,
     mDow=False,mRussell=False,mStoxxEmerging=False,mUSSmallCap=False,
-    eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34: vol_ratio_hot alzato da 1.5 a 2.0 (standard professionale swing)
+    eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34
     min_early_score=2.0,min_quality=3,
     min_pro_score=0.0,   # 0 = nessun filtro extra: la classificazione PRO/STRONG basta
     # Nuovi filtri qualita' v32
@@ -1709,6 +1695,21 @@ if not only_watchlist:
             # ── Normalizza colonne ────────────────────────────────────────
             df_ep_new  = _enrich_df(df_ep_new)
             df_rea_new = _enrich_df(df_rea_new)
+            # v34 FIX DEDUP: rimuovi ticker duplicati (stesso ticker in più mercati)
+            # Tieni la riga con lo score più alto per ogni ticker
+            if not df_ep_new.empty and "Ticker" in df_ep_new.columns:
+                _score_col = next((c for c in ["CSS","Pro_Score","Quality_Score"] if c in df_ep_new.columns), None)
+                if _score_col:
+                    df_ep_new = (df_ep_new.sort_values(_score_col, ascending=False)
+                                         .drop_duplicates(subset=["Ticker"], keep="first")
+                                         .reset_index(drop=True))
+                else:
+                    df_ep_new = df_ep_new.drop_duplicates(subset=["Ticker"], keep="first").reset_index(drop=True)
+            if not df_rea_new.empty and "Ticker" in df_rea_new.columns:
+                df_rea_new = (df_rea_new.sort_values("Vol_Ratio", ascending=False)
+                                        .drop_duplicates(subset=["Ticker"], keep="first")
+                                        .reset_index(drop=True)) if "Vol_Ratio" in df_rea_new.columns \
+                             else df_rea_new.drop_duplicates(subset=["Ticker"], keep="first").reset_index(drop=True)
             pb.progress(1.0)
 
             elapsed = scan_stats.get("elapsed_s", 0)
@@ -1843,7 +1844,9 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
            # Nuove colonne v32
            "Dollar_Vol":110,"Liq_Grade":130,"ATR_pct":90,"ATR_OK":85,"Liq_OK":80,
            "CSS":130,"CSS_Grade":85,"Trend_Strength":120,"ADX_Proxy":110,
-           "RSI_Div_Score":90}
+           "RSI_Div_Score":90,
+           # v34 REA-HOT
+           "AB_Score":110,"AB_Grade":110}
     for c,w in col_w.items():
         if c in df_disp.columns: gb.configure_column(c,width=w)
     hide_cols=["id","_chart_data","_quality_components","_ser_criteri","_fv_criteri",
@@ -2189,7 +2192,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     _atr_enabled    = bool(st.session_state.get("atr_filter_enabled", True))
     _atr_min        = float(st.session_state.get("atr_pct_min", 1.5))
     _atr_max        = float(st.session_state.get("atr_pct_max", 6.0))
-    # v34: HOT bypassa il filtro ATR (breakout hanno ATR elevato per natura)
+    # v34: HOT bypassa filtro ATR — i breakout hanno ATR elevato per natura
     _skip_atr_for_hot = False
 
     # Caption dinamica che mostra filtri attivi
@@ -2224,30 +2227,18 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
                     " Abbassa `vol_ratio_hot` o `rpoc` nella sidebar → ⚙️ Avanzate.")
             return
         if "Stato" in df.columns:
-            df_f = df[df["Stato"]=="HOT"].copy()
+            df_f=df[df["Stato"]=="HOT"].copy()
         else:
-            df_f = df.copy()  # df_rea è già pre-filtrata
-
-        # ── v34 FIX #2: filtro hard su Dist_POC% ────────────────────────
-        # Il segnale HOT richiede che il prezzo sia VICINO al POC (Point of Control).
-        # Non basta sortare per Dist_POC% — se il prezzo si è allontanato dopo il
-        # salvataggio nel DB, il setup non è più valido. Applichiamo un filtro hard
-        # basato sul parametro rpoc della sidebar (default 2% = 0.02).
-        _rpoc_pct = float(st.session_state.get("rpoc", 0.02)) * 100  # converti in %
+            df_f=df.copy()  # df_rea è già pre-filtrata
+        # v34 FIX: filtro hard Dist_POC% — scarta titoli che si sono allontanati dal POC
+        _rpoc_pct = float(st.session_state.get("rpoc", 0.02)) * 100
         if "Dist_POC_%" in df_f.columns and _rpoc_pct > 0:
-            _before_poc = len(df_f)
-            df_f = df_f[df_f["Dist_POC_%"].abs() <= _rpoc_pct * 1.5]  # ×1.5 come tolleranza display
-            _removed_poc = _before_poc - len(df_f)
-            if _removed_poc > 0:
-                st.caption(
-                    f"📍 POC proximity: rimossi {_removed_poc} titoli con |Dist_POC%| > "
-                    f"{_rpoc_pct*1.5:.1f}% (soglia rpoc {_rpoc_pct:.1f}% × 1.5)"
-                )
-
-        # ── v34 FIX #3: disabilita ATR% filter per HOT ──────────────────
-        # I breakout con volume elevato (natura dei segnali HOT) hanno spesso
-        # ATR% > 6% — applicare il filtro ATR eliminerebbe i migliori setup.
-        # Il flag _skip_atr_hot segnala ai filtri condivisi di non applicare ATR.
+            _n_before_poc = len(df_f)
+            df_f = df_f[df_f["Dist_POC_%"].abs() <= _rpoc_pct * 1.5]
+            _n_poc_rm = _n_before_poc - len(df_f)
+            if _n_poc_rm > 0:
+                st.caption(f"📍 POC filter: rimossi {_n_poc_rm} titoli distanti dal POC (soglia {_rpoc_pct*1.5:.1f}%)")
+        # v34 FIX: disabilita ATR filter per HOT (breakout hanno ATR elevato)
         _skip_atr_for_hot = True
 
     elif status_filter=="CONFLUENCE":
@@ -2308,8 +2299,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         if _removed_liq > 0:
             st.caption(f"Liquidita': rimossi {_removed_liq} titoli con Dollar_Vol < ${_min_dvol:.0f}M")
 
-    # 2. ATR% range (volatilita' operativa)
-    # v34: NON applicare agli HOT — i breakout con volume hanno ATR naturalmente elevato
+    # 2. ATR% range — v34: NON applicare per HOT (breakout hanno ATR naturalmente alto)
     if _atr_enabled and not _skip_atr_for_hot and "ATR_pct" in df_f.columns:
         _before_atr = len(df_f)
         _mask_atr = df_f["ATR_pct"].isna() | df_f["ATR_pct"].between(_atr_min, _atr_max, inclusive="both")
@@ -2473,12 +2463,32 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     if st.button(f"➕ Aggiungi a '{st.session_state.current_list_name}'",key=f"btn_{title}"):
         if not selected_df.empty and "Ticker" in selected_df.columns:
-            tickers=selected_df["Ticker"].tolist()
+            tickers=selected_df["Ticker"].dropna().tolist()
             names  =selected_df.get("Nome",selected_df["Ticker"]).tolist()
+            # v34 FIX WATCHLIST: forza insert diretto nel DB prima di chiamare gh_add
+            # per garantire persistenza anche senza GitHub Sync configurato
+            try:
+                _conn_wl = sqlite3.connect(str(DB_PATH))
+                _wl_now  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                _list_nm = st.session_state.current_list_name
+                for _tkr, _nm in zip(tickers, names):
+                    _exists = _conn_wl.execute(
+                        "SELECT id FROM watchlist WHERE ticker=? AND list_name=?",
+                        (_tkr, _list_nm)
+                    ).fetchone()
+                    if not _exists:
+                        _conn_wl.execute(
+                            "INSERT INTO watchlist (ticker,name,trend,origine,note,list_name,created_at) "
+                            "VALUES (?,?,?,?,?,?,?)",
+                            (_tkr, str(_nm)[:60], title, "Scanner", "", _list_nm, _wl_now)
+                        )
+                _conn_wl.commit(); _conn_wl.close()
+            except Exception as _wl_err:
+                st.warning(f"DB insert: {_wl_err} — provo gh_add_to_watchlist")
             gh_add_to_watchlist(tickers,names,title,"Scanner","LONG",st.session_state.current_list_name)
             st.success(f"✅ Aggiunti {len(tickers)} titoli a '{st.session_state.current_list_name}'.")
-            time.sleep(0.8); st.rerun()
-        else: st.warning("Seleziona almeno una riga.")
+            time.sleep(0.5); st.rerun()
+        else: st.warning("⚠️ Seleziona almeno una riga dalla griglia.")
 
     if not selected_df.empty:
         ticker_sel=selected_df.iloc[0].get("Ticker","")
@@ -2556,7 +2566,137 @@ with tab_p:
 
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
-    render_scan_tab(df_rea,"HOT",["Vol_Ratio","Dist_POC_%"],[False,True],"REA-HOT")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 🔥 REA-HOT v34 — ACCUMULO & BREAKOUT DETECTOR
+    # ══════════════════════════════════════════════════════════════════════
+    # Idea ispirata agli youtuber/trader che cercano titoli in fase di
+    # ACCUMULO (volatilità bassa, volume stabile) seguita da un BREAKOUT
+    # improvviso con volume anomalo — classico pattern "coiled spring".
+    #
+    # SCORE ACCUMULO-BREAKOUT (AB_Score 0-100):
+    #   • Vol_Ratio >= 2.0   → volume breakout confermato (40 pt)
+    #   • Dist_POC% vicino   → prezzo torna vicino al livello chiave (20 pt)
+    #   • ATR_pct in range   → movimento reale, non flat (15 pt)
+    #   • RSI 45-65          → momentum sano, non overbought (15 pt)
+    #   • OBV_Trend UP       → accumulo istituzionale (10 pt)
+    # ──────────────────────────────────────────────────────────────────────
+    if not df_rea.empty:
+        df_rea_view = df_rea.copy()
+
+        # Calcola AB_Score
+        def _ab_score(row):
+            score = 0.0
+            # 1. Vol_Ratio breakout (max 40 pt)
+            vr = float(row.get("Vol_Ratio", 0) or 0)
+            if   vr >= 4.0: score += 40
+            elif vr >= 3.0: score += 32
+            elif vr >= 2.0: score += 22
+            elif vr >= 1.5: score += 10
+            # 2. Dist_POC% vicino al POC (max 20 pt) — più vicino = meglio
+            dp = abs(float(row.get("Dist_POC_%", 999) or 999))
+            if   dp <= 0.5: score += 20
+            elif dp <= 1.0: score += 15
+            elif dp <= 2.0: score += 10
+            elif dp <= 3.0: score += 5
+            # 3. ATR% range operativo (max 15 pt)
+            atr = float(row.get("ATR_pct", 0) or 0)
+            if   2.0 <= atr <= 4.0: score += 15
+            elif 1.5 <= atr <= 6.0: score += 8
+            # 4. RSI zona sana 45-65 (max 15 pt)
+            rsi = float(row.get("RSI", 50) or 50)
+            if   50 <= rsi <= 60: score += 15
+            elif 45 <= rsi <= 65: score += 10
+            elif 40 <= rsi <= 70: score += 5
+            # 5. OBV crescente (max 10 pt)
+            if row.get("OBV_Trend") == "UP": score += 10
+            return round(score, 1)
+
+        df_rea_view["AB_Score"] = df_rea_view.apply(_ab_score, axis=1)
+        df_rea_view["AB_Grade"] = df_rea_view["AB_Score"].apply(
+            lambda v: "🔥 HOT"    if v >= 70 else
+                      "⚡ STRONG" if v >= 50 else
+                      "📈 WATCH"  if v >= 30 else "💤 WEAK"
+        )
+
+        # Header con metriche rapide
+        _ab_hot    = int((df_rea_view["AB_Grade"] == "🔥 HOT").sum())
+        _ab_strong = int((df_rea_view["AB_Grade"] == "⚡ STRONG").sum())
+        _ab_avg    = round(df_rea_view["AB_Score"].mean(), 1) if not df_rea_view.empty else 0
+        _ab_top    = df_rea_view.nlargest(1, "AB_Score").iloc[0]["Ticker"] if not df_rea_view.empty else "—"
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("🔥 HOT Breakout",   _ab_hot,    help="AB_Score ≥ 70 — breakout confermato con volume forte")
+        m2.metric("⚡ Strong Setup",   _ab_strong, help="AB_Score 50-69 — setup in formazione")
+        m3.metric("📊 Tot. segnali",   len(df_rea_view))
+        m4.metric("📈 AB Score medio", f"{_ab_avg:.1f}")
+        m5.metric("🏆 Top ticker",     _ab_top,    help="Ticker con AB_Score più alto")
+
+        st.markdown(
+            f'<div style="background:#1e222d;border-left:3px solid #f97316;'
+            f'padding:8px 14px;border-radius:0 4px 4px 0;margin:8px 0;font-size:0.80rem">'
+            f'<b style="color:#f97316">💡 Come leggere il tab REA-HOT:</b>'
+            f' <span style="color:#b2b5be">I titoli in lista hanno già Vol_Ratio > soglia E '
+            f'prezzo vicino al POC (Point of Control). '
+            f'L\'<b>AB_Score</b> aggiunge una valutazione 0-100 del setup accumulo→breakout: '
+            f'più alto = volume anomalo + prezzo in zona chiave + momentum sano.</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        # Chart top-10 AB_Score (mini heatmap visuale)
+        top10 = df_rea_view.nlargest(min(10, len(df_rea_view)), "AB_Score")
+        if not top10.empty:
+            fig_ab = go.Figure()
+            colors_ab = [
+                "#f97316" if g == "🔥 HOT" else
+                "#60a5fa" if g == "⚡ STRONG" else
+                "#26a69a"
+                for g in top10["AB_Grade"]
+            ]
+            vr_vals = pd.to_numeric(top10.get("Vol_Ratio", pd.Series()), errors="coerce").fillna(0)
+            fig_ab.add_trace(go.Bar(
+                x=top10["Ticker"],
+                y=top10["AB_Score"],
+                marker_color=colors_ab,
+                marker_line_width=0,
+                text=[f"{v:.0f}" for v in top10["AB_Score"]],
+                textposition="outside",
+                textfont=dict(size=10, color="#d1d4dc"),
+                customdata=list(zip(
+                    vr_vals.tolist(),
+                    top10.get("Dist_POC_%", pd.Series([0]*len(top10))).fillna(0).tolist(),
+                    top10.get("RSI", pd.Series([0]*len(top10))).fillna(0).tolist(),
+                )),
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "AB Score: <b>%{y:.0f}</b><br>"
+                    "Vol Ratio: %{customdata[0]:.1f}x<br>"
+                    "Dist POC: %{customdata[1]:+.1f}%<br>"
+                    "RSI: %{customdata[2]:.0f}"
+                    "<extra></extra>"
+                ),
+            ))
+            fig_ab.update_layout(
+                **PLOTLY_DARK,
+                title=dict(text="🔥 Top 10 — Accumulo & Breakout Score",
+                           font=dict(color="#f97316", size=13), x=0.01),
+                height=260,
+                yaxis=dict(range=[0, 115], showgrid=True, gridcolor="#2a2e39"),
+                margin=dict(l=0, r=0, t=44, b=0),
+                showlegend=False,
+            )
+            # Linee soglia colorate
+            for yval, col, lbl in [(70,"#f97316","HOT"), (50,"#60a5fa","STRONG"), (30,"#26a69a","WATCH")]:
+                fig_ab.add_hline(y=yval, line=dict(color=col, width=1, dash="dot"),
+                                 annotation_text=lbl, annotation_font_color=col,
+                                 annotation_font_size=9)
+            st.plotly_chart(fig_ab, use_container_width=True, key="rea_ab_chart")
+
+    # ── Tabella standard con AB_Score aggiunto ──────────────────────────
+    _df_rea_enhanced = df_rea_view if not df_rea.empty else df_rea
+    render_scan_tab(_df_rea_enhanced, "HOT", ["AB_Score","Vol_Ratio","Dist_POC_%"],
+                    [False, False, True], "REA-HOT")
 
 with tab_conf:
     st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
@@ -2578,22 +2718,21 @@ with tab_mtf:
 with tab_ser:
     show_legend("🎯 Serafini")
     # Mostra criteri dettaglio
-    with st.expander("✅ Criteri Serafini nel dettaglio",expanded=False):
+    with st.expander("✅ Criteri Serafini nel dettaglio — v34",expanded=False):
         st.markdown("""
-| # | Criterio | Calcolo | Soglia | v34 |
-|---|----------|---------|--------|-----|
+| # | Criterio | Calcolo | Soglia | Novità v34 |
+|---|----------|---------|--------|------------|
 | 1 | **RSI > 50** | RSI(14) | >50 | — |
 | 2 | **Prezzo > EMA20** | Close > EMA(20) | Sì | — |
 | 2b | **Prezzo > EMA50** | Close > EMA(50) | Sì | 🆕 aggiunto |
-| 3 | **EMA20 > EMA50** | EMA(20) > EMA(50) — golden alignment | Sì | — |
-| 4 | **OBV crescente** | OBV slope (OBV_Trend = UP) | Sì | — |
-| 5 | **Volume > media** | Vol_Ratio | **≥ 1.5** | ⬆️ alzato da 1.0 |
+| 3 | **EMA20 > EMA50** | EMA(20) > EMA(50) — golden align | Sì | — |
+| 4 | **OBV crescente** | OBV_Trend = UP | Sì | — |
+| 5 | **Volume significativo** | Vol_Ratio | **≥ 1.5** | ⬆️ alzato da 1.0 |
 | 6 | **No earnings prossimi** | Earnings Date > 14gg | Sì | — |
-| 7 | **Weekly Bull** *(bonus)* | Weekly_Bull = True | Bonus +1 | 🆕 aggiunto |
+| 7 | **Weekly Bull** *(bonus)* | Weekly_Bull = True | +1 score | 🆕 bonus |
 
-**Ser_OK = True** quando tutti i criteri 1-2b-3-4-5-6 sono soddisfatti (7 criteri hard).  
-**Ser_Score** va da 0 a 8 — include il bonus weekly al punto 7.  
-Un titolo con Ser_Score ≥ 6 ma Ser_OK=False manca solo di un criterio — vale la pena esaminarlo.
+**Ser_OK = True** quando tutti i criteri 1·2·2b·3·4·5·6 sono soddisfatti (7 criteri hard).  
+**Ser_Score** va da 0 a **8** — il punto 7 (weekly) è bonus. Score ≥ 6 con Ser_OK=False = quasi qualificato, vale la pena esaminarlo.
 """)
     render_scan_tab(df_ep,"SERAFINI",["Ser_Score","Quality_Score","RSI"],[False,False,True],"🎯 Serafini")
 
@@ -3563,7 +3702,24 @@ with tab_w:
 # STORICO
 # =========================================================================
 with tab_bt:
-    render_backtest_tab()
+    # v34: passa i ticker con nomi alfabetici dal df_ep corrente
+    try:
+        from utils.backtest_tab import render_backtest_tab as _bt_full, strategy_chart_widget as _scw_bt
+        # Costruisci labels "Nome Azienda (TICKER)" dal df scanner corrente
+        _bt_labels = {}
+        if not df_ep.empty and "Ticker" in df_ep.columns and "Nome" in df_ep.columns:
+            for _, _br in df_ep[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows():
+                _bt_labels[_br["Ticker"]] = f"{str(_br.get('Nome',''))[:28]}  ({_br['Ticker']})"
+        _bt_tickers = sorted(df_ep["Ticker"].dropna().unique().tolist()) if not df_ep.empty and "Ticker" in df_ep.columns else []
+        # Chiama render con i dati arricchiti
+        render_backtest_tab()
+        # Mostra strategy chart separata con nomi completi se ci sono ticker dallo scanner
+        if _bt_tickers:
+            st.markdown("---")
+            st.markdown('<div class="section-pill">📊 STRATEGY CHART — ticker scanner corrente</div>', unsafe_allow_html=True)
+            _scw_bt(tickers=_bt_tickers, key_suffix="bt_main", ticker_labels=_bt_labels)
+    except Exception:
+        render_backtest_tab()
 
 with tab_of:
     try:
