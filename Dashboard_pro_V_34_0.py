@@ -102,18 +102,55 @@ except ImportError:
                 counter[0] += 1
                 if progress_callback: progress_callback(counter[0], len(universe), tkr)
             return ep, rea
-        nw = min(max(n_workers,1), 16)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=nw) as ex:
-            for fut in concurrent.futures.as_completed({ex.submit(_one,t):t for t in universe}):
+        # v34: worker adattivo + cache per-ticker + dedup
+        _CACHE_TTL_FB = 600
+        if not hasattr(scan_universe, "_fb_cache"):
+            scan_universe._fb_cache = {}
+        _fbc = scan_universe._fb_cache
+        cache_hits_fb = [0]
+
+        def _one_cached(tkr):
+            entry = _fbc.get(tkr)
+            if cache_enabled and entry and (time.time() - entry["ts"]) < _CACHE_TTL_FB:
+                with lock: counter[0] += 1; cache_hits_fb[0] += 1
+                if progress_callback: progress_callback(counter[0], len(universe), f"⚡{tkr}")
+                return entry["ep"], entry["rea"]
+            for attempt in range(2):
                 try:
-                    ep, rea = fut.result()
+                    ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot)
+                    _fbc[tkr] = {"ep": ep, "rea": rea, "ts": time.time()}
+                    break
+                except Exception:
+                    if attempt == 0: time.sleep(0.15)
+                    else: ep = rea = None
+            with lock:
+                counter[0] += 1
+                if progress_callback: progress_callback(counter[0], len(universe), tkr)
+            return ep, rea
+
+        n = len(universe)
+        nw = min(max(n_workers, 1), 24)
+        if   n > 300: nw = min(nw, 24)
+        elif n > 150: nw = min(nw, 20)
+        elif n > 80:  nw = min(nw, 16)
+        else:         nw = min(nw, 12)
+
+        seen = set()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=nw) as ex:
+            fut_map = {ex.submit(_one_cached, t): t for t in universe}
+            for fut in concurrent.futures.as_completed(fut_map):
+                tkr = fut_map[fut]
+                if tkr in seen: continue
+                try:
+                    ep, rea = fut.result(timeout=10)
+                    seen.add(tkr)
                     if ep:  rep.append(ep)
                     if rea: rrea.append(rea)
                 except Exception: pass
         df_ep  = pd.DataFrame(rep)  if rep  else pd.DataFrame()
         df_rea = pd.DataFrame(rrea) if rrea else pd.DataFrame()
-        stats  = {"elapsed_s": round(time.time()-t0,1), "cache_hits": 0,
-                  "downloaded": len(universe), "workers": nw, "total": len(universe),
+        stats  = {"elapsed_s": round(time.time()-t0,1), "cache_hits": cache_hits_fb[0],
+                  "downloaded": n - cache_hits_fb[0], "workers": nw, "total": n,
                   "ep_found": len(rep), "rea_found": len(rrea), "finviz": False}
         return df_ep, df_rea, stats
 
@@ -1558,7 +1595,7 @@ with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
     use_finviz = st.checkbox("📊 Finviz scraping (EPS reali)",False,key="use_finviz",
                               help="Scarica EPS growth, short float, PEG da Finviz. "
                                    "Più lento (+20-40% tempo). Richiede finvizfinance installato.")
-    n_workers  = st.slider("🔄 Worker paralleli",2,16,8,2,key="n_workers",
+    n_workers  = st.slider("🔄 Worker paralleli",2,24,12,2,key="n_workers",  # v34: max 24, default 12
                             help="Thread simultanei. 8 = ottimale. Aumenta con cautela "
                                  "(troppi → rate limit yfinance).")
     if st.button("🗑️ Svuota cache",key="clear_cache_btn",use_container_width=True):
@@ -1610,7 +1647,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 32.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 34.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -2531,10 +2568,10 @@ tabs=st.tabs(["🏠 Home",
               "🎯 Serafini","🔎 Finviz Pro",
               "🔬 Order Flow",
               "🛡️ Crisis Monitor",
-              "⚖️ Risk Manager",
-              "📋 Watchlist","📈 Backtest"])
+              "📋 Watchlist",
+              "⚖️ Risk Manager","📈 Backtest"])
 (tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_of,tab_crisis,tab_rm,tab_w,tab_bt)=tabs
+ tab_ser,tab_fvpro,tab_of,tab_crisis,tab_w,tab_rm,tab_bt)=tabs
 
 with tab_home:
     try:
@@ -2715,7 +2752,152 @@ with tab_mtf:
         ) if any(df is not None and not df.empty for df in [df_ep, df_rea]) else None
         render_compare(_df_scan_all)
     except ImportError:
-        st.info("📊 compare_tab.py non trovato in utils/")
+        # ── Comparatore inline v34 — compare_tab.py non trovato ──────────
+        st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v34</div>',
+                    unsafe_allow_html=True)
+
+        # Ticker di default ordinati per capitalizzazione di mercato (Mar 2025)
+        # AAPL ~3.4T · MSFT ~3.1T · NVDA ~2.9T · GOOGL ~2.1T · META ~1.5T
+        _CMP_DEFAULTS = [
+            ("AAPL",  "Apple",    "~3.4T"),
+            ("MSFT",  "Microsoft","~3.1T"),
+            ("NVDA",  "NVIDIA",   "~2.9T"),
+            ("GOOGL", "Alphabet", "~2.1T"),
+            ("META",  "Meta",     "~1.5T"),
+        ]
+        _cmp_default_str = "\n".join(t for t,_,_ in _CMP_DEFAULTS)
+
+        _cc1, _cc2 = st.columns([1, 3])
+        with _cc1:
+            st.markdown("**Top 5 per capitalizzazione:**")
+            for tkr, nome, cap in _CMP_DEFAULTS:
+                st.markdown(
+                    f'<div style="background:#1e222d;border-left:2px solid #2962ff;'
+                    f'padding:4px 10px;margin:2px 0;border-radius:0 3px 3px 0;font-size:0.82rem">'
+                    f'<b style="color:#00ff88;font-family:Courier New">{tkr}</b>'
+                    f'  <span style="color:#d1d4dc">{nome}</span>'
+                    f'  <span style="color:#787b86;font-size:0.74rem">{cap}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            st.caption("Ordinati per market cap Mar 2025")
+
+        with _cc2:
+            _cmp_input = st.text_area(
+                "Ticker da confrontare (uno per riga)",
+                value=_cmp_default_str,
+                height=140,
+                key="cmp_tickers",
+                placeholder="AAPL\nMSFT\nNVDA\nGOOGL\nMETA",
+                help="Un ticker Yahoo Finance per riga. Aggiungi ticker dallo scanner nella sidebar."
+            )
+            _cmp_range = st.select_slider(
+                "Periodo",
+                options=["1mo","3mo","6mo","1y","2y","5y"],
+                value="1y", key="cmp_range"
+            )
+
+        # Aggiungi ticker dallo scanner
+        if not df_ep.empty and "Ticker" in df_ep.columns:
+            _scan_tkrs = df_ep["Ticker"].dropna().unique().tolist()[:50]
+            _cmp_extra = st.multiselect(
+                "➕ Aggiungi ticker dal tuo scanner",
+                options=sorted(_scan_tkrs),
+                key="cmp_extra_tickers",
+                help="Aggiungi uno o più ticker dalla tua ultima scansione"
+            )
+        else:
+            _cmp_extra = []
+
+        if st.button("📊 Confronta", key="cmp_run", type="primary", use_container_width=False):
+            _raw = [t.strip().upper() for t in (_cmp_input or "").splitlines() if t.strip()]
+            _all_cmp = list(dict.fromkeys(_raw + _cmp_extra))[:12]
+            if not _all_cmp:
+                st.warning("Inserisci almeno un ticker.")
+            else:
+                import urllib.request as _ur, json as _js
+
+                @st.cache_data(ttl=300, show_spinner=False)
+                def _fetch_cmp(tkr: str, rng: str):
+                    try:
+                        url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tkr}"
+                               f"?interval=1d&range={rng}")
+                        req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                        with _ur.urlopen(req, timeout=8) as r:
+                            d = _js.loads(r.read())
+                        res = d["chart"]["result"][0]
+                        ts  = res["timestamp"]
+                        cl  = res["indicators"]["quote"][0]["close"]
+                        meta = res["meta"]
+                        name = meta.get("longName") or meta.get("shortName") or tkr
+                        df_c = pd.DataFrame({"date": pd.to_datetime(ts, unit="s"), "close": cl}).dropna()
+                        return df_c, name
+                    except Exception:
+                        return pd.DataFrame(), tkr
+
+                with st.spinner(f"Carico {len(_all_cmp)} ticker…"):
+                    _cmp_data = {}
+                    for _ct in _all_cmp:
+                        _df_c, _nm_c = _fetch_cmp(_ct, _cmp_range)
+                        if not _df_c.empty:
+                            _cmp_data[_ct] = (_df_c, _nm_c)
+
+                if not _cmp_data:
+                    st.error("Nessun dato disponibile.")
+                else:
+                    # Normalizza tutti a base 100 dal primo giorno
+                    _colors_cmp = [
+                        "#2962ff","#00d4aa","#ff6d00","#f59e0b",
+                        "#a78bfa","#ef5350","#26c6da","#00e676",
+                        "#ff4081","#ffd740","#40c4ff","#69f0ae"
+                    ]
+                    fig_cmp = go.Figure()
+                    _kpi_rows = []
+                    for i, (ct, (dfc, nmc)) in enumerate(_cmp_data.items()):
+                        base = float(dfc["close"].dropna().iloc[0])
+                        norm = (dfc["close"] / base - 1) * 100
+                        chg  = float(norm.iloc[-1])
+                        col_c = _colors_cmp[i % len(_colors_cmp)]
+                        fig_cmp.add_trace(go.Scatter(
+                            x=dfc["date"].dt.strftime("%Y-%m-%d"),
+                            y=norm.round(2),
+                            mode="lines", name=f"{ct}",
+                            line=dict(color=col_c, width=2.2),
+                            hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:.2f}}%<extra></extra>",
+                        ))
+                        _kpi_rows.append({"Ticker": ct, "Nome": nmc[:30],
+                                          "Rendimento %": round(chg, 2),
+                                          "Prezzo": round(float(dfc["close"].iloc[-1]), 2)})
+
+                    fig_cmp.add_hline(y=0, line=dict(color="#363a45", width=1, dash="dot"))
+                    fig_cmp.update_layout(
+                        paper_bgcolor="#131722", plot_bgcolor="#1e222d",
+                        title=dict(text=f"Performance normalizzata — base 100 · {_cmp_range}",
+                                   font=dict(color="#50c4e0", size=13), x=0.01),
+                        height=420,
+                        yaxis=dict(title="Rendimento %", ticksuffix="%",
+                                   gridcolor="#2a2e39", zeroline=False,
+                                   tickfont=dict(color="#787b86", size=10)),
+                        xaxis=dict(gridcolor="#2a2e39", tickfont=dict(color="#787b86", size=9)),
+                        legend=dict(orientation="h", y=1.05, x=0, bgcolor="rgba(0,0,0,0)",
+                                    font=dict(size=10)),
+                        hovermode="x unified", margin=dict(l=0, r=0, t=48, b=0),
+                        font=dict(color="#b2b5be", family="Trebuchet MS", size=11),
+                    )
+                    st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
+
+                    # Tabella riepilogo rendimenti
+                    df_kpi = pd.DataFrame(_kpi_rows).sort_values("Rendimento %", ascending=False)
+
+                    def _style_ret(v):
+                        return f"color: {'#00ff88' if v > 0 else '#ef4444'}; font-weight: bold"
+
+                    st.dataframe(
+                        df_kpi.style
+                              .applymap(_style_ret, subset=["Rendimento %"])
+                              .format({"Rendimento %": "{:+.2f}%", "Prezzo": "${:.2f}"}),
+                        use_container_width=True, hide_index=True
+                    )
     except Exception as _ce:
         st.error(f"Comparatore error: {_ce}")
 
@@ -3078,6 +3260,81 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 > I rendimenti passati non garantiscono quelli futuri. Questo è uno strumento informativo,
 > non consulenza finanziaria. Alcuni ETF (RSX Russia) possono diventare illiquidi in caso di sanzioni.
 """)
+
+    # ── 📋 RIEPILOGO TECNICO — griglia stile PRO ─────────────────────
+    # Aggrega tutti gli asset delle categorie attive con dati live scanner
+    st.markdown("---")
+    st.markdown('<div class="section-pill">📋 RIEPILOGO TECNICO — tutti gli asset attivi</div>',
+                unsafe_allow_html=True)
+
+    _riepilogo_rows = []
+    for _rc in active_categories:
+        _rcat = CRISIS_ASSETS.get(_rc, {})
+        for _rt, _rn, _rd in _rcat.get("assets", []):
+            _riepilogo_rows.append({
+                "Categoria": _rc, "Ticker": _rt, "Nome": _rn,
+                "Tattica": _rd[:60] + ("…" if len(_rd) > 60 else "")
+            })
+
+    if _riepilogo_rows:
+        df_riepilogo = pd.DataFrame(_riepilogo_rows)
+
+        # Arricchisci con dati live (crisis scan o scanner principale)
+        _rlive_cols = ["Ticker","Prezzo","RSI","Vol_Ratio","OBV_Trend",
+                       "Stato_Early","Stato_Pro","Quality_Score",
+                       "Pro_Score","Early_Score","Squeeze","Weekly_Bull",
+                       "ATR_pct","Dollar_Vol"]
+        for _rsrc in [_crisis_live, df_ep, df_rea]:
+            if _rsrc is None or _rsrc.empty or "Ticker" not in _rsrc.columns: continue
+            _rsub = _rsrc[[c for c in _rlive_cols if c in _rsrc.columns]].copy()
+            df_riepilogo = df_riepilogo.merge(_rsub, on="Ticker", how="left")
+            break
+
+        # Griglia stile PRO con tutti i renderer già definiti
+        gb_r = GridOptionsBuilder.from_dataframe(df_riepilogo)
+        gb_r.configure_default_column(sortable=True, resizable=True,
+                                      filterable=True, minWidth=70)
+        gb_r.configure_selection(selection_mode="multiple", use_checkbox=True)
+        gb_r.configure_column("Categoria", width=130, pinned="left")
+        gb_r.configure_column("Ticker", width=85, pinned="left",
+            cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('span');
+this.eGui.innerText=p.value||'';const t=p.value;if(!t)return;
+this.eGui.style.cssText='cursor:pointer;color:#50c4e0;font-weight:bold;font-family:Courier New';
+this.eGui.title='Doppio click → TradingView';
+this.eGui.ondblclick=()=>window.open('https://it.tradingview.com/chart/?symbol='+String(t).split('.')[0],'_blank');}
+getGui(){return this.eGui;}refresh(){return false;}}"""))
+        gb_r.configure_column("Nome", width=180)
+        gb_r.configure_column("Tattica", width=300, wrapText=True, autoHeight=True)
+        # Colonne dati live con renderer PRO
+        for _rc_col, _rc_wd, _rc_rend in [
+            ("Prezzo",        88,  price_renderer),
+            ("RSI",           68,  rsi_renderer),
+            ("Vol_Ratio",     85,  vol_ratio_renderer),
+            ("Quality_Score", 90,  quality_renderer),
+            ("Stato_Pro",     95,  stato_pro_renderer),
+            ("Squeeze",       72,  squeeze_renderer),
+            ("Weekly_Bull",   68,  weekly_renderer),
+            ("ATR_pct",       80,  atr_pct_renderer),
+        ]:
+            if _rc_col in df_riepilogo.columns:
+                gb_r.configure_column(_rc_col, width=_rc_wd, cellRenderer=_rc_rend)
+
+        for _hc in ["OBV_Trend","Stato_Early","Early_Score","Pro_Score","Dollar_Vol"]:
+            if _hc in df_riepilogo.columns:
+                gb_r.configure_column(_hc, width=80)
+
+        go_r = gb_r.build()
+        try:
+            AgGrid(df_riepilogo, gridOptions=go_r,
+                   height=min(180 + len(_riepilogo_rows) * 38, 600),
+                   update_mode=GridUpdateMode.SELECTION_CHANGED,
+                   data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                   fit_columns_on_grid_load=False, theme="streamlit",
+                   allow_unsafe_jscode=True, key="crisis_riepilogo_grid")
+        except Exception:
+            st.dataframe(df_riepilogo, use_container_width=True, hide_index=True)
+    else:
+        st.info("Seleziona uno scenario per vedere il riepilogo tecnico.")
 
     # ── Export ────────────────────────────────────────────────────────
     st.markdown("---")
