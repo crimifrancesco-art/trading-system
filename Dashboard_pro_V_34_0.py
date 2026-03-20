@@ -2744,160 +2744,173 @@ with tab_conf:
     render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
 
 with tab_mtf:
+    # ══════════════════════════════════════════════════════════════════════
+    # COMPARATORE MULTI-TICKER v34
+    # Top 5 per capitalizzazione (Mar 2025): AAPL > MSFT > NVDA > GOOGL > META
+    # Il comparatore inline è SEMPRE visibile. Se compare_tab.py esiste,
+    # viene mostrato anche il comparatore esterno sotto.
+    # ══════════════════════════════════════════════════════════════════════
+    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v34</div>',
+                unsafe_allow_html=True)
+
+    # ── Badge capitalizzazione — sempre visibili ─────────────────────────
+    _CMP_DEFAULTS = [
+        ("AAPL",  "Apple",    "~3.4T", "#2962ff"),
+        ("MSFT",  "Microsoft","~3.1T", "#00d4aa"),
+        ("NVDA",  "NVIDIA",   "~2.9T", "#f97316"),
+        ("GOOGL", "Alphabet", "~2.1T", "#a78bfa"),
+        ("META",  "Meta",     "~1.5T", "#f59e0b"),
+    ]
+    _badge_html = "".join(
+        f'<span style="background:rgba(255,255,255,0.04);border:1px solid {c}44;' 
+        f'border-left:3px solid {c};border-radius:0 3px 3px 0;' 
+        f'padding:3px 10px;margin:2px 4px 2px 0;display:inline-block;' 
+        f'font-family:Courier New;font-size:0.78rem">' 
+        f'<b style="color:{c}">{t}</b>' 
+        f'<span style="color:#b2b5be;margin-left:5px">{n}</span>' 
+        f'<span style="color:#5a6478;margin-left:5px;font-size:0.70rem">{cap}</span>' 
+        f'</span>'
+        for t, n, cap, c in _CMP_DEFAULTS
+    )
+    st.markdown(f'<div style="margin-bottom:6px">{_badge_html}</div>', unsafe_allow_html=True)
+    st.caption("Ordinati per capitalizzazione di mercato · Mar 2025")
+
+    # ── Controlli ────────────────────────────────────────────────────────
+    _cmp_default_str = "\n".join(t for t,_,_,_ in _CMP_DEFAULTS)
+    _cc1, _cc2 = st.columns([1, 2.5])
+    with _cc1:
+        _cmp_input = st.text_area(
+            "Ticker (uno per riga)",
+            value=_cmp_default_str,
+            height=155,
+            key="cmp_tickers",
+            help="Ticker Yahoo Finance, uno per riga."
+        )
+        _cmp_range = st.select_slider(
+            "Periodo", options=["1mo","3mo","6mo","1y","2y","5y"],
+            value="1y", key="cmp_range"
+        )
+    with _cc2:
+        if not df_ep.empty and "Ticker" in df_ep.columns:
+            _scan_tkrs = df_ep["Ticker"].dropna().unique().tolist()[:60]
+            _cmp_extra = st.multiselect(
+                "➕ Aggiungi ticker dal tuo scanner",
+                options=sorted(_scan_tkrs), key="cmp_extra_tickers",
+                help="Aggiungi ticker dalla tua ultima scansione"
+            )
+        else:
+            _cmp_extra = []
+        st.write("")
+        _run_cmp = st.button("📊 Confronta", key="cmp_run",
+                             type="primary", use_container_width=True)
+
+    # ── Esecuzione confronto ─────────────────────────────────────────────
+    if _run_cmp:
+        _raw     = [t.strip().upper() for t in (_cmp_input or "").splitlines() if t.strip()]
+        _all_cmp = list(dict.fromkeys(_raw + _cmp_extra))[:12]
+        if not _all_cmp:
+            st.warning("Inserisci almeno un ticker.")
+        else:
+            import urllib.request as _ur_cmp, json as _js_cmp
+
+            @st.cache_data(ttl=300, show_spinner=False)
+            def _fetch_cmp(tkr: str, rng: str):
+                try:
+                    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tkr}"
+                           f"?interval=1d&range={rng}")
+                    req = _ur_cmp.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with _ur_cmp.urlopen(req, timeout=8) as r:
+                        d = _js_cmp.loads(r.read())
+                    res  = d["chart"]["result"][0]
+                    meta = res["meta"]
+                    ts   = res["timestamp"]
+                    cl   = res["indicators"]["quote"][0]["close"]
+                    name = meta.get("longName") or meta.get("shortName") or tkr
+                    df_c = pd.DataFrame({"date": pd.to_datetime(ts, unit="s"), "close": cl}).dropna()
+                    return df_c, name
+                except Exception:
+                    return pd.DataFrame(), tkr
+
+            with st.spinner(f"Carico {len(_all_cmp)} ticker…"):
+                _cmp_data = {}
+                for _ct in _all_cmp:
+                    _dfc, _nmc = _fetch_cmp(_ct, _cmp_range)
+                    if not _dfc.empty:
+                        _cmp_data[_ct] = (_dfc, _nmc)
+
+            if not _cmp_data:
+                st.error("Nessun dato disponibile. Verifica i simboli.")
+            else:
+                _pal_cmp = ["#2962ff","#00d4aa","#f97316","#f59e0b",
+                            "#a78bfa","#ef5350","#26c6da","#00e676",
+                            "#ff4081","#ffd740","#40c4ff","#69f0ae"]
+                fig_cmp = go.Figure()
+                _kpi_rows = []
+                for i, (ct, (dfc, nmc)) in enumerate(_cmp_data.items()):
+                    base = float(dfc["close"].dropna().iloc[0])
+                    norm = (dfc["close"] / base - 1) * 100
+                    chg  = float(norm.iloc[-1])
+                    col_c = _pal_cmp[i % len(_pal_cmp)]
+                    fig_cmp.add_trace(go.Scatter(
+                        x=dfc["date"].dt.strftime("%Y-%m-%d"),
+                        y=norm.round(2), mode="lines",
+                        name=f"{ct}  {nmc[:22]}",
+                        line=dict(color=col_c, width=2.2),
+                        hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:+.2f}}%<extra></extra>",
+                    ))
+                    _kpi_rows.append({
+                        "Ticker": ct, "Nome": nmc[:32],
+                        "Rendimento %": round(chg, 2),
+                        "Prezzo": round(float(dfc["close"].iloc[-1]), 2),
+                    })
+
+                fig_cmp.add_hline(y=0, line=dict(color="#363a45", width=1, dash="dot"))
+                fig_cmp.update_layout(
+                    paper_bgcolor="#131722", plot_bgcolor="#1e222d",
+                    title=dict(
+                        text=f"Performance normalizzata (base 100) · {_cmp_range}",
+                        font=dict(color="#50c4e0", size=13), x=0.01
+                    ),
+                    height=430,
+                    yaxis=dict(title="Rendimento %", ticksuffix="%",
+                               gridcolor="#2a2e39", zeroline=False,
+                               tickfont=dict(color="#787b86", size=10)),
+                    xaxis=dict(gridcolor="#2a2e39",
+                               tickfont=dict(color="#787b86", size=9)),
+                    legend=dict(orientation="h", y=1.05, x=0,
+                                bgcolor="rgba(0,0,0,0)", font=dict(size=10)),
+                    hovermode="x unified",
+                    margin=dict(l=0, r=0, t=48, b=0),
+                    font=dict(color="#b2b5be",
+                              family="Trebuchet MS, sans-serif", size=11),
+                )
+                st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
+
+                df_kpi = (pd.DataFrame(_kpi_rows)
+                            .sort_values("Rendimento %", ascending=False)
+                            .reset_index(drop=True))
+                def _sret(v):
+                    return (f"color:'#00ff88'" if v > 0
+                            else "color:'#ef4444'") + ";font-weight:bold"
+                st.dataframe(
+                    df_kpi.style
+                          .applymap(_sret, subset=["Rendimento %"])
+                          .format({"Rendimento %": "{:+.2f}%",
+                                   "Prezzo": "${:.2f}"}),
+                    use_container_width=True, hide_index=True,
+                )
+
+    # ── Se compare_tab.py esiste, mostrane anche il contenuto ────────────
     try:
         from utils.compare_tab import render_compare
         _df_scan_all = pd.concat(
             [df for df in [df_ep, df_rea] if df is not None and not df.empty],
             ignore_index=True
         ) if any(df is not None and not df.empty for df in [df_ep, df_rea]) else None
-        render_compare(_df_scan_all)
+        with st.expander("📊 Comparatore avanzato (compare_tab.py)", expanded=False):
+            render_compare(_df_scan_all)
     except ImportError:
-        # ── Comparatore inline v34 — compare_tab.py non trovato ──────────
-        st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v34</div>',
-                    unsafe_allow_html=True)
-
-        # Ticker di default ordinati per capitalizzazione di mercato (Mar 2025)
-        # AAPL ~3.4T · MSFT ~3.1T · NVDA ~2.9T · GOOGL ~2.1T · META ~1.5T
-        _CMP_DEFAULTS = [
-            ("AAPL",  "Apple",    "~3.4T"),
-            ("MSFT",  "Microsoft","~3.1T"),
-            ("NVDA",  "NVIDIA",   "~2.9T"),
-            ("GOOGL", "Alphabet", "~2.1T"),
-            ("META",  "Meta",     "~1.5T"),
-        ]
-        _cmp_default_str = "\n".join(t for t,_,_ in _CMP_DEFAULTS)
-
-        _cc1, _cc2 = st.columns([1, 3])
-        with _cc1:
-            st.markdown("**Top 5 per capitalizzazione:**")
-            for tkr, nome, cap in _CMP_DEFAULTS:
-                st.markdown(
-                    f'<div style="background:#1e222d;border-left:2px solid #2962ff;'
-                    f'padding:4px 10px;margin:2px 0;border-radius:0 3px 3px 0;font-size:0.82rem">'
-                    f'<b style="color:#00ff88;font-family:Courier New">{tkr}</b>'
-                    f'  <span style="color:#d1d4dc">{nome}</span>'
-                    f'  <span style="color:#787b86;font-size:0.74rem">{cap}</span>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            st.caption("Ordinati per market cap Mar 2025")
-
-        with _cc2:
-            _cmp_input = st.text_area(
-                "Ticker da confrontare (uno per riga)",
-                value=_cmp_default_str,
-                height=140,
-                key="cmp_tickers",
-                placeholder="AAPL\nMSFT\nNVDA\nGOOGL\nMETA",
-                help="Un ticker Yahoo Finance per riga. Aggiungi ticker dallo scanner nella sidebar."
-            )
-            _cmp_range = st.select_slider(
-                "Periodo",
-                options=["1mo","3mo","6mo","1y","2y","5y"],
-                value="1y", key="cmp_range"
-            )
-
-        # Aggiungi ticker dallo scanner
-        if not df_ep.empty and "Ticker" in df_ep.columns:
-            _scan_tkrs = df_ep["Ticker"].dropna().unique().tolist()[:50]
-            _cmp_extra = st.multiselect(
-                "➕ Aggiungi ticker dal tuo scanner",
-                options=sorted(_scan_tkrs),
-                key="cmp_extra_tickers",
-                help="Aggiungi uno o più ticker dalla tua ultima scansione"
-            )
-        else:
-            _cmp_extra = []
-
-        if st.button("📊 Confronta", key="cmp_run", type="primary", use_container_width=False):
-            _raw = [t.strip().upper() for t in (_cmp_input or "").splitlines() if t.strip()]
-            _all_cmp = list(dict.fromkeys(_raw + _cmp_extra))[:12]
-            if not _all_cmp:
-                st.warning("Inserisci almeno un ticker.")
-            else:
-                import urllib.request as _ur, json as _js
-
-                @st.cache_data(ttl=300, show_spinner=False)
-                def _fetch_cmp(tkr: str, rng: str):
-                    try:
-                        url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tkr}"
-                               f"?interval=1d&range={rng}")
-                        req = _ur.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                        with _ur.urlopen(req, timeout=8) as r:
-                            d = _js.loads(r.read())
-                        res = d["chart"]["result"][0]
-                        ts  = res["timestamp"]
-                        cl  = res["indicators"]["quote"][0]["close"]
-                        meta = res["meta"]
-                        name = meta.get("longName") or meta.get("shortName") or tkr
-                        df_c = pd.DataFrame({"date": pd.to_datetime(ts, unit="s"), "close": cl}).dropna()
-                        return df_c, name
-                    except Exception:
-                        return pd.DataFrame(), tkr
-
-                with st.spinner(f"Carico {len(_all_cmp)} ticker…"):
-                    _cmp_data = {}
-                    for _ct in _all_cmp:
-                        _df_c, _nm_c = _fetch_cmp(_ct, _cmp_range)
-                        if not _df_c.empty:
-                            _cmp_data[_ct] = (_df_c, _nm_c)
-
-                if not _cmp_data:
-                    st.error("Nessun dato disponibile.")
-                else:
-                    # Normalizza tutti a base 100 dal primo giorno
-                    _colors_cmp = [
-                        "#2962ff","#00d4aa","#ff6d00","#f59e0b",
-                        "#a78bfa","#ef5350","#26c6da","#00e676",
-                        "#ff4081","#ffd740","#40c4ff","#69f0ae"
-                    ]
-                    fig_cmp = go.Figure()
-                    _kpi_rows = []
-                    for i, (ct, (dfc, nmc)) in enumerate(_cmp_data.items()):
-                        base = float(dfc["close"].dropna().iloc[0])
-                        norm = (dfc["close"] / base - 1) * 100
-                        chg  = float(norm.iloc[-1])
-                        col_c = _colors_cmp[i % len(_colors_cmp)]
-                        fig_cmp.add_trace(go.Scatter(
-                            x=dfc["date"].dt.strftime("%Y-%m-%d"),
-                            y=norm.round(2),
-                            mode="lines", name=f"{ct}",
-                            line=dict(color=col_c, width=2.2),
-                            hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:.2f}}%<extra></extra>",
-                        ))
-                        _kpi_rows.append({"Ticker": ct, "Nome": nmc[:30],
-                                          "Rendimento %": round(chg, 2),
-                                          "Prezzo": round(float(dfc["close"].iloc[-1]), 2)})
-
-                    fig_cmp.add_hline(y=0, line=dict(color="#363a45", width=1, dash="dot"))
-                    fig_cmp.update_layout(
-                        paper_bgcolor="#131722", plot_bgcolor="#1e222d",
-                        title=dict(text=f"Performance normalizzata — base 100 · {_cmp_range}",
-                                   font=dict(color="#50c4e0", size=13), x=0.01),
-                        height=420,
-                        yaxis=dict(title="Rendimento %", ticksuffix="%",
-                                   gridcolor="#2a2e39", zeroline=False,
-                                   tickfont=dict(color="#787b86", size=10)),
-                        xaxis=dict(gridcolor="#2a2e39", tickfont=dict(color="#787b86", size=9)),
-                        legend=dict(orientation="h", y=1.05, x=0, bgcolor="rgba(0,0,0,0)",
-                                    font=dict(size=10)),
-                        hovermode="x unified", margin=dict(l=0, r=0, t=48, b=0),
-                        font=dict(color="#b2b5be", family="Trebuchet MS", size=11),
-                    )
-                    st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
-
-                    # Tabella riepilogo rendimenti
-                    df_kpi = pd.DataFrame(_kpi_rows).sort_values("Rendimento %", ascending=False)
-
-                    def _style_ret(v):
-                        return f"color: {'#00ff88' if v > 0 else '#ef4444'}; font-weight: bold"
-
-                    st.dataframe(
-                        df_kpi.style
-                              .applymap(_style_ret, subset=["Rendimento %"])
-                              .format({"Rendimento %": "{:+.2f}%", "Prezzo": "${:.2f}"}),
-                        use_container_width=True, hide_index=True
-                    )
+        pass
     except Exception as _ce:
         st.error(f"Comparatore error: {_ce}")
 
