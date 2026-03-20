@@ -2758,6 +2758,7 @@ with tab_mtf:
         ("AAPL",  "Apple",    "~3.4T", "#2962ff"),
         ("MSFT",  "Microsoft","~3.1T", "#00d4aa"),
         ("NVDA",  "NVIDIA",   "~2.9T", "#f97316"),
+        ("AMZN",  "Amazon",   "~2.2T", "#ff4081"),
         ("GOOGL", "Alphabet", "~2.1T", "#a78bfa"),
         ("META",  "Meta",     "~1.5T", "#f59e0b"),
     ]
