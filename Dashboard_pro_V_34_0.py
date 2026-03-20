@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║         TRADING SCANNER PRO  —  v32.0                                  ║
-# ║         Upgrade incrementale su v30.0 — tutto il codice esistente       ║
+# ║         TRADING SCANNER PRO  —  v34.0                                  ║
+# ║         Upgrade incrementale su v34.0 — tutto il codice esistente       ║
 # ║         è intatto. Aggiunti 6 upgrade completamente additivi.           ║
 # ╠══════════════════════════════════════════════════════════════════════════╣
-# ║  CHANGELOG v32                                                          ║
+# ║  CHANGELOG v34                                                          ║
 # ║  #1  RSI Divergence Detector  — colonne RSI_Div, RSI_Div_Score          ║
 # ║      Rileva divergenze BULL/BEAR tra prezzo e RSI (usa RSI_Prev /       ║
-# ║      Prev_Close se prodotte dallo scanner v28+, altrimenti "-")         ║
+# ║      Prev_Close se prodotte dallo scanner v34+, altrimenti "-")         ║
 # ║  #2  ADX Trend Strength Proxy — colonne ADX_Proxy, Trend_Strength       ║
 # ║      Proxy 0-100 calcolato su EMA align + Vol_Ratio + OBV + ATR%        ║
 # ║      Labels: STRONG≥65 | MODERATE≥40 | WEAK≥20 | RANGING               ║
@@ -17,7 +17,7 @@
 # ║  #4  Stochastic RSI nel chart — pannello dedicato K%/D% 0-100           ║
 # ║      Selezionabile come gli altri indicatori. Calcolo interno completo. ║
 # ║  #5  KPI Bar potenziata — 8 metriche (era 6): +CSS Grade A, +STRONG     ║
-# ║  #6  Filtri sidebar v32 — CSS minimo (select_slider) + Trend Strength   ║
+# ║  #6  Filtri sidebar v34 — CSS minimo (select_slider) + Trend Strength   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 import io
 import time
@@ -66,7 +66,7 @@ except ImportError:
     from utils.db import reset_watchlist_by_name
     gh_reset_watchlist_by_name = reset_watchlist_by_name
 
-# Funzioni v28 opzionali (non presenti nel db vecchio → stub silenziosi)
+# Funzioni v34 opzionali (non presenti nel db vecchio → stub silenziosi)
 try:
     from utils.db import save_signals
 except ImportError:
@@ -82,7 +82,7 @@ try:
 except ImportError:
     def cache_clear(*a, **k): pass
 
-# Scanner: prova scan_universe (v28), fallback a scan_ticker (v27)
+# Scanner: prova scan_universe (v34), fallback a scan_ticker (v34)
 try:
     from utils.scanner import load_universe, scan_universe, scan_ticker
     _HAS_SCAN_UNIVERSE = True
@@ -117,7 +117,7 @@ except ImportError:
                   "ep_found": len(rep), "rea_found": len(rrea), "finviz": False}
         return df_ep, df_rea, stats
 
-# Backtest tab opzionale — wrappato per gestire errori db v27
+# Backtest tab opzionale — wrappato per gestire errori db v34
 try:
     from utils.orderflow_tab import render_orderflow_tab as _of_render
 except Exception:
@@ -138,7 +138,7 @@ except ImportError as _bt_ie:
         st.info("Carica utils/backtest_tab.py nel repo e fai redeploy.")
 # =========================================================================
 # ENRICH: normalizza e arricchisce DataFrame dallo scanner
-# Compatibile con scanner v22 (repo) e v28 (aggiornato)
+# Compatibile con scanner v22 (repo) e v34 (aggiornato)
 # =========================================================================
 def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -151,7 +151,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
     if df is None or df.empty:
         return df if df is not None else pd.DataFrame()
     df = df.copy()
-        # ── Normalizza nomi colonne camelCase → underscore (compatibilità scanner v28) ─
+        # ── Normalizza nomi colonne camelCase → underscore (compatibilità scanner v34) ─
     _col_map = {
         "ProScore": "Pro_Score", "EarlyScore": "Early_Score",
         "QualityScore": "Quality_Score", "StatoEarly": "Stato_Early",
@@ -250,11 +250,11 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         df["ATR_OK"]  = pd.NA
 
     # ══════════════════════════════════════════════════════════════════════
-    # v32 UPGRADE #1 — RSI DIVERGENCE DETECTOR
+    # v34 UPGRADE #1 — RSI DIVERGENCE DETECTOR
     # ══════════════════════════════════════════════════════════════════════
     # Rileva divergenze bullish/bearish tra prezzo e RSI.
     # Richiede RSI corrente + colonne opzionali RSI_Prev / Prev_Close
-    # prodotte dallo scanner v28+. Se assenti → "-" silenzioso.
+    # prodotte dallo scanner v34+. Se assenti → "-" silenzioso.
     # Output:
     #   RSI_Div       : "BULL" | "BEAR" | "-"
     #   RSI_Div_Score : +1 (bull) | -1 (bear) | 0
@@ -276,7 +276,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         df["RSI_Div_Score"] = 0
 
     # ══════════════════════════════════════════════════════════════════════
-    # v32 UPGRADE #2 — ADX TREND STRENGTH PROXY
+    # v34 UPGRADE #2 — ADX TREND STRENGTH PROXY
     # ══════════════════════════════════════════════════════════════════════
     # ADX vero richiede serie OHLC complete. Usiamo un proxy 0-100 basato
     # su colonne già disponibili nel dataframe post-scanner:
@@ -349,7 +349,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
         df["Liq_Grade"]  = pd.NA
 
     # ══════════════════════════════════════════════════════════════════════
-    # v32 UPGRADE #3 — COMPOSITE SIGNAL SCORE (CSS)  0–100
+    # v34 UPGRADE #3 — COMPOSITE SIGNAL SCORE (CSS)  0–100
     # ══════════════════════════════════════════════════════════════════════
     # Combina TUTTI gli score e filtri binari già calcolati in un singolo
     # numero ordinabile. Pesi calibrati per swing trading:
@@ -630,13 +630,13 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     show_macd=("MACD" in indicators)
     show_sar=("Parabolic SAR" in indicators)
     show_alligator=("Alligator + Vortex" in indicators)
-    show_stochrsi=("Stochastic RSI" in indicators)  # v32
+    show_stochrsi=("Stochastic RSI" in indicators)  # v34
 
     cur=2; row_rsi=None; row_macd=None; row_vortex=None; row_stochrsi=None
     if show_sma:        row_rsi=cur;      cur+=1
     if show_macd:       row_macd=cur;     cur+=1
     if show_alligator:  row_vortex=cur;   cur+=1
-    if show_stochrsi:   row_stochrsi=cur; cur+=1   # v32 — pannello dedicato
+    if show_stochrsi:   row_stochrsi=cur; cur+=1   # v34 — pannello dedicato
     row_vol=cur; n_rows=cur
 
     ht={2:[0.65,0.15],3:[0.52,0.18,0.13],4:[0.44,0.17,0.15,0.12],5:[0.38,0.15,0.15,0.12,0.10],
@@ -803,7 +803,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                 fig.update_yaxes(showticklabels=False,showgrid=False,
                                  col=_vp_col,row=_rv)
 
-    # ── v32 UPGRADE #4 — STOCHASTIC RSI  ────────────────────────────────
+    # ── v34 UPGRADE #4 — STOCHASTIC RSI  ────────────────────────────────
     # StochRSI = (RSI - min(RSI,n)) / (max(RSI,n) - min(RSI,n))
     # K = SMA(StochRSI, 3)   D = SMA(K, 3)
     # Zone: K/D > 80 → overbought   K/D < 20 → oversold
@@ -924,7 +924,7 @@ def show_charts(row_full: pd.Series, key_suffix: str=""):
     tkr=row_full.get("Ticker","")
     st.markdown("---")
     ind_opts=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex","Volume Profile",
-              "Stochastic RSI"]  # v32
+              "Stochastic RSI"]  # v34
     c1,c2=st.columns([4,1])
     with c1:
         indicators=st.multiselect("🔧 Indicatori",options=ind_opts,
@@ -1142,7 +1142,7 @@ this.eGui.style.cssText='color:'+m.c+';background:'+m.bg+';padding:1px 5px;'
   +'border-radius:3px;font-size:0.78rem;font-family:Courier New;';
 }getGui(){return this.eGui;}}""")
 
-# ── v32 RENDERERS ─────────────────────────────────────────────────────────────
+# ── v34 RENDERERS ─────────────────────────────────────────────────────────────
 
 # CSS score (0-100) con barra orizzontale + Grade colorato
 css_renderer=JsCode("""class CS{init(p){
@@ -1280,10 +1280,10 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 32.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 34.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 32.0")
-st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · RISK MANAGER · MULTI-WATCHLIST · BLUE CHIP DIP · v32.0</div>',unsafe_allow_html=True)
+st.markdown("# 🧠 Trading Scanner PRO 34.0")
+st.markdown('<div class="section-pill">CACHE · BACKTEST · FINVIZ · RISK MANAGER · MULTI-WATCHLIST · BLUE CHIP DIP · v34.0</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -1305,7 +1305,7 @@ defaults=dict(
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34
     min_early_score=2.0,min_quality=3,
     min_pro_score=0.0,   # 0 = nessun filtro extra: la classificazione PRO/STRONG basta
-    # Nuovi filtri qualita' v32
+    # Nuovi filtri qualita' v34
     min_dollar_vol=5.0,         # Dollar Volume minimo in milioni $ (liquidita')
     atr_filter_enabled=True,    # Filtro ATR% attivo di default
     atr_pct_min=1.5,            # ATR% minimo (titolo troppo fermo se sotto)
@@ -1340,7 +1340,7 @@ def render_kpi_bar(df_ep,df_rea):
     if not df_ep.empty and "Liq_OK" in df_ep.columns:
         n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum())
 
-    # ── v32: CSS Grade A e Trend STRONG ─────────────────────────────────
+    # ── v34: CSS Grade A e Trend STRONG ─────────────────────────────────
     n_css_a    = 0
     n_strong   = 0
     css_avg    = None
@@ -1475,9 +1475,9 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
         st.caption(f"ATR% in [{atr_range[0]:.1f}% – {atr_range[1]:.1f}%] — range _{_atr_label}_")
 
     st.divider()
-    # ── v32: Filtro CSS (Composite Signal Score) ─────────────────────────
+    # ── v34: Filtro CSS (Composite Signal Score) ─────────────────────────
     css_filter_enabled = st.checkbox(
-        "🏆 Filtro CSS (v32)",
+        "🏆 Filtro CSS (v34)",
         value=bool(st.session_state.get("css_filter_enabled", False)),
         help="Mostra solo titoli con Composite Signal Score sopra la soglia. "
              "CSS combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV.",
@@ -1498,19 +1498,19 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
         st.caption(f"CSS >= **{css_min}** — _{_css_lbl.get(css_min,'')}_")
 
     st.divider()
-    # ── v32: Filtro Trend Strength ────────────────────────────────────────
+    # ── v34: Filtro Trend Strength ────────────────────────────────────────
     ts_filter = st.selectbox(
         "⚡ Trend Strength min",
         options=["Tutti","WEAK+","MODERATE+","STRONG"],
         index=["Tutti","WEAK+","MODERATE+","STRONG"].index(
             st.session_state.get("ts_filter","Tutti")),
-        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v32)",
+        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v34)",
         key="sb_ts_filter",
     )
     st.session_state["ts_filter"] = ts_filter
 
 with st.sidebar.expander("📊 Indicatori Grafici",expanded=False):
-    ind_opts_all=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex","Stochastic RSI"]  # v32
+    ind_opts_all=["SMA 9 & 21 + RSI","MACD","Parabolic SAR","Alligator + Vortex","Stochastic RSI"]  # v34
     ai=st.multiselect("Attivi",options=ind_opts_all,
         default=[x for x in st.session_state.active_indicators if x in ind_opts_all],
         key="global_indicators")
@@ -1550,7 +1550,7 @@ if st.sidebar.button("⚠️ Reset Watchlist DB",key="rst_wl"):
     reset_watchlist_db(); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("⚡ Scanner v29")
+st.sidebar.subheader("⚡ Scanner v34")
 with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
     use_cache  = st.checkbox("⚡ Cache SQLite (più veloce)",True,key="use_cache",
                               help="Riusa dati yfinance già scaricati oggi (TTL 4h). "
@@ -1841,7 +1841,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
            "Earnings_Soon":105,"Optionable":95,"OBV_Trend":95,
            "EMA20":95,"EMA50":95,"EMA200":100,"EMA200_fmt":105,"ATR":85,"Rel_Vol":90,
            "Dist_POC_%":105,"POC":95,"Currency":85,
-           # Nuove colonne v32
+           # Nuove colonne v34
            "Dollar_Vol":110,"Liq_Grade":130,"ATR_pct":90,"ATR_OK":85,"Liq_OK":80,
            "CSS":130,"CSS_Grade":85,"Trend_Strength":120,"ADX_Proxy":110,
            "RSI_Div_Score":90,
@@ -1853,7 +1853,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
                "Ser_OK","FV_OK","ATR_Exp","Stato",
                "Prezzo","MarketCap","EMA200","Currency",
                "ATR_OK","Liq_OK",
-               "RSI_Div_Score","ADX_Proxy"]   # v32: info sintetizzata in CSS/Trend_Strength
+               "RSI_Div_Score","ADX_Proxy"]   # v34: info sintetizzata in CSS/Trend_Strength
     for c in hide_cols:
         if c in df_disp.columns: gb.configure_column(c,hide=True)
 
@@ -1870,7 +1870,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
           "ROE":pct_renderer,"Gross_Mgn":pct_renderer,"Op_Mgn":pct_renderer,
           "Earnings_Soon":bool_renderer,"Optionable":bool_renderer,
           "Ser_OK":bool_renderer,"FV_OK":bool_renderer,
-          # Nuovi renderer v32
+          # Nuovi renderer v34
           "Stato_Pro":stato_pro_renderer,
           "Dollar_Vol":dollar_vol_renderer,
           "ATR_pct":atr_pct_renderer,
@@ -1884,10 +1884,10 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
 
     if "Ticker" in df_disp.columns: gb.configure_column("Ticker",pinned="left")
     if "Nome"   in df_disp.columns: gb.configure_column("Nome",  pinned="left")
-    # v32 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
+    # v34 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
     if "CSS" in df_disp.columns:
         gb.configure_column("CSS", pinned="right", sort="desc",
-                            headerTooltip="Composite Signal Score v32 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
+                            headerTooltip="Composite Signal Score v34 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
     if "CSS_Grade" in df_disp.columns:
         gb.configure_column("CSS_Grade", pinned="right",
                             headerTooltip="A≥80 | B≥60 | C≥40 | D<40")
@@ -2185,7 +2185,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     s_e=float(st.session_state.min_early_score)
     s_q=int(st.session_state.min_quality)
     s_p=float(st.session_state.min_pro_score)
-    # Nuovi filtri v32
+    # Nuovi filtri v34
     _strong_only    = bool(st.session_state.get("show_strong_only", False))
     _liq_enabled    = bool(st.session_state.get("liq_filter_enabled", True))
     _min_dvol       = float(st.session_state.get("min_dollar_vol", 5.0))
@@ -2244,7 +2244,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     elif status_filter=="CONFLUENCE":
         if "Stato_Early" not in df.columns or "Stato_Pro" not in df.columns:
             st.warning("Colonne Stato mancanti."); return
-        # CONFLUENCE v32: EARLY + PRO/STRONG + Weekly_Bull (vera confluenza multi-timeframe)
+        # CONFLUENCE v34: EARLY + PRO/STRONG + Weekly_Bull (vera confluenza multi-timeframe)
         # La combinazione daily+weekly è il filtro più selettivo e affidabile.
         _pro_valid = ["PRO","STRONG"] if not _strong_only else ["STRONG"]
         _base_mask = (df["Stato_Early"]=="EARLY") & (df["Stato_Pro"].isin(_pro_valid))
@@ -2277,13 +2277,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v29.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v34.0."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v29.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v34.0."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -2308,7 +2308,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         if _removed_atr > 0:
             st.caption(f"ATR%: rimossi {_removed_atr} titoli fuori range [{_atr_min:.1f}%-{_atr_max:.1f}%]")
 
-    # 3. v32 — CSS (Composite Signal Score)
+    # 3. v34 — CSS (Composite Signal Score)
     _css_filter_on = bool(st.session_state.get("css_filter_enabled", False))
     _css_min_val   = float(st.session_state.get("css_min_val", 40))
     if _css_filter_on and "CSS" in df_f.columns:
@@ -2318,7 +2318,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
         if _removed_css > 0:
             st.caption(f"CSS: rimossi {_removed_css} titoli con CSS < {_css_min_val:.0f}")
 
-    # 4. v32 — Trend Strength
+    # 4. v34 — Trend Strength
     _ts_filter = st.session_state.get("ts_filter", "Tutti")
     _ts_map = {"WEAK+": ["WEAK","MODERATE","STRONG"],
                "MODERATE+": ["MODERATE","STRONG"],
@@ -2678,11 +2678,15 @@ with tab_r:
                 ),
             ))
             fig_ab.update_layout(
-                **PLOTLY_DARK,
+                paper_bgcolor="#131722", plot_bgcolor="#1e222d",
+                font=dict(color="#b2b5be", family="Trebuchet MS, sans-serif", size=12),
+                xaxis=dict(gridcolor="#2a2e39", zerolinecolor="#363a45",
+                           linecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
+                yaxis=dict(range=[0, 115], showgrid=True, gridcolor="#2a2e39",
+                           zerolinecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
                 title=dict(text="🔥 Top 10 — Accumulo & Breakout Score",
                            font=dict(color="#f97316", size=13), x=0.01),
                 height=260,
-                yaxis=dict(range=[0, 115], showgrid=True, gridcolor="#2a2e39"),
                 margin=dict(l=0, r=0, t=44, b=0),
                 showlegend=False,
             )
@@ -3900,7 +3904,7 @@ df_cur=all_exp.get(cur_tab,pd.DataFrame())
 ec1,ec2,ec3,ec4=st.columns(4)
 with ec1:
     st.download_button("📊 XLSX Tutti",to_excel_bytes(all_exp),
-        "TradingScanner_v29_Tutti.xlsx",
+        "TradingScanner_v34_Tutti.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="xlsx_all")
 with ec2:
     tv_rows=[]
@@ -3911,12 +3915,12 @@ with ec2:
     if tv_rows:
         df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
         st.download_button("📈 CSV TV Tutti",df_tv.to_csv(index=False).encode(),
-            "TradingScanner_v29_TV.csv","text/csv",key="csv_tv_all")
+            "TradingScanner_v34_TV.csv","text/csv",key="csv_tv_all")
 with ec3:
     st.download_button(f"📊 XLSX {cur_tab}",to_excel_bytes({cur_tab:df_cur}),
-        f"TradingScanner_v29_{cur_tab}.xlsx",
+        f"TradingScanner_v34_{cur_tab}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",key="xlsx_curr")
 with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(f"📈 CSV TV {cur_tab}",make_tv_csv(df_cur,cur_tab),
-            f"TradingScanner_v29_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
+            f"TradingScanner_v34_{cur_tab}_TV.csv","text/csv",key="csv_tv_curr")
