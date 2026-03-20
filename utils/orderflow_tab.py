@@ -624,9 +624,24 @@ def render_orderflow_tab(df_scanner=None):
         tc = "Ticker" if "Ticker" in df_scanner.columns else "ticker"
         if tc in df_scanner.columns:
             sc_tickers = df_scanner[tc].dropna().unique().tolist()[:30]
+    # v34: costruisci "Nome Azienda  (TICKER)" anche per ticker dallo scanner
+    _sc_names: dict = {}  # ticker → nome da df_scanner
+    if df_scanner is not None and not df_scanner.empty:
+        _tnm = "Ticker" if "Ticker" in df_scanner.columns else "ticker"
+        _nnm = "Nome"   if "Nome"   in df_scanner.columns else (
+               "name"   if "name"   in df_scanner.columns else None)
+        if _tnm in df_scanner.columns and _nnm:
+            for _, _sr in df_scanner[[_tnm, _nnm]].dropna(subset=[_tnm]).iterrows():
+                _sc_names[str(_sr[_tnm])] = str(_sr[_nnm])
+
+    def _label_v34(t: str) -> str:
+        """Nome alfabetico (TICKER) — usa NAMES dict, poi scanner df."""
+        n = NAMES.get(t) or _sc_names.get(t)
+        return f"{n}  ({t})" if n and n != t else f"({t})"
+
     merged = list(dict.fromkeys(sc_tickers + _DEFAULT_TKS))
-    opts   = sorted([_label(t) for t in merged], key=str.lower)
-    d2t    = {_label(t): t for t in merged}
+    opts   = sorted([_label_v34(t) for t in merged], key=str.lower)
+    d2t    = {_label_v34(t): t for t in merged}
 
     # ── ROW 1: Ticker + Timeframe + Ticker manuale ───────────────────────
     c1, c2, c3 = st.columns([2.5, 1.5, 2])
