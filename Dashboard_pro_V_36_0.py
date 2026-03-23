@@ -2217,18 +2217,6 @@ with st.sidebar.expander("⏰ Auto-Scanner v36", expanded=False):
     else:
         st.sidebar.caption("Auto-scan disabilitato")
         st.session_state["_trigger_autoscan"] = False
-    if st.button("🗑️ Svuota cache",key="clear_cache_btn",use_container_width=True):
-        try:
-            cache_clear()
-            st.success("✅ Cache svuotata.")
-        except Exception as e:
-            st.error(f"Errore: {e}")
-    if st.button("📊 Info cache",key="cache_info_btn",use_container_width=True):
-        try:
-            cs = cache_stats()
-            st.info(f"🟢 {cs['fresh']} fresche  ⏰ {cs['stale']} scadute  💾 {cs['size_mb']} MB")
-        except Exception as e:
-            st.info("Cache non disponibile.")
 
 # Scan stats ultima scansione
 if "scan_stats" in st.session_state:
