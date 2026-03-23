@@ -5297,11 +5297,20 @@ with tab_mtfmatrix:
                 unsafe_allow_html=True)
     st.caption("Stato Daily / Weekly / Monthly per ogni ticker. 🟢 3/3 allineati · 🟡 2/3 · 🔴 1/3 · ⚪ no data")
 
-    # Selezione ticker
+    def _tf_emoji_fn(tf_d):
+        s  = tf_d.get("status","no_data")
+        sc = tf_d.get("score",0)
+        if s in ("no_data","error"): return "⚪"
+        return "🟢" if sc == 3 else "🟡" if sc == 2 else "🔴"
+
+    _mtf_nome_map = {}
+    if not df_ep.empty and "Ticker" in df_ep.columns and "Nome" in df_ep.columns:
+        for _, _mr in df_ep[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows():
+            _mtf_nome_map[_mr["Ticker"]] = str(_mr.get("Nome",""))[:30]
+
     _mtf_tickers = []
     if not df_ep.empty and "Ticker" in df_ep.columns:
         _mtf_tickers = sorted(df_ep["Ticker"].dropna().unique().tolist())
-
     _wl_mtf = load_watchlist()
     if not _wl_mtf.empty and "Ticker" in _wl_mtf.columns:
         _wl_tickers_mtf = _wl_mtf["Ticker"].dropna().unique().tolist()
@@ -5310,12 +5319,51 @@ with tab_mtfmatrix:
     if not _mtf_tickers:
         st.info("Avvia lo scanner o aggiungi ticker alla watchlist per usare la MTF Matrix.")
     else:
-        _mc1, _mc2, _mc3 = st.columns([2,1,1])
+        with st.expander("📂 Importa lista da Scanner / Watchlist", expanded=False):
+            _imp_c1, _imp_c2, _imp_c3 = st.columns(3)
+            with _imp_c1:
+                if st.button("📡 Importa da EARLY", key="mtf_imp_early", use_container_width=True):
+                    if not df_ep.empty and "Stato_Early" in df_ep.columns:
+                        _imp = df_ep[df_ep["Stato_Early"]=="EARLY"]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.rerun()
+            with _imp_c2:
+                if st.button("💪 Importa da PRO", key="mtf_imp_pro", use_container_width=True):
+                    if not df_ep.empty and "Stato_Pro" in df_ep.columns:
+                        _imp = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.rerun()
+            with _imp_c3:
+                if st.button("📋 Importa da Watchlist", key="mtf_imp_wl", use_container_width=True):
+                    _wl_imp = load_watchlist()
+                    if not _wl_imp.empty and "Ticker" in _wl_imp.columns:
+                        _imp = _wl_imp[_wl_imp["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.rerun()
+            if st.session_state.get("mtf_import_list"):
+                _imp_preview = st.session_state["mtf_import_list"]
+                st.caption(f"Lista importata: {len(_imp_preview)} ticker — "
+                           f"{', '.join(_imp_preview[:8])}{'...' if len(_imp_preview)>8 else ''}")
+
+        # Multiselect con Nome ordinato alfabeticamente
+        _mtf_labels = {}
+        _mtf_options_sorted = []
+        for _tk in _mtf_tickers:
+            _nm = _mtf_nome_map.get(_tk,"")
+            _mtf_labels[_tk] = f"{_nm}  ({_tk})" if _nm else _tk
+        _mtf_options_sorted = sorted(_mtf_tickers, key=lambda t: _mtf_labels[t].lower())
+
+        _default_import = st.session_state.get("mtf_import_list",
+                          _mtf_options_sorted[:min(10,len(_mtf_options_sorted))])
+        _default_import = [t for t in _default_import if t in _mtf_options_sorted]
+
+        _mc1, _mc2, _mc3 = st.columns([3,1,1])
         with _mc1:
             _mtf_sel = st.multiselect(
-                "Ticker da analizzare (max 20)",
-                _mtf_tickers,
-                default=_mtf_tickers[:min(10, len(_mtf_tickers))],
+                "Ticker da analizzare (max 20) — doppio click sul nome → TradingView IT",
+                options=_mtf_options_sorted,
+                default=_default_import[:20],
+                format_func=lambda t: _mtf_labels.get(t,t),
                 key="mtf_sel_tickers"
             )
         with _mc2:
@@ -5327,115 +5375,155 @@ with tab_mtfmatrix:
             _mtf_results = []
             _mtf_progress = st.progress(0.0)
             _mtf_status   = st.empty()
-
             for _i, _tkr in enumerate(_mtf_sel[:20]):
-                _mtf_status.caption(f"Analisi {_tkr}... ({_i+1}/{len(_mtf_sel[:20])})")
+                _mtf_status.caption(f"Analisi {_mtf_labels.get(_tkr,_tkr)}... ({_i+1}/{len(_mtf_sel[:20])})")
                 _mtf_progress.progress((_i+1)/len(_mtf_sel[:20]))
                 _tf_data = _fetch_mtf_data(_tkr)
-
                 _d  = _tf_data.get("Daily",   {"status":"no_data","score":0})
                 _w  = _tf_data.get("Weekly",  {"status":"no_data","score":0})
                 _mo = _tf_data.get("Monthly", {"status":"no_data","score":0})
-
-                _total = _d["score"] + _w["score"] + _mo["score"]
-                _max_possible = 9  # 3 TF × 3 criteri
-                _conf_score = round(_total / _max_possible * 100)
-
-                # Emoji status per TF
-                def _tf_emoji(tf_d):
-                    s = tf_d.get("status","no_data")
-                    sc = tf_d.get("score",0)
-                    if s == "no_data" or s == "error": return "⚪"
-                    return "🟢" if sc == 3 else "🟡" if sc == 2 else "🔴"
-
-                _conf_tfs = sum(1 for _tf in [_d,_w,_mo]
-                                if _tf.get("status") not in ("no_data","error")
-                                and _tf.get("score",0) >= 2)
-
-                _row = {
-                    "Ticker":   _tkr,
-                    "Daily":    _tf_emoji(_d),
-                    "Weekly":   _tf_emoji(_w),
-                    "Monthly":  _tf_emoji(_mo),
-                    "TF Bull":  f"{_conf_tfs}/3",
-                    "Score":    _conf_score,
-                    "_d":       _d, "_w": _w, "_mo": _mo,
-                }
-                _mtf_results.append(_row)
-
+                _conf_score = round((_d["score"]+_w["score"]+_mo["score"]) / 9 * 100)
+                _conf_tfs   = sum(1 for _tf in [_d,_w,_mo]
+                                  if _tf.get("status") not in ("no_data","error")
+                                  and _tf.get("score",0) >= 2)
+                _mtf_results.append({
+                    "Ticker": _tkr, "Nome": _mtf_nome_map.get(_tkr,""),
+                    "Daily": _tf_emoji_fn(_d), "Weekly": _tf_emoji_fn(_w), "Monthly": _tf_emoji_fn(_mo),
+                    "TF Bull": f"{_conf_tfs}/3", "Score": _conf_score,
+                    "_d": _d, "_w": _w, "_mo": _mo,
+                })
             _mtf_progress.progress(1.0)
             _mtf_status.empty()
             st.session_state["_mtf_results"] = _mtf_results
 
-        # Display results
         _mtf_res = st.session_state.get("_mtf_results", [])
         if _mtf_res:
             if _mtf_only_confluence:
                 _mtf_res = [r for r in _mtf_res if r["TF Bull"] == "3/3"]
-
-            # Sort by score desc
             _mtf_res = sorted(_mtf_res, key=lambda x: x["Score"], reverse=True)
 
             st.markdown("---")
-            # Header
-            _hc = st.columns([1.2, 0.8, 0.8, 0.8, 0.8, 0.8])
-            for _col, _lbl in zip(_hc, ["Ticker","Daily","Weekly","Monthly","TF Bull","Score"]):
+            _hc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
+            for _col, _lbl in zip(_hc, ["Ticker / Nome","Daily","Weekly","Monthly","TF Bull","Score"]):
                 _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
                               f"letter-spacing:1px;text-transform:uppercase'>{_lbl}</span>",
                               unsafe_allow_html=True)
             st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
             for _r in _mtf_res:
-                _rc = st.columns([1.2, 0.8, 0.8, 0.8, 0.8, 0.8])
+                _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
                 _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
                 _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
-                _rc[0].markdown(f"**`{_r['Ticker']}`**")
+                _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
+                _nome_disp = (f"<br><span style='color:#787b86;font-size:0.75rem'>{_r['Nome']}</span>"
+                              if _r["Nome"] else "")
+                _tv_onclick = f"window.open('https://it.tradingview.com/chart/?symbol={_tv_sym}','_blank')"
+                _rc[0].markdown(
+                    f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold;"
+                    f"cursor:pointer;font-size:0.95rem' "
+                    f"ondblclick=\"{_tv_onclick}\" "
+                    f"title='Doppio click → TradingView IT'>{_r['Ticker']}</span>{_nome_disp}",
+                    unsafe_allow_html=True)
                 _rc[1].markdown(f"<span style='font-size:1.2rem'>{_r['Daily']}</span>",   unsafe_allow_html=True)
                 _rc[2].markdown(f"<span style='font-size:1.2rem'>{_r['Weekly']}</span>",  unsafe_allow_html=True)
                 _rc[3].markdown(f"<span style='font-size:1.2rem'>{_r['Monthly']}</span>", unsafe_allow_html=True)
                 _rc[4].markdown(f"<b style='color:{_bull_c}'>{_r['TF Bull']}</b>",        unsafe_allow_html=True)
                 _rc[5].markdown(
                     f"<div style='display:flex;align-items:center;gap:4px'>"
-                    f"<span style='font-family:Courier New;color:{_score_c};font-weight:bold'>"
-                    f"{_r['Score']}</span>"
+                    f"<span style='font-family:Courier New;color:{_score_c};font-weight:bold'>{_r['Score']}</span>"
                     f"<div style='flex:1;height:4px;background:#1e222d;border-radius:2px'>"
-                    f"<div style='width:{_r['Score']}%;height:4px;background:{_score_c};"
-                    f"border-radius:2px'></div></div></div>",
-                    unsafe_allow_html=True
-                )
+                    f"<div style='width:{_r['Score']}%;height:4px;background:{_score_c};border-radius:2px'>"
+                    f"</div></div></div>",
+                    unsafe_allow_html=True)
 
-                # Dettaglio espandibile
                 if _mtf_show_detail:
                     with st.expander(f"📐 {_r['Ticker']} — dettaglio TF", expanded=False):
                         _dc1, _dc2, _dc3 = st.columns(3)
-                        for _col_d, _tf_nm, _td in [(_dc1,"Daily",_r["_d"]),
-                                                     (_dc2,"Weekly",_r["_w"]),
-                                                     (_dc3,"Monthly",_r["_mo"])]:
+                        for _col_d, _tf_nm, _td in [(_dc1,"Daily",_r["_d"]),(_dc2,"Weekly",_r["_w"]),(_dc3,"Monthly",_r["_mo"])]:
                             with _col_d:
+                                _em = _tf_emoji_fn(_td)
                                 if _td.get("status") in ("no_data","error"):
                                     st.caption(f"**{_tf_nm}**: no data")
                                 else:
-                                    _prc = _td.get("price",0)
-                                    _e20 = _td.get("ema20",0)
-                                    _e50 = _td.get("ema50",0)
-                                    _rsi = _td.get("rsi",0)
-                                    _obv = "↑" if _td.get("obv_up") else "↓"
                                     st.markdown(
-                                        f"**{_tf_nm}** `{_tf_emoji(_td)}`\n\n"
-                                        f"P: `${_prc}` · E20: `${_e20}` · E50: `${_e50}`\n\n"
-                                        f"RSI: `{_rsi}` · OBV: `{_obv}`"
+                                        f"**{_tf_nm}** `{_em}`\n\n"
+                                        f"P: `${_td.get('price',0)}` · E20: `${_td.get('ema20',0)}` · E50: `${_td.get('ema50',0)}`\n\n"
+                                        f"RSI: `{_td.get('rsi',0)}` · OBV: `{'↑' if _td.get('obv_up') else '↓'}`"
                                     )
 
-            # Export MTF
+            # Strategy Chart
+            st.markdown("---")
+            st.markdown('<div class="section-pill">📊 STRATEGY CHART — Analisi Avanzata MTF</div>', unsafe_allow_html=True)
+            _mtf_chart_tickers = [r["Ticker"] for r in _mtf_res]
+            _msc1, _msc2 = st.columns([2,1])
+            with _msc1:
+                _mtf_chart_tkr = st.selectbox("Ticker per Strategy Chart",
+                    _mtf_chart_tickers, format_func=lambda t: _mtf_labels.get(t,t), key="mtf_chart_sel")
+            with _msc2:
+                _mtf_chart_period = st.selectbox("Periodo", ["3mo","6mo","1y","2y"], index=1, key="mtf_chart_period")
+
+            if _mtf_chart_tkr:
+                _chart_row = pd.Series({"Ticker": _mtf_chart_tkr, "Nome": _mtf_nome_map.get(_mtf_chart_tkr,"")})
+                if not df_ep.empty and "Ticker" in df_ep.columns:
+                    _ep_match = df_ep[df_ep["Ticker"]==_mtf_chart_tkr]
+                    if not _ep_match.empty:
+                        _chart_row = _ep_match.iloc[0].copy()
+                if not (hasattr(_chart_row,"get") and _chart_row.get("_chart_data")):
+                    try:
+                        import yfinance as _yf_mc
+                        _raw_mc = _yf_mc.download(_mtf_chart_tkr, period=_mtf_chart_period,
+                                                   interval="1d", auto_adjust=True, progress=False)
+                        _raw_mc.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_mc.columns]
+                        if not _raw_mc.empty:
+                            _cl_mc = _raw_mc["Close"].dropna()
+                            _ema20_mc  = _cl_mc.ewm(span=20,adjust=False).mean()
+                            _ema50_mc  = _cl_mc.ewm(span=50,adjust=False).mean()
+                            _ema200_mc = _cl_mc.ewm(span=min(200,len(_cl_mc)),adjust=False).mean()
+                            _sma20_mc  = _cl_mc.rolling(20).mean()
+                            _std20_mc  = _cl_mc.rolling(20).std()
+                            _chart_row = _chart_row.copy()
+                            _chart_row["_chart_data"] = {
+                                "dates":  [str(d)[:10] for d in _raw_mc.index],
+                                "open":   _raw_mc["Open"].fillna(0).tolist(),
+                                "high":   _raw_mc["High"].fillna(0).tolist(),
+                                "low":    _raw_mc["Low"].fillna(0).tolist(),
+                                "close":  _cl_mc.tolist(),
+                                "volume": _raw_mc["Volume"].fillna(0).tolist() if "Volume" in _raw_mc.columns else [],
+                                "ema20":  _ema20_mc.tolist(), "ema50": _ema50_mc.tolist(),
+                                "ema200": _ema200_mc.tolist(),
+                                "bb_up":  (_sma20_mc + 2*_std20_mc).tolist(),
+                                "bb_dn":  (_sma20_mc - 2*_std20_mc).tolist(),
+                            }
+                            _chart_row["Prezzo"] = float(_cl_mc.iloc[-1])
+                            _tr_mc = (_raw_mc["High"] - _raw_mc["Low"]).fillna(0)
+                            _chart_row["ATR"] = float(_tr_mc.ewm(com=13,adjust=False).mean().iloc[-1])
+                    except Exception as _mce:
+                        st.warning(f"Chart data non disponibile per {_mtf_chart_tkr}: {_mce}")
+
+                if hasattr(_chart_row,"get") and _chart_row.get("_chart_data"):
+                    show_charts(_chart_row, key_suffix=f"mtf_{_mtf_chart_tkr}")
+                else:
+                    st.info(f"Dati chart non disponibili per {_mtf_chart_tkr}. Avvia lo scanner.")
+
+                _tv_url = f"https://it.tradingview.com/chart/?symbol={_mtf_chart_tkr.replace('.MI','').replace('.','')}"
+                st.markdown(
+                    f"<a href='{_tv_url}' target='_blank' style='display:inline-block;"
+                    f"background:#2962ff;color:white;padding:6px 16px;border-radius:4px;"
+                    f"font-family:Trebuchet MS;font-size:0.85rem;text-decoration:none;margin-top:8px'>"
+                    f"📈 Apri {_mtf_chart_tkr} su TradingView IT</a>",
+                    unsafe_allow_html=True)
+
+            # Export
+            st.markdown("---")
             _df_mtf_exp = pd.DataFrame([
-                {"Ticker":r["Ticker"],"Daily":r["Daily"],"Weekly":r["Weekly"],
+                {"Ticker":r["Ticker"],"Nome":r["Nome"],"Daily":r["Daily"],"Weekly":r["Weekly"],
                  "Monthly":r["Monthly"],"TF_Bull":r["TF Bull"],"Score":r["Score"]}
-                for r in _mtf_res
-            ])
+                for r in _mtf_res])
             _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
             st.download_button("📊 Export MTF Matrix",
                 _df_mtf_exp.to_csv(index=False).encode(),
                 f"MTF_Matrix_v36_{_mtf_ts}.csv", "text/csv", key="mtf_export")
+
 
 
 # =========================================================================
