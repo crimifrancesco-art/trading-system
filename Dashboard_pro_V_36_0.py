@@ -5698,14 +5698,15 @@ with tab_regime:
             ),
             hovertemplate="<b>%{x}</b><br>Periodo: %{y}<br>Return: %{text}<extra></extra>",
         ))
+        _sr_layout = dict(PLOTLY_DARK)
+        _sr_layout["xaxis"] = dict(_sr_layout.get("xaxis",{}), tickfont=dict(size=10,color="#b2b5be"), side="bottom")
+        _sr_layout["yaxis"] = dict(_sr_layout.get("yaxis",{}), tickfont=dict(size=10,color="#b2b5be"))
         _fig_sr.update_layout(
-            **PLOTLY_DARK,
+            **_sr_layout,
             title=dict(text="Sector Rotation — Return % per periodo",
                        font=dict(color="#50c4e0",size=13), x=0.01),
             height=320,
             margin=dict(l=0,r=0,t=45,b=0),
-            xaxis=dict(tickfont=dict(size=10,color="#b2b5be"), side="bottom"),
-            yaxis=dict(tickfont=dict(size=10,color="#b2b5be")),
         )
         st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v36")
 
