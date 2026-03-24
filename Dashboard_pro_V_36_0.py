@@ -160,13 +160,13 @@ except ImportError:
                       vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
                       n_workers=8, progress_callback=None):
         # ══════════════════════════════════════════════════════════════════
-        # v35 SCANNER ENGINE — auto-scaling workers, tiered TTL, exp backoff
+        # v36 SCANNER ENGINE — auto-scaling workers, tiered TTL, exp backoff
         # ══════════════════════════════════════════════════════════════════
         import concurrent.futures, threading, time, os
         rep, rrea = [], []
         lock = threading.Lock(); counter = [0]; t0 = time.time()
 
-        # v35: TTL differenziato — HOT decay veloce, EP più stabile
+        # v36: TTL differenziato — HOT decay veloce, EP più stabile
         _CACHE_TTL_EP  = 600   # 10 min per segnali EP (stabile)
         _CACHE_TTL_HOT = 200   # 3.3 min per HOT (volume cambia veloce)
         if not hasattr(scan_universe, "_fb_cache"):
@@ -174,7 +174,7 @@ except ImportError:
         _fbc = scan_universe._fb_cache
         cache_hits_fb = [0]
 
-        # v35: auto-scaling workers basato su CPU reale + universe size
+        # v36: auto-scaling workers basato su CPU reale + universe size
         try:
             _cpu_count = os.cpu_count() or 4
         except Exception:
@@ -186,14 +186,14 @@ except ImportError:
 
         def _one_cached(tkr):
             entry = _fbc.get(tkr)
-            # v35: TTL differenziato — controlla se è HOT per applicare TTL più corto
+            # v36: TTL differenziato — controlla se è HOT per applicare TTL più corto
             _ttl = _CACHE_TTL_HOT if (entry and entry.get("rea")) else _CACHE_TTL_EP
             if cache_enabled and entry and (time.time() - entry["ts"]) < _ttl:
                 with lock:
                     counter[0] += 1; cache_hits_fb[0] += 1
                 if progress_callback: progress_callback(counter[0], n, f"⚡{tkr}")
                 return entry["ep"], entry["rea"]
-            # v35: retry con exponential backoff (0.1s → 0.3s → 0.9s)
+            # v36: retry con exponential backoff (0.1s → 0.3s → 0.9s)
             ep = rea = None
             for attempt in range(3):
                 try:
@@ -226,7 +226,7 @@ except ImportError:
         df_ep  = pd.DataFrame(rep)  if rep  else pd.DataFrame()
         df_rea = pd.DataFrame(rrea) if rrea else pd.DataFrame()
 
-        # v35: score engine con soglie percentile dinamico (elimina zero-result su batch piccoli)
+        # v36: score engine con soglie percentile dinamico (elimina zero-result su batch piccoli)
         if not df_ep.empty and "Pro_Score" in df_ep.columns:
             _scores = pd.to_numeric(df_ep["Pro_Score"], errors="coerce").dropna()
             if len(_scores) > 0:
@@ -1845,10 +1845,10 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 35.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 36.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 35.0")
-st.markdown('<div class="section-pill">SCANNER V35 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE</div>',unsafe_allow_html=True)
+st.markdown("# 🧠 Trading Scanner PRO 36.0")
+st.markdown('<div class="section-pill">SCANNER V36 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -1946,7 +1946,7 @@ with st.sidebar.container():
             st.rerun()
     with _qf_cols[1]:
         if st.button("🎯 Bilanciato", key="qf_balanced", use_container_width=True,
-                     help="Reset filtri bilanciati (default v35)"):
+                     help="Reset filtri bilanciati (default v36)"):
             for k,v in PRESETS["⚖️ Bilanciato"].items():
                 st.session_state[k] = v
             st.session_state.show_strong_only = False
@@ -2090,7 +2090,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
     st.divider()
     # ── v34: Filtro CSS (Composite Signal Score) ─────────────────────────
     css_filter_enabled = st.checkbox(
-        "🏆 Filtro CSS (v34)",
+        "🏆 Filtro CSS (v36)",
         value=bool(st.session_state.get("css_filter_enabled", False)),
         help="Mostra solo titoli con Composite Signal Score sopra la soglia. "
              "CSS combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV.",
@@ -2117,7 +2117,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
         options=["Tutti","WEAK+","MODERATE+","STRONG"],
         index=["Tutti","WEAK+","MODERATE+","STRONG"].index(
             st.session_state.get("ts_filter","Tutti")),
-        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v34)",
+        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v36)",
         key="sb_ts_filter",
     )
     st.session_state["ts_filter"] = ts_filter
@@ -2254,7 +2254,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 35.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 36.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -2536,7 +2536,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
     # v34 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
     if "CSS" in df_disp.columns:
         gb.configure_column("CSS", pinned="right", sort="desc",
-                            headerTooltip="Composite Signal Score v34 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
+                            headerTooltip="Composite Signal Score v36 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
     if "CSS_Grade" in df_disp.columns:
         gb.configure_column("CSS_Grade", pinned="right",
                             headerTooltip="A≥80 | B≥60 | C≥40 | D<40")
@@ -2926,13 +2926,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v34.0."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v36."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v34.0."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v36."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -3180,14 +3180,15 @@ tabs=st.tabs(["🏠 Home",
               "🎯 Serafini","🔎 Finviz Pro",
               "🔬 Order Flow",
               "🛡️ Crisis Monitor",
+              "🔀 MTF Matrix",       # v36 #5 — prima di Watchlist
+              "📓 Journal",          # v36 #8 — prima di Watchlist
+              "🌡️ Regime",           # v36 #1 — prima di Watchlist
               "📋 Watchlist",
-              "⚖️ Risk Manager","📈 Backtest",
-              "🔀 MTF Matrix",       # v36 #5
-              "📓 Journal",          # v36 #8
-              "🌡️ Regime"])          # v36 #1
+              "⚖️ Risk Manager","📈 Backtest"])
 (tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_of,tab_crisis,tab_w,tab_rm,tab_bt,
- tab_mtfmatrix,tab_journal,tab_regime)=tabs
+ tab_ser,tab_fvpro,tab_of,tab_crisis,
+ tab_mtfmatrix,tab_journal,tab_regime,
+ tab_w,tab_rm,tab_bt)=tabs
 
 with tab_home:
     # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
@@ -3229,6 +3230,79 @@ with tab_home:
     if st.session_state.get("_trigger_autoscan"):
         st.session_state["_trigger_autoscan"] = False
         st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
+
+    # ── v36 — MERCATI LIVE con FTSE MIB ──────────────────────────────────
+    # Sovrascrive la barra di home_tab aggiungendo FTSE MIB dopo Russell2K
+    @st.cache_data(ttl=60, show_spinner=False)
+    def _fetch_live_markets_v36():
+        import yfinance as _yf_live
+        _mkts = [
+            ("^GSPC",   "S&P 500",    "🇺🇸"),
+            ("^IXIC",   "NASDAQ",     "💻"),
+            ("^DJI",    "Dow Jones",  "🏭"),
+            ("^RUT",    "Russell2K",  "📊"),
+            ("FTSEMIB.MI","FTSE MIB", "🇮🇹"),
+            ("^VIX",    "VIX",        "😰"),
+            ("BTC-USD", "Bitcoin",    "₿"),
+            ("GC=F",    "Gold",       "🥇"),
+            ("CL=F",    "Oil WTI",    "🛢️"),
+            ("DX-Y.NYB","DXY",        "💵"),
+        ]
+        _results = []
+        for _sym, _name, _ico in _mkts:
+            try:
+                _d = _yf_live.download(_sym, period="2d", interval="1d",
+                                       auto_adjust=True, progress=False)
+                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
+                if len(_d) >= 2:
+                    _cur = float(_d["Close"].iloc[-1])
+                    _prev= float(_d["Close"].iloc[-2])
+                    _chg = (_cur/_prev-1)*100
+                elif len(_d) == 1:
+                    _cur = float(_d["Close"].iloc[-1])
+                    _chg = 0.0
+                else:
+                    continue
+                _results.append({"sym":_sym,"name":_name,"icon":_ico,
+                                 "price":_cur,"chg":_chg})
+            except Exception:
+                pass
+        return _results
+
+    try:
+        _live_data = _fetch_live_markets_v36()
+        if _live_data:
+            _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+            _live_html = (
+                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
+                f"border-radius:0 4px 4px 0;padding:6px 12px;margin-bottom:10px;"
+                f"display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto'>"
+                f"<span style='color:#2962ff;font-weight:bold;font-size:0.8rem;"
+                f"margin-right:12px;white-space:nowrap'>📊 MERCATI LIVE &nbsp;"
+                f"<span style='color:#6b7280;font-weight:normal'>{_now_str}</span></span>"
+            )
+            for _m in _live_data:
+                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
+                _ar = "▲" if _m["chg"]>=0 else "▼"
+                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
+                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
+                       else f"{_m['price']:,.0f}" if _m["price"]>1000
+                       else f"{_m['price']:,.2f}")
+                _live_html += (
+                    f"<div style='background:#131722;border:1px solid #2a2e39;"
+                    f"border-radius:4px;padding:4px 10px;margin:0 4px;"
+                    f"min-width:110px;text-align:center'>"
+                    f"<div style='color:#787b86;font-size:0.68rem'>{_m['icon']} {_m['name']}</div>"
+                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.85rem;"
+                    f"font-weight:bold'>{_pr}</div>"
+                    f"<div style='color:{_c};font-size:0.72rem;font-weight:bold'>"
+                    f"{_ar} {abs(_m['chg']):.2f}%</div>"
+                    f"</div>"
+                )
+            _live_html += "</div>"
+            st.markdown(_live_html, unsafe_allow_html=True)
+    except Exception:
+        pass
 
     try:
         from utils.home_tab import render_home
@@ -3454,12 +3528,12 @@ with tab_conf:
 
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
-    # COMPARATORE MULTI-TICKER v34
+    # COMPARATORE MULTI-TICKER v36
     # Top 5 per capitalizzazione (Mar 2025): AAPL > MSFT > NVDA > GOOGL > META
     # Il comparatore inline è SEMPRE visibile. Se compare_tab.py esiste,
     # viene mostrato anche il comparatore esterno sotto.
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v34</div>',
+    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v36</div>',
                 unsafe_allow_html=True)
 
     # ── Badge capitalizzazione — sempre visibili ─────────────────────────
@@ -3526,27 +3600,42 @@ with tab_mtf:
             @st.cache_data(ttl=300, show_spinner=False)
             def _fetch_cmp(tkr: str, rng: str):
                 try:
-                    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tkr}"
-                           f"?interval=1d&range={rng}")
-                    req = _ur_cmp.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                    with _ur_cmp.urlopen(req, timeout=8) as r:
-                        d = _js_cmp.loads(r.read())
-                    res  = d["chart"]["result"][0]
-                    meta = res["meta"]
-                    ts   = res["timestamp"]
-                    cl   = res["indicators"]["quote"][0]["close"]
-                    name = meta.get("longName") or meta.get("shortName") or tkr
-                    df_c = pd.DataFrame({"date": pd.to_datetime(ts, unit="s"), "close": cl}).dropna()
-                    return df_c, name
+                    import yfinance as _yf_cmp
+                    _raw_c = _yf_cmp.download(tkr, period=rng, interval="1d",
+                                              auto_adjust=True, progress=False)
+                    _raw_c.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_c.columns]
+                    if _raw_c.empty:
+                        return pd.DataFrame(), tkr, {}
+                    _info = {}
+                    try:
+                        _ti = _yf_cmp.Ticker(tkr).info
+                        _info = {
+                            "name":      _ti.get("longName") or _ti.get("shortName") or tkr,
+                            "sector":    _ti.get("sector","—"),
+                            "mcap":      _ti.get("marketCap",0),
+                            "pe":        _ti.get("trailingPE",None),
+                            "fwd_pe":    _ti.get("forwardPE",None),
+                            "eps_fwd":   _ti.get("forwardEps",None),
+                            "div_yield": _ti.get("dividendYield",None),
+                            "beta":      _ti.get("beta",None),
+                            "52w_high":  _ti.get("fiftyTwoWeekHigh",None),
+                            "52w_low":   _ti.get("fiftyTwoWeekLow",None),
+                            "avg_vol":   _ti.get("averageVolume",None),
+                        }
+                    except Exception:
+                        _info = {"name": tkr}
+                    _cl = _raw_c["Close"].dropna()
+                    _df_c = pd.DataFrame({"date": _raw_c.index, "close": _cl}).dropna()
+                    return _df_c, _info.get("name", tkr), _info
                 except Exception:
-                    return pd.DataFrame(), tkr
+                    return pd.DataFrame(), tkr, {}
 
             with st.spinner(f"Carico {len(_all_cmp)} ticker…"):
                 _cmp_data = {}
                 for _ct in _all_cmp:
-                    _dfc, _nmc = _fetch_cmp(_ct, _cmp_range)
+                    _dfc, _nmc, _inf = _fetch_cmp(_ct, _cmp_range)
                     if not _dfc.empty:
-                        _cmp_data[_ct] = (_dfc, _nmc)
+                        _cmp_data[_ct] = (_dfc, _nmc, _inf)
 
             if not _cmp_data:
                 st.error("Nessun dato disponibile. Verifica i simboli.")
@@ -3556,22 +3645,60 @@ with tab_mtf:
                             "#ff4081","#ffd740","#40c4ff","#69f0ae"]
                 fig_cmp = go.Figure()
                 _kpi_rows = []
-                for i, (ct, (dfc, nmc)) in enumerate(_cmp_data.items()):
+                for i, (ct, (dfc, nmc, inf)) in enumerate(_cmp_data.items()):
                     base = float(dfc["close"].dropna().iloc[0])
                     norm = (dfc["close"] / base - 1) * 100
                     chg  = float(norm.iloc[-1])
+                    cur_price = float(dfc["close"].iloc[-1])
                     col_c = _pal_cmp[i % len(_pal_cmp)]
                     fig_cmp.add_trace(go.Scatter(
-                        x=dfc["date"].dt.strftime("%Y-%m-%d"),
+                        x=dfc["date"].dt.strftime("%Y-%m-%d") if hasattr(dfc["date"],"dt") else dfc["date"].astype(str),
                         y=norm.round(2), mode="lines",
                         name=f"{ct}  {nmc[:22]}",
                         line=dict(color=col_c, width=2.2),
                         hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:+.2f}}%<extra></extra>",
                     ))
+
+                    # ── v36: colonne professionali ───────────────────────
+                    _52wh = inf.get("52w_high")
+                    _52wl = inf.get("52w_low")
+                    _dist_52wh = round((cur_price/_52wh-1)*100,1) if _52wh and _52wh>0 else None
+                    _dist_52wl = round((cur_price/_52wl-1)*100,1) if _52wl and _52wl>0 else None
+
+                    def _fmt(v, fmt=".2f", suffix=""):
+                        return f"{v:{fmt}}{suffix}" if v is not None else "—"
+
+                    _mcap = inf.get("mcap",0)
+                    _mcap_str = (f"${_mcap/1e12:.2f}T" if _mcap and _mcap>=1e12
+                                 else f"${_mcap/1e9:.1f}B" if _mcap and _mcap>=1e9
+                                 else "—")
+
+                    # Volatilità 20d annualizzata
+                    _vols = dfc["close"].pct_change().dropna()
+                    _vol20 = round(float(_vols.tail(20).std() * (252**0.5) * 100), 1) if len(_vols)>=20 else None
+
+                    # RS vs SPY (return periodo vs SPY stesso periodo)
+                    _spy_base_ret = _get_spy_return_20d()
+                    _tkr_ret_20d  = round(float((dfc["close"].iloc[-1]/dfc["close"].iloc[-20]-1)*100),1) if len(dfc)>=20 else 0
+                    _rs_val = round(_tkr_ret_20d - _spy_base_ret, 1)
+
                     _kpi_rows.append({
-                        "Ticker": ct, "Nome": nmc[:32],
-                        "Rendimento %": round(chg, 2),
-                        "Prezzo": round(float(dfc["close"].iloc[-1]), 2),
+                        "Ticker":       ct,
+                        "Nome":         nmc[:28],
+                        "Settore":      inf.get("sector","—"),
+                        "Prezzo":       f"${cur_price:.2f}",
+                        f"Rend {_cmp_range}": f"{chg:+.1f}%",
+                        "RS vs SPY":    f"{_rs_val:+.1f}%",
+                        "Volatilità":   f"{_vol20:.1f}%" if _vol20 else "—",
+                        "P/E":          _fmt(inf.get("pe"),".1f"),
+                        "P/E Fwd":      _fmt(inf.get("fwd_pe"),".1f"),
+                        "Div Yield":    f"{inf.get('div_yield',0)*100:.2f}%" if inf.get("div_yield") else "—",
+                        "Beta":         _fmt(inf.get("beta"),".2f"),
+                        "52W High":     f"${_52wh:.2f}" if _52wh else "—",
+                        "Dist 52W H":   f"{_dist_52wh:+.1f}%" if _dist_52wh is not None else "—",
+                        "Mkt Cap":      _mcap_str,
+                        "_rs": _rs_val,
+                        "_chg": chg,
                     })
 
                 fig_cmp.add_hline(y=0, line=dict(color="#363a45", width=1, dash="dot"))
@@ -3596,18 +3723,27 @@ with tab_mtf:
                 )
                 st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
 
+                # ── Tabella KPI professionale v36 ─────────────────────
                 df_kpi = (pd.DataFrame(_kpi_rows)
-                            .sort_values("Rendimento %", ascending=False)
+                            .sort_values("_chg", ascending=False)
+                            .drop(columns=["_rs","_chg"])
                             .reset_index(drop=True))
-                def _sret(v):
-                    return (f"color:'#00ff88'" if v > 0
-                            else "color:'#ef4444'") + ";font-weight:bold"
+
+                # Colora Rendimento e RS vs SPY
+                def _color_pct_col(s):
+                    def _cell(v):
+                        try:
+                            val = float(str(v).replace("%","").replace("+",""))
+                            return f"color: {'#00ff88' if val>0 else '#ef4444' if val<0 else '#6b7280'};font-weight:bold;font-family:Courier New"
+                        except Exception:
+                            return ""
+                    return [_cell(x) for x in s]
+
+                _pct_cols = [c for c in df_kpi.columns if c in
+                             [f"Rend {_cmp_range}","RS vs SPY","Volatilità","Dist 52W H"]]
                 st.dataframe(
-                    df_kpi.style
-                          .applymap(_sret, subset=["Rendimento %"])
-                          .format({"Rendimento %": "{:+.2f}%",
-                                   "Prezzo": "${:.2f}"}),
-                    use_container_width=True, hide_index=True,
+                    df_kpi.style.apply(_color_pct_col, subset=_pct_cols),
+                    use_container_width=True, hide_index=True, height=280,
                 )
 
     # ── Se compare_tab.py esiste, passagli i ticker di default ─────────
@@ -3642,7 +3778,7 @@ with tab_mtf:
 with tab_ser:
     show_legend("🎯 Serafini")
     # Mostra criteri dettaglio
-    with st.expander("✅ Criteri Serafini nel dettaglio — v34",expanded=False):
+    with st.expander("✅ Criteri Serafini nel dettaglio — v36",expanded=False):
         st.markdown("""
 | # | Criterio | Calcolo | Soglia | Novità v34 |
 |---|----------|---------|--------|------------|
@@ -4157,15 +4293,15 @@ with tab_w:
     # ══════════════════════════════════════════════════════════════════════
     _df_ep_wl = st.session_state.get("df_ep", pd.DataFrame())
 
-    with st.expander("📈 P&L Tracker & Alert Engine v35", expanded=False):
+    with st.expander("📈 P&L Tracker & Alert Engine v36", expanded=False):
         st.caption("Inserisci prezzo entrata e size per ogni ticker — P&L si aggiorna con prezzi scanner.")
         _pnl_col1, _pnl_col2 = st.columns([2, 1])
 
         with _pnl_col1:
             st.markdown("**💰 P&L Tracker (Mark-to-Market)**")
-            if "v35_pnl_entries" not in st.session_state:
-                st.session_state["v35_pnl_entries"] = {}
-            _pnl = st.session_state["v35_pnl_entries"]
+            if "v36_pnl_entries" not in st.session_state:
+                st.session_state["v36_pnl_entries"] = {}
+            _pnl = st.session_state["v36_pnl_entries"]
 
             # Form aggiunta posizione
             _pa, _pb, _pc, _pd = st.columns([2,1.5,1.5,1])
@@ -4232,9 +4368,9 @@ with tab_w:
 
         with _pnl_col2:
             st.markdown("**🔔 Alert Engine**")
-            if "v35_alerts" not in st.session_state:
-                st.session_state["v35_alerts"] = {}
-            _alerts = st.session_state["v35_alerts"]
+            if "v36_alerts" not in st.session_state:
+                st.session_state["v36_alerts"] = {}
+            _alerts = st.session_state["v36_alerts"]
 
             _at, _av, _atype = st.columns([1.5, 1.5, 1.5])
             with _at:   _alert_tkr   = st.text_input("Ticker", key="alt_tkr", placeholder="AAPL").upper().strip()
@@ -4828,19 +4964,19 @@ with tab_bt:
     # Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, Avg R
     # Equity Curve con drawdown overlay — tutto inline senza dipendenze esterne
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v35 — Metriche Professionali</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v36 — Metriche Professionali</div>', unsafe_allow_html=True)
 
-    with st.expander("📊 Backtest Pro v35 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
-        _bt_tickers_v35 = []
+    with st.expander("📊 Backtest Pro v36 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
+        _bt_tickers_v36 = []
         if not df_ep.empty and "Ticker" in df_ep.columns:
-            _bt_tickers_v35 = sorted(df_ep["Ticker"].dropna().unique().tolist())
+            _bt_tickers_v36 = sorted(df_ep["Ticker"].dropna().unique().tolist())
 
-        if not _bt_tickers_v35:
+        if not _bt_tickers_v36:
             st.info("Avvia lo scanner per popolare l'universo di backtest.")
         else:
             _bc1, _bc2, _bc3, _bc4 = st.columns([2,1,1,1])
             with _bc1:
-                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v35, key="bt35_tkr")
+                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v36, key="bt35_tkr")
             with _bc2:
                 _bt_period = st.selectbox("Periodo", ["6mo","1y","2y","3y"], index=1, key="bt35_period")
             with _bc3:
@@ -5197,7 +5333,7 @@ Ogni scansione viene automaticamente salvata qui con timestamp, mercati, segnali
 # EXPORT GLOBALI v35 PRO
 # =========================================================================
 st.markdown("---")
-st.markdown('<div class="section-pill">💾 EXPORT PRO v35 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">💾 EXPORT PRO v36 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
 
 df_conf_exp=pd.DataFrame()
 if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
@@ -5235,7 +5371,7 @@ with ec1:
     st.download_button(
         "📊 XLSX Pro Tutti",
         _to_excel_pro(all_exp),
-        f"TradingScanner_v35_Tutti_{_ts}.xlsx",
+        f"TradingScanner_v36_Tutti_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_all",
         help="Tutti i tab + sheet Summary con conteggi"
@@ -5251,7 +5387,7 @@ with ec2:
         st.download_button(
             "📈 CSV TV Tutti",
             df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v35_TV_{_ts}.csv",
+            f"TradingScanner_v36_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_all",
             help="CSV pronto per import in TradingView Watchlist"
@@ -5260,7 +5396,7 @@ with ec3:
     st.download_button(
         f"📊 XLSX {cur_tab}",
         _to_excel_pro({cur_tab: df_cur}),
-        f"TradingScanner_v35_{cur_tab}_{_ts}.xlsx",
+        f"TradingScanner_v36_{cur_tab}_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_curr"
     )
@@ -5269,13 +5405,13 @@ with ec4:
         st.download_button(
             f"📈 CSV TV {cur_tab}",
             make_tv_csv(df_cur, cur_tab),
-            f"TradingScanner_v35_{cur_tab}_TV_{_ts}.csv",
+            f"TradingScanner_v36_{cur_tab}_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_curr"
         )
 with ec5:
     # v35: export P&L tracker se presente
-    _pnl_data = st.session_state.get("v35_pnl_entries", {})
+    _pnl_data = st.session_state.get("v36_pnl_entries", {})
     if _pnl_data:
         _df_pnl_exp = pd.DataFrame([
             {"Ticker": _t, "Entry $": _pos["entry"], "Size": _pos["size"], "Added": _pos.get("added","")}
@@ -5284,7 +5420,7 @@ with ec5:
         st.download_button(
             "💰 Export P&L",
             _df_pnl_exp.to_csv(index=False).encode(),
-            f"PnL_Tracker_v35_{_ts}.csv",
+            f"PnL_Tracker_v36_{_ts}.csv",
             "text/csv",
             key="csv_pnl_exp",
             help="Esporta posizioni P&L tracker"
@@ -5320,30 +5456,59 @@ with tab_mtfmatrix:
         st.info("Avvia lo scanner o aggiungi ticker alla watchlist per usare la MTF Matrix.")
     else:
         with st.expander("📂 Importa lista da Scanner / Watchlist", expanded=False):
-            _imp_c1, _imp_c2, _imp_c3 = st.columns(3)
-            with _imp_c1:
-                if st.button("📡 Importa da EARLY", key="mtf_imp_early", use_container_width=True):
+            st.caption("Importa i ticker direttamente da qualsiasi tab dello scanner o dalla watchlist attiva.")
+            _imp_row1 = st.columns(3)
+            _imp_row2 = st.columns(3)
+
+            with _imp_row1[0]:
+                if st.button("📡 EARLY", key="mtf_imp_early", use_container_width=True):
                     if not df_ep.empty and "Stato_Early" in df_ep.columns:
                         _imp = df_ep[df_ep["Stato_Early"]=="EARLY"]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
                         st.rerun()
-            with _imp_c2:
-                if st.button("💪 Importa da PRO", key="mtf_imp_pro", use_container_width=True):
+            with _imp_row1[1]:
+                if st.button("💪 PRO + STRONG", key="mtf_imp_pro", use_container_width=True):
                     if not df_ep.empty and "Stato_Pro" in df_ep.columns:
                         _imp = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
                         st.rerun()
-            with _imp_c3:
-                if st.button("📋 Importa da Watchlist", key="mtf_imp_wl", use_container_width=True):
+            with _imp_row1[2]:
+                if st.button("⭐ CONFLUENCE", key="mtf_imp_conf", use_container_width=True):
+                    if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+                        _mask = ((df_ep["Stato_Early"]=="EARLY") &
+                                 (df_ep["Stato_Pro"].isin(["PRO","STRONG"])))
+                        _imp = df_ep[_mask]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
+                        st.rerun()
+
+            with _imp_row2[0]:
+                if st.button("⭐ Solo STRONG", key="mtf_imp_strong", use_container_width=True):
+                    if not df_ep.empty and "Stato_Pro" in df_ep.columns:
+                        _imp = df_ep[df_ep["Stato_Pro"]=="STRONG"]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
+                        st.rerun()
+            with _imp_row2[1]:
+                if st.button("🎯 Serafini", key="mtf_imp_ser", use_container_width=True):
+                    if not df_ep.empty and "Ser_OK" in df_ep.columns:
+                        _imp = df_ep[df_ep["Ser_OK"].isin([True,"True","true"])]["Ticker"].dropna().tolist()
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
+                        st.rerun()
+            with _imp_row2[2]:
+                if st.button("📋 Watchlist attiva", key="mtf_imp_wl", use_container_width=True):
                     _wl_imp = load_watchlist()
                     if not _wl_imp.empty and "Ticker" in _wl_imp.columns:
                         _imp = _wl_imp[_wl_imp["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(_imp[:20])
+                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
                         st.rerun()
+
             if st.session_state.get("mtf_import_list"):
                 _imp_preview = st.session_state["mtf_import_list"]
-                st.caption(f"Lista importata: {len(_imp_preview)} ticker — "
+                _preview_names = [_mtf_nome_map.get(t,t) or t for t in _imp_preview[:6]]
+                st.success(f"✅ {len(_imp_preview)} ticker importati: "
                            f"{', '.join(_imp_preview[:8])}{'...' if len(_imp_preview)>8 else ''}")
+                if st.button("🗑️ Svuota lista importata", key="mtf_imp_clear", use_container_width=False):
+                    st.session_state["mtf_import_list"] = []
+                    st.rerun()
 
         # Multiselect con Nome ordinato alfabeticamente
         _mtf_labels = {}
