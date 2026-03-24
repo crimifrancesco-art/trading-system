@@ -5461,6 +5461,13 @@ with tab_mtfmatrix:
     if not _mtf_tickers:
         st.info("Avvia lo scanner o aggiungi ticker alla watchlist per usare la MTF Matrix.")
     else:
+        # ── Costruisce labels e options PRIMA dell'expander (serve a _do_import) ──
+        _mtf_labels = {}
+        for _tk in _mtf_tickers:
+            _nm = _mtf_nome_map.get(_tk,"")
+            _mtf_labels[_tk] = f"{_nm}  ({_tk})" if _nm else _tk
+        _mtf_options_sorted = sorted(_mtf_tickers, key=lambda t: _mtf_labels[t].lower())
+
         with st.expander("📂 Importa lista da Scanner / Watchlist", expanded=False):
             st.caption("Importa ticker da qualsiasi tab scanner o dalla watchlist. La lista viene caricata direttamente nel multiselect.")
             _imp_row1 = st.columns(3)
@@ -5528,14 +5535,7 @@ with tab_mtfmatrix:
                     st.session_state["_mtf_results"]    = []
                     st.rerun()
 
-        # Multiselect con Nome ordinato alfabeticamente
-        _mtf_labels = {}
-        _mtf_options_sorted = []
-        for _tk in _mtf_tickers:
-            _nm = _mtf_nome_map.get(_tk,"")
-            _mtf_labels[_tk] = f"{_nm}  ({_tk})" if _nm else _tk
-        _mtf_options_sorted = sorted(_mtf_tickers, key=lambda t: _mtf_labels[t].lower())
-
+        # _mtf_labels e _mtf_options_sorted già costruiti sopra (prima dell'expander)
         _default_import = st.session_state.get("mtf_import_list",
                           _mtf_options_sorted[:min(10,len(_mtf_options_sorted))])
         _default_import = [t for t in _default_import if t in _mtf_options_sorted]
