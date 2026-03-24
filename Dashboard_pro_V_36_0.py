@@ -3273,13 +3273,18 @@ with tab_home:
         _live_data = _fetch_live_markets_v36()
         if _live_data:
             _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+            # v36: header SOPRA i box, box su riga separata con scroll orizzontale
             _live_html = (
                 f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
-                f"border-radius:0 4px 4px 0;padding:6px 12px;margin-bottom:10px;"
-                f"display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto'>"
-                f"<span style='color:#2962ff;font-weight:bold;font-size:0.8rem;"
-                f"margin-right:12px;white-space:nowrap'>📊 MERCATI LIVE &nbsp;"
-                f"<span style='color:#6b7280;font-weight:normal'>{_now_str}</span></span>"
+                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
+                # Riga 1: titolo + timestamp
+                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
+                f"letter-spacing:1px;margin-bottom:6px'>"
+                f"📊 MERCATI LIVE "
+                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
+                f"</div>"
+                # Riga 2: box mercati scrollabili
+                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
             )
             for _m in _live_data:
                 _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
@@ -3290,16 +3295,17 @@ with tab_home:
                        else f"{_m['price']:,.2f}")
                 _live_html += (
                     f"<div style='background:#131722;border:1px solid #2a2e39;"
-                    f"border-radius:4px;padding:4px 10px;margin:0 4px;"
-                    f"min-width:110px;text-align:center'>"
-                    f"<div style='color:#787b86;font-size:0.68rem'>{_m['icon']} {_m['name']}</div>"
-                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.85rem;"
-                    f"font-weight:bold'>{_pr}</div>"
-                    f"<div style='color:{_c};font-size:0.72rem;font-weight:bold'>"
+                    f"border-top:2px solid {_c}44;"
+                    f"border-radius:4px;padding:5px 10px;"
+                    f"min-width:100px;flex-shrink:0;text-align:center'>"
+                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
+                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
+                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
+                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
                     f"{_ar} {abs(_m['chg']):.2f}%</div>"
                     f"</div>"
                 )
-            _live_html += "</div>"
+            _live_html += "</div></div>"
             st.markdown(_live_html, unsafe_allow_html=True)
     except Exception:
         pass
@@ -5456,58 +5462,70 @@ with tab_mtfmatrix:
         st.info("Avvia lo scanner o aggiungi ticker alla watchlist per usare la MTF Matrix.")
     else:
         with st.expander("📂 Importa lista da Scanner / Watchlist", expanded=False):
-            st.caption("Importa i ticker direttamente da qualsiasi tab dello scanner o dalla watchlist attiva.")
+            st.caption("Importa ticker da qualsiasi tab scanner o dalla watchlist. La lista viene caricata direttamente nel multiselect.")
             _imp_row1 = st.columns(3)
             _imp_row2 = st.columns(3)
+
+            def _do_import(tickers_list):
+                """Scrive la lista importata DIRETTAMENTE nel key del multiselect."""
+                _valid = [t for t in tickers_list if t in _mtf_options_sorted]
+                if not _valid:
+                    st.warning("Nessun ticker valido trovato (avvia lo scanner prima).")
+                    return
+                # Scrive nel key del multiselect — Streamlit usa questo valore al prossimo render
+                st.session_state["mtf_sel_tickers"] = _valid
+                st.session_state["_mtf_results"]    = []   # reset risultati vecchi
+                st.rerun()
 
             with _imp_row1[0]:
                 if st.button("📡 EARLY", key="mtf_imp_early", use_container_width=True):
                     if not df_ep.empty and "Stato_Early" in df_ep.columns:
-                        _imp = df_ep[df_ep["Stato_Early"]=="EARLY"]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _do_import(sorted(set(df_ep[df_ep["Stato_Early"]=="EARLY"]["Ticker"].dropna().tolist()[:20])))
+                    else:
+                        st.warning("Nessun dato EARLY — avvia lo scanner.")
             with _imp_row1[1]:
                 if st.button("💪 PRO + STRONG", key="mtf_imp_pro", use_container_width=True):
                     if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-                        _imp = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _do_import(sorted(set(df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20])))
+                    else:
+                        st.warning("Nessun dato PRO — avvia lo scanner.")
             with _imp_row1[2]:
                 if st.button("⭐ CONFLUENCE", key="mtf_imp_conf", use_container_width=True):
                     if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-                        _mask = ((df_ep["Stato_Early"]=="EARLY") &
-                                 (df_ep["Stato_Pro"].isin(["PRO","STRONG"])))
-                        _imp = df_ep[_mask]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _mask = (df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))
+                        _do_import(sorted(set(df_ep[_mask]["Ticker"].dropna().tolist()[:20])))
+                    else:
+                        st.warning("Nessun dato CONFLUENCE — avvia lo scanner.")
 
             with _imp_row2[0]:
-                if st.button("⭐ Solo STRONG", key="mtf_imp_strong", use_container_width=True):
+                if st.button("★ Solo STRONG", key="mtf_imp_strong", use_container_width=True):
                     if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-                        _imp = df_ep[df_ep["Stato_Pro"]=="STRONG"]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _do_import(sorted(set(df_ep[df_ep["Stato_Pro"]=="STRONG"]["Ticker"].dropna().tolist()[:20])))
+                    else:
+                        st.warning("Nessun STRONG trovato.")
             with _imp_row2[1]:
                 if st.button("🎯 Serafini", key="mtf_imp_ser", use_container_width=True):
                     if not df_ep.empty and "Ser_OK" in df_ep.columns:
-                        _imp = df_ep[df_ep["Ser_OK"].isin([True,"True","true"])]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _do_import(sorted(set(df_ep[df_ep["Ser_OK"].isin([True,"True","true"])]["Ticker"].dropna().tolist()[:20])))
+                    else:
+                        st.warning("Nessun dato Serafini — avvia lo scanner.")
             with _imp_row2[2]:
                 if st.button("📋 Watchlist attiva", key="mtf_imp_wl", use_container_width=True):
                     _wl_imp = load_watchlist()
                     if not _wl_imp.empty and "Ticker" in _wl_imp.columns:
-                        _imp = _wl_imp[_wl_imp["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
-                        st.session_state["mtf_import_list"] = sorted(set(_imp[:20]))
-                        st.rerun()
+                        _imp_wl = _wl_imp[_wl_imp["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
+                        _do_import(sorted(set(_imp_wl[:20])))
+                    else:
+                        st.warning("Watchlist vuota.")
 
-            if st.session_state.get("mtf_import_list"):
-                _imp_preview = st.session_state["mtf_import_list"]
-                _preview_names = [_mtf_nome_map.get(t,t) or t for t in _imp_preview[:6]]
-                st.success(f"✅ {len(_imp_preview)} ticker importati: "
-                           f"{', '.join(_imp_preview[:8])}{'...' if len(_imp_preview)>8 else ''}")
-                if st.button("🗑️ Svuota lista importata", key="mtf_imp_clear", use_container_width=False):
-                    st.session_state["mtf_import_list"] = []
+            # Preview della selezione corrente
+            _cur_mtf_sel = st.session_state.get("mtf_sel_tickers", [])
+            if _cur_mtf_sel:
+                st.success(f"✅ {len(_cur_mtf_sel)} ticker in selezione: "
+                           f"{', '.join(_cur_mtf_sel[:8])}{'...' if len(_cur_mtf_sel)>8 else ''}")
+                if st.button("🗑️ Svuota selezione", key="mtf_imp_clear"):
+                    st.session_state["mtf_sel_tickers"] = []
+                    st.session_state["_mtf_results"]    = []
                     st.rerun()
 
         # Multiselect con Nome ordinato alfabeticamente
@@ -5579,15 +5597,18 @@ with tab_mtfmatrix:
                 _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
                 _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
                 _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
+                # v36 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
                 _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
-                _nome_disp = (f"<br><span style='color:#787b86;font-size:0.75rem'>{_r['Nome']}</span>"
+                _tv_url  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
+                _nome_disp = (f"<span style='color:#787b86;font-size:0.72rem;display:block'>{_r['Nome']}</span>"
                               if _r["Nome"] else "")
-                _tv_onclick = f"window.open('https://it.tradingview.com/chart/?symbol={_tv_sym}','_blank')"
                 _rc[0].markdown(
-                    f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold;"
-                    f"cursor:pointer;font-size:0.95rem' "
-                    f"ondblclick=\"{_tv_onclick}\" "
-                    f"title='Doppio click → TradingView IT'>{_r['Ticker']}</span>{_nome_disp}",
+                    f"<div style='line-height:1.3'>"
+                    f"<a href='{_tv_url}' target='_blank' style='font-family:Courier New;"
+                    f"color:#00ff88;font-weight:bold;font-size:0.95rem;"
+                    f"text-decoration:none' title='Apri su TradingView IT'>"
+                    f"{_r['Ticker']} <span style='font-size:0.7rem;color:#2962ff'>↗</span></a>"
+                    f"{_nome_disp}</div>",
                     unsafe_allow_html=True)
                 _rc[1].markdown(f"<span style='font-size:1.2rem'>{_r['Daily']}</span>",   unsafe_allow_html=True)
                 _rc[2].markdown(f"<span style='font-size:1.2rem'>{_r['Weekly']}</span>",  unsafe_allow_html=True)
