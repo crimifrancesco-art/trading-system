@@ -3175,22 +3175,34 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 # TABS
 # =========================================================================
-tabs=st.tabs(["🏠 Home",
-              "📊 Comparatore",
-              "💎 Blue Chip Dip",
-              "📡 EARLY","💪 PRO","🔥 REA-HOT","⭐ CONFLUENCE",
-              "🎯 Serafini","🔎 Finviz Pro",
-              "🔬 Order Flow",
-              "🛡️ Crisis Monitor",
-              "🔀 MTF Matrix",       # v36 #5 — prima di Watchlist
-              "📓 Journal",          # v36 #8 — prima di Watchlist
-              "🌡️ Regime",           # v36 #1 — prima di Watchlist
-              "📋 Watchlist",
-              "⚖️ Risk Manager","📈 Backtest"])
-(tab_home,tab_mtf,tab_bcd,tab_e,tab_p,tab_r,tab_conf,
- tab_ser,tab_fvpro,tab_of,tab_crisis,
- tab_mtfmatrix,tab_journal,tab_regime,
- tab_w,tab_rm,tab_bt)=tabs
+# ── v36: Menu su 2 righe — tutti i tab sempre visibili ─────────────────
+# Riga 1: tab principali scanner
+tabs_row1 = st.tabs([
+    "🏠 Home",
+    "📊 Comparatore",
+    "💎 Blue Chip Dip",
+    "📡 EARLY",
+    "💪 PRO",
+    "🔥 REA-HOT",
+    "⭐ CONFLUENCE",
+    "🎯 Serafini",
+    "🔎 Finviz Pro",
+])
+# Riga 2: tab analisi avanzata e gestione
+tabs_row2 = st.tabs([
+    "🔬 Order Flow",
+    "🛡️ Crisis Monitor",
+    "🔀 MTF Matrix",
+    "📓 Journal",
+    "🌡️ Regime",
+    "📋 Watchlist",
+    "⚖️ Risk Manager",
+    "📈 Backtest",
+])
+(tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
+ tab_ser, tab_fvpro) = tabs_row1
+(tab_of, tab_crisis, tab_mtfmatrix, tab_journal, tab_regime,
+ tab_w, tab_rm, tab_bt) = tabs_row2
 
 with tab_home:
     # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
@@ -5924,11 +5936,17 @@ with tab_regime:
     st.markdown("---")
 
     # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
-    st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 4 Periodi</div>',
+    st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 6 Periodi</div>',
                 unsafe_allow_html=True)
     st.caption("Click su una cella per vedere i ticker del settore. Dati in tempo reale da ETF GICS.")
 
-    with st.spinner("Carico dati settoriali..."):
+    _sr_cache_col1, _sr_cache_col2 = st.columns([3,1])
+    with _sr_cache_col2:
+        if st.button("🗑️ Aggiorna dati settori", key="sr_clear_cache",
+                     help="Forza il refresh dei dati settoriali da Yahoo Finance"):
+            st.cache_data.clear()
+            st.rerun()
+    with st.spinner("Carico dati settoriali (6 periodi: 1d/5d/1m/3m/6m/1y)..."):
         _sr_df = _get_sector_returns()
 
     if not _sr_df.empty:
@@ -6034,15 +6052,17 @@ with tab_regime:
                     _badge_s = " ⭐" if _in_sc else " 📋" if _in_wl else ""
                     _color_s = "#00ff88" if _in_sc else "#58a6ff" if _in_wl else "#b2b5be"
                     _tv_s = _tkr_s.replace(".MI","").replace(".","")
-                    _tkr_cols[_i % 5].markdown(
-                        f"<a href='https://it.tradingview.com/chart/?symbol={_tv_s}' "
-                        f"target='_blank' style='font-family:Courier New;color:{_color_s};"
-                        f"font-size:0.85rem;text-decoration:none' "
-                        f"title='Apri {_tkr_s} su TradingView IT'>"
-                        f"{_tkr_s}{_badge_s} <span style='font-size:0.65rem;color:#2962ff'>↗</span></a>",
-                        unsafe_allow_html=True
-                    )
-                st.caption("⭐ = in scanner · 📋 = in watchlist · click ticker → TradingView IT")
+                    _tv_url_s = f"https://it.tradingview.com/chart/?symbol={_tv_s}"
+                    with _tkr_cols[_i % 5]:
+                        # st.link_button funziona sia in local che in Streamlit Cloud
+                        _btn_label = f"{_tkr_s}{_badge_s} ↗"
+                        st.link_button(
+                            _btn_label, _tv_url_s,
+                            use_container_width=True,
+                            help=f"Apri {_tkr_s} su TradingView IT",
+                            type="secondary",
+                        )
+                st.caption("⭐ = in scanner · 📋 = in watchlist · click → TradingView IT")
 
         # ── Sector Rankings table ──────────────────────────────────────
         st.markdown("---")
