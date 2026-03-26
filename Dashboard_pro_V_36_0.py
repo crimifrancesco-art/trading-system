@@ -3175,9 +3175,24 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 # TABS
 # =========================================================================
-# ── v36: Menu su 2 righe — tutti i tab sempre visibili ─────────────────
-# Riga 1: tab principali scanner
-tabs_row1 = st.tabs([
+# ── v36: Tutti i tab in singolo st.tabs + CSS per 2 righe visibili ────────
+# Streamlit non supporta 2 righe native di tab: usiamo CSS inject per
+# wrappare il tab bar su 2 righe mantenendo funzionalità completa.
+st.markdown("""<style>
+[data-testid="stTabs"] > div:first-child {
+    flex-wrap: wrap !important;
+    gap: 0px !important;
+    overflow: visible !important;
+}
+[data-testid="stTabs"] > div:first-child > button {
+    flex-shrink: 0;
+    min-width: fit-content;
+    font-size: 0.78rem !important;
+    padding: 6px 10px !important;
+}
+</style>""", unsafe_allow_html=True)
+
+tabs = st.tabs([
     "🏠 Home",
     "📊 Comparatore",
     "💎 Blue Chip Dip",
@@ -3187,9 +3202,6 @@ tabs_row1 = st.tabs([
     "⭐ CONFLUENCE",
     "🎯 Serafini",
     "🔎 Finviz Pro",
-])
-# Riga 2: tab analisi avanzata e gestione
-tabs_row2 = st.tabs([
     "🔬 Order Flow",
     "🛡️ Crisis Monitor",
     "🔀 MTF Matrix",
@@ -3200,9 +3212,9 @@ tabs_row2 = st.tabs([
     "📈 Backtest",
 ])
 (tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
- tab_ser, tab_fvpro) = tabs_row1
-(tab_of, tab_crisis, tab_mtfmatrix, tab_journal, tab_regime,
- tab_w, tab_rm, tab_bt) = tabs_row2
+ tab_ser, tab_fvpro, tab_of, tab_crisis,
+ tab_mtfmatrix, tab_journal, tab_regime,
+ tab_w, tab_rm, tab_bt) = tabs
 
 with tab_home:
     # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
