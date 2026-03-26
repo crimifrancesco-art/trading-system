@@ -574,23 +574,25 @@ _SECTOR_TICKERS = {
 @st.cache_data(ttl=300)
 def _get_sector_returns() -> pd.DataFrame:
     """
-    Scarica ETF settoriali e calcola return per 4 periodi.
+    Scarica ETF settoriali e calcola return per 6 periodi: 1d/5d/1m/3m/6m/1y.
     """
     import yfinance as _yf
-    _periods = {"1d":"2d","5d":"10d","1m":"35d","3m":"95d"}
     _rows = []
     for _sector, _etf in _SECTOR_ETFS.items():
         _row = {"Sector": _sector, "ETF": _etf}
         try:
-            _raw = _yf.download(_etf, period="95d", interval="1d",
+            # 13 mesi coprono tutti i periodi fino a 1 anno
+            _raw = _yf.download(_etf, period="13mo", interval="1d",
                                 auto_adjust=True, progress=False)
             _raw.columns = [c[0] if isinstance(c, tuple) else c for c in _raw.columns]
             _cl = _raw["Close"].dropna()
             if len(_cl) < 2: continue
-            _row["1d"]  = round((_cl.iloc[-1]/_cl.iloc[-2]-1)*100, 2) if len(_cl)>=2  else 0
-            _row["5d"]  = round((_cl.iloc[-1]/_cl.iloc[-6]-1)*100, 2) if len(_cl)>=6  else 0
-            _row["1m"]  = round((_cl.iloc[-1]/_cl.iloc[-22]-1)*100,2) if len(_cl)>=22 else 0
-            _row["3m"]  = round((_cl.iloc[-1]/_cl.iloc[-63]-1)*100,2) if len(_cl)>=63 else 0
+            _row["1d"]  = round((_cl.iloc[-1]/_cl.iloc[-2]-1)*100,  2) if len(_cl)>=2   else 0
+            _row["5d"]  = round((_cl.iloc[-1]/_cl.iloc[-6]-1)*100,  2) if len(_cl)>=6   else 0
+            _row["1m"]  = round((_cl.iloc[-1]/_cl.iloc[-22]-1)*100, 2) if len(_cl)>=22  else 0
+            _row["3m"]  = round((_cl.iloc[-1]/_cl.iloc[-63]-1)*100, 2) if len(_cl)>=63  else 0
+            _row["6m"]  = round((_cl.iloc[-1]/_cl.iloc[-126]-1)*100,2) if len(_cl)>=126 else 0
+            _row["1y"]  = round((_cl.iloc[-1]/_cl.iloc[-252]-1)*100,2) if len(_cl)>=252 else 0
             _rows.append(_row)
         except Exception:
             pass
@@ -5933,8 +5935,8 @@ with tab_regime:
         # ── Heatmap Plotly interattiva ─────────────────────────────────
         import plotly.graph_objects as _pgo
 
-        _periods_sr = ["1d","5d","1m","3m"]
-        _period_labels = {"1d":"1 Giorno","5d":"5 Giorni","1m":"1 Mese","3m":"3 Mesi"}
+        _periods_sr = ["1d","5d","1m","3m","6m","1y"]
+        _period_labels = {"1d":"1 Giorno","5d":"5 Giorni","1m":"1 Mese","3m":"3 Mesi","6m":"6 Mesi","1y":"1 Anno"}
         _sectors_sr = _sr_df["Sector"].tolist()
 
         # Matrice valori
@@ -6006,8 +6008,8 @@ with tab_regime:
             _etf_row  = _sr_df[_sr_df["Sector"]==_sel_sector]
             if not _etf_row.empty:
                 _etf_vals = {p: float(_etf_row[p].iloc[0]) for p in _periods_sr if p in _etf_row.columns}
-                _ev1,_ev2,_ev3,_ev4 = st.columns(4)
-                for _col_ev, _p in zip([_ev1,_ev2,_ev3,_ev4], _periods_sr):
+                _ev1,_ev2,_ev3,_ev4,_ev5,_ev6 = st.columns(6)
+                for _col_ev, _p in zip([_ev1,_ev2,_ev3,_ev4,_ev5,_ev6], _periods_sr):
                     _v = _etf_vals.get(_p,0)
                     _col_ev.metric(f"{_etf_name} {_period_labels.get(_p,_p)}", f"{_v:+.1f}%",
                                    delta=None)
@@ -6031,12 +6033,16 @@ with tab_regime:
                         _in_sc = _tkr_s in df_ep["Ticker"].values
                     _badge_s = " ⭐" if _in_sc else " 📋" if _in_wl else ""
                     _color_s = "#00ff88" if _in_sc else "#58a6ff" if _in_wl else "#b2b5be"
+                    _tv_s = _tkr_s.replace(".MI","").replace(".","")
                     _tkr_cols[_i % 5].markdown(
-                        f"<span style='font-family:Courier New;color:{_color_s};"
-                        f"font-size:0.85rem'>{_tkr_s}{_badge_s}</span>",
+                        f"<a href='https://it.tradingview.com/chart/?symbol={_tv_s}' "
+                        f"target='_blank' style='font-family:Courier New;color:{_color_s};"
+                        f"font-size:0.85rem;text-decoration:none' "
+                        f"title='Apri {_tkr_s} su TradingView IT'>"
+                        f"{_tkr_s}{_badge_s} <span style='font-size:0.65rem;color:#2962ff'>↗</span></a>",
                         unsafe_allow_html=True
                     )
-                st.caption("⭐ = in scanner · 📋 = in watchlist")
+                st.caption("⭐ = in scanner · 📋 = in watchlist · click ticker → TradingView IT")
 
         # ── Sector Rankings table ──────────────────────────────────────
         st.markdown("---")
@@ -6046,12 +6052,12 @@ with tab_regime:
         _sr_rank.index += 1
 
         for _i, _rk_row in _sr_rank.iterrows():
-            _rk1,_rk2,_rk3,_rk4,_rk5,_rk6 = st.columns([0.4,2,0.8,0.8,0.8,0.8])
+            _rk1,_rk2,_rk3,_rk4,_rk5,_rk6,_rk7,_rk8 = st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
             _medal = "🥇" if _i==1 else "🥈" if _i==2 else "🥉" if _i==3 else f"{_i}."
             _rk1.markdown(f"<b style='color:#787b86'>{_medal}</b>", unsafe_allow_html=True)
             _rk2.markdown(f"<b>{_rk_row['Sector']}</b> <span style='color:#6b7280;font-size:0.78rem'>"
                           f"({_rk_row['ETF']})</span>", unsafe_allow_html=True)
-            for _col_rk, _p in zip([_rk3,_rk4,_rk5,_rk6], _periods_sr):
+            for _col_rk, _p in zip([_rk3,_rk4,_rk5,_rk6,_rk7,_rk8], _periods_sr):
                 _v = float(_rk_row[_p])
                 _c = "#00ff88" if _v>0 else "#ef4444" if _v<0 else "#6b7280"
                 _col_rk.markdown(f"<span style='font-family:Courier New;color:{_c};"
