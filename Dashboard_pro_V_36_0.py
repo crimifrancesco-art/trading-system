@@ -158,7 +158,7 @@ except ImportError:
 
     def scan_universe(universe, e_h, p_rmin, p_rmax, r_poc,
                       vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
-                      n_workers=8, progress_callback=None):
+                      n_workers=16, progress_callback=None):
         # ══════════════════════════════════════════════════════════════════
         # v36 SCANNER ENGINE — auto-scaling workers, tiered TTL, exp backoff
         # ══════════════════════════════════════════════════════════════════
@@ -167,8 +167,8 @@ except ImportError:
         lock = threading.Lock(); counter = [0]; t0 = time.time()
 
         # v36: TTL differenziato — HOT decay veloce, EP più stabile
-        _CACHE_TTL_EP  = 600   # 10 min per segnali EP (stabile)
-        _CACHE_TTL_HOT = 200   # 3.3 min per HOT (volume cambia veloce)
+        _CACHE_TTL_EP  = 900   # 15 min — dati daily stabili
+        _CACHE_TTL_HOT = 300   # 5 min HOT
         if not hasattr(scan_universe, "_fb_cache"):
             scan_universe._fb_cache = {}
         _fbc = scan_universe._fb_cache
@@ -195,14 +195,14 @@ except ImportError:
                 return entry["ep"], entry["rea"]
             # v36: retry con exponential backoff (0.1s → 0.3s → 0.9s)
             ep = rea = None
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     ep, rea = scan_ticker(tkr, e_h, p_rmin, p_rmax, r_poc, vol_ratio_hot)
                     _fbc[tkr] = {"ep": ep, "rea": rea, "ts": time.time()}
                     break
                 except Exception:
-                    if attempt < 2:
-                        time.sleep(0.1 * (3 ** attempt))  # 0.1s, 0.3s, 0.9s
+                    if attempt < 1:
+                        time.sleep(0.05)
                     else:
                         ep = rea = None
             with lock:
@@ -217,7 +217,7 @@ except ImportError:
                 tkr = fut_map[fut]
                 if tkr in seen: continue
                 try:
-                    ep, rea = fut.result(timeout=12)
+                    ep, rea = fut.result(timeout=8)
                     seen.add(tkr)
                     if ep:  rep.append(ep)
                     if rea: rrea.append(rea)
@@ -268,54 +268,84 @@ except ImportError as _bt_ie:
 # =========================================================================
 
 # ── #1 MARKET REGIME DETECTION ───────────────────────────────────────────
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=120)
 def _get_market_regime():
-    """
-    Scarica VIX + SPY da Yahoo Finance e calcola:
-    - VIX level
-    - % SPY sopra EMA200 (proxy breadth)
-    - SPY momentum 20d
-    Regime: Risk-On | Caution | Risk-Off | Crisis
-    """
+    """v36 ENHANCED: VIX+SPY+QQQ+IWM+TLT+TNX, Fear&Greed proxy, breadth multi-indice."""
     import yfinance as _yf
+    import math as _m
     try:
-        _vix = _yf.download("^VIX", period="5d", interval="1d", auto_adjust=True, progress=False)
-        _spy = _yf.download("SPY",  period="60d", interval="1d", auto_adjust=True, progress=False)
-        _vix.columns = [c[0] if isinstance(c, tuple) else c for c in _vix.columns]
-        _spy.columns = [c[0] if isinstance(c, tuple) else c for c in _spy.columns]
+        _raw_all = {}
+        for _sym in ["^VIX","SPY","QQQ","IWM","TLT","^TNX"]:
+            try:
+                _d = _yf.download(_sym, period="60d", interval="1d", auto_adjust=True, progress=False)
+                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
+                _raw_all[_sym] = _d["Close"].dropna() if not _d.empty else pd.Series(dtype=float)
+            except Exception:
+                _raw_all[_sym] = pd.Series(dtype=float)
 
-        _vix_level = float(_vix["Close"].dropna().iloc[-1]) if not _vix.empty else 20.0
-        _spy_cl    = _spy["Close"].dropna()
-        _spy_ema200 = float(_spy_cl.ewm(span=min(200, len(_spy_cl)), adjust=False).mean().iloc[-1])
-        _spy_cur    = float(_spy_cl.iloc[-1])
-        _spy_20d    = float(_spy_cl.iloc[-20]) if len(_spy_cl) >= 20 else _spy_cur
-        _spy_mom    = (_spy_cur / _spy_20d - 1) * 100
+        def _s(sym): return _raw_all.get(sym, pd.Series(dtype=float))
+        def _last(s, default=0): return float(s.iloc[-1]) if len(s)>0 else default
+        def _ago(s, n, default=None): return float(s.iloc[-n]) if len(s)>=n else (default or _last(s))
+        def _mom(s, n): return (_last(s)/_ago(s,n)-1)*100 if _ago(s,n)>0 else 0
 
-        # Breadth proxy: SPY vs EMA200
-        _above_ema200_pct = 100.0 if _spy_cur > _spy_ema200 else 0.0
+        _vix_s = _s("^VIX"); _spy_s = _s("SPY"); _qqq_s = _s("QQQ")
+        _iwm_s = _s("IWM"); _tlt_s = _s("TLT"); _tnx_s = _s("^TNX")
 
-        # Regime logic
-        if _vix_level >= 35:
-            _regime = "Crisis"; _regime_color = "#ef4444"; _regime_icon = "🔴"
-        elif _vix_level >= 25 or _spy_mom < -5:
-            _regime = "Risk-Off"; _regime_color = "#f97316"; _regime_icon = "🟠"
-        elif _vix_level >= 18 or _spy_mom < 0:
-            _regime = "Caution"; _regime_color = "#f59e0b"; _regime_icon = "🟡"
-        else:
-            _regime = "Risk-On"; _regime_color = "#26a69a"; _regime_icon = "🟢"
+        _vix_level  = _last(_vix_s, 20.0)
+        _vix_trend  = _vix_level - _ago(_vix_s, 6, _vix_level)
+        _vix_ma20   = float(_vix_s.tail(20).mean()) if len(_vix_s)>=20 else _vix_level
+        _vix_vs_ma  = _vix_level - _vix_ma20
+
+        _spy_cur    = _last(_spy_s)
+        _spy_ema200 = float(_spy_s.ewm(span=min(200,len(_spy_s)),adjust=False).mean().iloc[-1]) if len(_spy_s)>0 else _spy_cur
+        _spy_mom20  = _mom(_spy_s,20); _spy_mom50 = _mom(_spy_s,50)
+        _qqq_mom20  = _mom(_qqq_s,20); _iwm_mom20 = _mom(_iwm_s,20)
+        _tlt_mom10  = _mom(_tlt_s,10); _bond_flight = _tlt_mom10 > 2.0
+        _tnx_val    = _last(_tnx_s, 4.5); _tnx_trend = _tnx_val - _ago(_tnx_s,6,_tnx_val)
+        _breadth    = sum(1 for m in [_spy_mom20,_qqq_mom20,_iwm_mom20] if m>0)
+
+        _fg_vix   = max(0,min(100, 100-(_vix_level-10)/40*100))
+        _fg_mom   = max(0,min(100, 50+_spy_mom20*5))
+        _fg_bread = _breadth/3*100
+        _fg_bond  = 20 if _bond_flight else 80
+        _fg = round(_fg_vix*.35+_fg_mom*.35+_fg_bread*.20+_fg_bond*.10)
+        _fg_lbl = ("Extreme Greed" if _fg>=75 else "Greed" if _fg>=55 else
+                   "Neutral" if _fg>=45 else "Fear" if _fg>=25 else "Extreme Fear")
+        _fg_col = ("#00ff88" if _fg>=75 else "#26a69a" if _fg>=55 else
+                   "#f59e0b" if _fg>=45 else "#f97316" if _fg>=25 else "#ef4444")
+
+        _rs = 0
+        _rs += 3 if _vix_level<15 else 2 if _vix_level<20 else 1 if _vix_level<25 else 0
+        _rs += 2 if _spy_mom20>3 else 1 if _spy_mom20>0 else 0
+        _rs += 1 if _spy_cur>_spy_ema200 else 0
+        _rs += _breadth
+        _rs -= 1 if _bond_flight else 0
+        _rs -= 1 if _vix_trend>3 else 0
+
+        if _vix_level>=35 or _rs<=1:   _r,_rc,_ri = "Crisis","#ef4444","🔴"
+        elif _vix_level>=25 or _rs<=3: _r,_rc,_ri = "Risk-Off","#f97316","🟠"
+        elif _vix_level>=18 or _rs<=5: _r,_rc,_ri = "Caution","#f59e0b","🟡"
+        else:                           _r,_rc,_ri = "Risk-On","#26a69a","🟢"
 
         return {
-            "regime": _regime, "color": _regime_color, "icon": _regime_icon,
-            "vix": round(_vix_level, 1), "spy_mom_20d": round(_spy_mom, 1),
-            "spy_vs_ema200": round(_spy_cur - _spy_ema200, 2),
-            "above_ema200_pct": _above_ema200_pct,
-            "ok": True,
+            "regime":_r,"color":_rc,"icon":_ri,
+            "vix":round(_vix_level,1),"vix_trend":round(_vix_trend,1),
+            "vix_vs_ma20":round(_vix_vs_ma,1),"spy_mom_20d":round(_spy_mom20,1),
+            "spy_mom_50d":round(_spy_mom50,1),"spy_vs_ema200":round(_spy_cur-_spy_ema200,2),
+            "above_ema200_pct":100.0 if _spy_cur>_spy_ema200 else 0.0,
+            "qqq_mom_20d":round(_qqq_mom20,1),"iwm_mom_20d":round(_iwm_mom20,1),
+            "breadth_score":_breadth,"tlt_mom_10d":round(_tlt_mom10,1),
+            "bond_flight":_bond_flight,"tnx_val":round(_tnx_val,2),
+            "tnx_trend":round(_tnx_trend,2),"fear_greed":int(_fg),
+            "fg_label":_fg_lbl,"fg_color":_fg_col,"regime_score":_rs,"ok":True,
         }
     except Exception as _re:
-        return {"regime": "N/A", "color": "#6b7280", "icon": "⚪",
-                "vix": 0, "spy_mom_20d": 0, "spy_vs_ema200": 0,
-                "above_ema200_pct": 0, "ok": False, "error": str(_re)}
-
+        return {"regime":"N/A","color":"#6b7280","icon":"⚪","vix":0,
+                "spy_mom_20d":0,"spy_vs_ema200":0,"above_ema200_pct":0,
+                "fear_greed":50,"fg_label":"N/A","fg_color":"#6b7280",
+                "regime_score":0,"breadth_score":0,"bond_flight":False,
+                "tnx_val":0,"vix_trend":0,"qqq_mom_20d":0,"iwm_mom_20d":0,
+                "tlt_mom_10d":0,"ok":False,"error":str(_re)}
 
 def _regime_blocks_signal(regime_data: dict, signal_type: str) -> bool:
     """
@@ -5910,42 +5940,179 @@ with tab_journal:
 # v36 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
 # =========================================================================
 with tab_regime:
-    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v36 — VIX · Breadth · Sector Rotation</div>',
+    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v36 — VIX · Fear&Greed · Breadth · Bonds</div>',
                 unsafe_allow_html=True)
 
-    # ── Regime panel ─────────────────────────────────────────────────────
+    if st.button("🔄 Aggiorna dati Regime", key="regime_refresh",
+                 help="Ricarica VIX/SPY/QQQ/IWM/TLT — TTL 2 minuti"):
+        st.cache_data.clear(); st.rerun()
+
     try:
         _rg = _get_market_regime()
-        _rg_c = _rg["color"]; _rg_icon = _rg["icon"]
+        _rg_c = _rg["color"]
 
-        _rga, _rgb, _rgc, _rgd = st.columns(4)
-        _rga.metric("🌡️ Regime",      f"{_rg_icon} {_rg['regime']}")
-        _rgb.metric("📊 VIX",          _rg["vix"])
-        _rgc.metric("📈 SPY Mom 20d",  f"{_rg['spy_mom_20d']:+.1f}%")
-        _rgd.metric("📐 SPY vs EMA200",f"${_rg['spy_vs_ema200']:+.2f}")
+        # ── KPI row ───────────────────────────────────────────────────────
+        _r1a,_r1b,_r1c,_r1d,_r1e,_r1f = st.columns(6)
+        _r1a.metric("🌡️ Regime",     f"{_rg['icon']} {_rg['regime']}")
+        _r1b.metric("📊 VIX",         _rg["vix"],
+                    delta=f"{_rg['vix_trend']:+.1f} 5d", delta_color="inverse")
+        _r1c.metric("📈 SPY 20d",     f"{_rg['spy_mom_20d']:+.1f}%")
+        _r1d.metric("💎 Breadth",     f"{_rg['breadth_score']}/3",
+                    help="SPY+QQQ+IWM momentum 20d positivo")
+        _r1e.metric("🏦 10Y",         f"{_rg.get('tnx_val',0):.2f}%",
+                    delta=f"{_rg.get('tnx_trend',0):+.2f}", delta_color="inverse")
+        _r1f.metric("✈️ Bond Flight",
+                    "🔴 ON" if _rg.get("bond_flight") else "🟢 OFF",
+                    help="TLT +2% in 10gg = flight-to-safety")
 
-        # Regime description + trading rules
-        _regime_rules = {
-            "Risk-On":  ("🟢 Condizioni ottimali. Scanner pieno, tutti i setup validi. "
-                         "Favorire CONFLUENCE + STRONG. Aumentare size.", "#26a69a"),
-            "Caution":  ("🟡 Attenzione selettiva. Preferire STRONG e CONFLUENCE. "
-                         "Ridurre size del 25-30%. Evitare EARLY isolati.", "#f59e0b"),
-            "Risk-Off": ("🟠 Mercato sotto pressione. Solo STRONG. "
-                         "Ridurre size del 50%. Privilegiare difensivi e cash.", "#f97316"),
-            "Crisis":   ("🔴 Modalità difensiva. Niente nuovi long. "
-                         "Gestire posizioni aperte. Crisis Monitor attivo.", "#ef4444"),
+        # ── Fear & Greed gauge + Regime score ─────────────────────────────
+        _fg_col1, _fg_col2 = st.columns([1.2, 2.8])
+        with _fg_col1:
+            _fg = _rg.get("fear_greed", 50)
+            _fg_lbl = _rg.get("fg_label","Neutral")
+            _fg_col_v = _rg.get("fg_color","#f59e0b")
+            import math as _mth
+            _ang = _mth.pi + (_fg/100) * _mth.pi
+            _nx = 100 + 72*_mth.cos(_ang); _ny = 100 + 72*_mth.sin(_ang)
+            _gauge_svg = f"""<svg width='200' height='115' viewBox='0 0 200 115'>
+  <defs>
+    <linearGradient id="grd" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#ef4444"/>
+      <stop offset="25%"  stop-color="#f97316"/>
+      <stop offset="50%"  stop-color="#f59e0b"/>
+      <stop offset="75%"  stop-color="#26a69a"/>
+      <stop offset="100%" stop-color="#00ff88"/>
+    </linearGradient>
+  </defs>
+  <path d="M 20,100 A 80,80 0 1,1 180,100"
+    fill="none" stroke="#1e222d" stroke-width="20" stroke-linecap="round"/>
+  <path d="M 20,100 A 80,80 0 1,1 180,100"
+    fill="none" stroke="url(#grd)" stroke-width="20" stroke-linecap="round" opacity="0.35"/>
+  <line x1="100" y1="100" x2="{_nx:.1f}" y2="{_ny:.1f}"
+    stroke="{_fg_col_v}" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="100" cy="100" r="6" fill="{_fg_col_v}"/>
+  <text x="100" y="85" text-anchor="middle" font-size="24" font-weight="bold" fill="{_fg_col_v}">{_fg}</text>
+  <text x="100" y="112" text-anchor="middle" font-size="9" fill="#787b86">FEAR / GREED PROXY</text>
+  <text x="18" y="113" font-size="8" fill="#ef4444">FEAR</text>
+  <text x="155" y="113" font-size="8" fill="#00ff88">GREED</text>
+</svg>"""
+            st.markdown(
+                f"<div style='text-align:center'>{_gauge_svg}"
+                f"<div style='color:{_fg_col_v};font-weight:bold;font-size:0.95rem;"
+                f"margin-top:-4px'>{_fg_lbl}</div></div>",
+                unsafe_allow_html=True)
+
+        with _fg_col2:
+            # Regime score bar
+            _rs = _rg.get("regime_score",0)
+            _rs_pct = min(100, max(0, _rs/9*100))
+            _rs_col = "#00ff88" if _rs>=7 else "#26a69a" if _rs>=5 else "#f59e0b" if _rs>=3 else "#ef4444"
+            st.markdown(
+                f"<div style='margin-bottom:12px'>"
+                f"<span style='color:#787b86;font-size:0.75rem'>REGIME SCORE: "
+                f"<b style='color:{_rs_col}'>{_rs}/9</b></span>"
+                f"<div style='height:8px;background:#1e222d;border-radius:4px;margin-top:3px'>"
+                f"<div style='width:{_rs_pct:.0f}%;height:8px;background:{_rs_col};"
+                f"border-radius:4px'></div></div></div>",
+                unsafe_allow_html=True)
+
+            # Multi-indice breadth
+            for _nm_b,_mom_b in [("SPY",_rg["spy_mom_20d"]),
+                                   ("QQQ",_rg.get("qqq_mom_20d",0)),
+                                   ("IWM",_rg.get("iwm_mom_20d",0))]:
+                _bc = "#00ff88" if _mom_b>2 else "#26a69a" if _mom_b>0 else "#ef4444"
+                _bar_w = min(100, abs(_mom_b)*8)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:5px'>"
+                    f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.8rem;"
+                    f"min-width:32px'>{_nm_b}</span>"
+                    f"<div style='flex:1;height:10px;background:#1e222d;border-radius:3px;overflow:hidden'>"
+                    f"<div style='width:{_bar_w:.0f}%;height:10px;background:{_bc};border-radius:3px'>"
+                    f"</div></div>"
+                    f"<span style='font-family:Courier New;color:{_bc};font-size:0.8rem;"
+                    f"min-width:50px;text-align:right'>{_mom_b:+.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True)
+
+        # ── Playbook operativo ────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### 📋 Playbook Operativo")
+        _playbook = {
+            "Risk-On":  [("✅ Scanner","Tutti i tab attivi: EARLY·PRO·CONFLUENCE·STRONG"),
+                         ("✅ Size","100% del sizing calcolato"),
+                         ("✅ Setup","Priorità CONFLUENCE (EARLY+PRO+Weekly Bull)"),
+                         ("✅ Hold","Mantieni posizioni — trend è amico"),
+                         ("⚠️ Alert","VIX < 12 = compiacenza, occhio agli ingressi tardivi")],
+            "Caution":  [("🟡 Scanner","STRONG e CONFLUENCE. Skip EARLY isolati"),
+                         ("🟡 Size","75% della size standard"),
+                         ("🟡 Stop","Stop più stretti: 1× ATR invece di 1.5×"),
+                         ("🟡 Settori","Privilegia difensivi: XLV·XLU·XLP"),
+                         ("⚠️ Evita","Settori ciclici ad alta volatilità")],
+            "Risk-Off": [("🟠 Scanner","Solo STRONG (Pro≥8). Ignora EARLY e PRO base"),
+                         ("🟠 Size","50% del sizing — capitale protetto"),
+                         ("🟠 Crisis","Apri Crisis Monitor: GLD·TLT·XLV"),
+                         ("🟠 Setup","Solo titoli L2+ liquidità, ATR% < 4%"),
+                         ("❌ Evita","No nuovi long su growth/tech/small-cap")],
+            "Crisis":   [("🔴 Scanner","NON aprire nuovi long"),
+                         ("🔴 Size","0% — cash preservation totale"),
+                         ("🔴 Azione","Chiudi posizioni deboli, gestisci le forti"),
+                         ("🔴 Crisis","Crisis Monitor ATTIVO: GLD·TLT·SHY·USD"),
+                         ("✅ Rientro","Aspetta VIX < 25 per 3gg prima di rientrare")],
         }
-        _rg_desc, _rg_desc_c = _regime_rules.get(_rg["regime"], ("—","#6b7280"))
-        st.markdown(
-            f"<div style='background:#1e222d;border-left:4px solid {_rg_desc_c};"
-            f"border-radius:0 8px 8px 0;padding:12px 20px;margin:8px 0 16px 0;"
-            f"color:#d1d4dc;font-size:0.88rem'>{_rg_desc}</div>",
-            unsafe_allow_html=True
-        )
+        _pb = _playbook.get(_rg["regime"], _playbook["Caution"])
+        _pb_c = _rg["color"]
+        for _rt, _rtxt in _pb:
+            st.markdown(
+                f"<div style='display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #1e222d'>"
+                f"<span style='color:{_pb_c};font-weight:bold;min-width:115px;font-size:0.82rem'>{_rt}</span>"
+                f"<span style='color:#d1d4dc;font-size:0.82rem'>{_rtxt}</span></div>",
+                unsafe_allow_html=True)
+
+        # ── VIX storico 60gg ──────────────────────────────────────────────
+        st.markdown("---")
+        st.markdown("#### 📉 VIX — Storico 60 giorni con zone regime")
+        try:
+            import yfinance as _yf_vh
+            _vh = _yf_vh.download("^VIX","60d","1d", auto_adjust=True, progress=False)
+            _vh.columns = [c[0] if isinstance(c,tuple) else c for c in _vh.columns]
+            _vh_cl = _vh["Close"].dropna() if not _vh.empty else pd.Series(dtype=float)
+            if len(_vh_cl) > 2:
+                import plotly.graph_objects as _pgo_v
+                _fig_v = _pgo_v.Figure()
+                _fig_v.add_hrect(y0=35,y1=80,fillcolor="rgba(239,68,68,0.07)",line_width=0)
+                _fig_v.add_hrect(y0=25,y1=35,fillcolor="rgba(249,115,22,0.07)",line_width=0)
+                _fig_v.add_hrect(y0=18,y1=25,fillcolor="rgba(245,158,11,0.07)",line_width=0)
+                _fig_v.add_hrect(y0=0,y1=18,fillcolor="rgba(38,166,154,0.05)",line_width=0)
+                for _lv,_lc,_ll in [(35,"#ef4444","Crisis"),(25,"#f97316","Risk-Off"),(18,"#f59e0b","Caution")]:
+                    _fig_v.add_hline(y=_lv, line=dict(color=_lc,width=1,dash="dot"),
+                        annotation_text=f" {_ll}", annotation_font_color=_lc, annotation_font_size=9)
+                _vcolors = ["#ef4444" if v>=35 else "#f97316" if v>=25 else "#f59e0b" if v>=18 else "#26a69a"
+                            for v in _vh_cl.tolist()]
+                _fig_v.add_trace(_pgo_v.Scatter(
+                    x=[str(d)[:10] for d in _vh_cl.index], y=_vh_cl.tolist(),
+                    mode="lines+markers", name="VIX",
+                    line=dict(color="#58a6ff",width=2),
+                    marker=dict(color=_vcolors,size=5),
+                    fill="tozeroy", fillcolor="rgba(88,166,255,0.05)",
+                    hovertemplate="VIX: %{y:.1f} — %{x}<extra></extra>"))
+                _vix_ly = dict(PLOTLY_DARK)
+                _vix_ly["yaxis"] = dict(_vix_ly.get("yaxis",{}),
+                    title="VIX", range=[0,max(45,max(_vh_cl.tolist())*1.1)], tickfont=dict(size=9))
+                _fig_v.update_layout(**_vix_ly,
+                    title=dict(text=f"VIX: <b>{_rg['vix']}</b> | Regime: <b>{_rg['regime']}</b>",
+                               font=dict(color="#50c4e0",size=12),x=0.01),
+                    height=240, margin=dict(l=0,r=0,t=38,b=0),
+                    showlegend=False, hovermode="x unified")
+                st.plotly_chart(_fig_v, use_container_width=True, key="vix_hist_chart")
+        except Exception as _vhe:
+            st.caption(f"VIX storico: {_vhe}")
+
     except Exception as _rge:
         st.warning(f"Regime data non disponibile: {_rge}")
 
     st.markdown("---")
+
+    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
 
     # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
     st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 6 Periodi</div>',
