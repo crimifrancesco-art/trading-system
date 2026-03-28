@@ -2368,29 +2368,32 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
         st.sidebar.success("Storico cancellato.");st.rerun()
     except Exception as e: st.sidebar.error(f"Errore: {e}")
 
-# ── v37: AI Key status in sidebar ────────────────────────────────────────
-_has_key = bool(
-    st.secrets.get("ANTHROPIC_API_KEY","") or
-    st.session_state.get("_anthropic_api_key","")
+# ── v37: AI multi-provider status in sidebar ────────────────────────────
+_ai_providers_status = {
+    "🟢 Gemini":     bool(st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key","")),
+    "🟣 Groq":       bool(st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key","")),
+    "🔵 OpenRouter": bool(st.secrets.get("OPENROUTER_API_KEY","") or st.session_state.get("_openrouter_api_key","")),
+    "🟡 Claude":     bool(st.secrets.get("ANTHROPIC_API_KEY","")  or st.session_state.get("_anthropic_api_key","")),
+}
+_n_active = sum(_ai_providers_status.values())
+_ai_status_lines = "  ".join(
+    f"<span style='color:{"#00ff88" if ok else "#374151"}'>{name.split()[0]}</span>"
+    for name, ok in _ai_providers_status.items()
 )
-if _has_key:
-    st.sidebar.markdown(
-        "<div style='background:#0d2b1f;border-left:3px solid #00ff88;"
-        "border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.75rem;"
-        "color:#00ff88;margin:4px 0'>🧠 Claude API: <b>attiva</b></div>",
-        unsafe_allow_html=True
-    )
-    if st.sidebar.button("🔑 Reset API Key", key="ai_key_reset_sidebar", use_container_width=True):
-        st.session_state.pop("_anthropic_api_key", None)
+_bg = "#0d2b1f" if _n_active > 0 else "#1a0f00"
+_bc = "#00ff88" if _n_active > 0 else "#f59e0b"
+_msg = f"{_n_active}/4 provider attivi" if _n_active > 0 else "nessun provider — vai tab PRO"
+st.sidebar.markdown(
+    f"<div style='background:{_bg};border-left:3px solid {_bc};"
+    f"border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.72rem;margin:4px 0'>"
+    f"🧠 AI: <b style='color:{_bc}'>{_msg}</b><br>{_ai_status_lines}</div>",
+    unsafe_allow_html=True
+)
+if _n_active > 0:
+    if st.sidebar.button("🔑 Reset AI Keys", key="ai_key_reset_sidebar", use_container_width=True):
+        for _rk in ["_gemini_api_key","_groq_api_key","_openrouter_api_key","_anthropic_api_key"]:
+            st.session_state.pop(_rk, None)
         st.rerun()
-else:
-    st.sidebar.markdown(
-        "<div style='background:#1a0f00;border-left:3px solid #f59e0b;"
-        "border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.75rem;"
-        "color:#f59e0b;margin:4px 0'>🧠 Claude API: <b>non configurata</b><br>"
-        "<span style='color:#6b7280'>Vai al tab PRO → AI Explainer</span></div>",
-        unsafe_allow_html=True
-    )
 
 st.sidebar.divider()
 only_watchlist=st.sidebar.checkbox("Solo Watchlist",False)
@@ -6498,55 +6501,217 @@ if "scan_stats" in st.session_state:
 # =========================================================================
 # v37 UPGRADE #3 — AI SIGNAL EXPLAINER
 # =========================================================================
+# =========================================================================
+# v37 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
+# Provider chain: Gemini (free) → Groq (free) → OpenRouter → Claude
+# =========================================================================
+
+def _ai_call_gemini(api_key: str, prompt: str) -> str:
+    """Google Gemini 2.0 Flash — gratuito 1500 req/day."""
+    import requests as _r
+    _url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.0-flash:generateContent?key={api_key}")
+    _resp = _r.post(_url,
+        json={"contents":[{"parts":[{"text": prompt}]}],
+              "generationConfig":{"maxOutputTokens":500,"temperature":0.3}},
+        timeout=20)
+    if _resp.status_code == 200:
+        _d = _resp.json()
+        return _d["candidates"][0]["content"]["parts"][0]["text"]
+    raise Exception(f"Gemini {_resp.status_code}: {_resp.text[:120]}")
+
+
+def _ai_call_groq(api_key: str, prompt: str) -> str:
+    """Groq — Llama 3.3 70B, gratuito con rate limits."""
+    import requests as _r
+    _resp = _r.post("https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}",
+                 "Content-Type": "application/json"},
+        json={"model": "llama-3.3-70b-versatile",
+              "messages": [{"role":"user","content": prompt}],
+              "max_tokens": 500, "temperature": 0.3},
+        timeout=20)
+    if _resp.status_code == 200:
+        return _resp.json()["choices"][0]["message"]["content"]
+    raise Exception(f"Groq {_resp.status_code}: {_resp.text[:120]}")
+
+
+def _ai_call_openrouter(api_key: str, prompt: str) -> str:
+    """OpenRouter — accesso a molti modelli, free tier disponibile."""
+    import requests as _r
+    _resp = _r.post("https://openrouter.ai/api/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}",
+                 "Content-Type": "application/json",
+                 "HTTP-Referer": "https://trading-scanner-pro.streamlit.app"},
+        json={"model": "mistralai/mistral-7b-instruct:free",
+              "messages": [{"role":"user","content": prompt}],
+              "max_tokens": 500},
+        timeout=20)
+    if _resp.status_code == 200:
+        return _resp.json()["choices"][0]["message"]["content"]
+    raise Exception(f"OpenRouter {_resp.status_code}: {_resp.text[:120]}")
+
+
+def _ai_call_claude(api_key: str, prompt: str) -> str:
+    """Anthropic Claude Haiku — a pagamento, massima qualità."""
+    import requests as _r
+    _resp = _r.post("https://api.anthropic.com/v1/messages",
+        headers={"Content-Type": "application/json",
+                 "anthropic-version": "2023-06-01",
+                 "x-api-key": api_key},
+        json={"model": "claude-haiku-4-5-20251001",
+              "max_tokens": 500,
+              "messages": [{"role":"user","content": prompt}]},
+        timeout=25)
+    if _resp.status_code == 200:
+        return _resp.json()["content"][0]["text"]
+    _err = _resp.json().get("error",{})
+    raise Exception(f"Claude {_resp.status_code}: {_err.get('message','')[:120]}")
+
+
+def _ai_call_with_fallback(prompt: str) -> tuple:
+    """
+    Prova i provider in ordine: Gemini → Groq → OpenRouter → Claude.
+    Restituisce (testo_risposta, provider_usato) o lancia Exception.
+    """
+    _ss = st.session_state
+
+    # Costruisce lista provider configurati nell'ordine preferito
+    _providers = []
+
+    _gem_key = st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key","")
+    if _gem_key:
+        _providers.append(("🟢 Gemini Flash", _ai_call_gemini, _gem_key))
+
+    _groq_key = st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key","")
+    if _groq_key:
+        _providers.append(("🟣 Groq Llama", _ai_call_groq, _groq_key))
+
+    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
+    if _or_key:
+        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
+
+    _ant_key = st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")
+    if _ant_key:
+        _providers.append(("🟡 Claude Haiku", _ai_call_claude, _ant_key))
+
+    if not _providers:
+        raise Exception("NO_KEYS")
+
+    _errors = []
+    for _name, _fn, _key in _providers:
+        try:
+            _result = _fn(_key, prompt)
+            return _result, _name
+        except Exception as _e:
+            _errors.append(f"{_name}: {_e}")
+            continue  # prova il prossimo
+
+    raise Exception("ALL_FAILED: " + " | ".join(_errors))
+
+
 def _render_ai_explainer_v37(df_source, tab_name="PRO"):
-    """Mostra pulsante 'Spiega Setup' per ogni ticker — chiama Claude API."""
-    st.markdown('<div class="section-pill">🧠 AI SIGNAL EXPLAINER v37 — Claude API</div>',
-                unsafe_allow_html=True)
-    st.caption("Analisi AI del setup: perché è valido · rischio principale · come gestirlo")
+    """AI Signal Explainer — multi-provider con fallback automatico."""
+    st.markdown(
+        '<div class="section-pill">🧠 AI SIGNAL EXPLAINER v37 — Gemini · Groq · OpenRouter · Claude</div>',
+        unsafe_allow_html=True)
+    st.caption("Fallback automatico: Gemini (free) → Groq (free) → OpenRouter → Claude")
 
-    # ── API Key: Secrets → session_state → input UI ───────────────────────
-    _api_key_stored = (
-        st.secrets.get("ANTHROPIC_API_KEY","")          # 1. Streamlit Secrets (deploy)
-        or st.session_state.get("_anthropic_api_key","") # 2. Session state (già inserita)
-    )
+    # ── Pannello configurazione API keys ──────────────────────────────────
+    _any_key = any([
+        st.secrets.get("GEMINI_API_KEY","")      or st.session_state.get("_gemini_api_key",""),
+        st.secrets.get("GROQ_API_KEY","")        or st.session_state.get("_groq_api_key",""),
+        st.secrets.get("OPENROUTER_API_KEY","")  or st.session_state.get("_openrouter_api_key",""),
+        st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
+    ])
 
-    if not _api_key_stored:
-        # Mostra input per inserire la key direttamente nella UI
-        with st.expander("🔑 Configura API Key Claude (una sola volta)", expanded=True):
-            st.caption("Inserisci la tua Anthropic API Key. Viene salvata solo nella sessione corrente, non nel codice.")
-            _key_inp_col1, _key_inp_col2 = st.columns([3,1])
-            with _key_inp_col1:
-                _key_input = st.text_input(
-                    "Anthropic API Key",
-                    type="password",
-                    placeholder="sk-ant-api03-...",
-                    key=f"ai_key_input_{tab_name}",
-                    help="Ottieni la tua key su console.anthropic.com"
-                )
-            with _key_inp_col2:
-                st.write("")
-                if st.button("✅ Salva", key=f"ai_key_save_{tab_name}") and _key_input:
-                    st.session_state["_anthropic_api_key"] = _key_input.strip()
-                    st.rerun()
-            st.markdown(
-                "<div style='background:#1e222d;border-left:3px solid #f59e0b;"
-                "border-radius:0 4px 4px 0;padding:8px 12px;font-size:0.80rem;"
-                "color:#b2b5be;margin-top:8px'>"
-                "💡 <b>Alternativa permanente:</b> aggiungi <code>ANTHROPIC_API_KEY = \"sk-ant-...\"</code> "
-                "in <b>Streamlit Cloud → Settings → Secrets</b>. Non serve più inserirla ogni volta."
-                "</div>",
-                unsafe_allow_html=True
-            )
-        return  # Non mostrare la lista finché non c'è la key
+    with st.expander(
+        "🔑 Configura API Keys" + (" ✅" if _any_key else " ⚠️ Nessuna key — configura qui"),
+        expanded=not _any_key
+    ):
+        st.markdown(
+            "<div style='background:#0d1117;border:1px solid #1f2937;border-radius:6px;"
+            "padding:10px 14px;margin-bottom:10px;font-size:0.80rem;color:#b2b5be'>"
+            "Configura almeno una key. Il sistema usa quella disponibile con fallback automatico.<br><br>"
+            "🟢 <b>Gemini Flash</b> — gratis · <a href='https://aistudio.google.com' target='_blank' "
+            "style='color:#2962ff'>aistudio.google.com</a> → Get API Key<br>"
+            "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
+            "style='color:#2962ff'>console.groq.com</a> → API Keys → Create<br>"
+            "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
+            "style='color:#2962ff'>openrouter.ai</a> → Keys → Create Key<br>"
+            "🟡 <b>Claude</b> — a pagamento · <a href='https://console.anthropic.com' target='_blank' "
+            "style='color:#2962ff'>console.anthropic.com</a> → API Keys"
+            "</div>",
+            unsafe_allow_html=True
+        )
 
-    # Key disponibile — usa quella trovata
-    _api_key_use = _api_key_stored
+        _kc1, _kc2 = st.columns(2)
+        with _kc1:
+            # Gemini
+            _gem_cur = st.session_state.get("_gemini_api_key","")
+            _gem_inp = st.text_input("🟢 Gemini API Key",
+                value=_gem_cur, type="password",
+                placeholder="AIzaSy...",
+                key=f"gem_inp_{tab_name}")
+            # Groq
+            _groq_cur = st.session_state.get("_groq_api_key","")
+            _groq_inp = st.text_input("🟣 Groq API Key",
+                value=_groq_cur, type="password",
+                placeholder="gsk_...",
+                key=f"groq_inp_{tab_name}")
+        with _kc2:
+            # OpenRouter
+            _or_cur = st.session_state.get("_openrouter_api_key","")
+            _or_inp = st.text_input("🔵 OpenRouter API Key",
+                value=_or_cur, type="password",
+                placeholder="sk-or-...",
+                key=f"or_inp_{tab_name}")
+            # Claude
+            _ant_cur = st.session_state.get("_anthropic_api_key","")
+            _ant_inp = st.text_input("🟡 Claude API Key",
+                value=_ant_cur, type="password",
+                placeholder="sk-ant-api03-...",
+                key=f"ant_inp_{tab_name}")
+
+        _save_col, _reset_col, _ = st.columns([1,1,2])
+        with _save_col:
+            if st.button("💾 Salva keys", key=f"ai_keys_save_{tab_name}", type="primary",
+                         use_container_width=True):
+                if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
+                if _groq_inp.strip(): st.session_state["_groq_api_key"]       = _groq_inp.strip()
+                if _or_inp.strip():   st.session_state["_openrouter_api_key"] = _or_inp.strip()
+                if _ant_inp.strip():  st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
+                st.success("✅ Keys salvate per questa sessione!")
+                st.rerun()
+        with _reset_col:
+            if st.button("🗑️ Reset tutte", key=f"ai_keys_reset_{tab_name}",
+                         use_container_width=True):
+                for _k in ["_gemini_api_key","_groq_api_key",
+                           "_openrouter_api_key","_anthropic_api_key"]:
+                    st.session_state.pop(_k, None)
+                st.rerun()
+
+        # Status provider
+        _prov_status = []
+        for _pn, _sk, _ssk in [
+            ("🟢 Gemini",    "GEMINI_API_KEY",     "_gemini_api_key"),
+            ("🟣 Groq",      "GROQ_API_KEY",        "_groq_api_key"),
+            ("🔵 OpenRouter","OPENROUTER_API_KEY",   "_openrouter_api_key"),
+            ("🟡 Claude",    "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
+        ]:
+            _ok = bool(st.secrets.get(_sk,"") or st.session_state.get(_ssk,""))
+            _prov_status.append(f"{'✅' if _ok else '❌'} {_pn}")
+        st.caption("  ·  ".join(_prov_status))
+
+    if not _any_key:
+        st.info("Inserisci almeno una API key sopra per usare l'AI Explainer.")
+        return
 
     if df_source is None or (hasattr(df_source,"empty") and df_source.empty):
         st.info("Avvia lo scanner per usare l'AI Explainer.")
         return
 
-    # Filtra solo segnali PRO/STRONG/CONFLUENCE
+    # Filtra PRO/STRONG
     _df_ai = df_source.copy()
     if "Stato_Pro" in _df_ai.columns:
         _df_ai = _df_ai[_df_ai["Stato_Pro"].isin(["PRO","STRONG"])]
@@ -6554,7 +6719,7 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
         st.info("Nessun segnale PRO/STRONG trovato. Avvia lo scanner.")
         return
 
-    # Recupera regime per contestualizzare l'analisi
+    # Regime context
     try:
         _rg_ai = _get_market_regime()
         _regime_ctx = (f"VIX={_rg_ai['vix']}, Regime={_rg_ai['regime']}, "
@@ -6562,25 +6727,23 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
     except Exception:
         _regime_ctx = "dati regime non disponibili"
 
+    # Header griglia
     _ai_cols = st.columns([2,1,1,1,1])
-    _ai_cols[0].markdown("**Ticker**")
-    _ai_cols[1].markdown("**Stato**")
-    _ai_cols[2].markdown("**CSS**")
-    _ai_cols[3].markdown("**RSI**")
-    _ai_cols[4].markdown("**Analisi AI**")
-
+    for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","AI"]):
+        _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
+                      f"letter-spacing:1px'>{_lbl}</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
     for _, _row_ai in _df_ai.head(15).iterrows():
-        _tkr_ai  = str(_row_ai.get("Ticker",""))
-        _stato_ai= str(_row_ai.get("Stato_Pro","-"))
-        _css_ai  = _row_ai.get("CSS", "—")
-        _rsi_ai  = _row_ai.get("RSI", "—")
-        _nome_ai = str(_row_ai.get("Nome",""))[:25]
-        _pr_ai   = _row_ai.get("Prezzo","")
-        _atr_ai  = _row_ai.get("ATR","")
-        _rs_ai   = _row_ai.get("RS_20d","")
-        _vol_ai  = _row_ai.get("Vol_Ratio","")
+        _tkr_ai   = str(_row_ai.get("Ticker",""))
+        _stato_ai = str(_row_ai.get("Stato_Pro","-"))
+        _css_ai   = _row_ai.get("CSS","—")
+        _rsi_ai   = _row_ai.get("RSI","—")
+        _nome_ai  = str(_row_ai.get("Nome",""))[:25]
+        _pr_ai    = _row_ai.get("Prezzo","")
+        _atr_ai   = _row_ai.get("ATR","")
+        _rs_ai    = _row_ai.get("RS_20d","")
+        _vol_ai   = _row_ai.get("Vol_Ratio","")
 
         _ac1,_ac2,_ac3,_ac4,_ac5 = st.columns([2,1,1,1,1])
         _sc = "#ffd700" if _stato_ai=="STRONG" else "#00ff88"
@@ -6595,75 +6758,50 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
         _ac4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_rsi_ai}</span>")
 
         with _ac5:
-            if st.button(f"🧠 Spiega", key=f"ai_explain_{_tkr_ai}_{tab_name}",
-                         use_container_width=True):
+            if st.button("🧠", key=f"ai_explain_{_tkr_ai}_{tab_name}",
+                         use_container_width=True, help=f"Analisi AI di {_tkr_ai}"):
                 st.session_state[f"_ai_req_{_tkr_ai}_{tab_name}"] = True
 
-        # Mostra analisi se richiesta
         if st.session_state.get(f"_ai_req_{_tkr_ai}_{tab_name}"):
             with st.expander(f"🧠 Analisi AI — {_tkr_ai}", expanded=True):
-                _prompt_ai = f"""Sei un analista tecnico professionista. Analizza questo setup di trading in modo conciso e pratico.
+                _prompt_ai = f"""Sei un analista tecnico professionista. Analizza questo setup.
 
-TICKER: {_tkr_ai} ({_nome_ai})
-PREZZO ATTUALE: ${_pr_ai}
-STATO SEGNALE: {_stato_ai}
-CSS (Composite Signal Score): {_css_ai}/100
-RSI: {_rsi_ai}
-ATR: {_atr_ai}
-Vol Ratio: {_vol_ai}x
-RS vs SPY 20d: {_rs_ai}%
-CONTESTO MERCATO: {_regime_ctx}
+TICKER: {_tkr_ai} ({_nome_ai}) | PREZZO: ${_pr_ai}
+SEGNALE: {_stato_ai} | CSS: {_css_ai}/100 | RSI: {_rsi_ai}
+ATR: {_atr_ai} | Vol Ratio: {_vol_ai}x | RS vs SPY: {_rs_ai}%
+MERCATO: {_regime_ctx}
 
-Rispondi ESATTAMENTE in questo formato (3 punti, italiano, max 2 righe ciascuno):
+Rispondi in italiano, ESATTAMENTE in questo formato (max 2 righe per punto):
 
 ✅ VALIDITÀ SETUP:
-[Perché il setup è tecnicamente valido — usa i dati sopra]
+[perché il setup è valido con questi dati]
 
 ⚠️ RISCHIO PRINCIPALE:
-[Il rischio specifico più importante per questo setup ora]
+[rischio specifico più importante ora]
 
 📐 GESTIONE POSIZIONE:
-[Entry ottimale, stop loss ATR-based, target R:R]"""
+[entry, stop loss ATR-based, target R:R]"""
 
-                with st.spinner(f"Analisi AI di {_tkr_ai}..."):
+                with st.spinner(f"Analisi {_tkr_ai}..."):
                     try:
-                        import requests as _req_ai
-                        _resp_ai = _req_ai.post(
-                            "https://api.anthropic.com/v1/messages",
-                            headers={
-                                "Content-Type": "application/json",
-                                "anthropic-version": "2023-06-01",
-                                "x-api-key": _api_key_use,
-                            },
-                            json={
-                                "model": "claude-haiku-4-5-20251001",
-                                "max_tokens": 400,
-                                "messages": [{"role":"user","content": _prompt_ai}]
-                            },
-                            timeout=25
-                        )
-                        if _resp_ai.status_code == 200:
-                            _data_ai = _resp_ai.json()
-                            _text_ai = _data_ai["content"][0]["text"]
-                            st.markdown(
-                                f"<div style='background:#0d1117;border:1px solid #1f2937;"
-                                f"border-left:3px solid #2962ff;border-radius:0 8px 8px 0;"
-                                f"padding:12px 16px;font-size:0.88rem;line-height:1.6'>"
-                                f"{_text_ai.replace(chr(10),'<br>')}</div>",
-                                unsafe_allow_html=True
-                            )
-                        elif _resp_ai.status_code == 401:
-                            # Key non valida → resetta per chiedere di nuovo
-                            st.session_state.pop("_anthropic_api_key", None)
-                            st.error("❌ API Key non valida. Ricarica la pagina e inserisci una key corretta.")
-                        elif _resp_ai.status_code == 429:
-                            st.warning("⚠️ Rate limit Anthropic — riprova tra qualche secondo.")
-                        else:
-                            st.error(f"❌ API error {_resp_ai.status_code}: {_resp_ai.text[:200]}")
+                        _txt, _prov_used = _ai_call_with_fallback(_prompt_ai)
+                        st.markdown(
+                            f"<div style='background:#0d1117;border:1px solid #1f2937;"
+                            f"border-left:3px solid #2962ff;border-radius:0 8px 8px 0;"
+                            f"padding:12px 16px;font-size:0.88rem;line-height:1.6'>"
+                            f"{_txt.replace(chr(10),'<br>')}</div>",
+                            unsafe_allow_html=True)
+                        st.caption(f"Provider: {_prov_used}")
                     except Exception as _ai_err:
-                        st.error(f"Errore connessione: {_ai_err}")
+                        _err_msg = str(_ai_err)
+                        if "NO_KEYS" in _err_msg:
+                            st.warning("⚠️ Nessuna API key configurata — espandi il pannello 🔑 sopra.")
+                        elif "ALL_FAILED" in _err_msg:
+                            st.error(f"❌ Tutti i provider hanno fallito:\n{_err_msg.replace('ALL_FAILED: ','')}")
+                        else:
+                            st.error(f"❌ Errore: {_err_msg[:200]}")
 
-                if st.button(f"✕ Chiudi", key=f"ai_close_{_tkr_ai}_{tab_name}"):
+                if st.button("✕ Chiudi", key=f"ai_close_{_tkr_ai}_{tab_name}"):
                     st.session_state.pop(f"_ai_req_{_tkr_ai}_{tab_name}", None)
                     st.rerun()
 
