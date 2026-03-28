@@ -2368,6 +2368,31 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
         st.sidebar.success("Storico cancellato.");st.rerun()
     except Exception as e: st.sidebar.error(f"Errore: {e}")
 
+# ── v37: AI Key status in sidebar ────────────────────────────────────────
+_has_key = bool(
+    st.secrets.get("ANTHROPIC_API_KEY","") or
+    st.session_state.get("_anthropic_api_key","")
+)
+if _has_key:
+    st.sidebar.markdown(
+        "<div style='background:#0d2b1f;border-left:3px solid #00ff88;"
+        "border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.75rem;"
+        "color:#00ff88;margin:4px 0'>🧠 Claude API: <b>attiva</b></div>",
+        unsafe_allow_html=True
+    )
+    if st.sidebar.button("🔑 Reset API Key", key="ai_key_reset_sidebar", use_container_width=True):
+        st.session_state.pop("_anthropic_api_key", None)
+        st.rerun()
+else:
+    st.sidebar.markdown(
+        "<div style='background:#1a0f00;border-left:3px solid #f59e0b;"
+        "border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.75rem;"
+        "color:#f59e0b;margin:4px 0'>🧠 Claude API: <b>non configurata</b><br>"
+        "<span style='color:#6b7280'>Vai al tab PRO → AI Explainer</span></div>",
+        unsafe_allow_html=True
+    )
+
+st.sidebar.divider()
 only_watchlist=st.sidebar.checkbox("Solo Watchlist",False)
 
 st.sidebar.divider()
@@ -6479,6 +6504,44 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
                 unsafe_allow_html=True)
     st.caption("Analisi AI del setup: perché è valido · rischio principale · come gestirlo")
 
+    # ── API Key: Secrets → session_state → input UI ───────────────────────
+    _api_key_stored = (
+        st.secrets.get("ANTHROPIC_API_KEY","")          # 1. Streamlit Secrets (deploy)
+        or st.session_state.get("_anthropic_api_key","") # 2. Session state (già inserita)
+    )
+
+    if not _api_key_stored:
+        # Mostra input per inserire la key direttamente nella UI
+        with st.expander("🔑 Configura API Key Claude (una sola volta)", expanded=True):
+            st.caption("Inserisci la tua Anthropic API Key. Viene salvata solo nella sessione corrente, non nel codice.")
+            _key_inp_col1, _key_inp_col2 = st.columns([3,1])
+            with _key_inp_col1:
+                _key_input = st.text_input(
+                    "Anthropic API Key",
+                    type="password",
+                    placeholder="sk-ant-api03-...",
+                    key=f"ai_key_input_{tab_name}",
+                    help="Ottieni la tua key su console.anthropic.com"
+                )
+            with _key_inp_col2:
+                st.write("")
+                if st.button("✅ Salva", key=f"ai_key_save_{tab_name}") and _key_input:
+                    st.session_state["_anthropic_api_key"] = _key_input.strip()
+                    st.rerun()
+            st.markdown(
+                "<div style='background:#1e222d;border-left:3px solid #f59e0b;"
+                "border-radius:0 4px 4px 0;padding:8px 12px;font-size:0.80rem;"
+                "color:#b2b5be;margin-top:8px'>"
+                "💡 <b>Alternativa permanente:</b> aggiungi <code>ANTHROPIC_API_KEY = \"sk-ant-...\"</code> "
+                "in <b>Streamlit Cloud → Settings → Secrets</b>. Non serve più inserirla ogni volta."
+                "</div>",
+                unsafe_allow_html=True
+            )
+        return  # Non mostrare la lista finché non c'è la key
+
+    # Key disponibile — usa quella trovata
+    _api_key_use = _api_key_stored
+
     if df_source is None or (hasattr(df_source,"empty") and df_source.empty):
         st.info("Avvia lo scanner per usare l'AI Explainer.")
         return
@@ -6564,20 +6627,20 @@ Rispondi ESATTAMENTE in questo formato (3 punti, italiano, max 2 righe ciascuno)
 
                 with st.spinner(f"Analisi AI di {_tkr_ai}..."):
                     try:
-                        import requests as _req_ai, json as _json_ai
+                        import requests as _req_ai
                         _resp_ai = _req_ai.post(
                             "https://api.anthropic.com/v1/messages",
                             headers={
                                 "Content-Type": "application/json",
                                 "anthropic-version": "2023-06-01",
-                                "x-api-key": st.secrets.get("ANTHROPIC_API_KEY",""),
+                                "x-api-key": _api_key_use,
                             },
                             json={
                                 "model": "claude-haiku-4-5-20251001",
                                 "max_tokens": 400,
                                 "messages": [{"role":"user","content": _prompt_ai}]
                             },
-                            timeout=20
+                            timeout=25
                         )
                         if _resp_ai.status_code == 200:
                             _data_ai = _resp_ai.json()
@@ -6590,12 +6653,15 @@ Rispondi ESATTAMENTE in questo formato (3 punti, italiano, max 2 righe ciascuno)
                                 unsafe_allow_html=True
                             )
                         elif _resp_ai.status_code == 401:
-                            st.error("❌ API Key mancante. Aggiungi ANTHROPIC_API_KEY in Streamlit Secrets.")
+                            # Key non valida → resetta per chiedere di nuovo
+                            st.session_state.pop("_anthropic_api_key", None)
+                            st.error("❌ API Key non valida. Ricarica la pagina e inserisci una key corretta.")
+                        elif _resp_ai.status_code == 429:
+                            st.warning("⚠️ Rate limit Anthropic — riprova tra qualche secondo.")
                         else:
-                            st.error(f"❌ API error {_resp_ai.status_code}")
+                            st.error(f"❌ API error {_resp_ai.status_code}: {_resp_ai.text[:200]}")
                     except Exception as _ai_err:
-                        st.error(f"Errore AI Explainer: {_ai_err}")
-                        st.info("Aggiungi ANTHROPIC_API_KEY nei Secrets di Streamlit Cloud.")
+                        st.error(f"Errore connessione: {_ai_err}")
 
                 if st.button(f"✕ Chiudi", key=f"ai_close_{_tkr_ai}_{tab_name}"):
                     st.session_state.pop(f"_ai_req_{_tkr_ai}_{tab_name}", None)
