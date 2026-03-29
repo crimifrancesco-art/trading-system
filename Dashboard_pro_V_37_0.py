@@ -3239,7 +3239,121 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     valid_sort=[c for c in sort_cols if c in df_f.columns]
     if valid_sort: df_f=df_f.sort_values(valid_sort,ascending=ascending[:len(valid_sort)])
-    df_f=df_f.head(int(st.session_state.top))
+
+    # ── v37: Pannello diagnostica filtri sempre visibile ──────────────────
+    with st.expander(f"🔬 Diagnostica filtri — {len(df_f)} segnali visibili", expanded=False):
+        _n_raw = len(df)
+        _n_after_state  = len(df_f) + 0  # dopo classificazione (prima del head)
+
+        # Breakdown di tutti i filtri applicati
+        _diag_data = {
+            "Totale in df_ep":      _n_raw,
+            f"Dopo classificazione {status_filter}": "→ vedi sopra",
+            "Dopo liquidità/ATR":   len(df_f),
+            f"Head(top={st.session_state.top})": min(len(df_f), int(st.session_state.top)),
+        }
+
+        # Distribuzione Pro_Score nel df originale
+        if "Pro_Score" in df.columns:
+            _ps = pd.to_numeric(df["Pro_Score"], errors="coerce").dropna()
+            st.markdown(
+                f"**Pro_Score distribuzione** — "
+                f"min: `{_ps.min():.1f}` · "
+                f"p25: `{_ps.quantile(0.25):.1f}` · "
+                f"p50: `{_ps.median():.1f}` · "
+                f"p75: `{_ps.quantile(0.75):.1f}` · "
+                f"max: `{_ps.max():.1f}`"
+            )
+            _n_pro_5  = int((_ps >= 5).sum())
+            _n_pro_6  = int((_ps >= 6).sum())
+            _n_pro_8  = int((_ps >= 8).sum())
+            st.markdown(
+                f"Pro≥5: **{_n_pro_5}** · Pro≥6: **{_n_pro_6}** · "
+                f"Pro≥8 (STRONG): **{_n_pro_8}** · "
+                f"Soglia attuale PRO: **≥{5 if not st.session_state.get('show_strong_only') else 8}**"
+            )
+
+        # Mostra i filtri attivi e quanti taglia ciascuno
+        if "Dollar_Vol" in df_f.columns:
+            st.caption(f"💧 Liquidità: DolVol ≥ ${_min_dvol:.0f}M | ATR%: {_atr_min:.1f}–{_atr_max:.1f}%")
+
+        # Suggerimento se risultati sembrano sempre gli stessi
+        st.info(
+            "💡 **Se vedi sempre gli stessi ticker:** "
+            "i risultati sono ordinati per Quality_Score → i large cap stabili "
+            "tendono ad avere score alto sempre. "
+            "Prova: **Ordina per RS vs SPY** o **CSS** per vedere titoli con momentum recente diverso. "
+            "Oppure aumenta il TOP N (sidebar) per vedere più risultati."
+        )
+
+    # ── v37: Opzioni ordinamento inline ───────────────────────────────────
+    _sort_options = {
+        "🏆 CSS (default)":      ("CSS", False),
+        "📈 RS vs SPY":          ("RS_20d", False),
+        "⚡ Momentum (Pro×RSI)": ("_Momentum_v37", False),
+        "📊 Quality Score":      ("Quality_Score", False),
+        "🔥 Volume Ratio":       ("Vol_Ratio", False),
+        "📡 Early Score":        ("Early_Score", False),
+    }
+    _sort_avail = {k:v for k,v in _sort_options.items()
+                   if v[0] in df_f.columns or v[0] == "_Momentum_v37"}
+
+    _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
+    with _sc1:
+        _sort_choice = st.selectbox(
+            "Ordina per",
+            list(_sort_avail.keys()),
+            index=0,
+            key=f"sort_choice_{title}",
+            label_visibility="collapsed"
+        )
+    with _sc2:
+        _top_n = st.number_input(
+            "Mostra TOP N",
+            min_value=5, max_value=200,
+            value=int(st.session_state.top),
+            step=5,
+            key=f"top_n_{title}",
+            label_visibility="collapsed"
+        )
+    with _sc3:
+        _show_new_only = st.checkbox(
+            "🆕 Solo nuovi",
+            value=False,
+            key=f"new_only_{title}",
+            help="Esclude ticker già presenti in Watchlist"
+        )
+
+    # Applica ordinamento scelto
+    _sort_col, _sort_asc = _sort_avail.get(_sort_choice, ("CSS", False))
+
+    if _sort_col == "_Momentum_v37" and "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
+        df_f = df_f.copy()
+        df_f["_Momentum_v37"] = (
+            pd.to_numeric(df_f["Pro_Score"], errors="coerce").fillna(0) * 10 +
+            pd.to_numeric(df_f["RSI"], errors="coerce").fillna(50)
+        )
+
+    if _sort_col in df_f.columns:
+        df_f = df_f.sort_values(
+            _sort_col,
+            ascending=_sort_asc,
+            key=lambda s: pd.to_numeric(s, errors="coerce").fillna(-999 if not _sort_asc else 999)
+        )
+
+    # Filtro "solo nuovi" — esclude ticker già in watchlist
+    if _show_new_only:
+        try:
+            _wl_excl = load_watchlist()
+            if not _wl_excl.empty and "Ticker" in _wl_excl.columns:
+                _wl_set = set(_wl_excl["Ticker"].dropna().tolist())
+                _before_new = len(df_f)
+                df_f = df_f[~df_f["Ticker"].isin(_wl_set)]
+                st.caption(f"🆕 Solo nuovi: esclusi {_before_new - len(df_f)} ticker già in watchlist")
+        except Exception:
+            pass
+
+    df_f = df_f.head(int(_top_n))
 
     m1,m2,m3,m4=st.columns(4)
     m1.metric("Titoli",len(df_f))
