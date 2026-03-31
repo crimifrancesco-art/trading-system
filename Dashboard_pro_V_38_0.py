@@ -7520,7 +7520,7 @@ def _detect_patterns_v38(row: pd.Series) -> list:
     return triggered
 
 
-def _render_pattern_alerts_v38(df_ep_alerts):
+def _render_pattern_alerts_v38(df_ep_alerts, tab_name="default"):
     """Tab Alert Multipli: mostra pattern attivi + configurazione soglie."""
     st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38 — Pattern Tecnici Real-Time</div>',
                 unsafe_allow_html=True)
@@ -7537,7 +7537,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
             _enabled_pats[_pid] = _pat_cols[_i % 4].checkbox(
                 f"{_pinfo['icon']} {_pinfo['label']}",
                 value=True,
-                key=f"pat_en_{_pid}",
+                key=f"pat_en_{_pid}_{tab_name}",
                 help=_pinfo["desc"]
             )
 
@@ -7612,7 +7612,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
         _badges = " ".join(_badge_parts)
         _ac3.markdown(_badges, unsafe_allow_html=True)
         with _ac4:
-            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}", help="Aggiungi a watchlist"):
+            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
                 try:
                     gh_add_to_watchlist(_ar["Ticker"], st.session_state.current_list_name)
                     st.success(f"✅ {_ar['Ticker']} aggiunto!")
@@ -7631,7 +7631,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
     st.download_button("📊 Export Alert",
         _df_alert_exp.to_csv(index=False).encode(),
         f"PatternAlerts_v38_{_at_ts}.csv", "text/csv",
-        key="alert_export_v38")
+        key=f"alert_export_v38_{tab_name}")
 
 
 # =========================================================================
@@ -7788,293 +7788,4 @@ def _fetch_insider_buying_v38(tickers: tuple) -> list:
             # openinsider.com ha endpoint pubblico
             _url = f"http://openinsider.com/screener?s={_t}&o=fdtymm&pl=1&ph=&lp=0&ld=30&xs=1&vl=&vh=&ocl=&och=&sic1=-1&sicl=100&sich=9999&grp=0&nfl=&nfh=&nil=&nih=&nol=&noh=&v2l=&v2h=&oc2l=&oc2h=&sortcol=0&cnt=10&page=1"
             _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
-            with _ur.urlopen(_req, timeout=8) as _r:
-                _html = _r.read().decode("utf-8","ignore")
-            # Parse semplice HTML per estrarre transazioni
-            import re as _re_ins
-            # Cerca righe con acquisti (Buy)
-            _rows = _re_ins.findall(r'<tr[^>]*>.*?</tr>', _html, _re_ins.DOTALL)
-            for _row in _rows[1:6]:  # prime 5 righe dati
-                _cells = _re_ins.findall(r'<td[^>]*>(.*?)</td>', _row, _re_ins.DOTALL)
-                _cells = [_re_ins.sub(r'<[^>]+>','',c).strip() for c in _cells]
-                if len(_cells) >= 10 and 'P - Purchase' in _cells[6] if len(_cells)>6 else False:
-                    _results.append({
-                        "Ticker":   _t,
-                        "Insider":  _cells[3] if len(_cells)>3 else "—",
-                        "Ruolo":    _cells[4] if len(_cells)>4 else "—",
-                        "Data":     _cells[1] if len(_cells)>1 else "—",
-                        "Tipo":     "P - Purchase",
-                        "Prezzo":   _cells[8] if len(_cells)>8 else "—",
-                        "Valore $": _cells[10] if len(_cells)>10 else "—",
-                    })
-        except Exception:
-            pass
-    return _results
-
-
-@st.cache_data(ttl=3600)
-def _fetch_short_interest_v38(tickers: tuple) -> dict:
-    """Short Interest % da Yahoo Finance .info."""
-    import yfinance as _yf_si
-    _result = {}
-    for _t in tickers[:40]:
-        try:
-            _info = _yf_si.Ticker(_t).info
-            _short = _info.get("shortPercentOfFloat", None)
-            if _short is not None:
-                _result[_t] = round(float(_short) * 100, 1)
-        except Exception:
-            pass
-    return _result
-
-
-# =========================================================================
-# v38 UPGRADE #7 — MACRO CALENDAR
-# =========================================================================
-
-@st.cache_data(ttl=3600)
-def _fetch_macro_calendar_v38() -> list:
-    """
-    Calendario macro hardcoded con prossimi eventi ad alto impatto.
-    In produzione si può integrare con investing.com o FRED API.
-    """
-    from datetime import timedelta
-    _today = datetime.now().date()
-
-    # Genera calendario eventi tipici (approssimazione ciclica)
-    _events = []
-
-    # Pattern mensili tipici USA
-    _monthly_patterns = [
-        # (giorno del mese approssimativo, nome, impatto, descrizione)
-        (1,  "ISM Manufacturing",    "🟡 Med",  "Indice attività manifatturiera USA"),
-        (3,  "ISM Services",         "🟡 Med",  "Indice attività settore servizi USA"),
-        (5,  "NFP + Unemployment",   "🔴 High", "Non-Farm Payrolls + Tasso disoccupazione"),
-        (10, "CPI Inflation",        "🔴 High", "Consumer Price Index — inflazione USA"),
-        (14, "PPI",                  "🟡 Med",  "Producer Price Index"),
-        (15, "Retail Sales",         "🟡 Med",  "Vendite al dettaglio USA"),
-        (20, "FOMC Minutes",         "🔴 High", "Verbali Fed — politica monetaria"),
-        (25, "GDP Revision",         "🟡 Med",  "Revisione PIL trimestrale USA"),
-        (28, "PCE Inflation",        "🔴 High", "Personal Consumption Expenditures — preferito Fed"),
-    ]
-
-    for _day, _name, _impact, _desc in _monthly_patterns:
-        # Cerca la prossima occorrenza
-        for _delta_month in range(0, 3):
-            _candidate = _today.replace(day=min(_day, 28))
-            if _delta_month == 1:
-                _m = _today.month % 12 + 1
-                _y = _today.year + (_today.month // 12)
-                _candidate = _candidate.replace(year=_y, month=_m)
-            elif _delta_month == 2:
-                _m = (_today.month + 1) % 12 + 1
-                _y = _today.year + ((_today.month + 1) // 12)
-                _candidate = _candidate.replace(year=_y, month=_m)
-
-            _days_to = (_candidate - _today).days
-            if _days_to >= -1:
-                _events.append({
-                    "Data":     str(_candidate),
-                    "Evento":   _name,
-                    "Impatto":  _impact,
-                    "Desc":     _desc,
-                    "Giorni":   _days_to,
-                })
-                break
-
-    # Fed meeting dates approssimativi (2026)
-    _fed_dates = ["2026-01-29","2026-03-19","2026-05-07","2026-06-18",
-                  "2026-07-30","2026-09-17","2026-11-05","2026-12-17"]
-    for _fd in _fed_dates:
-        try:
-            _fd_date = datetime.strptime(_fd,"%Y-%m-%d").date()
-            _dt = (_fd_date - _today).days
-            if -1 <= _dt <= 90:
-                _events.append({
-                    "Data":    _fd,
-                    "Evento":  "⚠️ FOMC Rate Decision",
-                    "Impatto": "🔴 High",
-                    "Desc":    "Decisione tassi Fed — massimo impatto mercati",
-                    "Giorni":  _dt,
-                })
-        except Exception:
-            pass
-
-    return sorted(_events, key=lambda x: x["Giorni"])
-
-
-# =========================================================================
-# v38 UPGRADE #8 — OPTIONS FLOW PROXY (put/call ratio)
-# =========================================================================
-
-@st.cache_data(ttl=900)
-def _fetch_options_flow_v38(ticker: str) -> dict:
-    """
-    Calcola put/call ratio dalla options chain di Yahoo Finance.
-    """
-    import yfinance as _yf_op
-    try:
-        _tk = _yf_op.Ticker(ticker)
-        _exps = _tk.options
-        if not _exps: return {}
-        # Usa la scadenza più vicina (indice 0)
-        _chain = _tk.option_chain(_exps[0])
-        _calls = _chain.calls
-        _puts  = _chain.puts
-        _call_vol = float(_calls["volume"].fillna(0).sum()) if not _calls.empty else 0
-        _put_vol  = float(_puts["volume"].fillna(0).sum())  if not _puts.empty  else 0
-        _pcr = _put_vol / _call_vol if _call_vol > 0 else None
-        # Score: <0.7 bullish, 0.7-1.2 neutro, >1.2 bearish
-        if _pcr is None:
-            _signal = "⚪ N/D"
-        elif _pcr < 0.7:
-            _signal = "🟢 Bullish"
-        elif _pcr > 1.2:
-            _signal = "🔴 Bearish"
-        else:
-            _signal = "⚪ Neutro"
-        return {
-            "ticker":    ticker,
-            "pcr":       round(_pcr, 2) if _pcr else None,
-            "call_vol":  int(_call_vol),
-            "put_vol":   int(_put_vol),
-            "signal":    _signal,
-            "expiry":    _exps[0],
-        }
-    except Exception:
-        return {}
-
-
-# =========================================================================
-# v38 — AGGIUNGI TAB ALLA LISTA + REGISTRA RENDERING
-# =========================================================================
-
-# Aggiungi ai tab esistenti (post-init append)
-# I nuovi tab v38 vengono aggiunti tramite st.tabs ridefinito con append
-# Per compatibilità usiamo expander nei tab esistenti
-
-# Alert nel tab PRO
-with tab_p:
-    st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38 — Pattern tecnici rilevati", expanded=False):
-        _render_pattern_alerts_v38(df_ep)
-
-# Alert nel tab EARLY
-with tab_e:
-    st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38", expanded=False):
-        _render_pattern_alerts_v38(df_ep)
-
-# News & Sentiment — nuovo expander nella Home
-with tab_home:
-    st.markdown("---")
-    st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v38</div>', unsafe_allow_html=True)
-    with st.expander("📰 Ultime news con score sentiment sui ticker scanner/watchlist",
-                     expanded=False):
-        _render_news_sentiment_v38(df_ep)
-
-# Macro Calendar nella Home
-with tab_home:
-    st.markdown("---")
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v38 — Fed · CPI · NFP · PCE</div>',
-                unsafe_allow_html=True)
-    _macro_events = _fetch_macro_calendar_v38()
-    _mc_soon = [e for e in _macro_events if 0 <= e["Giorni"] <= 14]
-    _mc_cols = st.columns(min(len(_mc_soon), 4)) if _mc_soon else []
-    for _i, _ev in enumerate(_mc_soon[:4]):
-        _ic = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b" if "Med" in _ev["Impatto"] else "#6b7280"
-        (_mc_cols[_i] if _mc_cols else st).markdown(
-            f"<div style='background:#1e222d;border-top:2px solid {_ic};"
-            f"border-radius:0 0 6px 6px;padding:8px 10px;'>"
-            f"<div style='color:{_ic};font-size:0.70rem;font-weight:bold'>{_ev['Impatto']}"
-            f" · {_ev['Giorni']}gg</div>"
-            f"<div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</div>"
-            f"<div style='color:#6b7280;font-size:0.70rem'>{_ev['Data']}</div>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-
-    with st.expander("📅 Calendario completo prossimi 90 giorni", expanded=False):
-        for _ev in _macro_events[:20]:
-            _ic2 = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b" if "Med" in _ev["Impatto"] else "#6b7280"
-            _bg2 = "#ef444415" if "High" in _ev["Impatto"] else "#1e222d"
-            st.markdown(
-                f"<div style='background:{_bg2};border-left:3px solid {_ic2};"
-                f"border-radius:0 4px 4px 0;padding:5px 10px;margin:3px 0;"
-                f"display:flex;gap:12px;align-items:center'>"
-                f"<span style='color:{_ic2};font-size:0.75rem;min-width:80px'>{_ev['Data']}</span>"
-                f"<span style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</span>"
-                f"<span style='color:#6b7280;font-size:0.72rem'>{_ev['Desc']}</span>"
-                f"<span style='color:{_ic2};font-size:0.72rem;margin-left:auto'>"
-                f"{'🔴' if _ev['Giorni']<=3 else '🟡' if _ev['Giorni']<=7 else '🟢'} "
-                f"{_ev['Giorni']}gg</span>"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-
-# Options Flow + Short Interest + Insider nel Risk Manager
-with tab_rm:
-    st.markdown("---")
-    st.markdown('<div class="section-pill">📊 INTEGRAZIONI DATI v38</div>', unsafe_allow_html=True)
-
-    _int_t1, _int_t2, _int_t3 = st.tabs(["📉 Options Flow", "🩳 Short Interest", "🏛️ Insider Buying"])
-
-    with _int_t1:
-        st.caption("Put/Call ratio dalla options chain Yahoo Finance — proxy sentiment istituzionale.")
-        _of_tickers = []
-        if not df_ep.empty and "Ticker" in df_ep.columns:
-            _of_tickers = df_ep["Ticker"].dropna().unique().tolist()[:30]
-        if _of_tickers:
-            _of_sel = st.selectbox("Ticker", _of_tickers, key="of_ticker_sel")
-            if st.button("📉 Calcola P/C Ratio", key="of_calc"):
-                with st.spinner(f"Options chain {_of_sel}..."):
-                    _of_res = _fetch_options_flow_v38(_of_sel)
-                if _of_res:
-                    _oc1,_oc2,_oc3,_oc4 = st.columns(4)
-                    _oc1.metric("P/C Ratio",    str(_of_res.get("pcr","N/D")))
-                    _oc2.metric("Call Volume",   f"{_of_res.get('call_vol',0):,}")
-                    _oc3.metric("Put Volume",    f"{_of_res.get('put_vol',0):,}")
-                    _oc4.metric("Segnale",       _of_res.get("signal","—"))
-                    st.caption(f"Scadenza analizzata: {_of_res.get('expiry','—')}")
-                else:
-                    st.warning(f"Options non disponibili per {_of_sel}.")
-        else:
-            st.info("Avvia lo scanner per selezionare un ticker.")
-
-    with _int_t2:
-        st.caption("Short Interest % dal float — alto short interest + segnale PRO = short squeeze potenziale.")
-        _si_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:40]) if not df_ep.empty else ()
-        if _si_tickers:
-            if st.button("🩳 Carica Short Interest", key="si_load"):
-                with st.spinner("Scarico short interest..."):
-                    _si_data = _fetch_short_interest_v38(_si_tickers)
-                if _si_data:
-                    _df_si = pd.DataFrame([
-                        {"Ticker": t, "Short %": f"{v:.1f}%",
-                         "Setup": "🎯 Squeeze" if v >= 15 else "⚠️ Alto" if v >= 10 else "Normal"}
-                        for t,v in sorted(_si_data.items(), key=lambda x:-x[1])
-                    ])
-                    st.dataframe(_df_si, use_container_width=True, hide_index=True)
-                    _n_squeeze = sum(1 for v in _si_data.values() if v >= 15)
-                    if _n_squeeze:
-                        st.success(f"🎯 {_n_squeeze} ticker con short ≥15% — potenziale short squeeze!")
-                else:
-                    st.info("Nessun dato short interest disponibile.")
-        else:
-            st.info("Avvia lo scanner per caricare i dati.")
-
-    with _int_t3:
-        st.caption("Acquisti insider (Form 4 SEC) — segnale forte quando insider comprano sul mercato aperto.")
-        _ins_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:20]) if not df_ep.empty else ()
-        if _ins_tickers:
-            if st.button("🏛️ Cerca Insider Buying", key="ins_load"):
-                with st.spinner("Scarico dati SEC Form 4..."):
-                    _ins_data = _fetch_insider_buying_v38(_ins_tickers)
-                if _ins_data:
-                    _df_ins = pd.DataFrame(_ins_data)
-                    st.dataframe(_df_ins, use_container_width=True, hide_index=True)
-                    st.caption(f"Trovati {len(_ins_data)} acquisti insider negli ultimi 30 giorni.")
-                else:
-                    st.info("Nessun acquisto insider trovato. Dati disponibili su openinsider.com.")
-        else:
-            st.info("Avvia lo scanner per cercare gli insiders.")
+            with _ur.urlopen(_
