@@ -7520,7 +7520,7 @@ def _detect_patterns_v38(row: pd.Series) -> list:
     return triggered
 
 
-def _render_pattern_alerts_v38(df_ep_alerts):
+def _render_pattern_alerts_v38(df_ep_alerts, tab_name="default"):
     """Tab Alert Multipli: mostra pattern attivi + configurazione soglie."""
     st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38 — Pattern Tecnici Real-Time</div>',
                 unsafe_allow_html=True)
@@ -7537,7 +7537,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
             _enabled_pats[_pid] = _pat_cols[_i % 4].checkbox(
                 f"{_pinfo['icon']} {_pinfo['label']}",
                 value=True,
-                key=f"pat_en_{_pid}",
+                key=f"pat_en_{_pid}_{tab_name}",
                 help=_pinfo["desc"]
             )
 
@@ -7612,7 +7612,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
         _badges = " ".join(_badge_parts)
         _ac3.markdown(_badges, unsafe_allow_html=True)
         with _ac4:
-            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}", help="Aggiungi a watchlist"):
+            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
                 try:
                     gh_add_to_watchlist(_ar["Ticker"], st.session_state.current_list_name)
                     st.success(f"✅ {_ar['Ticker']} aggiunto!")
@@ -7631,7 +7631,7 @@ def _render_pattern_alerts_v38(df_ep_alerts):
     st.download_button("📊 Export Alert",
         _df_alert_exp.to_csv(index=False).encode(),
         f"PatternAlerts_v38_{_at_ts}.csv", "text/csv",
-        key="alert_export_v38")
+        key=f"alert_export_v38_{tab_name}")
 
 
 # =========================================================================
@@ -7776,39 +7776,67 @@ def _render_news_sentiment_v38(df_ep_news):
 # =========================================================================
 
 @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def _fetch_insider_buying_v38(tickers: tuple) -> list:
     """
-    Scarica transazioni insider da SEC EDGAR per i ticker.
-    Usa l'API pubblica di openinsider.com come proxy.
+    Scarica transazioni insider via SEC EDGAR API ufficiale (EDGAR Full-Text Search).
+    Fallback: yfinance major_holders per % insider ownership.
+    API EDGAR: https://efts.sec.gov/LATEST/search-index?q=...&dateRange=custom
     """
     import urllib.request as _ur
+    import json as _js
     _results = []
-    for _t in tickers[:30]:
+
+    for _t in tickers[:20]:
         try:
-            # openinsider.com ha endpoint pubblico
-            _url = f"http://openinsider.com/screener?s={_t}&o=fdtymm&pl=1&ph=&lp=0&ld=30&xs=1&vl=&vh=&ocl=&och=&sic1=-1&sicl=100&sich=9999&grp=0&nfl=&nfh=&nil=&nih=&nol=&noh=&v2l=&v2h=&oc2l=&oc2h=&sortcol=0&cnt=10&page=1"
-            _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
+            # SEC EDGAR API — cerca Form 4 recenti per il ticker
+            _search_url = (
+                f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22"
+                f"&dateRange=custom&startdt={datetime.now().strftime('%Y-%m-%d')[:7]}-01"
+                f"&forms=4&hits.hits._source=period_of_report,entity_name,file_date"
+                f"&hits.hits.total.value=true"
+            )
+            _req = _ur.Request(
+                _search_url,
+                headers={"User-Agent": "TradingScanner/1.0 research@example.com",
+                         "Accept": "application/json"}
+            )
             with _ur.urlopen(_req, timeout=8) as _r:
-                _html = _r.read().decode("utf-8","ignore")
-            # Parse semplice HTML per estrarre transazioni
-            import re as _re_ins
-            # Cerca righe con acquisti (Buy)
-            _rows = _re_ins.findall(r'<tr[^>]*>.*?</tr>', _html, _re_ins.DOTALL)
-            for _row in _rows[1:6]:  # prime 5 righe dati
-                _cells = _re_ins.findall(r'<td[^>]*>(.*?)</td>', _row, _re_ins.DOTALL)
-                _cells = [_re_ins.sub(r'<[^>]+>','',c).strip() for c in _cells]
-                if len(_cells) >= 10 and 'P - Purchase' in _cells[6] if len(_cells)>6 else False:
+                _data = _js.loads(_r.read())
+
+            _hits = _data.get("hits", {}).get("hits", [])
+            for _hit in _hits[:3]:
+                _src = _hit.get("_source", {})
+                _results.append({
+                    "Ticker":    _t,
+                    "Insider":   _src.get("entity_name", "—")[:30],
+                    "Ruolo":     "—",
+                    "Data":      _src.get("file_date", "—")[:10],
+                    "Tipo":      "Form 4",
+                    "Prezzo":    "—",
+                    "Valore $":  "—",
+                    "Fonte":     "SEC EDGAR",
+                })
+        except Exception:
+            # Fallback: yfinance major_holders
+            try:
+                import yfinance as _yf_ins
+                _mh = _yf_ins.Ticker(_t).major_holders
+                if _mh is not None and not (hasattr(_mh,"empty") and _mh.empty):
+                    _pct = _mh.iloc[0, 0] if len(_mh) > 0 else "—"
                     _results.append({
                         "Ticker":   _t,
-                        "Insider":  _cells[3] if len(_cells)>3 else "—",
-                        "Ruolo":    _cells[4] if len(_cells)>4 else "—",
-                        "Data":     _cells[1] if len(_cells)>1 else "—",
-                        "Tipo":     "P - Purchase",
-                        "Prezzo":   _cells[8] if len(_cells)>8 else "—",
-                        "Valore $": _cells[10] if len(_cells)>10 else "—",
+                        "Insider":  "Insider ownership",
+                        "Ruolo":    "—",
+                        "Data":     "—",
+                        "Tipo":     "% Ownership",
+                        "Prezzo":   "—",
+                        "Valore $": str(_pct),
+                        "Fonte":    "Yahoo Finance",
                     })
-        except Exception:
-            pass
+            except Exception:
+                pass
+
     return _results
 
 
@@ -7957,13 +7985,13 @@ def _fetch_options_flow_v38(ticker: str) -> dict:
 with tab_p:
     st.markdown("---")
     with st.expander("🔔 Alert Multipli v38 — Pattern tecnici rilevati", expanded=False):
-        _render_pattern_alerts_v38(df_ep)
+        _render_pattern_alerts_v38(df_ep, tab_name="pro")
 
 # Alert nel tab EARLY
 with tab_e:
     st.markdown("---")
     with st.expander("🔔 Alert Multipli v38", expanded=False):
-        _render_pattern_alerts_v38(df_ep)
+        _render_pattern_alerts_v38(df_ep, tab_name="early")
 
 # News & Sentiment — nuovo expander nella Home
 with tab_home:
@@ -8075,6 +8103,6 @@ with tab_rm:
                     st.dataframe(_df_ins, use_container_width=True, hide_index=True)
                     st.caption(f"Trovati {len(_ins_data)} acquisti insider negli ultimi 30 giorni.")
                 else:
-                    st.info("Nessun acquisto insider trovato. Dati disponibili su openinsider.com.")
+                    st.info("Nessun dato Form 4 trovato tramite SEC EDGAR per i ticker selezionati.")
         else:
             st.info("Avvia lo scanner per cercare gli insiders.")
