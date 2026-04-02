@@ -7849,4 +7849,260 @@ def _render_risk_dashboard_v37(df_ep_risk):
                     zmid=0, zmin=-1, zmax=1,
                     showscale=True,
                     colorbar=dict(tickfont=dict(color="#787b86",size=9),
-                                  outlinecolor="#2a2e39")
+                                  outlinecolor="#2a2e39"),
+                    hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Corr: %{text}<extra></extra>",
+                ))
+                _corr_layout = dict(PLOTLY_DARK)
+                _corr_layout["xaxis"] = dict(_corr_layout.get("xaxis",{}),
+                    tickfont=dict(size=9,color="#b2b5be"))
+                _corr_layout["yaxis"] = dict(_corr_layout.get("yaxis",{}),
+                    tickfont=dict(size=9,color="#b2b5be"))
+                _fig_corr.update_layout(**_corr_layout,
+                    title=dict(text="Correlation Matrix", font=dict(color="#50c4e0",size=12),x=0.01),
+                    height=max(250, len(_rk_sel)*40+80),
+                    margin=dict(l=0,r=0,t=40,b=0))
+                st.plotly_chart(_fig_corr, use_container_width=True, key="risk_corr_chart")
+
+                # ── VaR 95% e metriche aggregate ──────────────────────
+                st.markdown("#### 📉 Metriche di Rischio Portfolio")
+                _port_ret = _df_ret.mean(axis=1)  # equal weight portfolio
+                _var95    = float(_np_rk.percentile(_port_ret, 5))
+                _var99    = float(_np_rk.percentile(_port_ret, 1))
+                _cvar95   = float(_port_ret[_port_ret <= _var95].mean())
+                _vol_ann  = float(_port_ret.std() * _np_rk.sqrt(252) * 100)
+                _sharpe   = float(_port_ret.mean() / _port_ret.std() * _np_rk.sqrt(252)) if _port_ret.std()>0 else 0
+                _max_dd   = float(((1+_port_ret).cumprod() / (1+_port_ret).cumprod().cummax() - 1).min() * 100)
+
+                _rm1,_rm2,_rm3,_rm4,_rm5,_rm6 = st.columns(6)
+                _rm1.metric("📉 VaR 95% (1g)",   f"{_var95*100:+.2f}%", help="Perdita massima con 95% confidenza in 1 giorno")
+                _rm2.metric("📉 VaR 99% (1g)",   f"{_var99*100:+.2f}%", help="Perdita massima con 99% confidenza in 1 giorno")
+                _rm3.metric("💀 CVaR 95%",        f"{_cvar95*100:+.2f}%", help="Expected Shortfall — perdita media oltre il VaR")
+                _rm4.metric("📊 Volatilità ann.", f"{_vol_ann:.1f}%")
+                _rm5.metric("⚡ Sharpe",           f"{_sharpe:.2f}")
+                _rm6.metric("📉 Max Drawdown",    f"{_max_dd:.1f}%")
+
+                # VaR in dollari
+                _var_usd = abs(_var95) * _rk_capital
+                _cvar_usd= abs(_cvar95) * _rk_capital
+                st.markdown(
+                    f"<div style='background:#1e222d;border-radius:6px;padding:8px 14px;"
+                    f"margin-top:6px;font-size:0.83rem;font-family:Courier New'>"
+                    f"Su capitale <b style='color:#d1d4dc'>${_rk_capital:,.0f}</b> &nbsp;·&nbsp; "
+                    f"VaR giornaliero 95%: <b style='color:#ef4444'>${_var_usd:,.0f}</b> &nbsp;·&nbsp; "
+                    f"CVaR: <b style='color:#ef5350'>${_cvar_usd:,.0f}</b>"
+                    f"</div>", unsafe_allow_html=True)
+
+                # ── Portfolio Heat (concentrazione per settore) ────────
+                st.markdown("#### 🌡️ Portfolio Heat — Esposizione per Settore")
+                _sector_exposure = {}
+                for _t in _rk_sel:
+                    try:
+                        _info_rk = _yf_rk.Ticker(_t).info
+                        _sec = _info_rk.get("sector","Unknown") or "Unknown"
+                        _sector_exposure[_sec] = _sector_exposure.get(_sec,0) + 1
+                    except Exception:
+                        _sector_exposure["Unknown"] = _sector_exposure.get("Unknown",0) + 1
+
+                _total_sec = sum(_sector_exposure.values())
+                _sec_sorted = sorted(_sector_exposure.items(), key=lambda x: -x[1])
+                for _sec_nm, _cnt in _sec_sorted:
+                    _pct_sec = _cnt/_total_sec*100
+                    _c_sec   = "#ef4444" if _pct_sec>40 else "#f59e0b" if _pct_sec>25 else "#26a69a"
+                    st.markdown(
+                        f"<div style='display:flex;align-items:center;gap:8px;margin:4px 0'>"
+                        f"<span style='font-family:Courier New;font-size:0.82rem;min-width:160px;"
+                        f"color:#b2b5be'>{_sec_nm}</span>"
+                        f"<div style='flex:1;height:6px;background:#1e222d;border-radius:3px'>"
+                        f"<div style='width:{_pct_sec:.0f}%;height:6px;background:{_c_sec};"
+                        f"border-radius:3px'></div></div>"
+                        f"<span style='font-family:Courier New;font-size:0.82rem;color:{_c_sec};"
+                        f"min-width:50px;text-align:right'>{_pct_sec:.0f}% ({_cnt})</span>"
+                        f"</div>", unsafe_allow_html=True)
+                if any(p>40 for _,p in [(s,c/_total_sec*100) for s,c in _sector_exposure.items()]):
+                    st.warning("⚠️ Concentrazione settoriale elevata (>40%). Considera la diversificazione.")
+
+                # ── Drawdown Alert ─────────────────────────────────────
+                st.markdown("#### 🚨 Drawdown Alert")
+                _dd_threshold = st.slider("Soglia alert drawdown %", 5, 30, 10, key="risk_dd_thr")
+                if _max_dd < -_dd_threshold:
+                    st.error(f"🚨 DRAWDOWN ALERT: portfolio in drawdown {_max_dd:.1f}% "
+                             f"(soglia: -{_dd_threshold}%)")
+                else:
+                    st.success(f"✅ Drawdown attuale {_max_dd:.1f}% — entro la soglia -{_dd_threshold}%")
+
+            except Exception as _rk_err:
+                import traceback as _tbrk
+                st.error(f"Errore Risk Dashboard: {_rk_err}")
+                st.code(_tbrk.format_exc())
+
+
+# =========================================================================
+# v37 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
+# =========================================================================
+@st.cache_data(ttl=300)
+def _scan_gaps_v37(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
+    """Gap Scanner: trova ticker con gap apertura > min_gap_pct con volume confermato."""
+    import yfinance as _yf_g
+    _results = []
+    for _tg in tickers:
+        try:
+            _raw_g = _yf_g.download(_tg, period="5d", interval="1d",
+                                     auto_adjust=True, progress=False)
+            _raw_g.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_g.columns]
+            if len(_raw_g) < 2: continue
+            _prev_close = float(_raw_g["Close"].iloc[-2])
+            _today_open = float(_raw_g["Open"].iloc[-1])
+            _today_close= float(_raw_g["Close"].iloc[-1])
+            _today_vol  = float(_raw_g["Volume"].iloc[-1]) if "Volume" in _raw_g.columns else 0
+            _avg_vol    = float(_raw_g["Volume"].iloc[:-1].mean()) if "Volume" in _raw_g.columns else 1
+
+            _gap_pct = (_today_open / _prev_close - 1) * 100
+            _vol_ratio = _today_vol / _avg_vol if _avg_vol > 0 else 0
+
+            if abs(_gap_pct) >= min_gap_pct and _vol_ratio >= 1.2:
+                _gap_filled = (
+                    (_gap_pct > 0 and _today_close < _today_open) or
+                    (_gap_pct < 0 and _today_close > _today_open)
+                )
+                _results.append({
+                    "Ticker":     _tg,
+                    "Gap %":      round(_gap_pct, 2),
+                    "Gap Type":   "UP ▲" if _gap_pct > 0 else "DOWN ▼",
+                    "Prev Close": f"${_prev_close:.2f}",
+                    "Open":       f"${_today_open:.2f}",
+                    "Close":      f"${_today_close:.2f}",
+                    "Vol Ratio":  round(_vol_ratio, 2),
+                    "Gap Filled": "✅" if _gap_filled else "❌",
+                })
+        except Exception:
+            pass
+    _df_g = pd.DataFrame(_results)
+    if not _df_g.empty:
+        _df_g = _df_g.sort_values("Gap %", key=abs, ascending=False)
+    return _df_g
+
+
+def _render_advanced_scanner_v37():
+    """Tab Scanner Avanzato: Gap Scanner + Earnings Play."""
+    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v37 — Gap · Earnings Play</div>',
+                unsafe_allow_html=True)
+
+    _adv_t1, _adv_t2 = st.tabs(["📈 Gap Scanner", "🗓️ Earnings Play"])
+
+    with _adv_t1:
+        st.caption("Trova gap di apertura significativi con volume confermato.")
+        _gap_c1, _gap_c2, _gap_c3 = st.columns(3)
+        with _gap_c1:
+            _gap_min = st.slider("Gap minimo %", 0.5, 5.0, 1.0, 0.5, key="gap_min_pct")
+        with _gap_c2:
+            _gap_markets = st.multiselect("Universo", ["S&P500 (top 50)","Nasdaq (top 50)","Watchlist"],
+                default=["S&P500 (top 50)"], key="gap_markets")
+        with _gap_c3:
+            st.write("")
+            _run_gap = st.button("🔍 Scansiona Gap", key="gap_run", type="primary",
+                                  use_container_width=True)
+
+        if _run_gap:
+            # Costruisce universo
+            _gap_universe = []
+            if "S&P500 (top 50)" in _gap_markets:
+                _gap_universe += ["AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","BRK-B",
+                                   "JPM","V","UNH","XOM","JNJ","WMT","MA","PG","HD","CVX",
+                                   "MRK","ABBV","LLY","BAC","COST","AVGO","PEP","TMO","ORCL",
+                                   "NFLX","CSCO","ABT","ACN","CRM","AMD","INTC","TXN","QCOM",
+                                   "HON","UPS","CAT","DE","GS","MS","BLK","SPGI","AXP","SYK",
+                                   "ISRG","MDT","C","SCHW"]
+            if "Nasdaq (top 50)" in _gap_markets:
+                _gap_universe += ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","AVGO",
+                                   "ASML","COST","NFLX","AMD","QCOM","INTC","ADBE","TXN",
+                                   "INTU","MU","LRCX","KLAC","SNPS","CDNS","MRVL","PANW","FTNT"]
+            if "Watchlist" in _gap_markets:
+                try:
+                    _wl_gap = load_watchlist()
+                    if not _wl_gap.empty and "Ticker" in _wl_gap.columns:
+                        _gap_universe += _wl_gap[_wl_gap["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
+                except Exception:
+                    pass
+
+            _gap_universe = list(dict.fromkeys(_gap_universe))[:100]
+
+            with st.spinner(f"Scansiono {len(_gap_universe)} ticker per gap ≥{_gap_min}%..."):
+                _df_gaps = _scan_gaps_v37(tuple(_gap_universe), _gap_min)
+
+            if _df_gaps.empty:
+                st.info(f"Nessun gap significativo (≥{_gap_min}%) trovato oggi.")
+            else:
+                _g_up   = len(_df_gaps[_df_gaps["Gap Type"]=="UP ▲"])
+                _g_down = len(_df_gaps[_df_gaps["Gap Type"]=="DOWN ▼"])
+                _gc1,_gc2,_gc3 = st.columns(3)
+                _gc1.metric("📈 Gap UP",     _g_up)
+                _gc2.metric("📉 Gap DOWN",   _g_down)
+                _gc3.metric("🔍 Totale",     len(_df_gaps))
+
+                # Colora Gap %
+                def _color_gap(v):
+                    try:
+                        val = float(str(v).replace("%",""))
+                        return f"color:{'#00ff88' if val>0 else '#ef4444'};font-weight:bold;font-family:Courier New"
+                    except: return ""
+
+                st.dataframe(
+                    _df_gaps.style.applymap(_color_gap, subset=["Gap %"]),
+                    use_container_width=True, hide_index=True
+                )
+
+                # Export
+                _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
+                st.download_button("📊 Export Gap Scanner",
+                    _df_gaps.to_csv(index=False).encode(),
+                    f"GapScanner_v38_{_gap_ts}.csv", "text/csv", key="gap_export")
+
+    with _adv_t2:
+        st.caption("Setup pre-earnings: titoli con earnings nei prossimi 7 giorni e CSS elevato.")
+        _ep_tickers_src = []
+        if not (df_ep is None or (hasattr(df_ep,"empty") and df_ep.empty)):
+            _ep_tickers_src = df_ep["Ticker"].dropna().unique().tolist()[:80]
+
+        if not _ep_tickers_src:
+            st.info("Avvia lo scanner per popolare l'universo Earnings Play.")
+        else:
+            _run_ep = st.button("🗓️ Trova Earnings Play", key="ep_run", type="primary")
+            if _run_ep:
+                with st.spinner("Scarico calendario earnings..."):
+                    _earn_ep = _fetch_earnings_calendar(tuple(_ep_tickers_src))
+
+                # Filtra solo entro 7 giorni
+                _ep_imm = [e for e in _earn_ep if 0 <= e["Giorni"] <= 7]
+
+                if not _ep_imm:
+                    st.info("Nessun earnings imminente (entro 7 giorni) tra i ticker scanner.")
+                else:
+                    # Arricchisce con CSS dal df_ep
+                    _ep_rows = []
+                    for _ep_item in _ep_imm:
+                        _t_ep = _ep_item["Ticker"]
+                        _css_ep = "—"; _pro_ep = "—"; _rs_ep = "—"
+                        if not (df_ep is None or df_ep.empty) and "Ticker" in df_ep.columns:
+                            _match_ep = df_ep[df_ep["Ticker"]==_t_ep]
+                            if not _match_ep.empty:
+                                _css_ep = _match_ep.iloc[0].get("CSS","—")
+                                _pro_ep = _match_ep.iloc[0].get("Stato_Pro","—")
+                                _rs_ep  = _match_ep.iloc[0].get("RS_20d","—")
+                        _ep_rows.append({
+                            "Ticker":        _t_ep,
+                            "Earnings Date": _ep_item["Earnings Date"],
+                            "Giorni":        _ep_item["Giorni"],
+                            "Badge":         _ep_item["Badge"],
+                            "CSS":           _css_ep,
+                            "Stato Pro":     _pro_ep,
+                            "RS vs SPY":     f"{_rs_ep:+.1f}%" if isinstance(_rs_ep,(int,float)) else _rs_ep,
+                        })
+
+                    _df_ep_play = pd.DataFrame(_ep_rows).sort_values("Giorni")
+                    st.dataframe(_df_ep_play, use_container_width=True, hide_index=True)
+                    st.caption("Strategia: entra 3-5 giorni prima · esci il giorno prima degli earnings · non tenere oltre la data")
+
+
+# =========================================================================
+# v37 — INTEGRAZIONE NEI TAB ESISTENTI
+# =========================================================================
