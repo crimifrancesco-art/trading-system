@@ -3566,372 +3566,524 @@ st.markdown("""<style>
 }
 </style>""", unsafe_allow_html=True)
 
-tabs = st.tabs([
-    "🏠 Home",
-    "📊 Comparatore",
-    "💎 Blue Chip Dip",
-    "📡 EARLY",
-    "💪 PRO",
-    "🔥 REA-HOT",
-    "⭐ CONFLUENCE",
-    "🎯 Serafini",
-    "🔎 Finviz Pro",
-    "🔬 Order Flow",
-    "🛡️ Crisis Monitor",
-    "🔀 MTF Matrix",
-    "📓 Journal",
-    "🌡️ Regime",
-    "📋 Watchlist",
-    "⚖️ Risk Manager",
-    "📈 Backtest",
-])
-(tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
- tab_ser, tab_fvpro, tab_of, tab_crisis,
- tab_mtfmatrix, tab_journal, tab_regime,
- tab_w, tab_rm, tab_bt) = tabs
 
-with tab_home:
-    # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
+# =========================================================================
+# v37/v38 — DEFINIZIONI FUNZIONI (spostate prima dei tab per evitare NameError)
+# =========================================================================
+
+_PATTERN_ALERTS_V38 = {
+    "ema_breakout":    {"label": "EMA Breakout",      "icon": "📈", "desc": "Prezzo supera EMA20 dal basso"},
+    "golden_cross":    {"label": "Golden Cross",       "icon": "⭐", "desc": "EMA20 incrocia EMA50 al rialzo"},
+    "death_cross":     {"label": "Death Cross",        "icon": "💀", "desc": "EMA20 incrocia EMA50 al ribasso"},
+    "squeeze_fire":    {"label": "Squeeze Fire 🔥",    "icon": "🔥", "desc": "Uscita da Squeeze (BB fuori KC)"},
+    "bb_breakout":     {"label": "BB Breakout",        "icon": "🎯", "desc": "Prezzo rompe Bollinger Upper"},
+    "volume_spike":    {"label": "Volume Spike",       "icon": "⚡", "desc": "Volume > 3× media 20g"},
+    "rsi_oversold":    {"label": "RSI Oversold→Bull",  "icon": "🔵", "desc": "RSI risale sopra 30"},
+    "rsi_overbought":  {"label": "RSI Overbought→Bear","icon": "🔴", "desc": "RSI scende sotto 70"},
+}
+
+def _detect_patterns_v38(row: pd.Series) -> list:
+    """
+    Rileva pattern tecnici su una riga del df_ep.
+    Restituisce lista di pattern_id triggherati.
+    """
+    triggered = []
     try:
-        _regime_data = _get_market_regime()
-        _rc = _regime_data["color"]; _ri = _regime_data["icon"]
-        _rn = _regime_data["regime"]
-        _rv = _regime_data["vix"]; _rm = _regime_data["spy_mom_20d"]
-        _regime_badge_html = (
-            f"<div style='background:#1e222d;border-left:4px solid {_rc};"
-            f"border-radius:0 8px 8px 0;padding:10px 18px;margin-bottom:12px;"
-            f"display:flex;align-items:center;gap:20px;'>"
-            f"<span style='font-size:1.5rem'>{_ri}</span>"
-            f"<div>"
-            f"<span style='color:{_rc};font-family:Trebuchet MS;font-size:1.05rem;"
-            f"font-weight:bold;letter-spacing:1px'>REGIME: {_rn}</span>"
-            f"<span style='color:#787b86;font-size:0.82rem;margin-left:16px'>"
-            f"VIX: <b style='color:#d1d4dc'>{_rv}</b> &nbsp;|&nbsp; "
-        )
-        _spy_col_inline = "#26a69a" if _rm >= 0 else "#ef4444"
-        _regime_badge_html += (
-            f"SPY 20d: <b style='color:{_spy_col_inline}'>"
-            f"{_rm:+.1f}%</b>"
-            f"</span>"
-            f"</div>"
-        )
-        if _rn in ("Crisis", "Risk-Off"):
-            _regime_badge_html += (
-                f"<span style='background:rgba(239,68,68,0.15);color:#ef4444;"
-                f"border:1px solid #ef444444;border-radius:4px;padding:3px 10px;"
-                f"font-size:0.78rem;font-weight:bold'>⚠️ Segnali deboli soppressi</span>"
+        pr   = float(row.get("Prezzo",    0) or 0)
+        e20  = float(row.get("EMA20",     0) or 0)
+        e50  = float(row.get("EMA50",     0) or 0)
+        rsi  = float(row.get("RSI",       50) or 50)
+        vrat = float(row.get("Vol_Ratio", 0) or 0)
+        sq   = row.get("Squeeze", False)
+        atr  = float(row.get("ATR",       0) or 0)
+
+        if pr > 0 and e20 > 0:
+            if pr > e20 and rsi > 45:
+                triggered.append("ema_breakout")
+        if e20 > 0 and e50 > 0:
+            if e20 > e50 and rsi > 50:
+                triggered.append("golden_cross")
+            elif e20 < e50 and rsi < 50:
+                triggered.append("death_cross")
+        if sq in (True, "True", "true", 1):
+            triggered.append("squeeze_fire")
+        if vrat >= 3.0:
+            triggered.append("volume_spike")
+        if rsi < 32:
+            triggered.append("rsi_oversold")
+        if rsi > 68:
+            triggered.append("rsi_overbought")
+        # Bollinger breakout approssimato: prezzo > EMA20 + 2×ATR
+        if pr > 0 and e20 > 0 and atr > 0:
+            if pr > e20 + 2 * atr:
+                triggered.append("bb_breakout")
+    except Exception:
+        pass
+    return triggered
+
+
+def _render_pattern_alerts_v38(df_ep_alerts, tab_name="default"):
+    """Tab Alert Multipli: mostra pattern attivi + configurazione soglie."""
+    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38 — Pattern Tecnici Real-Time</div>',
+                unsafe_allow_html=True)
+
+    if df_ep_alerts is None or (hasattr(df_ep_alerts,"empty") and df_ep_alerts.empty):
+        st.info("Avvia lo scanner per rilevare i pattern tecnici.")
+        return
+
+    # Configurazione pattern abilitati
+    with st.expander("⚙️ Configura pattern da monitorare", expanded=False):
+        _pat_cols = st.columns(4)
+        _enabled_pats = {}
+        for _i, (_pid, _pinfo) in enumerate(_PATTERN_ALERTS_V38.items()):
+            _enabled_pats[_pid] = _pat_cols[_i % 4].checkbox(
+                f"{_pinfo['icon']} {_pinfo['label']}",
+                value=True,
+                key=f"pat_en_{_pid}_{tab_name}",
+                help=_pinfo["desc"]
             )
-        _regime_badge_html += "</div>"
-        st.markdown(_regime_badge_html, unsafe_allow_html=True)
+
+    # Rileva pattern su tutto df_ep
+    _alert_rows = []
+    for _, _r in df_ep_alerts.iterrows():
+        _pats = _detect_patterns_v38(_r)
+        _pats_active = [p for p in _pats if _enabled_pats.get(p, True)]
+        if _pats_active:
+            _alert_rows.append({
+                "Ticker":   str(_r.get("Ticker","")),
+                "Nome":     str(_r.get("Nome",""))[:22],
+                "Prezzo":   _r.get("Prezzo",""),
+                "RSI":      _r.get("RSI",""),
+                "CSS":      _r.get("CSS",""),
+                "Pattern":  _pats_active,
+                "_stato":   str(_r.get("Stato_Pro","-")),
+                "_row":     _r,
+            })
+
+    if not _alert_rows:
+        st.info("Nessun pattern tecnico rilevato nei dati correnti.")
+        return
+
+    # KPI
+    _pat_count = {}
+    for _ar in _alert_rows:
+        for _p in _ar["Pattern"]:
+            _pat_count[_p] = _pat_count.get(_p, 0) + 1
+
+    _kpi_cols = st.columns(min(len(_pat_count), 6))
+    for _i, (_pid, _cnt) in enumerate(sorted(_pat_count.items(), key=lambda x:-x[1])):
+        if _i < 6:
+            _pinfo = _PATTERN_ALERTS_V38.get(_pid, {})
+            _kpi_cols[_i].metric(
+                f"{_pinfo.get('icon','🔔')} {_pinfo.get('label',_pid)}",
+                _cnt
+            )
+
+    st.markdown("---")
+
+    # Lista alert con badge pattern
+    _alert_rows_sorted = sorted(_alert_rows,
+        key=lambda x: len(x["Pattern"]) * 10 + (1 if x["_stato"]=="STRONG" else 0),
+        reverse=True)
+
+    for _ar in _alert_rows_sorted[:30]:
+        _ac1, _ac2, _ac3, _ac4 = st.columns([1.5, 1.5, 3, 1])
+        _sc = "#ffd700" if _ar["_stato"]=="STRONG" else "#00ff88" if _ar["_stato"]=="PRO" else "#b2b5be"
+        _ac1.markdown(
+            f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
+            f"{_ar['Ticker']}</span><br>"
+            f"<span style='color:#6b7280;font-size:0.72rem'>{_ar['Nome']}</span>",
+            unsafe_allow_html=True)
+        _ac2.markdown(
+            f"<span style='font-family:Courier New;font-size:0.82rem'>"
+            f"${_ar['Prezzo']}</span><br>"
+            f"<span style='color:#787b86;font-size:0.72rem'>RSI {_ar['RSI']} · CSS {_ar['CSS']}</span>",
+            unsafe_allow_html=True)
+        _badge_parts = []
+        for p in _ar["Pattern"]:
+            _is_bear = p in ("death_cross","rsi_overbought","bb_breakout")
+            _is_gold = p == "golden_cross"
+            _bg_col  = "#ffd70022" if _is_gold else "#ef444422" if _is_bear else "#2962ff22"
+            _tx_col  = "#ffd700"   if _is_gold else "#ef4444"   if _is_bear else "#58a6ff"
+            _pinfo   = _PATTERN_ALERTS_V38.get(p, {})
+            _badge_parts.append(
+                f"<span style='background:{_bg_col};color:{_tx_col};"
+                f"border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>"
+                f"{_pinfo.get('icon','🔔')} {_pinfo.get('label',p)}</span>"
+            )
+        _badges = " ".join(_badge_parts)
+        _ac3.markdown(_badges, unsafe_allow_html=True)
+        with _ac4:
+            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
+                try:
+                    gh_add_to_watchlist(_ar["Ticker"], st.session_state.current_list_name)
+                    st.success(f"✅ {_ar['Ticker']} aggiunto!")
+                except Exception:
+                    pass
+
+    # Export alert
+    _df_alert_exp = pd.DataFrame([
+        {"Ticker": a["Ticker"], "Nome": a["Nome"],
+         "Pattern": ", ".join(a["Pattern"]),
+         "N_Pattern": len(a["Pattern"]),
+         "Prezzo": a["Prezzo"], "RSI": a["RSI"], "CSS": a["CSS"]}
+        for a in _alert_rows_sorted
+    ])
+    _at_ts = datetime.now().strftime("%Y%m%d_%H%M")
+    st.download_button("📊 Export Alert",
+        _df_alert_exp.to_csv(index=False).encode(),
+        f"PatternAlerts_v38_{_at_ts}.csv", "text/csv",
+        key=f"alert_export_v38_{tab_name}")
+
+
+# =========================================================================
+# v38 UPGRADE #4 — NEWS & SENTIMENT ENGINE
+# Feed RSS Yahoo Finance + score NLP sentiment Bull/Bear/Neutral
+# =========================================================================
+
+@st.cache_data(ttl=600)
+def _fetch_news_sentiment_v38(tickers: tuple) -> list:
+    """
+    Scarica RSS news da Yahoo Finance per i ticker forniti.
+    Calcola sentiment score con word list NLP semplice.
+    """
+    import urllib.request as _ur
+    import xml.etree.ElementTree as _ET
+
+    _BULL_WORDS = {"surge","rally","soar","beat","record","upgrade","buy","bullish",
+                   "outperform","strong","growth","profit","revenue","exceed","positive",
+                   "gain","rise","up","high","boost","breakout","above"}
+    _BEAR_WORDS = {"crash","fall","drop","miss","downgrade","sell","bearish","underperform",
+                   "weak","loss","decline","below","negative","cut","reduce","layoff",
+                   "concern","risk","warning","down","low","plunge","recession"}
+
+    _results = []
+    for _t in tickers[:20]:  # max 20 per performance
+        try:
+            _url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
+            _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
+            with _ur.urlopen(_req, timeout=6) as _r:
+                _xml = _r.read()
+            _root = _ET.fromstring(_xml)
+            _items = _root.findall(".//item")[:5]  # max 5 news per ticker
+            for _item in _items:
+                _title = _item.findtext("title","")
+                _link  = _item.findtext("link","")
+                _date  = _item.findtext("pubDate","")[:16]
+                # NLP score
+                _words = set(_title.lower().split())
+                _bull  = len(_words & _BULL_WORDS)
+                _bear  = len(_words & _BEAR_WORDS)
+                if _bull > _bear:
+                    _sentiment = "🟢 Bullish"; _score = _bull
+                elif _bear > _bull:
+                    _sentiment = "🔴 Bearish"; _score = -_bear
+                else:
+                    _sentiment = "⚪ Neutral"; _score = 0
+                _results.append({
+                    "Ticker":    _t,
+                    "Titolo":    _title[:80],
+                    "Sentiment": _sentiment,
+                    "Score":     _score,
+                    "Data":      _date,
+                    "Link":      _link,
+                })
+        except Exception:
+            pass
+    return sorted(_results, key=lambda x: abs(x["Score"]), reverse=True)
+
+
+def _render_news_sentiment_v38(df_ep_news):
+    """Tab News & Sentiment."""
+    st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v38 — Feed Real-Time + NLP Score</div>',
+                unsafe_allow_html=True)
+
+    _ns_tickers = []
+    if not (df_ep_news is None or (hasattr(df_ep_news,"empty") and df_ep_news.empty)):
+        if "Stato_Pro" in df_ep_news.columns:
+            _ns_tickers = df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
+        if not _ns_tickers:
+            _ns_tickers = df_ep_news["Ticker"].dropna().tolist()[:15]
+
+    # Aggiunge ticker watchlist
+    try:
+        _wl_ns = load_watchlist()
+        if not _wl_ns.empty and "Ticker" in _wl_ns.columns:
+            _ns_tickers += _wl_ns[_wl_ns["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
     except Exception:
         pass
 
-    # ── v36 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
-    if st.session_state.get("_trigger_autoscan"):
-        st.session_state["_trigger_autoscan"] = False
-        st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
+    _ns_tickers = list(dict.fromkeys(_ns_tickers))[:25]
 
-    # ── v36 — MERCATI LIVE con FTSE MIB ──────────────────────────────────
-    # Sovrascrive la barra di home_tab aggiungendo FTSE MIB dopo Russell2K
-    @st.cache_data(ttl=60, show_spinner=False)
-    def _fetch_live_markets_v36():
-        import yfinance as _yf_live
-        _mkts = [
-            ("^GSPC",   "S&P 500",    "🇺🇸"),
-            ("^IXIC",   "NASDAQ",     "💻"),
-            ("^DJI",    "Dow Jones",  "🏭"),
-            ("^RUT",    "Russell2K",  "📊"),
-            ("FTSEMIB.MI","FTSE MIB", "🇮🇹"),
-            ("^VIX",    "VIX",        "😰"),
-            ("BTC-USD", "Bitcoin",    "₿"),
-            ("GC=F",    "Gold",       "🥇"),
-            ("CL=F",    "Oil WTI",    "🛢️"),
-            ("DX-Y.NYB","DXY",        "💵"),
-        ]
-        _results = []
-        for _sym, _name, _ico in _mkts:
+    if not _ns_tickers:
+        st.info("Avvia lo scanner o aggiungi ticker alla watchlist per vedere le news.")
+        return
+
+    _ns_c1, _ns_c2 = st.columns([3,1])
+    with _ns_c2:
+        _ns_filter = st.selectbox("Filtro",
+            ["Tutti","🟢 Solo Bullish","🔴 Solo Bearish","⚪ Solo Neutral"],
+            key="ns_filter")
+        if st.button("🔄 Aggiorna news", key="ns_refresh"):
+            st.cache_data.clear()
+            st.rerun()
+
+    with st.spinner("Carico news..."):
+        _news = _fetch_news_sentiment_v38(tuple(_ns_tickers))
+
+    # Filtro sentiment
+    if _ns_filter == "🟢 Solo Bullish":
+        _news = [n for n in _news if "Bullish" in n["Sentiment"]]
+    elif _ns_filter == "🔴 Solo Bearish":
+        _news = [n for n in _news if "Bearish" in n["Sentiment"]]
+    elif _ns_filter == "⚪ Solo Neutral":
+        _news = [n for n in _news if "Neutral" in n["Sentiment"]]
+
+    if not _news:
+        st.info("Nessuna news trovata con i filtri correnti.")
+        return
+
+    # KPI sentiment
+    _n_bull = sum(1 for n in _news if "Bullish" in n["Sentiment"])
+    _n_bear = sum(1 for n in _news if "Bearish" in n["Sentiment"])
+    _n_neut = sum(1 for n in _news if "Neutral" in n["Sentiment"])
+    _sk1,_sk2,_sk3,_sk4 = st.columns(4)
+    _sk1.metric("📰 Totale News",   len(_news))
+    _sk2.metric("🟢 Bullish",       _n_bull)
+    _sk3.metric("🔴 Bearish",       _n_bear)
+    _sk4.metric("⚪ Neutral",        _n_neut)
+
+    st.markdown("---")
+
+    # Lista news
+    for _n in _news[:40]:
+        _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
+        _nc1, _nc2, _nc3 = st.columns([1, 0.8, 4.5])
+        _nc1.markdown(
+            f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>"
+            f"{_n['Ticker']}</span>",
+            unsafe_allow_html=True)
+        _nc2.markdown(
+            f"<span style='color:{_sc};font-size:0.78rem'>{_n['Sentiment']}</span>",
+            unsafe_allow_html=True)
+        _nc3.markdown(
+            f"<a href='{_n['Link']}' target='_blank' style='color:#b2b5be;"
+            f"font-size:0.82rem;text-decoration:none'>{_n['Titolo']}</a>"
+            f"<span style='color:#374151;font-size:0.70rem;margin-left:8px'>{_n['Data']}</span>",
+            unsafe_allow_html=True)
+
+
+# =========================================================================
+# v38 UPGRADE #5 — SEC FORM 4 INSIDER BUYING
+# =========================================================================
+
+@st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
+def _fetch_insider_buying_v38(tickers: tuple) -> list:
+    """
+    Scarica transazioni insider via SEC EDGAR API ufficiale (EDGAR Full-Text Search).
+    Fallback: yfinance major_holders per % insider ownership.
+    API EDGAR: https://efts.sec.gov/LATEST/search-index?q=...&dateRange=custom
+    """
+    import urllib.request as _ur
+    import json as _js
+    _results = []
+
+    for _t in tickers[:20]:
+        try:
+            # SEC EDGAR API — cerca Form 4 recenti per il ticker
+            _search_url = (
+                f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22"
+                f"&dateRange=custom&startdt={datetime.now().strftime('%Y-%m-%d')[:7]}-01"
+                f"&forms=4&hits.hits._source=period_of_report,entity_name,file_date"
+                f"&hits.hits.total.value=true"
+            )
+            _req = _ur.Request(
+                _search_url,
+                headers={"User-Agent": "TradingScanner/1.0 research@example.com",
+                         "Accept": "application/json"}
+            )
+            with _ur.urlopen(_req, timeout=8) as _r:
+                _data = _js.loads(_r.read())
+
+            _hits = _data.get("hits", {}).get("hits", [])
+            for _hit in _hits[:3]:
+                _src = _hit.get("_source", {})
+                _results.append({
+                    "Ticker":    _t,
+                    "Insider":   _src.get("entity_name", "—")[:30],
+                    "Ruolo":     "—",
+                    "Data":      _src.get("file_date", "—")[:10],
+                    "Tipo":      "Form 4",
+                    "Prezzo":    "—",
+                    "Valore $":  "—",
+                    "Fonte":     "SEC EDGAR",
+                })
+        except Exception:
+            # Fallback: yfinance major_holders
             try:
-                _d = _yf_live.download(_sym, period="2d", interval="1d",
-                                       auto_adjust=True, progress=False)
-                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
-                if len(_d) >= 2:
-                    _cur = float(_d["Close"].iloc[-1])
-                    _prev= float(_d["Close"].iloc[-2])
-                    _chg = (_cur/_prev-1)*100
-                elif len(_d) == 1:
-                    _cur = float(_d["Close"].iloc[-1])
-                    _chg = 0.0
-                else:
-                    continue
-                _results.append({"sym":_sym,"name":_name,"icon":_ico,
-                                 "price":_cur,"chg":_chg})
+                import yfinance as _yf_ins
+                _mh = _yf_ins.Ticker(_t).major_holders
+                if _mh is not None and not (hasattr(_mh,"empty") and _mh.empty):
+                    _pct = _mh.iloc[0, 0] if len(_mh) > 0 else "—"
+                    _results.append({
+                        "Ticker":   _t,
+                        "Insider":  "Insider ownership",
+                        "Ruolo":    "—",
+                        "Data":     "—",
+                        "Tipo":     "% Ownership",
+                        "Prezzo":   "—",
+                        "Valore $": str(_pct),
+                        "Fonte":    "Yahoo Finance",
+                    })
             except Exception:
                 pass
-        return _results
 
+    return _results
+
+
+@st.cache_data(ttl=3600)
+def _fetch_short_interest_v38(tickers: tuple) -> dict:
+    """Short Interest % da Yahoo Finance .info."""
+    import yfinance as _yf_si
+    _result = {}
+    for _t in tickers[:40]:
+        try:
+            _info = _yf_si.Ticker(_t).info
+            _short = _info.get("shortPercentOfFloat", None)
+            if _short is not None:
+                _result[_t] = round(float(_short) * 100, 1)
+        except Exception:
+            pass
+    return _result
+
+
+# =========================================================================
+# v38 UPGRADE #7 — MACRO CALENDAR
+# =========================================================================
+
+@st.cache_data(ttl=3600)
+def _fetch_macro_calendar_v38() -> list:
+    """
+    Calendario macro hardcoded con prossimi eventi ad alto impatto.
+    In produzione si può integrare con investing.com o FRED API.
+    """
+    from datetime import timedelta
+    _today = datetime.now().date()
+
+    # Genera calendario eventi tipici (approssimazione ciclica)
+    _events = []
+
+    # Pattern mensili tipici USA
+    _monthly_patterns = [
+        # (giorno del mese approssimativo, nome, impatto, descrizione)
+        (1,  "ISM Manufacturing",    "🟡 Med",  "Indice attività manifatturiera USA"),
+        (3,  "ISM Services",         "🟡 Med",  "Indice attività settore servizi USA"),
+        (5,  "NFP + Unemployment",   "🔴 High", "Non-Farm Payrolls + Tasso disoccupazione"),
+        (10, "CPI Inflation",        "🔴 High", "Consumer Price Index — inflazione USA"),
+        (14, "PPI",                  "🟡 Med",  "Producer Price Index"),
+        (15, "Retail Sales",         "🟡 Med",  "Vendite al dettaglio USA"),
+        (20, "FOMC Minutes",         "🔴 High", "Verbali Fed — politica monetaria"),
+        (25, "GDP Revision",         "🟡 Med",  "Revisione PIL trimestrale USA"),
+        (28, "PCE Inflation",        "🔴 High", "Personal Consumption Expenditures — preferito Fed"),
+    ]
+
+    for _day, _name, _impact, _desc in _monthly_patterns:
+        # Cerca la prossima occorrenza
+        for _delta_month in range(0, 3):
+            _candidate = _today.replace(day=min(_day, 28))
+            if _delta_month == 1:
+                _m = _today.month % 12 + 1
+                _y = _today.year + (_today.month // 12)
+                _candidate = _candidate.replace(year=_y, month=_m)
+            elif _delta_month == 2:
+                _m = (_today.month + 1) % 12 + 1
+                _y = _today.year + ((_today.month + 1) // 12)
+                _candidate = _candidate.replace(year=_y, month=_m)
+
+            _days_to = (_candidate - _today).days
+            if _days_to >= -1:
+                _events.append({
+                    "Data":     str(_candidate),
+                    "Evento":   _name,
+                    "Impatto":  _impact,
+                    "Desc":     _desc,
+                    "Giorni":   _days_to,
+                })
+                break
+
+    # Fed meeting dates approssimativi (2026)
+    _fed_dates = ["2026-01-29","2026-03-19","2026-05-07","2026-06-18",
+                  "2026-07-30","2026-09-17","2026-11-05","2026-12-17"]
+    for _fd in _fed_dates:
+        try:
+            _fd_date = datetime.strptime(_fd,"%Y-%m-%d").date()
+            _dt = (_fd_date - _today).days
+            if -1 <= _dt <= 90:
+                _events.append({
+                    "Data":    _fd,
+                    "Evento":  "⚠️ FOMC Rate Decision",
+                    "Impatto": "🔴 High",
+                    "Desc":    "Decisione tassi Fed — massimo impatto mercati",
+                    "Giorni":  _dt,
+                })
+        except Exception:
+            pass
+
+    return sorted(_events, key=lambda x: x["Giorni"])
+
+
+# =========================================================================
+# v38 UPGRADE #8 — OPTIONS FLOW PROXY (put/call ratio)
+# =========================================================================
+
+@st.cache_data(ttl=900)
+def _fetch_options_flow_v38(ticker: str) -> dict:
+    """
+    Calcola put/call ratio dalla options chain di Yahoo Finance.
+    """
+    import yfinance as _yf_op
     try:
-        _live_data = _fetch_live_markets_v36()
-        if _live_data:
-            _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-            # v36: header SOPRA i box, box su riga separata con scroll orizzontale
-            _live_html = (
-                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
-                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
-                # Riga 1: titolo + timestamp
-                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
-                f"letter-spacing:1px;margin-bottom:6px'>"
-                f"📊 MERCATI LIVE "
-                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
-                f"</div>"
-                # Riga 2: box mercati scrollabili
-                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
-            )
-            for _m in _live_data:
-                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
-                _ar = "▲" if _m["chg"]>=0 else "▼"
-                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
-                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
-                       else f"{_m['price']:,.0f}" if _m["price"]>1000
-                       else f"{_m['price']:,.2f}")
-                _live_html += (
-                    f"<div style='background:#131722;border:1px solid #2a2e39;"
-                    f"border-top:2px solid {_c}44;"
-                    f"border-radius:4px;padding:5px 10px;"
-                    f"min-width:100px;flex-shrink:0;text-align:center'>"
-                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
-                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
-                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
-                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
-                    f"{_ar} {abs(_m['chg']):.2f}%</div>"
-                    f"</div>"
-                )
-            _live_html += "</div></div>"
-            st.markdown(_live_html, unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    try:
-        from utils.home_tab import render_home
-        render_home(df_ep, df_rea)
-    except Exception as _he:
-        import traceback
-        st.error(f"Home tab error: {_he}")
-        st.code(traceback.format_exc())
-
-    # ── v36 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
-    st.markdown("---")
-    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v36 — Prossimi earnings da Watchlist + Scanner</div>',
-                unsafe_allow_html=True)
-    _earn_tickers = set()
-    # Da watchlist
-    try:
-        _wl_earn = load_watchlist()
-        if not _wl_earn.empty and "Ticker" in _wl_earn.columns:
-            _earn_tickers.update(_wl_earn["Ticker"].dropna().unique().tolist())
-    except Exception:
-        pass
-    # Dal df_ep scanner (prime 60 per velocità)
-    if not df_ep.empty and "Ticker" in df_ep.columns:
-        _earn_tickers.update(df_ep["Ticker"].dropna().unique().tolist()[:60])
-
-    _earn_tickers_sorted = tuple(sorted(_earn_tickers)[:80])  # cap 80 per performance
-
-    if _earn_tickers_sorted:
-        with st.spinner("📅 Carico earnings calendar..."):
-            _earn_data = _fetch_earnings_calendar(_earn_tickers_sorted)
-
-        if _earn_data:
-            # Summary metrics
-            _ec1, _ec2, _ec3, _ec4 = st.columns(4)
-            _ec1.metric("📅 Con earnings", len(_earn_data))
-            _ec2.metric("⚠️ Oggi/Domani",  sum(1 for x in _earn_data if x["Giorni"] <= 1))
-            _ec3.metric("🔔 Questa sett.", sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7))
-            _ec4.metric("📅 Entro 2 sett.",sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14))
-
-            # Tabella earnings
-            for _ed in _earn_data[:25]:
-                _ea, _eb, _ec_col, _edd = st.columns([1.2, 1.5, 1.5, 3])
-                _ea.markdown(
-                    f"<b style='font-family:Courier New;color:#00ff88;font-size:1rem'>"
-                    f"{_ed['Ticker']}</b>", unsafe_allow_html=True)
-                _eb.markdown(
-                    f"<span style='color:#d1d4dc;font-size:0.85rem'>{_ed['Earnings Date']}</span>",
-                    unsafe_allow_html=True)
-                _ec_col.markdown(
-                    f"<b style='font-size:0.78rem;color:{_ed['_color']}'>{_ed['Giorni']:+d}gg</b>",
-                    unsafe_allow_html=True)
-                _edd.markdown(
-                    f"<span style='background:{_ed['_color']}22;color:{_ed['_color']};"
-                    f"border:1px solid {_ed['_color']}44;border-radius:4px;"
-                    f"padding:1px 8px;font-size:0.75rem;font-weight:bold'>"
-                    f"{_ed['Badge']}</span>",
-                    unsafe_allow_html=True)
+        _tk = _yf_op.Ticker(ticker)
+        _exps = _tk.options
+        if not _exps: return {}
+        # Usa la scadenza più vicina (indice 0)
+        _chain = _tk.option_chain(_exps[0])
+        _calls = _chain.calls
+        _puts  = _chain.puts
+        _call_vol = float(_calls["volume"].fillna(0).sum()) if not _calls.empty else 0
+        _put_vol  = float(_puts["volume"].fillna(0).sum())  if not _puts.empty  else 0
+        _pcr = _put_vol / _call_vol if _call_vol > 0 else None
+        # Score: <0.7 bullish, 0.7-1.2 neutro, >1.2 bearish
+        if _pcr is None:
+            _signal = "⚪ N/D"
+        elif _pcr < 0.7:
+            _signal = "🟢 Bullish"
+        elif _pcr > 1.2:
+            _signal = "🔴 Bearish"
         else:
-            st.info("📭 Nessun earnings trovato nei prossimi 21 giorni per i ticker in watchlist/scanner.")
-    else:
-        st.info("Aggiungi ticker alla watchlist o avvia lo scanner per vedere gli earnings.")
+            _signal = "⚪ Neutro"
+        return {
+            "ticker":    ticker,
+            "pcr":       round(_pcr, 2) if _pcr else None,
+            "call_vol":  int(_call_vol),
+            "put_vol":   int(_put_vol),
+            "signal":    _signal,
+            "expiry":    _exps[0],
+        }
+    except Exception:
+        return {}
 
-with tab_e:
-    st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
-    render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
 
-with tab_p:
-    st.session_state.last_active_tab="PRO"; show_legend("PRO")
-    _pro_sort = st.radio("Ordina per",["Quality","Momentum (Pro×RSI)"],
-                         horizontal=True, key="pro_sort_mode", label_visibility="collapsed")
-    if _pro_sort == "Momentum (Pro×RSI)":
-        # Aggiunge colonna Momentum temporanea per ordinamento
-        _df_pro = df_ep.copy()
-        if not _df_pro.empty and "Pro_Score" in _df_pro.columns and "RSI" in _df_pro.columns:
-            _df_pro["_Momentum"] = _df_pro["Pro_Score"].fillna(0)*10 + _df_pro["RSI"].fillna(0)
-        else:
-            _df_pro["_Momentum"] = 0
-        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
-    else:
-        render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
+# =========================================================================
+# v38 — AGGIUNGI TAB ALLA LISTA + REGISTRA RENDERING
+# =========================================================================
 
-with tab_r:
-    st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
+# Aggiungi ai tab esistenti (post-init append)
+# I nuovi tab v38 vengono aggiunti tramite st.tabs ridefinito con append
+# Per compatibilità usiamo expander nei tab esistenti
 
-    # ══════════════════════════════════════════════════════════════════════
-    # 🔥 REA-HOT v34 — ACCUMULO & BREAKOUT DETECTOR
-    # ══════════════════════════════════════════════════════════════════════
-    # Idea ispirata agli youtuber/trader che cercano titoli in fase di
-    # ACCUMULO (volatilità bassa, volume stabile) seguita da un BREAKOUT
-    # improvviso con volume anomalo — classico pattern "coiled spring".
-    #
-    # SCORE ACCUMULO-BREAKOUT (AB_Score 0-100):
-    #   • Vol_Ratio >= 2.0   → volume breakout confermato (40 pt)
-    #   • Dist_POC% vicino   → prezzo torna vicino al livello chiave (20 pt)
-    #   • ATR_pct in range   → movimento reale, non flat (15 pt)
-    #   • RSI 45-65          → momentum sano, non overbought (15 pt)
-    #   • OBV_Trend UP       → accumulo istituzionale (10 pt)
-    # ──────────────────────────────────────────────────────────────────────
-    if not df_rea.empty:
-        df_rea_view = df_rea.copy()
-
-        # Calcola AB_Score
-        def _ab_score(row):
-            score = 0.0
-            # 1. Vol_Ratio breakout (max 40 pt)
-            vr = float(row.get("Vol_Ratio", 0) or 0)
-            if   vr >= 4.0: score += 40
-            elif vr >= 3.0: score += 32
-            elif vr >= 2.0: score += 22
-            elif vr >= 1.5: score += 10
-            # 2. Dist_POC% vicino al POC (max 20 pt) — più vicino = meglio
-            dp = abs(float(row.get("Dist_POC_%", 999) or 999))
-            if   dp <= 0.5: score += 20
-            elif dp <= 1.0: score += 15
-            elif dp <= 2.0: score += 10
-            elif dp <= 3.0: score += 5
-            # 3. ATR% range operativo (max 15 pt)
-            atr = float(row.get("ATR_pct", 0) or 0)
-            if   2.0 <= atr <= 4.0: score += 15
-            elif 1.5 <= atr <= 6.0: score += 8
-            # 4. RSI zona sana 45-65 (max 15 pt)
-            rsi = float(row.get("RSI", 50) or 50)
-            if   50 <= rsi <= 60: score += 15
-            elif 45 <= rsi <= 65: score += 10
-            elif 40 <= rsi <= 70: score += 5
-            # 5. OBV crescente (max 10 pt)
-            if row.get("OBV_Trend") == "UP": score += 10
-            return round(score, 1)
-
-        df_rea_view["AB_Score"] = df_rea_view.apply(_ab_score, axis=1)
-        df_rea_view["AB_Grade"] = df_rea_view["AB_Score"].apply(
-            lambda v: "🔥 HOT"    if v >= 70 else
-                      "⚡ STRONG" if v >= 50 else
-                      "📈 WATCH"  if v >= 30 else "💤 WEAK"
-        )
-
-        # Header con metriche rapide
-        _ab_hot    = int((df_rea_view["AB_Grade"] == "🔥 HOT").sum())
-        _ab_strong = int((df_rea_view["AB_Grade"] == "⚡ STRONG").sum())
-        _ab_avg    = round(df_rea_view["AB_Score"].mean(), 1) if not df_rea_view.empty else 0
-        _ab_top    = df_rea_view.nlargest(1, "AB_Score").iloc[0]["Ticker"] if not df_rea_view.empty else "—"
-
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("🔥 HOT Breakout",   _ab_hot,    help="AB_Score ≥ 70 — breakout confermato con volume forte")
-        m2.metric("⚡ Strong Setup",   _ab_strong, help="AB_Score 50-69 — setup in formazione")
-        m3.metric("📊 Tot. segnali",   len(df_rea_view))
-        m4.metric("📈 AB Score medio", f"{_ab_avg:.1f}")
-        m5.metric("🏆 Top ticker",     _ab_top,    help="Ticker con AB_Score più alto")
-
-        st.markdown(
-            f'<div style="background:#1e222d;border-left:3px solid #f97316;'
-            f'padding:8px 14px;border-radius:0 4px 4px 0;margin:8px 0;font-size:0.80rem">'
-            f'<b style="color:#f97316">💡 Come leggere il tab REA-HOT:</b>'
-            f' <span style="color:#b2b5be">I titoli in lista hanno già Vol_Ratio > soglia E '
-            f'prezzo vicino al POC (Point of Control). '
-            f'L\'<b>AB_Score</b> aggiunge una valutazione 0-100 del setup accumulo→breakout: '
-            f'più alto = volume anomalo + prezzo in zona chiave + momentum sano.</span>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-        # Chart top-10 AB_Score (mini heatmap visuale)
-        top10 = df_rea_view.nlargest(min(10, len(df_rea_view)), "AB_Score")
-        if not top10.empty:
-            fig_ab = go.Figure()
-            colors_ab = [
-                "#f97316" if g == "🔥 HOT" else
-                "#60a5fa" if g == "⚡ STRONG" else
-                "#26a69a"
-                for g in top10["AB_Grade"]
-            ]
-            vr_vals = pd.to_numeric(top10.get("Vol_Ratio", pd.Series()), errors="coerce").fillna(0)
-            fig_ab.add_trace(go.Bar(
-                x=top10["Ticker"],
-                y=top10["AB_Score"],
-                marker_color=colors_ab,
-                marker_line_width=0,
-                text=[f"{v:.0f}" for v in top10["AB_Score"]],
-                textposition="outside",
-                textfont=dict(size=10, color="#d1d4dc"),
-                customdata=list(zip(
-                    vr_vals.tolist(),
-                    top10.get("Dist_POC_%", pd.Series([0]*len(top10))).fillna(0).tolist(),
-                    top10.get("RSI", pd.Series([0]*len(top10))).fillna(0).tolist(),
-                )),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "AB Score: <b>%{y:.0f}</b><br>"
-                    "Vol Ratio: %{customdata[0]:.1f}x<br>"
-                    "Dist POC: %{customdata[1]:+.1f}%<br>"
-                    "RSI: %{customdata[2]:.0f}"
-                    "<extra></extra>"
-                ),
-            ))
-            fig_ab.update_layout(
-                paper_bgcolor="#131722", plot_bgcolor="#1e222d",
-                font=dict(color="#b2b5be", family="Trebuchet MS, sans-serif", size=12),
-                xaxis=dict(gridcolor="#2a2e39", zerolinecolor="#363a45",
-                           linecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
-                yaxis=dict(range=[0, 115], showgrid=True, gridcolor="#2a2e39",
-                           zerolinecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
-                title=dict(text="🔥 Top 10 — Accumulo & Breakout Score",
-                           font=dict(color="#f97316", size=13), x=0.01),
-                height=260,
-                margin=dict(l=0, r=0, t=44, b=0),
-                showlegend=False,
-            )
-            # Linee soglia colorate
-            for yval, col, lbl in [(70,"#f97316","HOT"), (50,"#60a5fa","STRONG"), (30,"#26a69a","WATCH")]:
-                fig_ab.add_hline(y=yval, line=dict(color=col, width=1, dash="dot"),
-                                 annotation_text=lbl, annotation_font_color=col,
-                                 annotation_font_size=9)
-            st.plotly_chart(fig_ab, use_container_width=True, key="rea_ab_chart")
-
-    # ── Tabella standard con AB_Score aggiunto ──────────────────────────
-    _df_rea_enhanced = df_rea_view if not df_rea.empty else df_rea
-    render_scan_tab(_df_rea_enhanced, "HOT", ["AB_Score","Vol_Ratio","Dist_POC_%"],
-                    [False, False, True], "REA-HOT")
-
-with tab_conf:
-    st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
-    render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
-
+# Alert nel tab PRO
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
     # COMPARATORE MULTI-TICKER v36
@@ -3983,10 +4135,20 @@ with tab_mtf:
     with _cc2:
         if not df_ep.empty and "Ticker" in df_ep.columns:
             _scan_tkrs = df_ep["Ticker"].dropna().unique().tolist()[:60]
+            # v38: mappa ticker → nome per il multiselect
+            _cmp_nome_map = {}
+            if "Nome" in df_ep.columns:
+                for _, _cr in df_ep[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows():
+                    _cmp_nome_map[_cr["Ticker"]] = str(_cr.get("Nome",""))[:28]
+            # Ordina per nome alfabetico
+            _scan_tkrs_sorted = sorted(_scan_tkrs,
+                key=lambda t: _cmp_nome_map.get(t, t).lower())
             _cmp_extra = st.multiselect(
                 "➕ Aggiungi ticker dal tuo scanner",
-                options=sorted(_scan_tkrs), key="cmp_extra_tickers",
-                help="Aggiungi ticker dalla tua ultima scansione"
+                options=_scan_tkrs_sorted,
+                format_func=lambda t: f"{_cmp_nome_map.get(t,'')}  ({t})" if _cmp_nome_map.get(t) else t,
+                key="cmp_extra_tickers",
+                help="Aggiungi ticker dalla tua ultima scansione — ordinati alfabeticamente per nome"
             )
         else:
             _cmp_extra = []
@@ -4690,6 +4852,80 @@ with tab_rm:
 # =========================================================================
 # WATCHLIST — AgGrid + cards + multi-lista
 # =========================================================================
+
+    # ── v37/v38 additions for tab_rm ──
+    st.markdown("---")
+    _render_telegram_settings_v37()
+
+# Risk Dashboard nel Risk Manager
+    st.markdown("---")
+    _render_risk_dashboard_v37(df_ep)
+
+# Scanner Avanzato nel tab Order Flow (sezione dedicata)
+    st.markdown("---")
+    st.markdown('<div class="section-pill">📊 INTEGRAZIONI DATI v38</div>', unsafe_allow_html=True)
+
+    _int_t1, _int_t2, _int_t3 = st.tabs(["📉 Options Flow", "🩳 Short Interest", "🏛️ Insider Buying"])
+
+    with _int_t1:
+        st.caption("Put/Call ratio dalla options chain Yahoo Finance — proxy sentiment istituzionale.")
+        _of_tickers = []
+        if not df_ep.empty and "Ticker" in df_ep.columns:
+            _of_tickers = df_ep["Ticker"].dropna().unique().tolist()[:30]
+        if _of_tickers:
+            _of_sel = st.selectbox("Ticker", _of_tickers, key="of_ticker_sel")
+            if st.button("📉 Calcola P/C Ratio", key="of_calc"):
+                with st.spinner(f"Options chain {_of_sel}..."):
+                    _of_res = _fetch_options_flow_v38(_of_sel)
+                if _of_res:
+                    _oc1,_oc2,_oc3,_oc4 = st.columns(4)
+                    _oc1.metric("P/C Ratio",    str(_of_res.get("pcr","N/D")))
+                    _oc2.metric("Call Volume",   f"{_of_res.get('call_vol',0):,}")
+                    _oc3.metric("Put Volume",    f"{_of_res.get('put_vol',0):,}")
+                    _oc4.metric("Segnale",       _of_res.get("signal","—"))
+                    st.caption(f"Scadenza analizzata: {_of_res.get('expiry','—')}")
+                else:
+                    st.warning(f"Options non disponibili per {_of_sel}.")
+        else:
+            st.info("Avvia lo scanner per selezionare un ticker.")
+
+    with _int_t2:
+        st.caption("Short Interest % dal float — alto short interest + segnale PRO = short squeeze potenziale.")
+        _si_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:40]) if not df_ep.empty else ()
+        if _si_tickers:
+            if st.button("🩳 Carica Short Interest", key="si_load"):
+                with st.spinner("Scarico short interest..."):
+                    _si_data = _fetch_short_interest_v38(_si_tickers)
+                if _si_data:
+                    _df_si = pd.DataFrame([
+                        {"Ticker": t, "Short %": f"{v:.1f}%",
+                         "Setup": "🎯 Squeeze" if v >= 15 else "⚠️ Alto" if v >= 10 else "Normal"}
+                        for t,v in sorted(_si_data.items(), key=lambda x:-x[1])
+                    ])
+                    st.dataframe(_df_si, use_container_width=True, hide_index=True)
+                    _n_squeeze = sum(1 for v in _si_data.values() if v >= 15)
+                    if _n_squeeze:
+                        st.success(f"🎯 {_n_squeeze} ticker con short ≥15% — potenziale short squeeze!")
+                else:
+                    st.info("Nessun dato short interest disponibile.")
+        else:
+            st.info("Avvia lo scanner per caricare i dati.")
+
+    with _int_t3:
+        st.caption("Acquisti insider (Form 4 SEC) — segnale forte quando insider comprano sul mercato aperto.")
+        _ins_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:20]) if not df_ep.empty else ()
+        if _ins_tickers:
+            if st.button("🏛️ Cerca Insider Buying", key="ins_load"):
+                with st.spinner("Scarico dati SEC Form 4..."):
+                    _ins_data = _fetch_insider_buying_v38(_ins_tickers)
+                if _ins_data:
+                    _df_ins = pd.DataFrame(_ins_data)
+                    st.dataframe(_df_ins, use_container_width=True, hide_index=True)
+                    st.caption(f"Trovati {len(_ins_data)} acquisti insider negli ultimi 30 giorni.")
+                else:
+                    st.info("Nessun dato Form 4 trovato tramite SEC EDGAR per i ticker selezionati.")
+        else:
+            st.info("Avvia lo scanner per cercare gli insiders.")
 with tab_w:
     st.markdown(f'<div class="section-pill">📋 WATCHLIST MANAGER — {st.session_state.current_list_name}</div>',
                 unsafe_allow_html=True)
@@ -5588,6 +5824,12 @@ with tab_of:
         st.code(traceback.format_exc())
 
 
+
+    # ── v37/v38 additions for tab_of ──
+    st.markdown("---")
+    _render_advanced_scanner_v37()
+
+# AI Explainer anche nel tab CONFLUENCE
 with tab_bcd:
     try:
         from utils.bluechip_dip import render_bluechip_dip
@@ -7434,575 +7676,231 @@ def _render_advanced_scanner_v37():
 # v37 — INTEGRAZIONE NEI TAB ESISTENTI
 # =========================================================================
 
-# AI Explainer nel tab PRO (expander dedicato)
-with tab_p:
-    with st.expander("🧠 AI Signal Explainer v37 — Analisi Claude su ogni setup PRO", expanded=False):
-        _render_ai_explainer_v37(df_ep, "PRO")
-
-# Telegram nel Risk Manager
-with tab_rm:
-    st.markdown("---")
-    _render_telegram_settings_v37()
-
-# Risk Dashboard nel Risk Manager
-with tab_rm:
-    st.markdown("---")
-    _render_risk_dashboard_v37(df_ep)
-
-# Scanner Avanzato nel tab Order Flow (sezione dedicata)
-with tab_of:
-    st.markdown("---")
-    _render_advanced_scanner_v37()
-
-# AI Explainer anche nel tab CONFLUENCE
-with tab_conf:
-    with st.expander("🧠 AI Signal Explainer v37 — Analisi CONFLUENCE", expanded=False):
-        _df_conf_ai = pd.DataFrame()
-        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-            _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY")&
-                                (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
-        _render_ai_explainer_v37(_df_conf_ai, "CONF")
 
 # =========================================================================
-# v38 UPGRADE #2 — ALERT MULTIPLI ENGINE
-# Pattern tecnici: EMA breakout, golden/death cross, squeeze fire,
-# Bollinger breakout, RSI divergence, volume spike
+# v38 TAB NUOVO — 💡 ANALISI PERSONALE
+# Il trader carica i suoi ticker → AI analizza e fornisce consigli operativi
 # =========================================================================
 
-_PATTERN_ALERTS_V38 = {
-    "ema_breakout":    {"label": "EMA Breakout",      "icon": "📈", "desc": "Prezzo supera EMA20 dal basso"},
-    "golden_cross":    {"label": "Golden Cross",       "icon": "⭐", "desc": "EMA20 incrocia EMA50 al rialzo"},
-    "death_cross":     {"label": "Death Cross",        "icon": "💀", "desc": "EMA20 incrocia EMA50 al ribasso"},
-    "squeeze_fire":    {"label": "Squeeze Fire 🔥",    "icon": "🔥", "desc": "Uscita da Squeeze (BB fuori KC)"},
-    "bb_breakout":     {"label": "BB Breakout",        "icon": "🎯", "desc": "Prezzo rompe Bollinger Upper"},
-    "volume_spike":    {"label": "Volume Spike",       "icon": "⚡", "desc": "Volume > 3× media 20g"},
-    "rsi_oversold":    {"label": "RSI Oversold→Bull",  "icon": "🔵", "desc": "RSI risale sopra 30"},
-    "rsi_overbought":  {"label": "RSI Overbought→Bear","icon": "🔴", "desc": "RSI scende sotto 70"},
-}
+tabs = st.tabs([
+    "🏠 Home",
+    "📊 Comparatore",
+    "💎 Blue Chip Dip",
+    "📡 EARLY",
+    "💪 PRO",
+    "🔥 REA-HOT",
+    "⭐ CONFLUENCE",
+    "🎯 Serafini",
+    "🔎 Finviz Pro",
+    "🔬 Order Flow",
+    "🛡️ Crisis Monitor",
+    "🔀 MTF Matrix",
+    "📓 Journal",
+    "🌡️ Regime",
+    "📋 Watchlist",
+    "⚖️ Risk Manager",
+    "📈 Backtest",
+    "💡 Analisi Personale",   # v38 nuovo
+])
+(tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
+ tab_ser, tab_fvpro, tab_of, tab_crisis,
+ tab_mtfmatrix, tab_journal, tab_regime,
+ tab_w, tab_rm, tab_bt, tab_analisi) = tabs
 
-def _detect_patterns_v38(row: pd.Series) -> list:
-    """
-    Rileva pattern tecnici su una riga del df_ep.
-    Restituisce lista di pattern_id triggherati.
-    """
-    triggered = []
+with tab_home:
+    # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
     try:
-        pr   = float(row.get("Prezzo",    0) or 0)
-        e20  = float(row.get("EMA20",     0) or 0)
-        e50  = float(row.get("EMA50",     0) or 0)
-        rsi  = float(row.get("RSI",       50) or 50)
-        vrat = float(row.get("Vol_Ratio", 0) or 0)
-        sq   = row.get("Squeeze", False)
-        atr  = float(row.get("ATR",       0) or 0)
-
-        if pr > 0 and e20 > 0:
-            if pr > e20 and rsi > 45:
-                triggered.append("ema_breakout")
-        if e20 > 0 and e50 > 0:
-            if e20 > e50 and rsi > 50:
-                triggered.append("golden_cross")
-            elif e20 < e50 and rsi < 50:
-                triggered.append("death_cross")
-        if sq in (True, "True", "true", 1):
-            triggered.append("squeeze_fire")
-        if vrat >= 3.0:
-            triggered.append("volume_spike")
-        if rsi < 32:
-            triggered.append("rsi_oversold")
-        if rsi > 68:
-            triggered.append("rsi_overbought")
-        # Bollinger breakout approssimato: prezzo > EMA20 + 2×ATR
-        if pr > 0 and e20 > 0 and atr > 0:
-            if pr > e20 + 2 * atr:
-                triggered.append("bb_breakout")
-    except Exception:
-        pass
-    return triggered
-
-
-def _render_pattern_alerts_v38(df_ep_alerts, tab_name="default"):
-    """Tab Alert Multipli: mostra pattern attivi + configurazione soglie."""
-    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38 — Pattern Tecnici Real-Time</div>',
-                unsafe_allow_html=True)
-
-    if df_ep_alerts is None or (hasattr(df_ep_alerts,"empty") and df_ep_alerts.empty):
-        st.info("Avvia lo scanner per rilevare i pattern tecnici.")
-        return
-
-    # Configurazione pattern abilitati
-    with st.expander("⚙️ Configura pattern da monitorare", expanded=False):
-        _pat_cols = st.columns(4)
-        _enabled_pats = {}
-        for _i, (_pid, _pinfo) in enumerate(_PATTERN_ALERTS_V38.items()):
-            _enabled_pats[_pid] = _pat_cols[_i % 4].checkbox(
-                f"{_pinfo['icon']} {_pinfo['label']}",
-                value=True,
-                key=f"pat_en_{_pid}_{tab_name}",
-                help=_pinfo["desc"]
+        _regime_data = _get_market_regime()
+        _rc = _regime_data["color"]; _ri = _regime_data["icon"]
+        _rn = _regime_data["regime"]
+        _rv = _regime_data["vix"]; _rm = _regime_data["spy_mom_20d"]
+        _regime_badge_html = (
+            f"<div style='background:#1e222d;border-left:4px solid {_rc};"
+            f"border-radius:0 8px 8px 0;padding:10px 18px;margin-bottom:12px;"
+            f"display:flex;align-items:center;gap:20px;'>"
+            f"<span style='font-size:1.5rem'>{_ri}</span>"
+            f"<div>"
+            f"<span style='color:{_rc};font-family:Trebuchet MS;font-size:1.05rem;"
+            f"font-weight:bold;letter-spacing:1px'>REGIME: {_rn}</span>"
+            f"<span style='color:#787b86;font-size:0.82rem;margin-left:16px'>"
+            f"VIX: <b style='color:#d1d4dc'>{_rv}</b> &nbsp;|&nbsp; "
+        )
+        _spy_col_inline = "#26a69a" if _rm >= 0 else "#ef4444"
+        _regime_badge_html += (
+            f"SPY 20d: <b style='color:{_spy_col_inline}'>"
+            f"{_rm:+.1f}%</b>"
+            f"</span>"
+            f"</div>"
+        )
+        if _rn in ("Crisis", "Risk-Off"):
+            _regime_badge_html += (
+                f"<span style='background:rgba(239,68,68,0.15);color:#ef4444;"
+                f"border:1px solid #ef444444;border-radius:4px;padding:3px 10px;"
+                f"font-size:0.78rem;font-weight:bold'>⚠️ Segnali deboli soppressi</span>"
             )
-
-    # Rileva pattern su tutto df_ep
-    _alert_rows = []
-    for _, _r in df_ep_alerts.iterrows():
-        _pats = _detect_patterns_v38(_r)
-        _pats_active = [p for p in _pats if _enabled_pats.get(p, True)]
-        if _pats_active:
-            _alert_rows.append({
-                "Ticker":   str(_r.get("Ticker","")),
-                "Nome":     str(_r.get("Nome",""))[:22],
-                "Prezzo":   _r.get("Prezzo",""),
-                "RSI":      _r.get("RSI",""),
-                "CSS":      _r.get("CSS",""),
-                "Pattern":  _pats_active,
-                "_stato":   str(_r.get("Stato_Pro","-")),
-                "_row":     _r,
-            })
-
-    if not _alert_rows:
-        st.info("Nessun pattern tecnico rilevato nei dati correnti.")
-        return
-
-    # KPI
-    _pat_count = {}
-    for _ar in _alert_rows:
-        for _p in _ar["Pattern"]:
-            _pat_count[_p] = _pat_count.get(_p, 0) + 1
-
-    _kpi_cols = st.columns(min(len(_pat_count), 6))
-    for _i, (_pid, _cnt) in enumerate(sorted(_pat_count.items(), key=lambda x:-x[1])):
-        if _i < 6:
-            _pinfo = _PATTERN_ALERTS_V38.get(_pid, {})
-            _kpi_cols[_i].metric(
-                f"{_pinfo.get('icon','🔔')} {_pinfo.get('label',_pid)}",
-                _cnt
-            )
-
-    st.markdown("---")
-
-    # Lista alert con badge pattern
-    _alert_rows_sorted = sorted(_alert_rows,
-        key=lambda x: len(x["Pattern"]) * 10 + (1 if x["_stato"]=="STRONG" else 0),
-        reverse=True)
-
-    for _ar in _alert_rows_sorted[:30]:
-        _ac1, _ac2, _ac3, _ac4 = st.columns([1.5, 1.5, 3, 1])
-        _sc = "#ffd700" if _ar["_stato"]=="STRONG" else "#00ff88" if _ar["_stato"]=="PRO" else "#b2b5be"
-        _ac1.markdown(
-            f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
-            f"{_ar['Ticker']}</span><br>"
-            f"<span style='color:#6b7280;font-size:0.72rem'>{_ar['Nome']}</span>",
-            unsafe_allow_html=True)
-        _ac2.markdown(
-            f"<span style='font-family:Courier New;font-size:0.82rem'>"
-            f"${_ar['Prezzo']}</span><br>"
-            f"<span style='color:#787b86;font-size:0.72rem'>RSI {_ar['RSI']} · CSS {_ar['CSS']}</span>",
-            unsafe_allow_html=True)
-        _badge_parts = []
-        for p in _ar["Pattern"]:
-            _is_bear = p in ("death_cross","rsi_overbought","bb_breakout")
-            _is_gold = p == "golden_cross"
-            _bg_col  = "#ffd70022" if _is_gold else "#ef444422" if _is_bear else "#2962ff22"
-            _tx_col  = "#ffd700"   if _is_gold else "#ef4444"   if _is_bear else "#58a6ff"
-            _pinfo   = _PATTERN_ALERTS_V38.get(p, {})
-            _badge_parts.append(
-                f"<span style='background:{_bg_col};color:{_tx_col};"
-                f"border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>"
-                f"{_pinfo.get('icon','🔔')} {_pinfo.get('label',p)}</span>"
-            )
-        _badges = " ".join(_badge_parts)
-        _ac3.markdown(_badges, unsafe_allow_html=True)
-        with _ac4:
-            if st.button("📋", key=f"alert_wl_{_ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
-                try:
-                    gh_add_to_watchlist(_ar["Ticker"], st.session_state.current_list_name)
-                    st.success(f"✅ {_ar['Ticker']} aggiunto!")
-                except Exception:
-                    pass
-
-    # Export alert
-    _df_alert_exp = pd.DataFrame([
-        {"Ticker": a["Ticker"], "Nome": a["Nome"],
-         "Pattern": ", ".join(a["Pattern"]),
-         "N_Pattern": len(a["Pattern"]),
-         "Prezzo": a["Prezzo"], "RSI": a["RSI"], "CSS": a["CSS"]}
-        for a in _alert_rows_sorted
-    ])
-    _at_ts = datetime.now().strftime("%Y%m%d_%H%M")
-    st.download_button("📊 Export Alert",
-        _df_alert_exp.to_csv(index=False).encode(),
-        f"PatternAlerts_v38_{_at_ts}.csv", "text/csv",
-        key=f"alert_export_v38_{tab_name}")
-
-
-# =========================================================================
-# v38 UPGRADE #4 — NEWS & SENTIMENT ENGINE
-# Feed RSS Yahoo Finance + score NLP sentiment Bull/Bear/Neutral
-# =========================================================================
-
-@st.cache_data(ttl=600)
-def _fetch_news_sentiment_v38(tickers: tuple) -> list:
-    """
-    Scarica RSS news da Yahoo Finance per i ticker forniti.
-    Calcola sentiment score con word list NLP semplice.
-    """
-    import urllib.request as _ur
-    import xml.etree.ElementTree as _ET
-
-    _BULL_WORDS = {"surge","rally","soar","beat","record","upgrade","buy","bullish",
-                   "outperform","strong","growth","profit","revenue","exceed","positive",
-                   "gain","rise","up","high","boost","breakout","above"}
-    _BEAR_WORDS = {"crash","fall","drop","miss","downgrade","sell","bearish","underperform",
-                   "weak","loss","decline","below","negative","cut","reduce","layoff",
-                   "concern","risk","warning","down","low","plunge","recession"}
-
-    _results = []
-    for _t in tickers[:20]:  # max 20 per performance
-        try:
-            _url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
-            _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
-            with _ur.urlopen(_req, timeout=6) as _r:
-                _xml = _r.read()
-            _root = _ET.fromstring(_xml)
-            _items = _root.findall(".//item")[:5]  # max 5 news per ticker
-            for _item in _items:
-                _title = _item.findtext("title","")
-                _link  = _item.findtext("link","")
-                _date  = _item.findtext("pubDate","")[:16]
-                # NLP score
-                _words = set(_title.lower().split())
-                _bull  = len(_words & _BULL_WORDS)
-                _bear  = len(_words & _BEAR_WORDS)
-                if _bull > _bear:
-                    _sentiment = "🟢 Bullish"; _score = _bull
-                elif _bear > _bull:
-                    _sentiment = "🔴 Bearish"; _score = -_bear
-                else:
-                    _sentiment = "⚪ Neutral"; _score = 0
-                _results.append({
-                    "Ticker":    _t,
-                    "Titolo":    _title[:80],
-                    "Sentiment": _sentiment,
-                    "Score":     _score,
-                    "Data":      _date,
-                    "Link":      _link,
-                })
-        except Exception:
-            pass
-    return sorted(_results, key=lambda x: abs(x["Score"]), reverse=True)
-
-
-def _render_news_sentiment_v38(df_ep_news):
-    """Tab News & Sentiment."""
-    st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v38 — Feed Real-Time + NLP Score</div>',
-                unsafe_allow_html=True)
-
-    _ns_tickers = []
-    if not (df_ep_news is None or (hasattr(df_ep_news,"empty") and df_ep_news.empty)):
-        if "Stato_Pro" in df_ep_news.columns:
-            _ns_tickers = df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
-        if not _ns_tickers:
-            _ns_tickers = df_ep_news["Ticker"].dropna().tolist()[:15]
-
-    # Aggiunge ticker watchlist
-    try:
-        _wl_ns = load_watchlist()
-        if not _wl_ns.empty and "Ticker" in _wl_ns.columns:
-            _ns_tickers += _wl_ns[_wl_ns["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
+        _regime_badge_html += "</div>"
+        st.markdown(_regime_badge_html, unsafe_allow_html=True)
     except Exception:
         pass
 
-    _ns_tickers = list(dict.fromkeys(_ns_tickers))[:25]
+    # ── v36 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
+    if st.session_state.get("_trigger_autoscan"):
+        st.session_state["_trigger_autoscan"] = False
+        st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
 
-    if not _ns_tickers:
-        st.info("Avvia lo scanner o aggiungi ticker alla watchlist per vedere le news.")
-        return
-
-    _ns_c1, _ns_c2 = st.columns([3,1])
-    with _ns_c2:
-        _ns_filter = st.selectbox("Filtro",
-            ["Tutti","🟢 Solo Bullish","🔴 Solo Bearish","⚪ Solo Neutral"],
-            key="ns_filter")
-        if st.button("🔄 Aggiorna news", key="ns_refresh"):
-            st.cache_data.clear()
-            st.rerun()
-
-    with st.spinner("Carico news..."):
-        _news = _fetch_news_sentiment_v38(tuple(_ns_tickers))
-
-    # Filtro sentiment
-    if _ns_filter == "🟢 Solo Bullish":
-        _news = [n for n in _news if "Bullish" in n["Sentiment"]]
-    elif _ns_filter == "🔴 Solo Bearish":
-        _news = [n for n in _news if "Bearish" in n["Sentiment"]]
-    elif _ns_filter == "⚪ Solo Neutral":
-        _news = [n for n in _news if "Neutral" in n["Sentiment"]]
-
-    if not _news:
-        st.info("Nessuna news trovata con i filtri correnti.")
-        return
-
-    # KPI sentiment
-    _n_bull = sum(1 for n in _news if "Bullish" in n["Sentiment"])
-    _n_bear = sum(1 for n in _news if "Bearish" in n["Sentiment"])
-    _n_neut = sum(1 for n in _news if "Neutral" in n["Sentiment"])
-    _sk1,_sk2,_sk3,_sk4 = st.columns(4)
-    _sk1.metric("📰 Totale News",   len(_news))
-    _sk2.metric("🟢 Bullish",       _n_bull)
-    _sk3.metric("🔴 Bearish",       _n_bear)
-    _sk4.metric("⚪ Neutral",        _n_neut)
-
-    st.markdown("---")
-
-    # Lista news
-    for _n in _news[:40]:
-        _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
-        _nc1, _nc2, _nc3 = st.columns([1, 0.8, 4.5])
-        _nc1.markdown(
-            f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>"
-            f"{_n['Ticker']}</span>",
-            unsafe_allow_html=True)
-        _nc2.markdown(
-            f"<span style='color:{_sc};font-size:0.78rem'>{_n['Sentiment']}</span>",
-            unsafe_allow_html=True)
-        _nc3.markdown(
-            f"<a href='{_n['Link']}' target='_blank' style='color:#b2b5be;"
-            f"font-size:0.82rem;text-decoration:none'>{_n['Titolo']}</a>"
-            f"<span style='color:#374151;font-size:0.70rem;margin-left:8px'>{_n['Data']}</span>",
-            unsafe_allow_html=True)
-
-
-# =========================================================================
-# v38 UPGRADE #5 — SEC FORM 4 INSIDER BUYING
-# =========================================================================
-
-@st.cache_data(ttl=3600)
-@st.cache_data(ttl=3600)
-def _fetch_insider_buying_v38(tickers: tuple) -> list:
-    """
-    Scarica transazioni insider via SEC EDGAR API ufficiale (EDGAR Full-Text Search).
-    Fallback: yfinance major_holders per % insider ownership.
-    API EDGAR: https://efts.sec.gov/LATEST/search-index?q=...&dateRange=custom
-    """
-    import urllib.request as _ur
-    import json as _js
-    _results = []
-
-    for _t in tickers[:20]:
-        try:
-            # SEC EDGAR API — cerca Form 4 recenti per il ticker
-            _search_url = (
-                f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22"
-                f"&dateRange=custom&startdt={datetime.now().strftime('%Y-%m-%d')[:7]}-01"
-                f"&forms=4&hits.hits._source=period_of_report,entity_name,file_date"
-                f"&hits.hits.total.value=true"
-            )
-            _req = _ur.Request(
-                _search_url,
-                headers={"User-Agent": "TradingScanner/1.0 research@example.com",
-                         "Accept": "application/json"}
-            )
-            with _ur.urlopen(_req, timeout=8) as _r:
-                _data = _js.loads(_r.read())
-
-            _hits = _data.get("hits", {}).get("hits", [])
-            for _hit in _hits[:3]:
-                _src = _hit.get("_source", {})
-                _results.append({
-                    "Ticker":    _t,
-                    "Insider":   _src.get("entity_name", "—")[:30],
-                    "Ruolo":     "—",
-                    "Data":      _src.get("file_date", "—")[:10],
-                    "Tipo":      "Form 4",
-                    "Prezzo":    "—",
-                    "Valore $":  "—",
-                    "Fonte":     "SEC EDGAR",
-                })
-        except Exception:
-            # Fallback: yfinance major_holders
+    # ── v36 — MERCATI LIVE con FTSE MIB ──────────────────────────────────
+    # Sovrascrive la barra di home_tab aggiungendo FTSE MIB dopo Russell2K
+    @st.cache_data(ttl=60, show_spinner=False)
+    def _fetch_live_markets_v36():
+        import yfinance as _yf_live
+        _mkts = [
+            ("^GSPC",   "S&P 500",    "🇺🇸"),
+            ("^IXIC",   "NASDAQ",     "💻"),
+            ("^DJI",    "Dow Jones",  "🏭"),
+            ("^RUT",    "Russell2K",  "📊"),
+            ("FTSEMIB.MI","FTSE MIB", "🇮🇹"),
+            ("^VIX",    "VIX",        "😰"),
+            ("BTC-USD", "Bitcoin",    "₿"),
+            ("GC=F",    "Gold",       "🥇"),
+            ("CL=F",    "Oil WTI",    "🛢️"),
+            ("DX-Y.NYB","DXY",        "💵"),
+        ]
+        _results = []
+        for _sym, _name, _ico in _mkts:
             try:
-                import yfinance as _yf_ins
-                _mh = _yf_ins.Ticker(_t).major_holders
-                if _mh is not None and not (hasattr(_mh,"empty") and _mh.empty):
-                    _pct = _mh.iloc[0, 0] if len(_mh) > 0 else "—"
-                    _results.append({
-                        "Ticker":   _t,
-                        "Insider":  "Insider ownership",
-                        "Ruolo":    "—",
-                        "Data":     "—",
-                        "Tipo":     "% Ownership",
-                        "Prezzo":   "—",
-                        "Valore $": str(_pct),
-                        "Fonte":    "Yahoo Finance",
-                    })
+                _d = _yf_live.download(_sym, period="2d", interval="1d",
+                                       auto_adjust=True, progress=False)
+                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
+                if len(_d) >= 2:
+                    _cur = float(_d["Close"].iloc[-1])
+                    _prev= float(_d["Close"].iloc[-2])
+                    _chg = (_cur/_prev-1)*100
+                elif len(_d) == 1:
+                    _cur = float(_d["Close"].iloc[-1])
+                    _chg = 0.0
+                else:
+                    continue
+                _results.append({"sym":_sym,"name":_name,"icon":_ico,
+                                 "price":_cur,"chg":_chg})
             except Exception:
                 pass
+        return _results
 
-    return _results
-
-
-@st.cache_data(ttl=3600)
-def _fetch_short_interest_v38(tickers: tuple) -> dict:
-    """Short Interest % da Yahoo Finance .info."""
-    import yfinance as _yf_si
-    _result = {}
-    for _t in tickers[:40]:
-        try:
-            _info = _yf_si.Ticker(_t).info
-            _short = _info.get("shortPercentOfFloat", None)
-            if _short is not None:
-                _result[_t] = round(float(_short) * 100, 1)
-        except Exception:
-            pass
-    return _result
-
-
-# =========================================================================
-# v38 UPGRADE #7 — MACRO CALENDAR
-# =========================================================================
-
-@st.cache_data(ttl=3600)
-def _fetch_macro_calendar_v38() -> list:
-    """
-    Calendario macro hardcoded con prossimi eventi ad alto impatto.
-    In produzione si può integrare con investing.com o FRED API.
-    """
-    from datetime import timedelta
-    _today = datetime.now().date()
-
-    # Genera calendario eventi tipici (approssimazione ciclica)
-    _events = []
-
-    # Pattern mensili tipici USA
-    _monthly_patterns = [
-        # (giorno del mese approssimativo, nome, impatto, descrizione)
-        (1,  "ISM Manufacturing",    "🟡 Med",  "Indice attività manifatturiera USA"),
-        (3,  "ISM Services",         "🟡 Med",  "Indice attività settore servizi USA"),
-        (5,  "NFP + Unemployment",   "🔴 High", "Non-Farm Payrolls + Tasso disoccupazione"),
-        (10, "CPI Inflation",        "🔴 High", "Consumer Price Index — inflazione USA"),
-        (14, "PPI",                  "🟡 Med",  "Producer Price Index"),
-        (15, "Retail Sales",         "🟡 Med",  "Vendite al dettaglio USA"),
-        (20, "FOMC Minutes",         "🔴 High", "Verbali Fed — politica monetaria"),
-        (25, "GDP Revision",         "🟡 Med",  "Revisione PIL trimestrale USA"),
-        (28, "PCE Inflation",        "🔴 High", "Personal Consumption Expenditures — preferito Fed"),
-    ]
-
-    for _day, _name, _impact, _desc in _monthly_patterns:
-        # Cerca la prossima occorrenza
-        for _delta_month in range(0, 3):
-            _candidate = _today.replace(day=min(_day, 28))
-            if _delta_month == 1:
-                _m = _today.month % 12 + 1
-                _y = _today.year + (_today.month // 12)
-                _candidate = _candidate.replace(year=_y, month=_m)
-            elif _delta_month == 2:
-                _m = (_today.month + 1) % 12 + 1
-                _y = _today.year + ((_today.month + 1) // 12)
-                _candidate = _candidate.replace(year=_y, month=_m)
-
-            _days_to = (_candidate - _today).days
-            if _days_to >= -1:
-                _events.append({
-                    "Data":     str(_candidate),
-                    "Evento":   _name,
-                    "Impatto":  _impact,
-                    "Desc":     _desc,
-                    "Giorni":   _days_to,
-                })
-                break
-
-    # Fed meeting dates approssimativi (2026)
-    _fed_dates = ["2026-01-29","2026-03-19","2026-05-07","2026-06-18",
-                  "2026-07-30","2026-09-17","2026-11-05","2026-12-17"]
-    for _fd in _fed_dates:
-        try:
-            _fd_date = datetime.strptime(_fd,"%Y-%m-%d").date()
-            _dt = (_fd_date - _today).days
-            if -1 <= _dt <= 90:
-                _events.append({
-                    "Data":    _fd,
-                    "Evento":  "⚠️ FOMC Rate Decision",
-                    "Impatto": "🔴 High",
-                    "Desc":    "Decisione tassi Fed — massimo impatto mercati",
-                    "Giorni":  _dt,
-                })
-        except Exception:
-            pass
-
-    return sorted(_events, key=lambda x: x["Giorni"])
-
-
-# =========================================================================
-# v38 UPGRADE #8 — OPTIONS FLOW PROXY (put/call ratio)
-# =========================================================================
-
-@st.cache_data(ttl=900)
-def _fetch_options_flow_v38(ticker: str) -> dict:
-    """
-    Calcola put/call ratio dalla options chain di Yahoo Finance.
-    """
-    import yfinance as _yf_op
     try:
-        _tk = _yf_op.Ticker(ticker)
-        _exps = _tk.options
-        if not _exps: return {}
-        # Usa la scadenza più vicina (indice 0)
-        _chain = _tk.option_chain(_exps[0])
-        _calls = _chain.calls
-        _puts  = _chain.puts
-        _call_vol = float(_calls["volume"].fillna(0).sum()) if not _calls.empty else 0
-        _put_vol  = float(_puts["volume"].fillna(0).sum())  if not _puts.empty  else 0
-        _pcr = _put_vol / _call_vol if _call_vol > 0 else None
-        # Score: <0.7 bullish, 0.7-1.2 neutro, >1.2 bearish
-        if _pcr is None:
-            _signal = "⚪ N/D"
-        elif _pcr < 0.7:
-            _signal = "🟢 Bullish"
-        elif _pcr > 1.2:
-            _signal = "🔴 Bearish"
-        else:
-            _signal = "⚪ Neutro"
-        return {
-            "ticker":    ticker,
-            "pcr":       round(_pcr, 2) if _pcr else None,
-            "call_vol":  int(_call_vol),
-            "put_vol":   int(_put_vol),
-            "signal":    _signal,
-            "expiry":    _exps[0],
-        }
+        _live_data = _fetch_live_markets_v36()
+        if _live_data:
+            _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+            # v36: header SOPRA i box, box su riga separata con scroll orizzontale
+            _live_html = (
+                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
+                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
+                # Riga 1: titolo + timestamp
+                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
+                f"letter-spacing:1px;margin-bottom:6px'>"
+                f"📊 MERCATI LIVE "
+                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
+                f"</div>"
+                # Riga 2: box mercati scrollabili
+                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
+            )
+            for _m in _live_data:
+                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
+                _ar = "▲" if _m["chg"]>=0 else "▼"
+                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
+                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
+                       else f"{_m['price']:,.0f}" if _m["price"]>1000
+                       else f"{_m['price']:,.2f}")
+                _live_html += (
+                    f"<div style='background:#131722;border:1px solid #2a2e39;"
+                    f"border-top:2px solid {_c}44;"
+                    f"border-radius:4px;padding:5px 10px;"
+                    f"min-width:100px;flex-shrink:0;text-align:center'>"
+                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
+                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
+                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
+                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
+                    f"{_ar} {abs(_m['chg']):.2f}%</div>"
+                    f"</div>"
+                )
+            _live_html += "</div></div>"
+            st.markdown(_live_html, unsafe_allow_html=True)
     except Exception:
-        return {}
+        pass
 
+    # v38: nasconde la barra MERCATI LIVE di home_tab.py (già mostrata da v38 sopra)
+    st.markdown("""<style>
+    /* Nasconde il primo blocco MERCATI LIVE di home_tab */
+    [data-testid="stMain"] > div > div:first-child iframe { display:none !important; }
+    </style>""", unsafe_allow_html=True)
+    try:
+        from utils.home_tab import render_home
+        render_home(df_ep, df_rea)
+    except Exception as _he:
+        import traceback
+        st.error(f"Home tab error: {_he}")
+        st.code(traceback.format_exc())
 
-# =========================================================================
-# v38 — AGGIUNGI TAB ALLA LISTA + REGISTRA RENDERING
-# =========================================================================
-
-# Aggiungi ai tab esistenti (post-init append)
-# I nuovi tab v38 vengono aggiunti tramite st.tabs ridefinito con append
-# Per compatibilità usiamo expander nei tab esistenti
-
-# Alert nel tab PRO
-with tab_p:
+    # ── v36 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38 — Pattern tecnici rilevati", expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name="pro")
+    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v36 — Prossimi earnings da Watchlist + Scanner</div>',
+                unsafe_allow_html=True)
+    _earn_tickers = set()
+    # Da watchlist
+    try:
+        _wl_earn = load_watchlist()
+        if not _wl_earn.empty and "Ticker" in _wl_earn.columns:
+            _earn_tickers.update(_wl_earn["Ticker"].dropna().unique().tolist())
+    except Exception:
+        pass
+    # Dal df_ep scanner (prime 60 per velocità)
+    if not df_ep.empty and "Ticker" in df_ep.columns:
+        _earn_tickers.update(df_ep["Ticker"].dropna().unique().tolist()[:60])
 
-# Alert nel tab EARLY
-with tab_e:
-    st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38", expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name="early")
+    _earn_tickers_sorted = tuple(sorted(_earn_tickers)[:80])  # cap 80 per performance
 
-# News & Sentiment — nuovo expander nella Home
-with tab_home:
+    if _earn_tickers_sorted:
+        with st.spinner("📅 Carico earnings calendar..."):
+            _earn_data = _fetch_earnings_calendar(_earn_tickers_sorted)
+
+        if _earn_data:
+            # Summary metrics
+            _ec1, _ec2, _ec3, _ec4 = st.columns(4)
+            _ec1.metric("📅 Con earnings", len(_earn_data))
+            _ec2.metric("⚠️ Oggi/Domani",  sum(1 for x in _earn_data if x["Giorni"] <= 1))
+            _ec3.metric("🔔 Questa sett.", sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7))
+            _ec4.metric("📅 Entro 2 sett.",sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14))
+
+            # Tabella earnings
+            for _ed in _earn_data[:25]:
+                _ea, _eb, _ec_col, _edd = st.columns([1.2, 1.5, 1.5, 3])
+                _ea.markdown(
+                    f"<b style='font-family:Courier New;color:#00ff88;font-size:1rem'>"
+                    f"{_ed['Ticker']}</b>", unsafe_allow_html=True)
+                _eb.markdown(
+                    f"<span style='color:#d1d4dc;font-size:0.85rem'>{_ed['Earnings Date']}</span>",
+                    unsafe_allow_html=True)
+                _ec_col.markdown(
+                    f"<b style='font-size:0.78rem;color:{_ed['_color']}'>{_ed['Giorni']:+d}gg</b>",
+                    unsafe_allow_html=True)
+                _edd.markdown(
+                    f"<span style='background:{_ed['_color']}22;color:{_ed['_color']};"
+                    f"border:1px solid {_ed['_color']}44;border-radius:4px;"
+                    f"padding:1px 8px;font-size:0.75rem;font-weight:bold'>"
+                    f"{_ed['Badge']}</span>",
+                    unsafe_allow_html=True)
+        else:
+            st.info("📭 Nessun earnings trovato nei prossimi 21 giorni per i ticker in watchlist/scanner.")
+    else:
+        st.info("Aggiungi ticker alla watchlist o avvia lo scanner per vedere gli earnings.")
+
+
+    # ── v37/v38 additions for tab_home ──
     st.markdown("---")
     st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v38</div>', unsafe_allow_html=True)
     with st.expander("📰 Ultime news con score sentiment sui ticker scanner/watchlist",
                      expanded=False):
         _render_news_sentiment_v38(df_ep)
 
-# Macro Calendar nella Home
-with tab_home:
     st.markdown("---")
     st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v38 — Fed · CPI · NFP · PCE</div>',
                 unsafe_allow_html=True)
@@ -8041,69 +7939,459 @@ with tab_home:
             )
 
 # Options Flow + Short Interest + Insider nel Risk Manager
-with tab_rm:
+with tab_e:
+    st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
+    render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
+
+
+    # ── v37/v38 additions for tab_e ──
     st.markdown("---")
-    st.markdown('<div class="section-pill">📊 INTEGRAZIONI DATI v38</div>', unsafe_allow_html=True)
+    with st.expander("🔔 Alert Multipli v38", expanded=False):
+        _render_pattern_alerts_v38(df_ep, tab_name="early")
 
-    _int_t1, _int_t2, _int_t3 = st.tabs(["📉 Options Flow", "🩳 Short Interest", "🏛️ Insider Buying"])
-
-    with _int_t1:
-        st.caption("Put/Call ratio dalla options chain Yahoo Finance — proxy sentiment istituzionale.")
-        _of_tickers = []
-        if not df_ep.empty and "Ticker" in df_ep.columns:
-            _of_tickers = df_ep["Ticker"].dropna().unique().tolist()[:30]
-        if _of_tickers:
-            _of_sel = st.selectbox("Ticker", _of_tickers, key="of_ticker_sel")
-            if st.button("📉 Calcola P/C Ratio", key="of_calc"):
-                with st.spinner(f"Options chain {_of_sel}..."):
-                    _of_res = _fetch_options_flow_v38(_of_sel)
-                if _of_res:
-                    _oc1,_oc2,_oc3,_oc4 = st.columns(4)
-                    _oc1.metric("P/C Ratio",    str(_of_res.get("pcr","N/D")))
-                    _oc2.metric("Call Volume",   f"{_of_res.get('call_vol',0):,}")
-                    _oc3.metric("Put Volume",    f"{_of_res.get('put_vol',0):,}")
-                    _oc4.metric("Segnale",       _of_res.get("signal","—"))
-                    st.caption(f"Scadenza analizzata: {_of_res.get('expiry','—')}")
-                else:
-                    st.warning(f"Options non disponibili per {_of_sel}.")
+# News & Sentiment — nuovo expander nella Home
+with tab_p:
+    st.session_state.last_active_tab="PRO"; show_legend("PRO")
+    _pro_sort = st.radio("Ordina per",["Quality","Momentum (Pro×RSI)"],
+                         horizontal=True, key="pro_sort_mode", label_visibility="collapsed")
+    if _pro_sort == "Momentum (Pro×RSI)":
+        # Aggiunge colonna Momentum temporanea per ordinamento
+        _df_pro = df_ep.copy()
+        if not _df_pro.empty and "Pro_Score" in _df_pro.columns and "RSI" in _df_pro.columns:
+            _df_pro["_Momentum"] = _df_pro["Pro_Score"].fillna(0)*10 + _df_pro["RSI"].fillna(0)
         else:
-            st.info("Avvia lo scanner per selezionare un ticker.")
+            _df_pro["_Momentum"] = 0
+        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
+    else:
+        render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
-    with _int_t2:
-        st.caption("Short Interest % dal float — alto short interest + segnale PRO = short squeeze potenziale.")
-        _si_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:40]) if not df_ep.empty else ()
-        if _si_tickers:
-            if st.button("🩳 Carica Short Interest", key="si_load"):
-                with st.spinner("Scarico short interest..."):
-                    _si_data = _fetch_short_interest_v38(_si_tickers)
-                if _si_data:
-                    _df_si = pd.DataFrame([
-                        {"Ticker": t, "Short %": f"{v:.1f}%",
-                         "Setup": "🎯 Squeeze" if v >= 15 else "⚠️ Alto" if v >= 10 else "Normal"}
-                        for t,v in sorted(_si_data.items(), key=lambda x:-x[1])
-                    ])
-                    st.dataframe(_df_si, use_container_width=True, hide_index=True)
-                    _n_squeeze = sum(1 for v in _si_data.values() if v >= 15)
-                    if _n_squeeze:
-                        st.success(f"🎯 {_n_squeeze} ticker con short ≥15% — potenziale short squeeze!")
-                else:
-                    st.info("Nessun dato short interest disponibile.")
-        else:
-            st.info("Avvia lo scanner per caricare i dati.")
 
-    with _int_t3:
-        st.caption("Acquisti insider (Form 4 SEC) — segnale forte quando insider comprano sul mercato aperto.")
-        _ins_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:20]) if not df_ep.empty else ()
-        if _ins_tickers:
-            if st.button("🏛️ Cerca Insider Buying", key="ins_load"):
-                with st.spinner("Scarico dati SEC Form 4..."):
-                    _ins_data = _fetch_insider_buying_v38(_ins_tickers)
-                if _ins_data:
-                    _df_ins = pd.DataFrame(_ins_data)
-                    st.dataframe(_df_ins, use_container_width=True, hide_index=True)
-                    st.caption(f"Trovati {len(_ins_data)} acquisti insider negli ultimi 30 giorni.")
-                else:
-                    st.info("Nessun dato Form 4 trovato tramite SEC EDGAR per i ticker selezionati.")
+    # ── v37/v38 additions for tab_p ──
+    with st.expander("🧠 AI Signal Explainer v37 — Analisi Claude su ogni setup PRO", expanded=False):
+        _render_ai_explainer_v37(df_ep, "PRO")
+
+# Telegram nel Risk Manager
+    st.markdown("---")
+    with st.expander("🔔 Alert Multipli v38 — Pattern tecnici rilevati", expanded=False):
+        _render_pattern_alerts_v38(df_ep, tab_name="pro")
+
+# Alert nel tab EARLY
+with tab_r:
+    st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # 🔥 REA-HOT v34 — ACCUMULO & BREAKOUT DETECTOR
+    # ══════════════════════════════════════════════════════════════════════
+    # Idea ispirata agli youtuber/trader che cercano titoli in fase di
+    # ACCUMULO (volatilità bassa, volume stabile) seguita da un BREAKOUT
+    # improvviso con volume anomalo — classico pattern "coiled spring".
+    #
+    # SCORE ACCUMULO-BREAKOUT (AB_Score 0-100):
+    #   • Vol_Ratio >= 2.0   → volume breakout confermato (40 pt)
+    #   • Dist_POC% vicino   → prezzo torna vicino al livello chiave (20 pt)
+    #   • ATR_pct in range   → movimento reale, non flat (15 pt)
+    #   • RSI 45-65          → momentum sano, non overbought (15 pt)
+    #   • OBV_Trend UP       → accumulo istituzionale (10 pt)
+    # ──────────────────────────────────────────────────────────────────────
+    if not df_rea.empty:
+        df_rea_view = df_rea.copy()
+
+        # Calcola AB_Score
+        def _ab_score(row):
+            score = 0.0
+            # 1. Vol_Ratio breakout (max 40 pt)
+            vr = float(row.get("Vol_Ratio", 0) or 0)
+            if   vr >= 4.0: score += 40
+            elif vr >= 3.0: score += 32
+            elif vr >= 2.0: score += 22
+            elif vr >= 1.5: score += 10
+            # 2. Dist_POC% vicino al POC (max 20 pt) — più vicino = meglio
+            dp = abs(float(row.get("Dist_POC_%", 999) or 999))
+            if   dp <= 0.5: score += 20
+            elif dp <= 1.0: score += 15
+            elif dp <= 2.0: score += 10
+            elif dp <= 3.0: score += 5
+            # 3. ATR% range operativo (max 15 pt)
+            atr = float(row.get("ATR_pct", 0) or 0)
+            if   2.0 <= atr <= 4.0: score += 15
+            elif 1.5 <= atr <= 6.0: score += 8
+            # 4. RSI zona sana 45-65 (max 15 pt)
+            rsi = float(row.get("RSI", 50) or 50)
+            if   50 <= rsi <= 60: score += 15
+            elif 45 <= rsi <= 65: score += 10
+            elif 40 <= rsi <= 70: score += 5
+            # 5. OBV crescente (max 10 pt)
+            if row.get("OBV_Trend") == "UP": score += 10
+            return round(score, 1)
+
+        df_rea_view["AB_Score"] = df_rea_view.apply(_ab_score, axis=1)
+        df_rea_view["AB_Grade"] = df_rea_view["AB_Score"].apply(
+            lambda v: "🔥 HOT"    if v >= 70 else
+                      "⚡ STRONG" if v >= 50 else
+                      "📈 WATCH"  if v >= 30 else "💤 WEAK"
+        )
+
+        # Header con metriche rapide
+        _ab_hot    = int((df_rea_view["AB_Grade"] == "🔥 HOT").sum())
+        _ab_strong = int((df_rea_view["AB_Grade"] == "⚡ STRONG").sum())
+        _ab_avg    = round(df_rea_view["AB_Score"].mean(), 1) if not df_rea_view.empty else 0
+        _ab_top    = df_rea_view.nlargest(1, "AB_Score").iloc[0]["Ticker"] if not df_rea_view.empty else "—"
+
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("🔥 HOT Breakout",   _ab_hot,    help="AB_Score ≥ 70 — breakout confermato con volume forte")
+        m2.metric("⚡ Strong Setup",   _ab_strong, help="AB_Score 50-69 — setup in formazione")
+        m3.metric("📊 Tot. segnali",   len(df_rea_view))
+        m4.metric("📈 AB Score medio", f"{_ab_avg:.1f}")
+        m5.metric("🏆 Top ticker",     _ab_top,    help="Ticker con AB_Score più alto")
+
+        st.markdown(
+            f'<div style="background:#1e222d;border-left:3px solid #f97316;'
+            f'padding:8px 14px;border-radius:0 4px 4px 0;margin:8px 0;font-size:0.80rem">'
+            f'<b style="color:#f97316">💡 Come leggere il tab REA-HOT:</b>'
+            f' <span style="color:#b2b5be">I titoli in lista hanno già Vol_Ratio > soglia E '
+            f'prezzo vicino al POC (Point of Control). '
+            f'L\'<b>AB_Score</b> aggiunge una valutazione 0-100 del setup accumulo→breakout: '
+            f'più alto = volume anomalo + prezzo in zona chiave + momentum sano.</span>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+
+        # Chart top-10 AB_Score (mini heatmap visuale)
+        top10 = df_rea_view.nlargest(min(10, len(df_rea_view)), "AB_Score")
+        if not top10.empty:
+            fig_ab = go.Figure()
+            colors_ab = [
+                "#f97316" if g == "🔥 HOT" else
+                "#60a5fa" if g == "⚡ STRONG" else
+                "#26a69a"
+                for g in top10["AB_Grade"]
+            ]
+            vr_vals = pd.to_numeric(top10.get("Vol_Ratio", pd.Series()), errors="coerce").fillna(0)
+            fig_ab.add_trace(go.Bar(
+                x=top10["Ticker"],
+                y=top10["AB_Score"],
+                marker_color=colors_ab,
+                marker_line_width=0,
+                text=[f"{v:.0f}" for v in top10["AB_Score"]],
+                textposition="outside",
+                textfont=dict(size=10, color="#d1d4dc"),
+                customdata=list(zip(
+                    vr_vals.tolist(),
+                    top10.get("Dist_POC_%", pd.Series([0]*len(top10))).fillna(0).tolist(),
+                    top10.get("RSI", pd.Series([0]*len(top10))).fillna(0).tolist(),
+                )),
+                hovertemplate=(
+                    "<b>%{x}</b><br>"
+                    "AB Score: <b>%{y:.0f}</b><br>"
+                    "Vol Ratio: %{customdata[0]:.1f}x<br>"
+                    "Dist POC: %{customdata[1]:+.1f}%<br>"
+                    "RSI: %{customdata[2]:.0f}"
+                    "<extra></extra>"
+                ),
+            ))
+            fig_ab.update_layout(
+                paper_bgcolor="#131722", plot_bgcolor="#1e222d",
+                font=dict(color="#b2b5be", family="Trebuchet MS, sans-serif", size=12),
+                xaxis=dict(gridcolor="#2a2e39", zerolinecolor="#363a45",
+                           linecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
+                yaxis=dict(range=[0, 115], showgrid=True, gridcolor="#2a2e39",
+                           zerolinecolor="#363a45", tickfont=dict(color="#787b86", size=10)),
+                title=dict(text="🔥 Top 10 — Accumulo & Breakout Score",
+                           font=dict(color="#f97316", size=13), x=0.01),
+                height=260,
+                margin=dict(l=0, r=0, t=44, b=0),
+                showlegend=False,
+            )
+            # Linee soglia colorate
+            for yval, col, lbl in [(70,"#f97316","HOT"), (50,"#60a5fa","STRONG"), (30,"#26a69a","WATCH")]:
+                fig_ab.add_hline(y=yval, line=dict(color=col, width=1, dash="dot"),
+                                 annotation_text=lbl, annotation_font_color=col,
+                                 annotation_font_size=9)
+            st.plotly_chart(fig_ab, use_container_width=True, key="rea_ab_chart")
+
+    # ── Tabella standard con AB_Score aggiunto ──────────────────────────
+    _df_rea_enhanced = df_rea_view if not df_rea.empty else df_rea
+    render_scan_tab(_df_rea_enhanced, "HOT", ["AB_Score","Vol_Ratio","Dist_POC_%"],
+                    [False, False, True], "REA-HOT")
+
+with tab_conf:
+    st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
+    render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
+
+
+    # ── v37/v38 additions for tab_conf ──
+    with st.expander("🧠 AI Signal Explainer v37 — Analisi CONFLUENCE", expanded=False):
+        _df_conf_ai = pd.DataFrame()
+        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+            _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY")&
+                                (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
+        _render_ai_explainer_v37(_df_conf_ai, "CONF")
+
+# =========================================================================
+# v38 UPGRADE #2 — ALERT MULTIPLI ENGINE
+# Pattern tecnici: EMA breakout, golden/death cross, squeeze fire,
+# Bollinger breakout, RSI divergence, volume spike
+# =========================================================================
+
+with tab_analisi:
+    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v38 — Carica i tuoi ticker · Ricevi consigli operativi AI</div>',
+                unsafe_allow_html=True)
+    st.caption("Inserisci i ticker che vuoi analizzare. L'AI scarica i dati freschi e ti dà consigli su come operare su ciascuno.")
+
+    # ── Input ticker personalizzati ──────────────────────────────────────
+    _ap_c1, _ap_c2 = st.columns([2, 1.5])
+
+    with _ap_c1:
+        _ap_input = st.text_area(
+            "I tuoi ticker (uno per riga)",
+            placeholder="AAPL\nMSFT\nENI.MI\nRACE.MI\n...",
+            height=180,
+            key="ap_tickers_input",
+            help="Inserisci i simboli Yahoo Finance. Per titoli italiani usa formato: ENI.MI, RACE.MI, ISP.MI"
+        )
+        _ap_period = st.select_slider(
+            "Periodo analisi",
+            options=["1mo","3mo","6mo","1y","2y"],
+            value="6mo",
+            key="ap_period"
+        )
+
+    with _ap_c2:
+        st.markdown("**Tipo di analisi:**")
+        _ap_swing  = st.checkbox("📈 Swing Trading (3-20gg)",  value=True,  key="ap_swing")
+        _ap_trend  = st.checkbox("📊 Trend Following",          value=True,  key="ap_trend")
+        _ap_risk   = st.checkbox("⚠️ Risk Assessment",          value=True,  key="ap_risk")
+        _ap_entry  = st.checkbox("🎯 Entry Point ottimale",     value=True,  key="ap_entry")
+        _ap_levels = st.checkbox("📐 Livelli S/R e target",     value=False, key="ap_levels")
+
+        # AI key status
+        _ap_has_key = any([
+            st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key",""),
+            st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key",""),
+            st.secrets.get("OPENROUTER_API_KEY","") or st.session_state.get("_openrouter_api_key",""),
+            st.secrets.get("ANTHROPIC_API_KEY","")  or st.session_state.get("_anthropic_api_key",""),
+        ])
+        if not _ap_has_key:
+            st.warning("⚠️ Configura almeno una API key nel tab PRO → AI Explainer")
+
+    _run_ap = st.button("🔍 Analizza i miei ticker", key="ap_run",
+                        type="primary", use_container_width=True,
+                        disabled=not _ap_has_key)
+
+    if _run_ap and _ap_input.strip():
+        _ap_tickers = [t.strip().upper() for t in _ap_input.strip().splitlines()
+                       if t.strip()][:15]  # max 15 ticker
+
+        if not _ap_tickers:
+            st.warning("Inserisci almeno un ticker.")
         else:
-            st.info("Avvia lo scanner per cercare gli insiders.")
+            st.markdown(f"**Analisi di {len(_ap_tickers)} ticker:** {', '.join(_ap_tickers)}")
+            st.markdown("---")
+
+            for _ap_tkr in _ap_tickers:
+                with st.expander(f"💡 {_ap_tkr} — Analisi in corso...", expanded=True):
+                    with st.spinner(f"Scarico dati e genero analisi per {_ap_tkr}..."):
+
+                        # ── 1. Scarica dati da Yahoo Finance ──────────
+                        _ap_data = {}
+                        try:
+                            import yfinance as _yf_ap
+                            _raw_ap = _yf_ap.download(
+                                _ap_tkr, period=_ap_period, interval="1d",
+                                auto_adjust=True, progress=False
+                            )
+                            _raw_ap.columns = [c[0] if isinstance(c,tuple) else c
+                                               for c in _raw_ap.columns]
+
+                            if not _raw_ap.empty:
+                                _cl_ap = _raw_ap["Close"].dropna()
+                                _hi_ap = _raw_ap["High"].dropna()
+                                _lo_ap = _raw_ap["Low"].dropna()
+                                _vo_ap = _raw_ap["Volume"].dropna() if "Volume" in _raw_ap.columns else None
+
+                                # Calcola indicatori
+                                _pr_ap   = float(_cl_ap.iloc[-1])
+                                _ema20_ap= float(_cl_ap.ewm(span=20,adjust=False).mean().iloc[-1])
+                                _ema50_ap= float(_cl_ap.ewm(span=50,adjust=False).mean().iloc[-1])
+                                _ema200_ap=float(_cl_ap.ewm(span=min(200,len(_cl_ap)),adjust=False).mean().iloc[-1])
+
+                                # RSI
+                                _d_ap = _cl_ap.diff()
+                                _g_ap = _d_ap.clip(lower=0); _l_ap = -_d_ap.clip(upper=0)
+                                _rs_ap= _g_ap.ewm(com=13,adjust=False).mean()/(_l_ap.ewm(com=13,adjust=False).mean()+1e-10)
+                                _rsi_ap = float((100-100/(1+_rs_ap)).iloc[-1])
+
+                                # ATR
+                                _tr_ap = (_hi_ap-_lo_ap).ewm(com=13,adjust=False).mean()
+                                _atr_ap = float(_tr_ap.iloc[-1])
+                                _atr_pct= round(_atr_ap/_pr_ap*100,2)
+
+                                # Performance
+                                _ret_1m  = round((_cl_ap.iloc[-1]/_cl_ap.iloc[max(-22,-len(_cl_ap))]-1)*100,1)
+                                _ret_3m  = round((_cl_ap.iloc[-1]/_cl_ap.iloc[max(-63,-len(_cl_ap))]-1)*100,1)
+                                _ret_6m  = round((_cl_ap.iloc[-1]/_cl_ap.iloc[max(-126,-len(_cl_ap))]-1)*100,1)
+
+                                # Vol ratio
+                                _vr_ap = "N/D"
+                                if _vo_ap is not None and len(_vo_ap) >= 22:
+                                    _vr_ap = round(float(_vo_ap.iloc[-1]/_vo_ap.iloc[-22:].mean()),2)
+
+                                # 52W high/low
+                                _52wh = float(_hi_ap.tail(252).max())
+                                _52wl = float(_lo_ap.tail(252).min())
+                                _dist_52wh = round((_pr_ap/_52wh-1)*100,1)
+
+                                # Trend bias
+                                _trend_bias = ("RIALZISTA" if _pr_ap>_ema20_ap>_ema50_ap
+                                               else "RIBASSISTA" if _pr_ap<_ema20_ap<_ema50_ap
+                                               else "LATERALE")
+
+                                # Info fondamentali
+                                _info_ap = {}
+                                try:
+                                    _ti_ap = _yf_ap.Ticker(_ap_tkr).info
+                                    _info_ap = {
+                                        "name":     _ti_ap.get("longName","—"),
+                                        "sector":   _ti_ap.get("sector","—"),
+                                        "pe":       _ti_ap.get("trailingPE","—"),
+                                        "fwd_pe":   _ti_ap.get("forwardPE","—"),
+                                        "div":      _ti_ap.get("dividendYield","—"),
+                                        "beta":     _ti_ap.get("beta","—"),
+                                        "mcap":     _ti_ap.get("marketCap",0),
+                                    }
+                                except Exception:
+                                    pass
+
+                                _ap_data = {
+                                    "ticker": _ap_tkr,
+                                    "nome":   _info_ap.get("name","—"),
+                                    "settore":_info_ap.get("sector","—"),
+                                    "prezzo": round(_pr_ap,2),
+                                    "ema20":  round(_ema20_ap,2),
+                                    "ema50":  round(_ema50_ap,2),
+                                    "ema200": round(_ema200_ap,2),
+                                    "rsi":    round(_rsi_ap,1),
+                                    "atr":    round(_atr_ap,4),
+                                    "atr_pct":_atr_pct,
+                                    "ret_1m": _ret_1m,
+                                    "ret_3m": _ret_3m,
+                                    "ret_6m": _ret_6m,
+                                    "vol_ratio": _vr_ap,
+                                    "52w_high": round(_52wh,2),
+                                    "52w_low":  round(_52wl,2),
+                                    "dist_52wh":_dist_52wh,
+                                    "trend_bias":_trend_bias,
+                                    "pe":     _info_ap.get("pe","—"),
+                                    "fwd_pe": _info_ap.get("fwd_pe","—"),
+                                    "beta":   _info_ap.get("beta","—"),
+                                    "periodo":_ap_period,
+                                }
+
+                        except Exception as _ap_err:
+                            st.warning(f"Impossibile scaricare dati per {_ap_tkr}: {_ap_err}")
+
+                        if not _ap_data:
+                            continue
+
+                        # ── 2. Mostra metriche rapide ──────────────────
+                        _apm1,_apm2,_apm3,_apm4,_apm5,_apm6 = st.columns(6)
+                        _tc = "#00ff88" if _ap_data["rsi"]<70 and _ap_data["trend_bias"]=="RIALZISTA" else "#ef4444" if _ap_data["trend_bias"]=="RIBASSISTA" else "#f59e0b"
+                        _apm1.metric("💰 Prezzo",      f"${_ap_data['prezzo']:.2f}")
+                        _apm2.metric("📊 RSI",         f"{_ap_data['rsi']:.1f}")
+                        _apm3.metric("📈 Trend",        _ap_data["trend_bias"])
+                        _apm4.metric("📅 Rend 1M",     f"{_ap_data['ret_1m']:+.1f}%")
+                        _apm5.metric("📅 Rend 3M",     f"{_ap_data['ret_3m']:+.1f}%")
+                        _apm6.metric("⚡ ATR%",         f"{_ap_data['atr_pct']:.1f}%")
+
+                        # ── 3. Costruisce prompt AI contestuale ────────
+                        _ap_analysis_types = []
+                        if _ap_swing:  _ap_analysis_types.append("Swing Trading (3-20 giorni)")
+                        if _ap_trend:  _ap_analysis_types.append("Trend Following")
+                        if _ap_risk:   _ap_analysis_types.append("Risk Assessment")
+                        if _ap_entry:  _ap_analysis_types.append("Entry Point ottimale")
+                        if _ap_levels: _ap_analysis_types.append("Livelli S/R e target")
+
+                        # Regime context
+                        try:
+                            _rg_ap = _get_market_regime()
+                            _regime_ap = f"VIX={_rg_ap['vix']}, Regime={_rg_ap['regime']}, SPY mom={_rg_ap['spy_mom_20d']:+.1f}%"
+                        except Exception:
+                            _regime_ap = "dati regime non disponibili"
+
+                        _ap_prompt = f"""Sei un trader professionista con 20 anni di esperienza. Analizza questo titolo e fornisci consigli operativi PRATICI e SPECIFICI.
+
+TITOLO: {_ap_data['ticker']} — {_ap_data['nome']}
+SETTORE: {_ap_data['settore']}
+PERIODO ANALIZZATO: {_ap_data['periodo']}
+
+DATI TECNICI:
+- Prezzo attuale: ${_ap_data['prezzo']}
+- EMA20: ${_ap_data['ema20']} | EMA50: ${_ap_data['ema50']} | EMA200: ${_ap_data['ema200']}
+- RSI(14): {_ap_data['rsi']}
+- ATR: ${_ap_data['atr']} ({_ap_data['atr_pct']}% del prezzo)
+- Trend bias: {_ap_data['trend_bias']}
+- Volume ratio: {_ap_data['vol_ratio']}x
+- Performance: 1M {_ap_data['ret_1m']:+.1f}% | 3M {_ap_data['ret_3m']:+.1f}% | 6M {_ap_data['ret_6m']:+.1f}%
+- 52W High: ${_ap_data['52w_high']} (distanza: {_ap_data['dist_52wh']:+.1f}%)
+- P/E: {_ap_data['pe']} | P/E Fwd: {_ap_data['fwd_pe']} | Beta: {_ap_data['beta']}
+- Contesto mercato: {_regime_ap}
+
+TIPO DI ANALISI RICHIESTA: {', '.join(_ap_analysis_types)}
+
+Rispondi in italiano con questo formato ESATTO:
+
+📊 SETUP ATTUALE:
+[2-3 righe: descrivi oggettivamente la situazione tecnica basandoti sui dati]
+
+🎯 STRATEGIA CONSIGLIATA:
+[2-3 righe: tipo operazione (long/short/attesa), timing, motivazione tecnica]
+
+🔴 ENTRY: $[prezzo entry ottimale basato su ATR/EMA]
+🔴 STOP LOSS: $[stop = entry - 1.5×ATR] ([percentuale]%)
+🟢 TARGET 1: $[T1 = entry + 1.5×ATR] (R:R 1:1)
+🟢 TARGET 2: $[T2 = entry + 3×ATR] (R:R 2:1)
+
+⚠️ RISCHI PRINCIPALI:
+[2 righe: rischi specifici per questo titolo ORA]
+
+💡 CONSIGLIO FINALE:
+[1 riga: sintesi operativa concisa]"""
+
+                        # ── 4. Chiama AI con fallback ──────────────────
+                        try:
+                            _ap_text, _ap_prov = _ai_call_with_fallback(_ap_prompt)
+                            st.markdown(
+                                f"<div style='background:#0d1117;border:1px solid #1f2937;"
+                                f"border-left:3px solid #26a69a;border-radius:0 8px 8px 0;"
+                                f"padding:14px 18px;font-size:0.88rem;line-height:1.7;"
+                                f"white-space:pre-wrap'>{_ap_text}</div>",
+                                unsafe_allow_html=True
+                            )
+                            st.caption(f"Provider AI: {_ap_prov} · Dati: Yahoo Finance · {_ap_period}")
+                        except Exception as _ap_ai_err:
+                            _err_msg = str(_ap_ai_err)
+                            if "NO_KEYS" in _err_msg:
+                                st.warning("⚠️ Configura una API key nel tab PRO → AI Explainer")
+                            else:
+                                st.error(f"Errore AI: {_err_msg[:200]}")
+    elif not _ap_has_key:
+        st.info("👆 Configura almeno una API key gratuita (Gemini o Groq) nel tab **PRO → AI Explainer** per usare questa funzione.")
+    else:
+        # Mostra esempio di cosa aspettarsi
+        st.markdown(
+            "<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;"
+            "padding:16px 20px;margin-top:8px'>"
+            "<b style='color:#50c4e0'>Come funziona:</b><br><br>"
+            "<span style='color:#b2b5be'>"
+            "1. Inserisci i ticker che vuoi analizzare (es. AAPL, ENI.MI, RACE.MI)<br>"
+            "2. Seleziona il tipo di analisi che ti interessa<br>"
+            "3. Clicca <b>Analizza</b> — il sistema scarica i dati freschi da Yahoo Finance<br>"
+            "4. L'AI analizza la situazione tecnica e ti fornisce consigli operativi specifici:<br>"
+            "&nbsp;&nbsp;&nbsp;• Setup attuale (trend, momentum, volume)<br>"
+            "&nbsp;&nbsp;&nbsp;• Entry ottimale, Stop Loss ATR-based, Target R:R<br>"
+            "&nbsp;&nbsp;&nbsp;• Rischi specifici del titolo in questo momento<br>"
+            "&nbsp;&nbsp;&nbsp;• Consiglio finale sintetico"
+            "</span></div>",
+            unsafe_allow_html=True
+        )
 
