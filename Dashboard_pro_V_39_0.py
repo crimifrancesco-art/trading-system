@@ -4084,6 +4084,12 @@ def _fetch_options_flow_v39(ticker: str) -> dict:
 # Per compatibilità usiamo expander nei tab esistenti
 
 # Alert nel tab PRO
+# v39.0 hotfix: fallback context per blocchi legacy eseguiti prima di st.tabs
+try:
+    tab_mtfmatrix
+except NameError:
+    tab_mtfmatrix = st.container()
+
 with tab_mtfmatrix:
     # ══════════════════════════════════════════════════════════════════════
     # COMPARATORE MULTI-TICKER v36
