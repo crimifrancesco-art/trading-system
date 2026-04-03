@@ -8394,4 +8394,3 @@ Rispondi in italiano con questo formato ESATTO:
             "</span></div>",
             unsafe_allow_html=True
         )
-
