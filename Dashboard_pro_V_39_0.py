@@ -4084,11 +4084,19 @@ def _fetch_options_flow_v39(ticker: str) -> dict:
 # Per compatibilità usiamo expander nei tab esistenti
 
 # Alert nel tab PRO
-# v39.0 hotfix: fallback context per blocchi legacy eseguiti prima di st.tabs
-try:
-    tab_mtfmatrix
-except NameError:
-    tab_mtfmatrix = st.container()
+# v39.0 cumulative hotfix: fallback context per blocchi legacy eseguiti prima di st.tabs
+for _tab_name in [
+    "tab_mtfmatrix", "tab_ser", "tab_fvpro", "tab_crisis", "tab_rm",
+    "tab_w", "tab_journal", "tab_regime", "tab_of", "tab_p",
+    "tab_r", "tab_conf", "tab_e", "tab_bcd", "tab_home", "tab_bt", "tab_analisi"
+]:
+    if _tab_name not in globals():
+        globals()[_tab_name] = st.container()
+
+# v39.0 cumulative hotfix: fallback renderer AI opzionale
+if "_render_ai_explainer_v37" not in globals():
+    def _render_ai_explainer_v37(df_source, tab_name="PRO"):
+        st.info(f"AI Signal Explainer temporaneamente non disponibile nel tab {tab_name}.")
 
 with tab_mtfmatrix:
     # ══════════════════════════════════════════════════════════════════════
