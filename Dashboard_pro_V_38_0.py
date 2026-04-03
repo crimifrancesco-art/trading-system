@@ -4084,7 +4084,7 @@ def _fetch_options_flow_v38(ticker: str) -> dict:
 # Per compatibilità usiamo expander nei tab esistenti
 
 # Alert nel tab PRO
-with tab_mtf:
+with tab_mtfmatrix:
     # ══════════════════════════════════════════════════════════════════════
     # COMPARATORE MULTI-TICKER v36
     # Top 5 per capitalizzazione (Mar 2025): AAPL > MSFT > NVDA > GOOGL > META
@@ -8394,3 +8394,5 @@ Rispondi in italiano con questo formato ESATTO:
             "</span></div>",
             unsafe_allow_html=True
         )
+
+
