@@ -697,6 +697,17 @@ def _add_rs_column(df: pd.DataFrame) -> pd.DataFrame:
         df["RS_Rank"] = 50
     return df
 
+def _tv_symbol_it(_ticker: str) -> str:
+    _t = str(_ticker).strip().upper()
+    return _t.replace('.MI', '').replace('.', '')
+
+def _tv_link_html(_ticker: str, _name: str = '') -> str:
+    _sym = _tv_symbol_it(_ticker)
+    _url = f"https://it.tradingview.com/chart/?symbol={_sym}"
+    _label = f"{_ticker} — {_name}" if _name else str(_ticker)
+    return f'<a href="{_url}" target="_blank" style="color:#00ff88;text-decoration:none;font-family:Courier New;font-weight:bold">{_label}</a>'
+
+
 
 # ── #7 SECTOR ROTATION DATA ────────────────────────────────────────────────
 _SECTOR_ETFS = {
@@ -4195,97 +4206,9 @@ with tab_home:
         st.session_state["_trigger_autoscan"] = False
         st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
 
-    # ── v36 — MERCATI LIVE con FTSE MIB ──────────────────────────────────
-    # Sovrascrive la barra di home_tab aggiungendo FTSE MIB dopo Russell2K
-    @st.cache_data(ttl=60, show_spinner=False)
-    def _fetch_live_markets_v36():
-        import yfinance as _yf_live
-        _mkts = [
-            ("^GSPC",   "S&P 500",    "🇺🇸"),
-            ("^IXIC",   "NASDAQ",     "💻"),
-            ("^DJI",    "Dow Jones",  "🏭"),
-            ("^RUT",    "Russell2K",  "📊"),
-            ("FTSEMIB.MI","FTSE MIB", "🇮🇹"),
-            ("^VIX",    "VIX",        "😰"),
-            ("BTC-USD", "Bitcoin",    "₿"),
-            ("GC=F",    "Gold",       "🥇"),
-            ("CL=F",    "Oil WTI",    "🛢️"),
-            ("DX-Y.NYB","DXY",        "💵"),
-        ]
-        _results = []
-        for _sym, _name, _ico in _mkts:
-            try:
-                _d = _yf_live.download(_sym, period="2d", interval="1d",
-                                       auto_adjust=True, progress=False)
-                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
-                if len(_d) >= 2:
-                    _cur = float(_d["Close"].iloc[-1])
-                    _prev= float(_d["Close"].iloc[-2])
-                    _chg = (_cur/_prev-1)*100
-                elif len(_d) == 1:
-                    _cur = float(_d["Close"].iloc[-1])
-                    _chg = 0.0
-                else:
-                    continue
-                _results.append({"sym":_sym,"name":_name,"icon":_ico,
-                                 "price":_cur,"chg":_chg})
-            except Exception:
-                pass
-        return _results
-
-    try:
-        _live_data = _fetch_live_markets_v36()
-        if _live_data:
-            _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-            # v36: header SOPRA i box, box su riga separata con scroll orizzontale
-            _live_html = (
-                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
-                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
-                # Riga 1: titolo + timestamp
-                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
-                f"letter-spacing:1px;margin-bottom:6px'>"
-                f"📊 MERCATI LIVE "
-                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
-                f"</div>"
-                # Riga 2: box mercati scrollabili
-                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
-            )
-            for _m in _live_data:
-                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
-                _ar = "▲" if _m["chg"]>=0 else "▼"
-                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
-                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
-                       else f"{_m['price']:,.0f}" if _m["price"]>1000
-                       else f"{_m['price']:,.2f}")
-                _live_html += (
-                    f"<div style='background:#131722;border:1px solid #2a2e39;"
-                    f"border-top:2px solid {_c}44;"
-                    f"border-radius:4px;padding:5px 10px;"
-                    f"min-width:100px;flex-shrink:0;text-align:center'>"
-                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
-                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
-                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
-                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
-                    f"{_ar} {abs(_m['chg']):.2f}%</div>"
-                    f"</div>"
-                )
-            _live_html += "</div></div>"
-            st.markdown(_live_html, unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    # v39: nasconde la barra MERCATI LIVE di home_tab.py (già mostrata da v39 sopra)
-    st.markdown("""<style>
-    /* Nasconde il primo blocco MERCATI LIVE di home_tab */
-    [data-testid="stMain"] > div > div:first-child iframe { display:none !important; }
-    </style>""", unsafe_allow_html=True)
-    try:
-        from utils.home_tab import render_home
-        render_home(df_ep, df_rea)
-    except Exception as _he:
-        import traceback
-        st.error(f"Home tab error: {_he}")
-        st.code(traceback.format_exc())
+    # ── v39.4 — MERCATI LIVE custom disattivato per evitare duplicazione ──
+    # Manteniamo un solo blocco Mercati Live nel renderer Home.
+    pass
 
     # ── v36 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
