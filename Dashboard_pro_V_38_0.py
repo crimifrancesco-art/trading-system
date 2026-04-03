@@ -7791,32 +7791,25 @@ with tab_home:
         if _live_data:
             _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
             # v36: header SOPRA i box, box su riga separata con scroll orizzontale
-            _live_html = (
-                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
-                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
-                # Riga 1: titolo + timestamp
-                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
-                f"letter-spacing:1px;margin-bottom:6px'>"
-                f"📊 MERCATI LIVE "
-                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
-                f"</div>"
-                # Riga 2: box mercati scrollabili
-                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
-            )
+            _live_parts = []
+            _live_parts.append("<div style='background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>")
+            _live_parts.append(f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;letter-spacing:1px;margin-bottom:6px'>📊 MERCATI LIVE <span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span></div>")
+            _live_parts.append("<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>")
             for _m in _live_data:
-                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
-                _ar = "▲" if _m["chg"]>=0 else "▼"
-                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
-                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
-                       else f"{_m['price']:,.0f}" if _m["price"]>1000
-                       else f"{_m['price']:,.2f}")
-                _live_html += (
-                    f"<div style='background:#131722;border:1px solid #2a2e39;"
-                    f"border-top:2px solid {_c}44;"
-                    f"border-radius:4px;padding:5px 10px;"
-                    f"min-width:100px;flex-shrink:0;text-align:center'>"
-                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
-                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
-                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
-                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
-         
+                _c = "#26a69a" if _m["chg"] >= 0 else "#ef4444"
+                _ar = "▲" if _m["chg"] >= 0 else "▼"
+                if _m["sym"] in ("GC=F", "CL=F", "BTC-USD"):
+                    _pr = f"${_m['price']:,.2f}"
+                elif _m["sym"] in ("^VIX", "DX-Y.NYB"):
+                    _pr = f"{_m['price']:,.2f}"
+                elif _m["price"] > 1000:
+                    _pr = f"{_m['price']:,.0f}"
+                else:
+                    _pr = f"{_m['price']:,.2f}"
+                _live_parts.append(f"<div style='background:#131722;border:1px solid #2a2e39;border-top:2px solid {_c}44;border-radius:4px;padding:5px 10px;min-width:100px;flex-shrink:0;text-align:center'><div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div><div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;font-weight:bold;margin:2px 0'>{_pr}</div><div style='color:{_c};font-size:0.70rem;font-weight:bold'>{_ar} {abs(_m['chg']):.2f}%</div></div>")
+            _live_parts.append("</div></div>")
+            st.markdown("".join(_live_parts), unsafe_allow_html=True)
+    except Exception:
+        pass
+
+    # v38: nasconde la barra MERCATI LIVE di home_tab.py (già mostrata da v38 sop
