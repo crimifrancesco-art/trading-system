@@ -4075,6 +4075,46 @@ def _fetch_options_flow_v39(ticker: str) -> dict:
         return {}
 
 
+
+
+# --- v39 safety placeholders for legacy tab blocks defined before st.tabs ---
+if "tab_mtfmatrix" not in globals():
+    tab_mtfmatrix = st.container()
+if "tab_mtf" not in globals():
+    tab_mtf = st.container()
+if "tab_home" not in globals():
+    tab_home = st.container()
+if "tab_bcd" not in globals():
+    tab_bcd = st.container()
+if "tab_e" not in globals():
+    tab_e = st.container()
+if "tab_p" not in globals():
+    tab_p = st.container()
+if "tab_r" not in globals():
+    tab_r = st.container()
+if "tab_conf" not in globals():
+    tab_conf = st.container()
+if "tab_ser" not in globals():
+    tab_ser = st.container()
+if "tab_fvpro" not in globals():
+    tab_fvpro = st.container()
+if "tab_of" not in globals():
+    tab_of = st.container()
+if "tab_crisis" not in globals():
+    tab_crisis = st.container()
+if "tab_journal" not in globals():
+    tab_journal = st.container()
+if "tab_regime" not in globals():
+    tab_regime = st.container()
+if "tab_w" not in globals():
+    tab_w = st.container()
+if "tab_rm" not in globals():
+    tab_rm = st.container()
+if "tab_bt" not in globals():
+    tab_bt = st.container()
+if "tab_analisi" not in globals():
+    tab_analisi = st.container()
+
 # =========================================================================
 # v39 — AGGIUNGI TAB ALLA LISTA + REGISTRA RENDERING
 # =========================================================================
@@ -8394,4 +8434,5 @@ Rispondi in italiano con questo formato ESATTO:
             "</span></div>",
             unsafe_allow_html=True
         )
+
 
