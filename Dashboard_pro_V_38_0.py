@@ -7592,81 +7592,11 @@ def _fetch_insider_v38(tickers:tuple)->list:
         except Exception: pass
     return _res
 
-# =========================================================================
-# v38 — TAB CONTENT ADDITIONS
-# =========================================================================
 
-# ── Home: News + Macro ────────────────────────────────────────────────────
-with tab_home:
-    st.markdown("---")
-    with st.expander("📰 NEWS & SENTIMENT v38 — Ultime news con score sentiment", expanded=False):
-        _render_news_sentiment_v38(df_ep)
-    st.markdown("---")
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v38 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
-    _macro_ev = _fetch_macro_calendar_v38()
-    _mc_soon = [e for e in _macro_ev if 0 <= e["Giorni"] <= 14]
-    if _mc_soon:
-        _mc_cols = st.columns(min(len(_mc_soon), 4))
-        for _i, _ev in enumerate(_mc_soon[:4]):
-            _ic = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b"
-            _mc_cols[_i].markdown(
-                f"<div style='background:#1e222d;border-top:2px solid {_ic};border-radius:0 0 6px 6px;padding:8px 10px'>"
-                f"<div style='color:{_ic};font-size:0.70rem;font-weight:bold'>{_ev['Impatto']} · {_ev['Giorni']}gg</div>"
-                f"<div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</div>"
-                f"<div style='color:#6b7280;font-size:0.70rem'>{_ev['Data']}</div></div>",
-                unsafe_allow_html=True)
-    with st.expander("📅 Calendario completo 90 giorni", expanded=False):
-        for _ev in _macro_ev[:20]:
-            _ic2 = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b" if "Med" in _ev["Impatto"] else "#6b7280"
-            _bg2 = "#ef444415" if "High" in _ev["Impatto"] else "#1e222d"
-            _dot = "🔴" if _ev["Giorni"] <= 3 else "🟡" if _ev["Giorni"] <= 7 else "🟢"
-            st.markdown(
-                f"<div style='background:{_bg2};border-left:3px solid {_ic2};border-radius:0 4px 4px 0;"
-                f"padding:5px 10px;margin:3px 0;display:flex;gap:12px;align-items:center'>"
-                f"<span style='color:{_ic2};font-size:0.75rem;min-width:80px'>{_ev['Data']}</span>"
-                f"<span style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</span>"
-                f"<span style='color:#6b7280;font-size:0.72rem'>{_ev['Desc']}</span>"
-                f"<span style='color:{_ic2};font-size:0.72rem;margin-left:auto'>{_dot} {_ev['Giorni']}gg</span></div>",
-                unsafe_allow_html=True)
 
-# ── EARLY: Alert ─────────────────────────────────────────────────────────
-with tab_e:
-    st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38", expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name="early")
 
-# ── PRO: Alert + AI Explainer ─────────────────────────────────────────────
-with tab_p:
-    st.markdown("---")
-    with st.expander("🔔 Alert Multipli v38 — Pattern su segnali PRO", expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name="pro")
-    with st.expander("🧠 AI Signal Explainer v37", expanded=False):
-        _render_ai_explainer_v37(df_ep, "PRO")
 
-# ── CONFLUENCE: AI Explainer ──────────────────────────────────────────────
-with tab_conf:
-    with st.expander("🧠 AI Signal Explainer v37 — CONFLUENCE", expanded=False):
-        _df_conf_ai = pd.DataFrame()
-        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-            _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
-        _render_ai_explainer_v37(_df_conf_ai, "CONF")
 
-# ── RISK MANAGER: Short Interest + Options + Insider ──────────────────────
-with tab_rm:
-    st.markdown("---")
-    st.markdown('<div class="section-pill">📊 INTEGRAZIONI DATI v38</div>', unsafe_allow_html=True)
-    _int_t1, _int_t2, _int_t3 = st.tabs(["📉 Options Flow", "🩳 Short Interest", "🏛️ Insider SEC"])
-    with _int_t1:
-        st.caption("Put/Call ratio dalla options chain Yahoo Finance.")
-        _of_tickers = df_ep["Ticker"].dropna().unique().tolist()[:30] if not df_ep.empty else []
-        if _of_tickers:
-            _of_sel = st.selectbox("Ticker", _of_tickers, key="of_ticker_sel_v38")
-            if st.button("📉 Calcola P/C Ratio", key="of_calc_v38"):
-                with st.spinner(f"Options chain {_of_sel}..."):
-                    _of_res = _fetch_options_flow_v38(_of_sel)
-                if _of_res:
-                    _oc1,_oc2,_oc3,_oc4 = st.columns(4)
-                    _oc1.metric("P/C Ratio", str(_of_res.get("pcr","N/D")))
-                    _oc2.metric("Call Vol", f"{_of_res.get('call_vol',0):,}")
-                    _oc3.metric("Put Vol", f"{_of_res.get('put_vol',0):,}")
-                    _oc4.metric("
+
+z
+
