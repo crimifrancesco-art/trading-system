@@ -7592,11 +7592,293 @@ def _fetch_insider_v38(tickers:tuple)->list:
         except Exception: pass
     return _res
 
+# =========================================================================
+# v38 — TAB CONTENT ADDITIONS
+# =========================================================================
 
+# ── Home: News + Macro ────────────────────────────────────────────────────
+with tab_home:
+    st.markdown("---")
+    with st.expander("📰 NEWS & SENTIMENT v38 — Ultime news con score sentiment", expanded=False):
+        _render_news_sentiment_v38(df_ep)
+    st.markdown("---")
+    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v38 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
+    _macro_ev = _fetch_macro_calendar_v38()
+    _mc_soon = [e for e in _macro_ev if 0 <= e["Giorni"] <= 14]
+    if _mc_soon:
+        _mc_cols = st.columns(min(len(_mc_soon), 4))
+        for _i, _ev in enumerate(_mc_soon[:4]):
+            _ic = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b"
+            _mc_cols[_i].markdown(
+                f"<div style='background:#1e222d;border-top:2px solid {_ic};border-radius:0 0 6px 6px;padding:8px 10px'>"
+                f"<div style='color:{_ic};font-size:0.70rem;font-weight:bold'>{_ev['Impatto']} · {_ev['Giorni']}gg</div>"
+                f"<div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</div>"
+                f"<div style='color:#6b7280;font-size:0.70rem'>{_ev['Data']}</div></div>",
+                unsafe_allow_html=True)
+    with st.expander("📅 Calendario completo 90 giorni", expanded=False):
+        for _ev in _macro_ev[:20]:
+            _ic2 = "#ef4444" if "High" in _ev["Impatto"] else "#f59e0b" if "Med" in _ev["Impatto"] else "#6b7280"
+            _bg2 = "#ef444415" if "High" in _ev["Impatto"] else "#1e222d"
+            _dot = "🔴" if _ev["Giorni"] <= 3 else "🟡" if _ev["Giorni"] <= 7 else "🟢"
+            st.markdown(
+                f"<div style='background:{_bg2};border-left:3px solid {_ic2};border-radius:0 4px 4px 0;"
+                f"padding:5px 10px;margin:3px 0;display:flex;gap:12px;align-items:center'>"
+                f"<span style='color:{_ic2};font-size:0.75rem;min-width:80px'>{_ev['Data']}</span>"
+                f"<span style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</span>"
+                f"<span style='color:#6b7280;font-size:0.72rem'>{_ev['Desc']}</span>"
+                f"<span style='color:{_ic2};font-size:0.72rem;margin-left:auto'>{_dot} {_ev['Giorni']}gg</span></div>",
+                unsafe_allow_html=True)
 
+# ── EARLY: Alert ─────────────────────────────────────────────────────────
+with tab_e:
+    st.markdown("---")
+    with st.expander("🔔 Alert Multipli v38", expanded=False):
+        _render_pattern_alerts_v38(df_ep, tab_name="early")
 
+# ── PRO: Alert + AI Explainer ─────────────────────────────────────────────
+with tab_p:
+    st.markdown("---")
+    with st.expander("🔔 Alert Multipli v38 — Pattern su segnali PRO", expanded=False):
+        _render_pattern_alerts_v38(df_ep, tab_name="pro")
+    with st.expander("🧠 AI Signal Explainer v37", expanded=False):
+        _render_ai_explainer_v37(df_ep, "PRO")
 
+# ── CONFLUENCE: AI Explainer ──────────────────────────────────────────────
+with tab_conf:
+    with st.expander("🧠 AI Signal Explainer v37 — CONFLUENCE", expanded=False):
+        _df_conf_ai = pd.DataFrame()
+        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+            _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
+        _render_ai_explainer_v37(_df_conf_ai, "CONF")
 
+# ── RISK MANAGER: Short Interest + Options + Insider ──────────────────────
+with tab_rm:
+    st.markdown("---")
+    st.markdown('<div class="section-pill">📊 INTEGRAZIONI DATI v38</div>', unsafe_allow_html=True)
+    _int_t1, _int_t2, _int_t3 = st.tabs(["📉 Options Flow", "🩳 Short Interest", "🏛️ Insider SEC"])
+    with _int_t1:
+        st.caption("Put/Call ratio dalla options chain Yahoo Finance.")
+        _of_tickers = df_ep["Ticker"].dropna().unique().tolist()[:30] if not df_ep.empty else []
+        if _of_tickers:
+            _of_sel = st.selectbox("Ticker", _of_tickers, key="of_ticker_sel_v38")
+            if st.button("📉 Calcola P/C Ratio", key="of_calc_v38"):
+                with st.spinner(f"Options chain {_of_sel}..."):
+                    _of_res = _fetch_options_flow_v38(_of_sel)
+                if _of_res:
+                    _oc1,_oc2,_oc3,_oc4 = st.columns(4)
+                    _oc1.metric("P/C Ratio", str(_of_res.get("pcr","N/D")))
+                    _oc2.metric("Call Vol", f"{_of_res.get('call_vol',0):,}")
+                    _oc3.metric("Put Vol", f"{_of_res.get('put_vol',0):,}")
+                    _oc4.metric("Segnale", _of_res.get("signal","—"))
+                    st.caption(f"Scadenza: {_of_res.get('expiry','—')}")
+                else:
+                    st.warning(f"Options non disponibili per {_of_sel}.")
+        else:
+            st.info("Avvia lo scanner per selezionare un ticker.")
+    with _int_t2:
+        st.caption("Short Interest % — alto short + segnale PRO = potenziale squeeze.")
+        _si_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:40]) if not df_ep.empty else ()
+        if _si_tickers:
+            if st.button("🩳 Carica Short Interest", key="si_load_v38"):
+                with st.spinner("Scarico short interest..."):
+                    _si_data = _fetch_short_interest_v38(_si_tickers)
+                if _si_data:
+                    _df_si = pd.DataFrame([
+                        {"Ticker":t, "Short %":f"{v:.1f}%",
+                         "Setup":"🎯 Squeeze" if v>=15 else "⚠️ Alto" if v>=10 else "Normal"}
+                        for t,v in sorted(_si_data.items(), key=lambda x:-x[1])])
+                    st.dataframe(_df_si, use_container_width=True, hide_index=True)
+                    _nsq = sum(1 for v in _si_data.values() if v>=15)
+                    if _nsq: st.success(f"🎯 {_nsq} ticker con short ≥15% — potenziale short squeeze!")
+                else:
+                    st.info("Nessun dato disponibile.")
+        else:
+            st.info("Avvia lo scanner.")
+    with _int_t3:
+        st.caption("Acquisti insider (Form 4 SEC) — segnale forte di fiducia del management.")
+        _ins_tickers = tuple(df_ep["Ticker"].dropna().unique().tolist()[:20]) if not df_ep.empty else ()
+        if _ins_tickers:
+            if st.button("🏛️ Cerca Insider Buying", key="ins_load_v38"):
+                with st.spinner("Scarico dati SEC Form 4..."):
+                    _ins_data = _fetch_insider_v38(_ins_tickers)
+                if _ins_data:
+                    st.dataframe(pd.DataFrame(_ins_data), use_container_width=True, hide_index=True)
+                    st.caption(f"Trovati {len(_ins_data)} Form 4 recenti via SEC EDGAR.")
+                else:
+                    st.info("Nessun Form 4 trovato tramite SEC EDGAR.")
+        else:
+            st.info("Avvia lo scanner.")
 
-z
+# ── ORDER FLOW: Scanner Avanzato (gap + earnings play) già in v37 ─────────
+with tab_of:
+    st.markdown("---")
+    _render_advanced_scanner_v37()
 
+# ── RISK MANAGER: Telegram + Risk Dashboard già in v37 ────────────────────
+with tab_rm:
+    st.markdown("---")
+    _render_telegram_settings_v37()
+    st.markdown("---")
+    _render_risk_dashboard_v37(df_ep)
+
+# =========================================================================
+# v38 TAB — 💡 ANALISI PERSONALE
+# =========================================================================
+with tab_analisi:
+    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v38 — Carica ticker · Ricevi consigli AI</div>', unsafe_allow_html=True)
+    st.caption("Inserisci i ticker che vuoi analizzare. L'AI scarica i dati freschi e fornisce consigli operativi specifici.")
+
+    _ap_c1, _ap_c2 = st.columns([2, 1.5])
+    with _ap_c1:
+        _ap_input = st.text_area("I tuoi ticker (uno per riga)",
+            placeholder="AAPL\nMSFT\nENI.MI\nRACE.MI", height=160, key="ap_tickers_input",
+            help="Simboli Yahoo Finance. Per italiani: ENI.MI, RACE.MI, ISP.MI")
+        _ap_period = st.select_slider("Periodo analisi",
+            options=["1mo","3mo","6mo","1y","2y"], value="6mo", key="ap_period")
+    with _ap_c2:
+        st.markdown("**Tipo di analisi:**")
+        _ap_swing  = st.checkbox("📈 Swing Trading (3-20gg)",  True,  key="ap_swing")
+        _ap_trend  = st.checkbox("📊 Trend Following",          True,  key="ap_trend")
+        _ap_risk   = st.checkbox("⚠️ Risk Assessment",          True,  key="ap_risk")
+        _ap_entry  = st.checkbox("🎯 Entry Point ottimale",     True,  key="ap_entry")
+        _ap_levels = st.checkbox("📐 Livelli S/R e target",     False, key="ap_levels")
+        _ap_has_key = any([
+            st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key",""),
+            st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key",""),
+            st.secrets.get("OPENROUTER_API_KEY","") or st.session_state.get("_openrouter_api_key",""),
+            st.secrets.get("ANTHROPIC_API_KEY","")  or st.session_state.get("_anthropic_api_key",""),
+        ])
+        if not _ap_has_key:
+            st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
+
+    _run_ap = st.button("🔍 Analizza i miei ticker", key="ap_run", type="primary",
+                        use_container_width=True, disabled=not _ap_has_key)
+
+    if _run_ap and _ap_input and _ap_input.strip():
+        _ap_tickers = [t.strip().upper() for t in _ap_input.strip().splitlines() if t.strip()][:15]
+        if not _ap_tickers:
+            st.warning("Inserisci almeno un ticker.")
+        else:
+            st.markdown(f"**Analisi di {len(_ap_tickers)} ticker:** {', '.join(_ap_tickers)}")
+            st.markdown("---")
+            for _ap_tkr in _ap_tickers:
+                with st.expander(f"💡 {_ap_tkr}", expanded=True):
+                    with st.spinner(f"Scarico dati {_ap_tkr}..."):
+                        _apd = {}
+                        try:
+                            import yfinance as _yf_ap
+                            _raw_ap = _yf_ap.download(_ap_tkr, period=_ap_period, interval="1d",
+                                                       auto_adjust=True, progress=False)
+                            _raw_ap.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_ap.columns]
+                            if not _raw_ap.empty:
+                                _cl = _raw_ap["Close"].dropna()
+                                _hi = _raw_ap["High"].dropna()
+                                _lo = _raw_ap["Low"].dropna()
+                                _pr = float(_cl.iloc[-1])
+                                _e20 = float(_cl.ewm(span=20,adjust=False).mean().iloc[-1])
+                                _e50 = float(_cl.ewm(span=50,adjust=False).mean().iloc[-1])
+                                _e200= float(_cl.ewm(span=min(200,len(_cl)),adjust=False).mean().iloc[-1])
+                                _d = _cl.diff(); _g=_d.clip(lower=0); _l=-_d.clip(upper=0)
+                                _rs=_g.ewm(com=13,adjust=False).mean()/(_l.ewm(com=13,adjust=False).mean()+1e-10)
+                                _rsi=float((100-100/(1+_rs)).iloc[-1])
+                                _atr=float((_hi-_lo).ewm(com=13,adjust=False).mean().iloc[-1])
+                                _atr_pct=round(_atr/_pr*100,2)
+                                _ret1m=round((_cl.iloc[-1]/_cl.iloc[max(-22,-len(_cl))]-1)*100,1)
+                                _ret3m=round((_cl.iloc[-1]/_cl.iloc[max(-63,-len(_cl))]-1)*100,1)
+                                _52wh=float(_hi.tail(252).max()); _52wl=float(_lo.tail(252).min())
+                                _dist_52wh=round((_pr/_52wh-1)*100,1)
+                                _trend=("RIALZISTA" if _pr>_e20>_e50 else "RIBASSISTA" if _pr<_e20<_e50 else "LATERALE")
+                                _info_ap={}
+                                try:
+                                    _ti=_yf_ap.Ticker(_ap_tkr).info
+                                    _info_ap={"name":_ti.get("longName","—"),"sector":_ti.get("sector","—"),
+                                              "pe":_ti.get("trailingPE","—"),"beta":_ti.get("beta","—")}
+                                except Exception: pass
+                                _apd={"ticker":_ap_tkr,"nome":_info_ap.get("name","—"),"settore":_info_ap.get("sector","—"),
+                                      "prezzo":round(_pr,2),"ema20":round(_e20,2),"ema50":round(_e50,2),"ema200":round(_e200,2),
+                                      "rsi":round(_rsi,1),"atr":round(_atr,4),"atr_pct":_atr_pct,
+                                      "ret1m":_ret1m,"ret3m":_ret3m,"52wh":round(_52wh,2),
+                                      "dist_52wh":_dist_52wh,"trend":_trend,
+                                      "pe":_info_ap.get("pe","—"),"beta":_info_ap.get("beta","—")}
+                        except Exception as _ae:
+                            st.warning(f"Impossibile scaricare dati: {_ae}")
+
+                    if not _apd:
+                        continue
+
+                    _m1,_m2,_m3,_m4,_m5,_m6 = st.columns(6)
+                    _m1.metric("💰 Prezzo",    f"${_apd['prezzo']:.2f}")
+                    _m2.metric("📊 RSI",       f"{_apd['rsi']:.1f}")
+                    _m3.metric("📈 Trend",      _apd["trend"])
+                    _m4.metric("📅 Rend 1M",   f"{_apd['ret1m']:+.1f}%")
+                    _m5.metric("📅 Rend 3M",   f"{_apd['ret3m']:+.1f}%")
+                    _m6.metric("⚡ ATR%",       f"{_apd['atr_pct']:.1f}%")
+
+                    _ap_types=[]
+                    if _ap_swing:  _ap_types.append("Swing Trading (3-20 giorni)")
+                    if _ap_trend:  _ap_types.append("Trend Following")
+                    if _ap_risk:   _ap_types.append("Risk Assessment")
+                    if _ap_entry:  _ap_types.append("Entry Point ottimale")
+                    if _ap_levels: _ap_types.append("Livelli S/R e target")
+
+                    try:
+                        _rg_ap=_get_market_regime()
+                        _regime_ap=f"VIX={_rg_ap['vix']}, Regime={_rg_ap['regime']}, SPY mom={_rg_ap['spy_mom_20d']:+.1f}%"
+                    except Exception:
+                        _regime_ap="dati regime non disponibili"
+
+                    _ap_prompt = f"""Sei un trader professionista. Analizza questo titolo e fornisci consigli PRATICI.
+
+TITOLO: {_apd['ticker']} — {_apd['nome']} | SETTORE: {_apd['settore']}
+Prezzo: ${_apd['prezzo']} | EMA20: ${_apd['ema20']} | EMA50: ${_apd['ema50']} | EMA200: ${_apd['ema200']}
+RSI: {_apd['rsi']} | ATR: ${_apd['atr']} ({_apd['atr_pct']}%) | Trend: {_apd['trend']}
+Performance: 1M {_apd['ret1m']:+.1f}% | 3M {_apd['ret3m']:+.1f}% | 52W High dist: {_apd['dist_52wh']:+.1f}%
+P/E: {_apd['pe']} | Beta: {_apd['beta']} | Mercato: {_regime_ap}
+Analisi richiesta: {', '.join(_ap_types)}
+
+Rispondi in italiano con formato ESATTO:
+
+📊 SETUP ATTUALE:
+[2-3 righe sulla situazione tecnica]
+
+🎯 STRATEGIA CONSIGLIATA:
+[tipo operazione, timing, motivazione]
+
+🔴 ENTRY: $[prezzo]
+🔴 STOP LOSS: $[entry - 1.5×ATR] ([%]%)
+🟢 TARGET 1: $[entry + 1.5×ATR] (R:R 1:1)
+🟢 TARGET 2: $[entry + 3×ATR] (R:R 2:1)
+
+⚠️ RISCHI PRINCIPALI:
+[2 righe sui rischi specifici ora]
+
+💡 CONSIGLIO FINALE:
+[1 riga sintetica]"""
+
+                    with st.spinner("Analisi AI..."):
+                        try:
+                            _ap_text, _ap_prov = _ai_call_with_fallback(_ap_prompt)
+                            st.markdown(
+                                f"<div style='background:#0d1117;border:1px solid #1f2937;"
+                                f"border-left:3px solid #26a69a;border-radius:0 8px 8px 0;"
+                                f"padding:14px 18px;font-size:0.88rem;line-height:1.7'>"
+                                f"{_ap_text.replace(chr(10),'<br>')}</div>",
+                                unsafe_allow_html=True)
+                            st.caption(f"Provider: {_ap_prov} · Dati: Yahoo Finance · {_ap_period}")
+                        except Exception as _ap_err:
+                            _em=str(_ap_err)
+                            if "NO_KEYS" in _em: st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
+                            else: st.error(f"Errore AI: {_em[:200]}")
+
+    elif not _ap_has_key:
+        st.info("👆 Configura una API key gratuita (Gemini o Groq) nel tab **PRO → AI Explainer**.")
+    else:
+        st.markdown(
+            "<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:16px 20px'>"
+            "<b style='color:#50c4e0'>Come funziona:</b><br><br>"
+            "<span style='color:#b2b5be'>"
+            "1. Inserisci i tuoi ticker (es. AAPL, ENI.MI, RACE.MI)<br>"
+            "2. Seleziona il tipo di analisi<br>"
+            "3. Clicca <b>Analizza</b> — dati freschi da Yahoo Finance<br>"
+            "4. L'AI genera: setup tecnico, entry/stop/target precisi, rischi, consiglio finale"
+            "</span></div>", unsafe_allow_html=True)
