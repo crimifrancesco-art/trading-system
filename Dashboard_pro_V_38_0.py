@@ -3513,215 +3513,6 @@ st.markdown("""<style>
 }
 </style>""", unsafe_allow_html=True)
 
-# =========================================================================
-# v38 — FUNZIONI DEFINITE PRIMA DEI TAB (evita NameError)
-# =========================================================================
-
-_PATTERN_ALERTS_V38 = {
-    "ema_breakout":   {"label":"EMA Breakout",       "icon":"📈","desc":"Prezzo > EMA20"},
-    "golden_cross":   {"label":"Golden Cross",        "icon":"⭐","desc":"EMA20 > EMA50"},
-    "death_cross":    {"label":"Death Cross",         "icon":"💀","desc":"EMA20 < EMA50"},
-    "squeeze_fire":   {"label":"Squeeze Fire",        "icon":"🔥","desc":"Uscita da Squeeze"},
-    "bb_breakout":    {"label":"BB Breakout",         "icon":"🎯","desc":"Prezzo > EMA20+2xATR"},
-    "volume_spike":   {"label":"Volume Spike",        "icon":"⚡","desc":"Volume > 3x media"},
-    "rsi_oversold":   {"label":"RSI Oversold",        "icon":"🔵","desc":"RSI < 32"},
-    "rsi_overbought": {"label":"RSI Overbought",      "icon":"🔴","desc":"RSI > 68"},
-}
-
-def _detect_patterns_v38(row):
-    out = []
-    try:
-        pr  = float(row.get("Prezzo",  0) or 0)
-        e20 = float(row.get("EMA20",   0) or 0)
-        e50 = float(row.get("EMA50",   0) or 0)
-        rsi = float(row.get("RSI",    50) or 50)
-        vr  = float(row.get("Vol_Ratio",0) or 0)
-        sq  = row.get("Squeeze", False)
-        atr = float(row.get("ATR",     0) or 0)
-        if pr>0 and e20>0 and pr>e20 and rsi>45: out.append("ema_breakout")
-        if e20>0 and e50>0:
-            if e20>e50 and rsi>50: out.append("golden_cross")
-            elif e20<e50 and rsi<50: out.append("death_cross")
-        if sq in (True,"True","true",1): out.append("squeeze_fire")
-        if vr>=3.0: out.append("volume_spike")
-        if rsi<32: out.append("rsi_oversold")
-        if rsi>68: out.append("rsi_overbought")
-        if pr>0 and e20>0 and atr>0 and pr>e20+2*atr: out.append("bb_breakout")
-    except Exception: pass
-    return out
-
-def _render_pattern_alerts_v38(df_ep_alerts, tab_name="x"):
-    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38</div>', unsafe_allow_html=True)
-    if df_ep_alerts is None or (hasattr(df_ep_alerts,"empty") and df_ep_alerts.empty):
-        st.info("Avvia lo scanner per rilevare i pattern."); return
-    with st.expander("⚙️ Pattern da monitorare", expanded=False):
-        _pc = st.columns(4)
-        _en = {pid: _pc[i%4].checkbox(f"{p['icon']} {p['label']}", True,
-               key=f"pat_en_{pid}_{tab_name}", help=p["desc"])
-               for i,(pid,p) in enumerate(_PATTERN_ALERTS_V38.items())}
-    _rows = []
-    for _, r in df_ep_alerts.iterrows():
-        _pats = [p for p in _detect_patterns_v38(r) if _en.get(p, True)]
-        if _pats:
-            _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
-                          "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
-                          "CSS":r.get("CSS",""),"Pattern":_pats,"_stato":str(r.get("Stato_Pro","-"))})
-    if not _rows: st.info("Nessun pattern rilevato."); return
-    _cnt = {p: sum(1 for r in _rows if p in r["Pattern"]) for p in _PATTERN_ALERTS_V38}
-    _active = sorted([(pid,cnt) for pid,cnt in _cnt.items() if cnt>0], key=lambda x:-x[1])
-    _kpi = st.columns(min(len(_active), 6))
-    for _ki,(pid,cnt) in enumerate(_active[:6]):
-        _kpi[_ki].metric(f"{_PATTERN_ALERTS_V38[pid]['icon']} {_PATTERN_ALERTS_V38[pid]['label']}", cnt)
-    st.markdown("---")
-    for ar in sorted(_rows, key=lambda x:len(x["Pattern"]), reverse=True)[:30]:
-        _ac1,_ac2,_ac3,_ac4 = st.columns([1.5,1.5,3,1])
-        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#00ff88" if ar["_stato"]=="PRO" else "#b2b5be"
-        _ac1.markdown(f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>", unsafe_allow_html=True)
-        _ac2.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>", unsafe_allow_html=True)
-        _parts = []
-        for p in ar["Pattern"]:
-            _bear = p in ("death_cross","rsi_overbought","bb_breakout")
-            _gold = p == "golden_cross"
-            _bg = "#ffd70022" if _gold else "#ef444422" if _bear else "#2962ff22"
-            _tx = "#ffd700" if _gold else "#ef4444" if _bear else "#58a6ff"
-            _parts.append(f"<span style='background:{_bg};color:{_tx};border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>{_PATTERN_ALERTS_V38.get(p,{}).get('icon','🔔')} {_PATTERN_ALERTS_V38.get(p,{}).get('label',p)}</span>")
-        _ac3.markdown(" ".join(_parts), unsafe_allow_html=True)
-        with _ac4:
-            if st.button("📋", key=f"alert_wl_{ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
-                try: gh_add_to_watchlist(ar["Ticker"], st.session_state.current_list_name); st.success(f"✅ {ar['Ticker']} aggiunto!")
-                except Exception: pass
-    _at_ts = datetime.now().strftime("%Y%m%d_%H%M")
-    _df_exp = pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📊 Export Alert", _df_exp.to_csv(index=False).encode(),
-                       f"Alert_v38_{_at_ts}.csv","text/csv", key=f"alert_export_{tab_name}")
-
-@st.cache_data(ttl=600)
-def _fetch_news_sentiment_v38(tickers: tuple) -> list:
-    import urllib.request as _ur, xml.etree.ElementTree as _ET
-    _BULL = {"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong",
-             "growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
-    _BEAR = {"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss",
-             "decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
-    _res = []
-    for _t in tickers[:20]:
-        try:
-            _url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
-            _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
-            with _ur.urlopen(_req, timeout=6) as _r: _xml = _r.read()
-            _root = _ET.fromstring(_xml)
-            for _item in _root.findall(".//item")[:5]:
-                _title = _item.findtext("title","")
-                _words = set(_title.lower().split())
-                _b = len(_words & _BULL); _br = len(_words & _BEAR)
-                _sent = "🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
-                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
-                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
-        except Exception: pass
-    return sorted(_res, key=lambda x: abs(x["Score"]), reverse=True)
-
-def _render_news_sentiment_v38(df_ep_news):
-    _tickers = []
-    if not (df_ep_news is None or (hasattr(df_ep_news,"empty") and df_ep_news.empty)):
-        if "Stato_Pro" in df_ep_news.columns:
-            _tickers = df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
-        if not _tickers: _tickers = df_ep_news["Ticker"].dropna().tolist()[:15]
-    try:
-        _wl = load_watchlist()
-        if not _wl.empty and "Ticker" in _wl.columns:
-            _tickers += _wl[_wl["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
-    except Exception: pass
-    _tickers = list(dict.fromkeys(_tickers))[:25]
-    if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
-    _, _fc2 = st.columns([3,1])
-    with _fc2:
-        _ns_f = st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"], key="ns_filter_v38")
-        if st.button("🔄 Aggiorna", key="ns_refresh_v38"): st.cache_data.clear(); st.rerun()
-    with st.spinner("Carico news..."):
-        _news = _fetch_news_sentiment_v38(tuple(_tickers))
-    if _ns_f=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
-    elif _ns_f=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
-    elif _ns_f=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
-    if not _news: st.info("Nessuna news trovata."); return
-    _nb,_nr,_nn = (sum(1 for n in _news if x in n["Sentiment"]) for x in ("Bullish","Bearish","Neutral"))
-    _k1,_k2,_k3,_k4 = st.columns(4)
-    _k1.metric("📰 Totale",len(_news)); _k2.metric("🟢",_nb); _k3.metric("🔴",_nr); _k4.metric("⚪",_nn)
-    st.markdown("---")
-    for n in _news[:40]:
-        _sc2 = "#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
-        _c1,_c2,_c3 = st.columns([1,0.8,4.5])
-        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>", unsafe_allow_html=True)
-        _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>", unsafe_allow_html=True)
-        _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>", unsafe_allow_html=True)
-
-@st.cache_data(ttl=3600)
-def _fetch_macro_calendar_v38() -> list:
-    import calendar as _cal
-    _today = datetime.now().date()
-    _events = []
-    for _day,_name,_impact,_desc in [
-        (1,"ISM Manufacturing","🟡 Med","Attività manifatturiera"),(3,"ISM Services","🟡 Med","Settore servizi"),
-        (5,"NFP + Unemployment","🔴 High","Non-Farm Payrolls"),(10,"CPI Inflation","🔴 High","Consumer Price Index"),
-        (14,"PPI","🟡 Med","Producer Price Index"),(15,"Retail Sales","🟡 Med","Vendite al dettaglio"),
-        (20,"FOMC Minutes","🔴 High","Verbali Fed"),(25,"GDP Revision","🟡 Med","Revisione PIL"),
-        (28,"PCE Inflation","🔴 High","Personal Consumption Expenditures")]:
-        for _dm in range(3):
-            try:
-                _m=(_today.month+_dm-1)%12+1; _y=_today.year+((_today.month+_dm-1)//12)
-                _d=min(_day,_cal.monthrange(_y,_m)[1]); _cand=_today.replace(year=_y,month=_m,day=_d)
-                _dt=(_cand-_today).days
-                if _dt>=-1: _events.append({"Data":str(_cand),"Evento":_name,"Impatto":_impact,"Desc":_desc,"Giorni":_dt}); break
-            except Exception: pass
-    for _fd in ["2026-04-29","2026-06-18","2026-07-30","2026-09-17","2026-11-05","2026-12-17"]:
-        try:
-            from datetime import datetime as _dt2
-            _fd_d=_dt2.strptime(_fd,"%Y-%m-%d").date(); _dt=(_fd_d-_today).days
-            if -1<=_dt<=120:
-                _events.append({"Data":_fd,"Evento":"⚠️ FOMC Rate Decision","Impatto":"🔴 High","Desc":"Decisione tassi Fed","Giorni":_dt})
-        except Exception: pass
-    return sorted(_events, key=lambda x: x["Giorni"])
-
-@st.cache_data(ttl=3600)
-def _fetch_short_interest_v38(tickers: tuple) -> dict:
-    import yfinance as _yf_si
-    _res = {}
-    for _t in tickers[:40]:
-        try:
-            _s = _yf_si.Ticker(_t).info.get("shortPercentOfFloat")
-            if _s is not None: _res[_t] = round(float(_s)*100, 1)
-        except Exception: pass
-    return _res
-
-@st.cache_data(ttl=900)
-def _fetch_options_flow_v38(ticker: str) -> dict:
-    import yfinance as _yf_op
-    try:
-        _tk=_yf_op.Ticker(ticker); _exps=_tk.options
-        if not _exps: return {}
-        _ch=_tk.option_chain(_exps[0])
-        _cv=float(_ch.calls["volume"].fillna(0).sum()) if not _ch.calls.empty else 0
-        _pv=float(_ch.puts["volume"].fillna(0).sum()) if not _ch.puts.empty else 0
-        _pcr=_pv/_cv if _cv>0 else None
-        _sig="🟢 Bullish" if _pcr and _pcr<0.7 else "🔴 Bearish" if _pcr and _pcr>1.2 else "⚪ Neutro"
-        return {"ticker":ticker,"pcr":round(_pcr,2) if _pcr else None,
-                "call_vol":int(_cv),"put_vol":int(_pv),"signal":_sig,"expiry":_exps[0]}
-    except Exception: return {}
-
-@st.cache_data(ttl=3600)
-def _fetch_insider_v38(tickers: tuple) -> list:
-    import urllib.request as _ur, json as _js
-    _res = []
-    for _t in tickers[:15]:
-        try:
-            _url=f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22&forms=4&hits.hits._source=entity_name,file_date"
-            _req=_ur.Request(_url,headers={"User-Agent":"TradingScanner/1.0 info@example.com","Accept":"application/json"})
-            with _ur.urlopen(_req,timeout=8) as _r: _data=_js.loads(_r.read())
-            for _h in _data.get("hits",{}).get("hits",[])[:3]:
-                _s=_h.get("_source",{})
-                _res.append({"Ticker":_t,"Insider":_s.get("entity_name","—")[:30],
-                             "Data":_s.get("file_date","—")[:10],"Tipo":"Form 4"})
-        except Exception: pass
-    return _res
-
 tabs = st.tabs([
     "🏠 Home",
     "📊 Comparatore",
@@ -3740,12 +3531,11 @@ tabs = st.tabs([
     "📋 Watchlist",
     "⚖️ Risk Manager",
     "📈 Backtest",
-    "💡 Analisi Personale",
 ])
 (tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
  tab_ser, tab_fvpro, tab_of, tab_crisis,
  tab_mtfmatrix, tab_journal, tab_regime,
- tab_w, tab_rm, tab_bt, tab_analisi) = tabs
+ tab_w, tab_rm, tab_bt) = tabs
 
 with tab_home:
     # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
@@ -3867,11 +3657,6 @@ with tab_home:
     except Exception:
         pass
 
-    # v38: hide duplicate Mercati Live widget from home_tab
-    st.markdown("""<style>
-    [data-testid="stMain"] [data-testid="element-container"]:first-of-type
-    [data-testid="stMarkdownContainer"]:first-child { display:none!important; }
-    </style>""", unsafe_allow_html=True)
     try:
         from utils.home_tab import render_home
         render_home(df_ep, df_rea)
@@ -3933,33 +3718,9 @@ with tab_home:
     else:
         st.info("Aggiungi ticker alla watchlist o avvia lo scanner per vedere gli earnings.")
 
-    # ── v38: News & Sentiment ─────────────────────────────────────────
-    st.markdown('---')
-    with st.expander('📰 NEWS & SENTIMENT v38 — Ultime news con score sentiment', expanded=False):
-        _render_news_sentiment_v38(df_ep)
-
-    # ── v38: Macro Calendar ───────────────────────────────────────────
-    st.markdown('---')
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v38 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
-    _macro_ev = _fetch_macro_calendar_v38()
-    _mc_soon = [e for e in _macro_ev if 0 <= e['Giorni'] <= 14]
-    if _mc_soon:
-        _mc_cols = st.columns(min(len(_mc_soon), 4))
-        for _i, _ev in enumerate(_mc_soon[:4]):
-            _ic = '#ef4444' if 'High' in _ev['Impatto'] else '#f59e0b'
-            _mc_cols[_i].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic};font-size:0.70rem;font-weight:bold'>{_ev['Impatto']} · {_ev['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev['Data']}</div></div>", unsafe_allow_html=True)
-    with st.expander('📅 Calendario completo 90 giorni', expanded=False):
-        for _ev in _macro_ev[:20]:
-            _ic2 = '#ef4444' if 'High' in _ev['Impatto'] else '#f59e0b' if 'Med' in _ev['Impatto'] else '#6b7280'
-            _dot = '🔴' if _ev['Giorni']<=3 else '🟡' if _ev['Giorni']<=7 else '🟢'
-            st.markdown(f"<div style='border-left:3px solid {_ic2};padding:4px 10px;margin:2px 0'><span style='color:{_ic2};font-size:0.75rem'>{_ev['Data']}</span> <b style='color:#d1d4dc'>{_ev['Evento']}</b> <span style='color:#6b7280;font-size:0.72rem'>{_ev['Desc']}</span> <span style='color:{_ic2};float:right'>{_dot} {_ev['Giorni']}gg</span></div>", unsafe_allow_html=True)
-
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
     render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
-    st.markdown('---')
-    with st.expander('🔔 Alert Multipli v38 — Pattern tecnici', expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name='early')
 
 with tab_p:
     st.session_state.last_active_tab="PRO"; show_legend("PRO")
@@ -3975,11 +3736,6 @@ with tab_p:
         render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
     else:
         render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
-    st.markdown('---')
-    with st.expander('🔔 Alert Multipli v38', expanded=False):
-        _render_pattern_alerts_v38(df_ep, tab_name='pro')
-    with st.expander('🧠 AI Signal Explainer v37', expanded=False):
-        _render_ai_explainer_v37(df_ep, 'PRO')
 
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
@@ -4122,9 +3878,6 @@ with tab_r:
 with tab_conf:
     st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
     render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
-    with st.expander('🧠 AI Signal Explainer v37 — CONFLUENCE', expanded=False):
-        _df_conf_ai = df_ep[(df_ep.get('Stato_Early',pd.Series())=="EARLY")&(df_ep.get('Stato_Pro',pd.Series()).isin(['PRO','STRONG']))].copy() if not df_ep.empty else pd.DataFrame()
-        _render_ai_explainer_v37(_df_conf_ai, 'CONF')
 
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
@@ -4180,9 +3933,10 @@ with tab_mtf:
             _cmp_nome_map = {str(r["Ticker"]): str(r.get("Nome",""))[:28]
                              for _,r in df_ep[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows()
                              } if "Nome" in df_ep.columns else {}
+            _scan_tkrs_s = sorted(_scan_tkrs, key=lambda t: _cmp_nome_map.get(t,t).lower())
             _cmp_extra = st.multiselect(
                 "➕ Aggiungi ticker dal tuo scanner",
-                options=sorted(_scan_tkrs, key=lambda t: _cmp_nome_map.get(t,t).lower()),
+                options=_scan_tkrs_s,
                 format_func=lambda t: f"{_cmp_nome_map[t]}  ({t})" if _cmp_nome_map.get(t) else t,
                 key="cmp_extra_tickers",
                 help="Ordinati per nome azienda"
@@ -5787,9 +5541,6 @@ with tab_of:
         st.code(traceback.format_exc())
 
 
-    st.markdown('---')
-    _render_advanced_scanner_v37()
-
 with tab_bcd:
     try:
         from utils.bluechip_dip import render_bluechip_dip
@@ -5956,1690 +5707,227 @@ df_cur=all_exp.get(cur_tab,pd.DataFrame())
 _ts = datetime.now().strftime("%Y%m%d_%H%M")
 
 # v35: to_excel_bytes_pro con Summary sheet
-def _to_excel_pro(d, label="Export"):
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine="xlsxwriter") as w:
-        # Summary sheet in prima posizione
-        _summary_rows = []
-        for _nm, _df in d.items():
-            if isinstance(_df, pd.DataFrame):
-                _n  = len(_df)
-                _tks= ",".join(_df["Ticker"].dropna().tolist()[:10]) + ("..." if _n>10 else "") if "Ticker" in _df.columns and _n>0 else ""
-                _summary_rows.append({"Sheet": _nm, "N_Segnali": _n, "Top_Ticker (prime 10)": _tks})
-        if _summary_rows:
-            pd.DataFrame(_summary_rows).to_excel(w, sheet_name="Summary", index=False)
-        # Dati per ogni sheet
-        for _nm, _df in d.items():
-            if isinstance(_df, pd.DataFrame) and not _df.empty:
-                _df.to_excel(w, sheet_name=_nm[:31], index=False)
-    return buf.getvalue()
 
-ec1,ec2,ec3,ec4,ec5=st.columns(5)
-with ec1:
-    st.download_button(
-        "📊 XLSX Pro Tutti",
-        _to_excel_pro(all_exp),
-        f"TradingScanner_v37_Tutti_{_ts}.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="xlsx_all",
-        help="Tutti i tab + sheet Summary con conteggi"
-    )
-with ec2:
-    tv_rows=[]
-    for n,df_t in all_exp.items():
-        if isinstance(df_t,pd.DataFrame) and not df_t.empty and "Ticker" in df_t.columns:
-            tks=df_t["Ticker"].tolist()
-            tv_rows.append(pd.DataFrame({"Tab":[n]*len(tks),"Ticker":tks}))
-    if tv_rows:
-        df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
-        st.download_button(
-            "📈 CSV TV Tutti",
-            df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v37_TV_{_ts}.csv",
-            "text/csv",
-            key="csv_tv_all",
-            help="CSV pronto per import in TradingView Watchlist"
-        )
-with ec3:
-    st.download_button(
-        f"📊 XLSX {cur_tab}",
-        _to_excel_pro({cur_tab: df_cur}),
-        f"TradingScanner_v37_{cur_tab}_{_ts}.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="xlsx_curr"
-    )
-with ec4:
-    if not df_cur.empty and "Ticker" in df_cur.columns:
-        st.download_button(
-            f"📈 CSV TV {cur_tab}",
-            make_tv_csv(df_cur, cur_tab),
-            f"TradingScanner_v37_{cur_tab}_TV_{_ts}.csv",
-            "text/csv",
-            key="csv_tv_curr"
-        )
-with ec5:
-    # v35: export P&L tracker se presente
-    _pnl_data = st.session_state.get("v36_pnl_entries", {})
-    if _pnl_data:
-        _df_pnl_exp = pd.DataFrame([
-            {"Ticker": _t, "Entry $": _pos["entry"], "Size": _pos["size"], "Added": _pos.get("added","")}
-            for _t, _pos in _pnl_data.items()
-        ])
-        st.download_button(
-            "💰 Export P&L",
-            _df_pnl_exp.to_csv(index=False).encode(),
-            f"PnL_Tracker_v37_{_ts}.csv",
-            "text/csv",
-            key="csv_pnl_exp",
-            help="Esporta posizioni P&L tracker"
-        )
-# =========================================================================
-# v36 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
-# =========================================================================
-with tab_mtfmatrix:
-    st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v36</div>',
-                unsafe_allow_html=True)
-    st.caption("Stato Daily / Weekly / Monthly per ogni ticker. 🟢 3/3 allineati · 🟡 2/3 · 🔴 1/3 · ⚪ no data")
-
-    def _tf_emoji_fn(tf_d):
-        s  = tf_d.get("status","no_data")
-        sc = tf_d.get("score",0)
-        if s in ("no_data","error"): return "⚪"
-        return "🟢" if sc == 3 else "🟡" if sc == 2 else "🔴"
-
-    _mtf_nome_map = {}
-    if not df_ep.empty and "Ticker" in df_ep.columns and "Nome" in df_ep.columns:
-        for _, _mr in df_ep[["Ticker","Nome"]].dropna(subset=["Ticker"]).iterrows():
-            _mtf_nome_map[_mr["Ticker"]] = str(_mr.get("Nome",""))[:30]
-
-    _mtf_tickers = []
-    if not df_ep.empty and "Ticker" in df_ep.columns:
-        _mtf_tickers = sorted(df_ep["Ticker"].dropna().unique().tolist())
-    _wl_mtf = load_watchlist()
-    if not _wl_mtf.empty and "Ticker" in _wl_mtf.columns:
-        _wl_tickers_mtf = _wl_mtf["Ticker"].dropna().unique().tolist()
-        _mtf_tickers = sorted(set(_mtf_tickers + _wl_tickers_mtf))
-
-    if not _mtf_tickers:
-        st.info("Avvia lo scanner o aggiungi ticker alla watchlist per usare la MTF Matrix.")
-    else:
-        # ── Costruisce labels e options PRIMA dell'expander (serve a _do_import) ──
-        _mtf_labels = {}
-        for _tk in _mtf_tickers:
-            _nm = _mtf_nome_map.get(_tk,"")
-            _mtf_labels[_tk] = f"{_nm}  ({_tk})" if _nm else _tk
-        _mtf_options_sorted = sorted(_mtf_tickers, key=lambda t: _mtf_labels[t].lower())
-
-        with st.expander("📂 Importa lista da Scanner / Watchlist", expanded=False):
-            st.caption("Importa ticker da qualsiasi tab scanner o dalla watchlist. La lista viene caricata direttamente nel multiselect.")
-            _imp_row1 = st.columns(3)
-            _imp_row2 = st.columns(3)
-
-            def _do_import(tickers_list):
-                """Scrive la lista importata DIRETTAMENTE nel key del multiselect."""
-                _valid = [t for t in tickers_list if t in _mtf_options_sorted]
-                if not _valid:
-                    st.warning("Nessun ticker valido trovato (avvia lo scanner prima).")
-                    return
-                # Scrive nel key del multiselect — Streamlit usa questo valore al prossimo render
-                st.session_state["mtf_sel_tickers"] = _valid
-                st.session_state["_mtf_results"]    = []   # reset risultati vecchi
-                st.rerun()
-
-            with _imp_row1[0]:
-                if st.button("📡 EARLY", key="mtf_imp_early", use_container_width=True):
-                    if not df_ep.empty and "Stato_Early" in df_ep.columns:
-                        _do_import(sorted(set(df_ep[df_ep["Stato_Early"]=="EARLY"]["Ticker"].dropna().tolist()[:20])))
-                    else:
-                        st.warning("Nessun dato EARLY — avvia lo scanner.")
-            with _imp_row1[1]:
-                if st.button("💪 PRO + STRONG", key="mtf_imp_pro", use_container_width=True):
-                    if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-                        _do_import(sorted(set(df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20])))
-                    else:
-                        st.warning("Nessun dato PRO — avvia lo scanner.")
-            with _imp_row1[2]:
-                if st.button("⭐ CONFLUENCE", key="mtf_imp_conf", use_container_width=True):
-                    if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-                        _mask = (df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))
-                        _do_import(sorted(set(df_ep[_mask]["Ticker"].dropna().tolist()[:20])))
-                    else:
-                        st.warning("Nessun dato CONFLUENCE — avvia lo scanner.")
-
-            with _imp_row2[0]:
-                if st.button("★ Solo STRONG", key="mtf_imp_strong", use_container_width=True):
-                    if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-                        _do_import(sorted(set(df_ep[df_ep["Stato_Pro"]=="STRONG"]["Ticker"].dropna().tolist()[:20])))
-                    else:
-                        st.warning("Nessun STRONG trovato.")
-            with _imp_row2[1]:
-                if st.button("🎯 Serafini", key="mtf_imp_ser", use_container_width=True):
-                    if not df_ep.empty and "Ser_OK" in df_ep.columns:
-                        _do_import(sorted(set(df_ep[df_ep["Ser_OK"].isin([True,"True","true"])]["Ticker"].dropna().tolist()[:20])))
-                    else:
-                        st.warning("Nessun dato Serafini — avvia lo scanner.")
-            with _imp_row2[2]:
-                if st.button("📋 Watchlist attiva", key="mtf_imp_wl", use_container_width=True):
-                    _wl_imp = load_watchlist()
-                    if not _wl_imp.empty and "Ticker" in _wl_imp.columns:
-                        _imp_wl = _wl_imp[_wl_imp["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
-                        _do_import(sorted(set(_imp_wl[:20])))
-                    else:
-                        st.warning("Watchlist vuota.")
-
-            # Preview della selezione corrente
-            _cur_mtf_sel = st.session_state.get("mtf_sel_tickers", [])
-            if _cur_mtf_sel:
-                st.success(f"✅ {len(_cur_mtf_sel)} ticker in selezione: "
-                           f"{', '.join(_cur_mtf_sel[:8])}{'...' if len(_cur_mtf_sel)>8 else ''}")
-                if st.button("🗑️ Svuota selezione", key="mtf_imp_clear"):
-                    st.session_state["mtf_sel_tickers"] = []
-                    st.session_state["_mtf_results"]    = []
-                    st.rerun()
-
-        # _mtf_labels e _mtf_options_sorted già costruiti sopra (prima dell'expander)
-        _default_import = st.session_state.get("mtf_import_list",
-                          _mtf_options_sorted[:min(10,len(_mtf_options_sorted))])
-        _default_import = [t for t in _default_import if t in _mtf_options_sorted]
-
-        _mc1, _mc2, _mc3 = st.columns([3,1,1])
-        with _mc1:
-            _mtf_sel = st.multiselect(
-                "Ticker da analizzare (max 20) — doppio click sul nome → TradingView IT",
-                options=_mtf_options_sorted,
-                default=_default_import[:20],
-                format_func=lambda t: _mtf_labels.get(t,t),
-                key="mtf_sel_tickers"
-            )
-        with _mc2:
-            _mtf_show_detail = st.checkbox("Mostra dettaglio (EMA/RSI)", value=False, key="mtf_detail")
-        with _mc3:
-            _mtf_only_confluence = st.checkbox("Solo 🟢 3/3 confluence", value=False, key="mtf_only_green")
-
-        if st.button("🔀 Calcola MTF Matrix", key="mtf_run", type="primary") and _mtf_sel:
-            _mtf_results = []
-            _mtf_progress = st.progress(0.0)
-            _mtf_status   = st.empty()
-            for _i, _tkr in enumerate(_mtf_sel[:20]):
-                _mtf_status.caption(f"Analisi {_mtf_labels.get(_tkr,_tkr)}... ({_i+1}/{len(_mtf_sel[:20])})")
-                _mtf_progress.progress((_i+1)/len(_mtf_sel[:20]))
-                _tf_data = _fetch_mtf_data(_tkr)
-                _d  = _tf_data.get("Daily",   {"status":"no_data","score":0})
-                _w  = _tf_data.get("Weekly",  {"status":"no_data","score":0})
-                _mo = _tf_data.get("Monthly", {"status":"no_data","score":0})
-                _conf_score = round((_d["score"]+_w["score"]+_mo["score"]) / 9 * 100)
-                _conf_tfs   = sum(1 for _tf in [_d,_w,_mo]
-                                  if _tf.get("status") not in ("no_data","error")
-                                  and _tf.get("score",0) >= 2)
-                _mtf_results.append({
-                    "Ticker": _tkr, "Nome": _mtf_nome_map.get(_tkr,""),
-                    "Daily": _tf_emoji_fn(_d), "Weekly": _tf_emoji_fn(_w), "Monthly": _tf_emoji_fn(_mo),
-                    "TF Bull": f"{_conf_tfs}/3", "Score": _conf_score,
-                    "_d": _d, "_w": _w, "_mo": _mo,
-                })
-            _mtf_progress.progress(1.0)
-            _mtf_status.empty()
-            st.session_state["_mtf_results"] = _mtf_results
-
-        _mtf_res = st.session_state.get("_mtf_results", [])
-        if _mtf_res:
-            if _mtf_only_confluence:
-                _mtf_res = [r for r in _mtf_res if r["TF Bull"] == "3/3"]
-            _mtf_res = sorted(_mtf_res, key=lambda x: x["Score"], reverse=True)
-
-            st.markdown("---")
-            _hc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
-            for _col, _lbl in zip(_hc, ["Ticker / Nome","Daily","Weekly","Monthly","TF Bull","Score"]):
-                _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
-                              f"letter-spacing:1px;text-transform:uppercase'>{_lbl}</span>",
-                              unsafe_allow_html=True)
-            st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
-
-            for _r in _mtf_res:
-                _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
-                _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
-                _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
-                # v36 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
-                _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
-                _tv_url  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
-                _nome_disp = (f"<span style='color:#787b86;font-size:0.72rem;display:block'>{_r['Nome']}</span>"
-                              if _r["Nome"] else "")
-                _rc[0].markdown(
-                    f"<div style='line-height:1.3'>"
-                    f"<a href='{_tv_url}' target='_blank' style='font-family:Courier New;"
-                    f"color:#00ff88;font-weight:bold;font-size:0.95rem;"
-                    f"text-decoration:none' title='Apri su TradingView IT'>"
-                    f"{_r['Ticker']} <span style='font-size:0.7rem;color:#2962ff'>↗</span></a>"
-                    f"{_nome_disp}</div>",
-                    unsafe_allow_html=True)
-                _rc[1].markdown(f"<span style='font-size:1.2rem'>{_r['Daily']}</span>",   unsafe_allow_html=True)
-                _rc[2].markdown(f"<span style='font-size:1.2rem'>{_r['Weekly']}</span>",  unsafe_allow_html=True)
-                _rc[3].markdown(f"<span style='font-size:1.2rem'>{_r['Monthly']}</span>", unsafe_allow_html=True)
-                _rc[4].markdown(f"<b style='color:{_bull_c}'>{_r['TF Bull']}</b>",        unsafe_allow_html=True)
-                _rc[5].markdown(
-                    f"<div style='display:flex;align-items:center;gap:4px'>"
-                    f"<span style='font-family:Courier New;color:{_score_c};font-weight:bold'>{_r['Score']}</span>"
-                    f"<div style='flex:1;height:4px;background:#1e222d;border-radius:2px'>"
-                    f"<div style='width:{_r['Score']}%;height:4px;background:{_score_c};border-radius:2px'>"
-                    f"</div></div></div>",
-                    unsafe_allow_html=True)
-
-                if _mtf_show_detail:
-                    with st.expander(f"📐 {_r['Ticker']} — dettaglio TF", expanded=False):
-                        _dc1, _dc2, _dc3 = st.columns(3)
-                        for _col_d, _tf_nm, _td in [(_dc1,"Daily",_r["_d"]),(_dc2,"Weekly",_r["_w"]),(_dc3,"Monthly",_r["_mo"])]:
-                            with _col_d:
-                                _em = _tf_emoji_fn(_td)
-                                if _td.get("status") in ("no_data","error"):
-                                    st.caption(f"**{_tf_nm}**: no data")
-                                else:
-                                    st.markdown(
-                                        f"**{_tf_nm}** `{_em}`\n\n"
-                                        f"P: `${_td.get('price',0)}` · E20: `${_td.get('ema20',0)}` · E50: `${_td.get('ema50',0)}`\n\n"
-                                        f"RSI: `{_td.get('rsi',0)}` · OBV: `{'↑' if _td.get('obv_up') else '↓'}`"
-                                    )
-
-            # Strategy Chart
-            st.markdown("---")
-            st.markdown('<div class="section-pill">📊 STRATEGY CHART — Analisi Avanzata MTF</div>', unsafe_allow_html=True)
-            _mtf_chart_tickers = [r["Ticker"] for r in _mtf_res]
-            _msc1, _msc2 = st.columns([2,1])
-            with _msc1:
-                _mtf_chart_tkr = st.selectbox("Ticker per Strategy Chart",
-                    _mtf_chart_tickers, format_func=lambda t: _mtf_labels.get(t,t), key="mtf_chart_sel")
-            with _msc2:
-                _mtf_chart_period = st.selectbox("Periodo", ["3mo","6mo","1y","2y"], index=1, key="mtf_chart_period")
-
-            if _mtf_chart_tkr:
-                _chart_row = pd.Series({"Ticker": _mtf_chart_tkr, "Nome": _mtf_nome_map.get(_mtf_chart_tkr,"")})
-                if not df_ep.empty and "Ticker" in df_ep.columns:
-                    _ep_match = df_ep[df_ep["Ticker"]==_mtf_chart_tkr]
-                    if not _ep_match.empty:
-                        _chart_row = _ep_match.iloc[0].copy()
-                if not (hasattr(_chart_row,"get") and _chart_row.get("_chart_data")):
-                    try:
-                        import yfinance as _yf_mc
-                        _raw_mc = _yf_mc.download(_mtf_chart_tkr, period=_mtf_chart_period,
-                                                   interval="1d", auto_adjust=True, progress=False)
-                        _raw_mc.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_mc.columns]
-                        if not _raw_mc.empty:
-                            _cl_mc = _raw_mc["Close"].dropna()
-                            _ema20_mc  = _cl_mc.ewm(span=20,adjust=False).mean()
-                            _ema50_mc  = _cl_mc.ewm(span=50,adjust=False).mean()
-                            _ema200_mc = _cl_mc.ewm(span=min(200,len(_cl_mc)),adjust=False).mean()
-                            _sma20_mc  = _cl_mc.rolling(20).mean()
-                            _std20_mc  = _cl_mc.rolling(20).std()
-                            _chart_row = _chart_row.copy()
-                            _chart_row["_chart_data"] = {
-                                "dates":  [str(d)[:10] for d in _raw_mc.index],
-                                "open":   _raw_mc["Open"].fillna(0).tolist(),
-                                "high":   _raw_mc["High"].fillna(0).tolist(),
-                                "low":    _raw_mc["Low"].fillna(0).tolist(),
-                                "close":  _cl_mc.tolist(),
-                                "volume": _raw_mc["Volume"].fillna(0).tolist() if "Volume" in _raw_mc.columns else [],
-                                "ema20":  _ema20_mc.tolist(), "ema50": _ema50_mc.tolist(),
-                                "ema200": _ema200_mc.tolist(),
-                                "bb_up":  (_sma20_mc + 2*_std20_mc).tolist(),
-                                "bb_dn":  (_sma20_mc - 2*_std20_mc).tolist(),
-                            }
-                            _chart_row["Prezzo"] = float(_cl_mc.iloc[-1])
-                            _tr_mc = (_raw_mc["High"] - _raw_mc["Low"]).fillna(0)
-                            _chart_row["ATR"] = float(_tr_mc.ewm(com=13,adjust=False).mean().iloc[-1])
-                    except Exception as _mce:
-                        st.warning(f"Chart data non disponibile per {_mtf_chart_tkr}: {_mce}")
-
-                if hasattr(_chart_row,"get") and _chart_row.get("_chart_data"):
-                    show_charts(_chart_row, key_suffix=f"mtf_{_mtf_chart_tkr}")
-                else:
-                    st.info(f"Dati chart non disponibili per {_mtf_chart_tkr}. Avvia lo scanner.")
-
-                _tv_url = f"https://it.tradingview.com/chart/?symbol={_mtf_chart_tkr.replace('.MI','').replace('.','')}"
-                st.markdown(
-                    f"<a href='{_tv_url}' target='_blank' style='display:inline-block;"
-                    f"background:#2962ff;color:white;padding:6px 16px;border-radius:4px;"
-                    f"font-family:Trebuchet MS;font-size:0.85rem;text-decoration:none;margin-top:8px'>"
-                    f"📈 Apri {_mtf_chart_tkr} su TradingView IT</a>",
-                    unsafe_allow_html=True)
-
-            # Export
-            st.markdown("---")
-            _df_mtf_exp = pd.DataFrame([
-                {"Ticker":r["Ticker"],"Nome":r["Nome"],"Daily":r["Daily"],"Weekly":r["Weekly"],
-                 "Monthly":r["Monthly"],"TF_Bull":r["TF Bull"],"Score":r["Score"]}
-                for r in _mtf_res])
-            _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
-            st.download_button("📊 Export MTF Matrix",
-                _df_mtf_exp.to_csv(index=False).encode(),
-                f"MTF_Matrix_v37_{_mtf_ts}.csv", "text/csv", key="mtf_export")
-
-
-
-# =========================================================================
-# v36 TAB #8 — PAPER TRADING JOURNAL
-# =========================================================================
-with tab_journal:
-    st.markdown('<div class="section-pill">📓 PAPER TRADING JOURNAL v36</div>',
-                unsafe_allow_html=True)
-    st.caption("Log strutturato entry/exit/note. Metriche aggregate per setup type.")
-
-    # Init journal in session state (persiste in sessione; export per persistenza lunga)
-    if "v36_journal" not in st.session_state:
-        st.session_state["v36_journal"] = []
-    _journal = st.session_state["v36_journal"]
-
-    # ── Form aggiunta trade ──────────────────────────────────────────────
-    with st.expander("➕ Aggiungi Trade", expanded=len(_journal)==0):
-        _jc = st.columns([1.5,1,1,1,1,1.5])
-        with _jc[0]: _j_tkr    = st.text_input("Ticker",  key="j_tkr",  placeholder="AAPL").upper().strip()
-        with _jc[1]: _j_entry  = st.number_input("Entry $",  min_value=0.0, step=0.01, key="j_entry")
-        with _jc[2]: _j_exit   = st.number_input("Exit $",   min_value=0.0, step=0.01, key="j_exit")
-        with _jc[3]: _j_size   = st.number_input("Shares",  min_value=1,   step=1,    key="j_size")
-        with _jc[4]: _j_setup  = st.selectbox("Setup",
-            ["EARLY","PRO","CONFLUENCE","SERAFINI","FINVIZ","HOT","MANUAL"], key="j_setup")
-        with _jc[5]: _j_note   = st.text_input("Note setup", key="j_note", placeholder="es. breakout EMA20")
-
-        _jc2 = st.columns([2,1,1])
-        with _jc2[0]: _j_date_e = st.date_input("Data Entry",  key="j_date_e")
-        with _jc2[1]: _j_date_x = st.date_input("Data Exit",   key="j_date_x")
-        with _jc2[2]: _j_r_mult = st.number_input("R Multiple", min_value=-20.0, max_value=50.0,
-                                                    step=0.1, value=0.0, key="j_r")
-
-        if st.button("💾 Salva Trade", key="j_save", type="primary"):
-            if _j_tkr and _j_entry > 0:
-                _pnl_t = (_j_exit - _j_entry) * _j_size if _j_exit > 0 else 0
-                _ret_t = (_j_exit/_j_entry - 1)*100 if _j_entry > 0 and _j_exit > 0 else 0
-                _journal.append({
-                    "ID":       len(_journal)+1,
-                    "Ticker":   _j_tkr,
-                    "Setup":    _j_setup,
-                    "Entry $":  _j_entry,
-                    "Exit $":   _j_exit if _j_exit > 0 else "Open",
-                    "Shares":   _j_size,
-                    "P&L $":    round(_pnl_t,2),
-                    "Return %": round(_ret_t,2),
-                    "R":        _j_r_mult,
-                    "Note":     _j_note,
-                    "Entry Date": str(_j_date_e),
-                    "Exit Date":  str(_j_date_x),
-                    "Won":      _pnl_t > 0,
-                })
-                st.success(f"✅ Trade {_j_tkr} salvato!")
-                st.rerun()
-            else:
-                st.warning("Inserisci Ticker e prezzo Entry.")
-
-    # ── Metriche aggregate ───────────────────────────────────────────────
-    if _journal:
-        _df_j = pd.DataFrame(_journal)
-        _closed = _df_j[_df_j["Exit $"] != "Open"].copy()
-
-        if not _closed.empty:
-            st.markdown("---")
-            st.markdown("#### 📊 Performance Aggregata")
-
-            _jm1,_jm2,_jm3,_jm4,_jm5,_jm6 = st.columns(6)
-            _n_j     = len(_closed)
-            _wins_j  = int(_closed["Won"].sum())
-            _wr_j    = _wins_j/_n_j*100
-            _total_j = float(_closed["P&L $"].sum())
-            _avg_r_j = float(_closed["R"].mean()) if "R" in _closed.columns else 0
-            _pf_j    = (abs(_closed[_closed["P&L $"]>0]["P&L $"].sum()) /
-                        abs(_closed[_closed["P&L $"]<0]["P&L $"].sum() + 0.01))
-
-            _jm1.metric("📋 Trade",       _n_j)
-            _jm2.metric("🎯 Win Rate",    f"{_wr_j:.1f}%")
-            _jm3.metric("💰 P&L Totale",  f"${_total_j:+,.0f}")
-            _jm4.metric("📐 Avg R",       f"{_avg_r_j:.2f}")
-            _jm5.metric("⚡ Profit Factor",f"{_pf_j:.2f}")
-            _jm6.metric("🏆 Winning",     f"{_wins_j}/{_n_j}")
-
-            # Per setup type
-            st.markdown("#### 📈 Win Rate per Setup Type")
-            _setup_grp = _closed.groupby("Setup").agg(
-                N=("Won","count"),
-                Wins=("Won","sum"),
-                PnL=("P&L $","sum"),
-                AvgR=("R","mean"),
-            ).reset_index()
-            _setup_grp["Win%"] = (_setup_grp["Wins"]/_setup_grp["N"]*100).round(1)
-            _setup_grp["PnL"]  = _setup_grp["PnL"].round(2)
-            _setup_grp["AvgR"] = _setup_grp["AvgR"].round(2)
-
-            # Visual per setup
-            for _, _sg in _setup_grp.iterrows():
-                _sc1,_sc2,_sc3,_sc4,_sc5 = st.columns([1.5,1,1,1,1])
-                _win_col = "#00ff88" if _sg["Win%"] >= 50 else "#ef4444"
-                _pnl_col = "#00ff88" if _sg["PnL"] >= 0 else "#ef4444"
-                _sc1.markdown(f"<b style='color:#58a6ff'>{_sg['Setup']}</b>", unsafe_allow_html=True)
-                _sc2.markdown(f"<span style='font-family:Courier New'>{int(_sg['N'])} trade</span>")
-                _sc3.markdown(f"<b style='color:{_win_col};font-family:Courier New'>{_sg['Win%']}%</b>",
-                              unsafe_allow_html=True)
-                _sc4.markdown(f"<span style='color:{_pnl_col};font-family:Courier New'>"
-                              f"${_sg['PnL']:+,.0f}</span>", unsafe_allow_html=True)
-                _sc5.markdown(f"<span style='font-family:Courier New;color:#b2b5be'>"
-                              f"R: {_sg['AvgR']}</span>", unsafe_allow_html=True)
-
-        # ── Trade log completo ───────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("#### 📋 Trade Log")
-
-        # Filtro per setup
-        _j_setup_filter = st.multiselect("Filtra per Setup",
-            _df_j["Setup"].unique().tolist(), key="j_filter_setup",
-            default=_df_j["Setup"].unique().tolist())
-        _df_j_disp = _df_j[_df_j["Setup"].isin(_j_setup_filter)] if _j_setup_filter else _df_j
-
-        # Colori riga per P&L
-        for _, _row_j in _df_j_disp.iterrows():
-            _is_open = _row_j["Exit $"] == "Open"
-            _pnl_v   = float(_row_j["P&L $"]) if not _is_open else 0
-            _row_c   = "#00ff8822" if _pnl_v > 0 else "#ef444422" if _pnl_v < 0 else "#58a6ff22"
-
-            _rj1,_rj2,_rj3,_rj4,_rj5,_rj6,_rj7 = st.columns([0.4,1.2,1,1,1,1,2])
-            _rj1.markdown(f"<span style='color:#6b7280;font-size:0.75rem'>#{int(_row_j['ID'])}</span>",
-                          unsafe_allow_html=True)
-            _rj2.markdown(f"<b style='font-family:Courier New;color:#00ff88'>{_row_j['Ticker']}</b>",
-                          unsafe_allow_html=True)
-            _rj3.markdown(f"<span style='font-size:0.78rem;color:#58a6ff'>{_row_j['Setup']}</span>",
-                          unsafe_allow_html=True)
-            _rj4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>"
-                          f"${_row_j['Entry $']:.2f}</span>", unsafe_allow_html=True)
-            _exit_display = "Open" if _is_open else f"${float(_row_j['Exit $']):.2f}"
-            _rj5.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>"
-                          f"{_exit_display}</span>",
-                          unsafe_allow_html=True)
-            _pnl_color = "#00ff88" if _pnl_v > 0 else "#ef4444" if _pnl_v < 0 else "#6b7280"
-            _pnl_display = "Open" if _is_open else f"${_pnl_v:+,.0f}"
-            _rj6.markdown(f"<b style='color:{_pnl_color};font-family:Courier New'>"
-                          f"{_pnl_display}</b>",
-                          unsafe_allow_html=True)
-            _rj7.markdown(f"<span style='color:#6b7280;font-size:0.78rem'>{_row_j['Note']}</span>",
-                          unsafe_allow_html=True)
-
-        # Pulsante delete ultimo trade
-        _jd1, _jd2, _jd3 = st.columns([1,1,3])
-        with _jd1:
-            if st.button("🗑️ Rimuovi ultimo", key="j_del_last") and _journal:
-                _journal.pop(); st.rerun()
-        with _jd2:
-            if st.button("🗑️ Svuota tutto", key="j_clear_all"):
-                st.session_state["v36_journal"] = []; st.rerun()
-
-        # Export Journal XLSX
-        st.markdown("---")
-        _j_export_buf = io.BytesIO()
-        with pd.ExcelWriter(_j_export_buf, engine="xlsxwriter") as _jw:
-            _df_j.to_excel(_jw, sheet_name="Trade Log", index=False)
-            if not _closed.empty:
-                _setup_grp.to_excel(_jw, sheet_name="Per Setup", index=False)
-        _j_ts = datetime.now().strftime("%Y%m%d_%H%M")
-        st.download_button("📊 Export Journal XLSX",
-            _j_export_buf.getvalue(),
-            f"TradingJournal_v37_{_j_ts}.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="j_export_xlsx")
-    else:
-        st.info("📭 Nessun trade nel journal. Aggiungi il tuo primo trade sopra.")
-
-
-# =========================================================================
-# v36 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
-# =========================================================================
-with tab_regime:
-    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v36 — VIX · Fear&Greed · Breadth · Bonds</div>',
-                unsafe_allow_html=True)
-
-    if st.button("🔄 Aggiorna dati Regime", key="regime_refresh",
-                 help="Ricarica VIX/SPY/QQQ/IWM/TLT — TTL 2 minuti"):
-        st.cache_data.clear(); st.rerun()
-
+def _detect_patterns_v38(row):
+    out = []
     try:
-        _rg = _get_market_regime()
-        _rg_c = _rg["color"]
+        pr  = float(row.get("Prezzo",  0) or 0)
+        e20 = float(row.get("EMA20",   0) or 0)
+        e50 = float(row.get("EMA50",   0) or 0)
+        rsi = float(row.get("RSI",    50) or 50)
+        vr  = float(row.get("Vol_Ratio",0) or 0)
+        sq  = row.get("Squeeze", False)
+        atr = float(row.get("ATR",     0) or 0)
+        if pr>0 and e20>0 and pr>e20 and rsi>45: out.append("ema_breakout")
+        if e20>0 and e50>0:
+            if e20>e50 and rsi>50: out.append("golden_cross")
+            elif e20<e50 and rsi<50: out.append("death_cross")
+        if sq in (True,"True","true",1): out.append("squeeze_fire")
+        if vr>=3.0: out.append("volume_spike")
+        if rsi<32: out.append("rsi_oversold")
+        if rsi>68: out.append("rsi_overbought")
+        if pr>0 and e20>0 and atr>0 and pr>e20+2*atr: out.append("bb_breakout")
+    except Exception: pass
+    return out
 
-        # ── KPI row ───────────────────────────────────────────────────────
-        _r1a,_r1b,_r1c,_r1d,_r1e,_r1f = st.columns(6)
-        _r1a.metric("🌡️ Regime",     f"{_rg['icon']} {_rg['regime']}")
-        _r1b.metric("📊 VIX",         _rg["vix"],
-                    delta=f"{_rg['vix_trend']:+.1f} 5d", delta_color="inverse")
-        _r1c.metric("📈 SPY 20d",     f"{_rg['spy_mom_20d']:+.1f}%")
-        _r1d.metric("💎 Breadth",     f"{_rg['breadth_score']}/3",
-                    help="SPY+QQQ+IWM momentum 20d positivo")
-        _r1e.metric("🏦 10Y",         f"{_rg.get('tnx_val',0):.2f}%",
-                    delta=f"{_rg.get('tnx_trend',0):+.2f}", delta_color="inverse")
-        _r1f.metric("✈️ Bond Flight",
-                    "🔴 ON" if _rg.get("bond_flight") else "🟢 OFF",
-                    help="TLT +2% in 10gg = flight-to-safety")
+def _render_pattern_alerts_v38(df_ep_alerts, tab_name="x"):
+    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v38</div>', unsafe_allow_html=True)
+    if df_ep_alerts is None or (hasattr(df_ep_alerts,"empty") and df_ep_alerts.empty):
+        st.info("Avvia lo scanner per rilevare i pattern."); return
+    with st.expander("⚙️ Pattern da monitorare", expanded=False):
+        _pc = st.columns(4)
+        _en = {pid: _pc[i%4].checkbox(f"{p['icon']} {p['label']}", True,
+               key=f"pat_en_{pid}_{tab_name}", help=p["desc"])
+               for i,(pid,p) in enumerate(_PATTERN_ALERTS_V38.items())}
+    _rows = []
+    for _, r in df_ep_alerts.iterrows():
+        _pats = [p for p in _detect_patterns_v38(r) if _en.get(p, True)]
+        if _pats:
+            _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
+                          "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
+                          "CSS":r.get("CSS",""),"Pattern":_pats,"_stato":str(r.get("Stato_Pro","-"))})
+    if not _rows: st.info("Nessun pattern rilevato."); return
+    _cnt = {p: sum(1 for r in _rows if p in r["Pattern"]) for p in _PATTERN_ALERTS_V38}
+    _active = sorted([(pid,cnt) for pid,cnt in _cnt.items() if cnt>0], key=lambda x:-x[1])
+    _kpi = st.columns(min(len(_active), 6))
+    for _ki,(pid,cnt) in enumerate(_active[:6]):
+        _kpi[_ki].metric(f"{_PATTERN_ALERTS_V38[pid]['icon']} {_PATTERN_ALERTS_V38[pid]['label']}", cnt)
+    st.markdown("---")
+    for ar in sorted(_rows, key=lambda x:len(x["Pattern"]), reverse=True)[:30]:
+        _ac1,_ac2,_ac3,_ac4 = st.columns([1.5,1.5,3,1])
+        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#00ff88" if ar["_stato"]=="PRO" else "#b2b5be"
+        _ac1.markdown(f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>", unsafe_allow_html=True)
+        _ac2.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>", unsafe_allow_html=True)
+        _parts = []
+        for p in ar["Pattern"]:
+            _bear = p in ("death_cross","rsi_overbought","bb_breakout")
+            _gold = p == "golden_cross"
+            _bg = "#ffd70022" if _gold else "#ef444422" if _bear else "#2962ff22"
+            _tx = "#ffd700" if _gold else "#ef4444" if _bear else "#58a6ff"
+            _parts.append(f"<span style='background:{_bg};color:{_tx};border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>{_PATTERN_ALERTS_V38.get(p,{}).get('icon','🔔')} {_PATTERN_ALERTS_V38.get(p,{}).get('label',p)}</span>")
+        _ac3.markdown(" ".join(_parts), unsafe_allow_html=True)
+        with _ac4:
+            if st.button("📋", key=f"alert_wl_{ar['Ticker']}_{tab_name}", help="Aggiungi a watchlist"):
+                try: gh_add_to_watchlist(ar["Ticker"], st.session_state.current_list_name); st.success(f"✅ {ar['Ticker']} aggiunto!")
+                except Exception: pass
+    _at_ts = datetime.now().strftime("%Y%m%d_%H%M")
+    _df_exp = pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
+    st.download_button("📊 Export Alert", _df_exp.to_csv(index=False).encode(),
+                       f"Alert_v38_{_at_ts}.csv","text/csv", key=f"alert_export_{tab_name}")
 
-        # ── Fear & Greed gauge + Regime score ─────────────────────────────
-        _fg_col1, _fg_col2 = st.columns([1.2, 2.8])
-        with _fg_col1:
-            _fg = _rg.get("fear_greed", 50)
-            _fg_lbl = _rg.get("fg_label","Neutral")
-            _fg_col_v = _rg.get("fg_color","#f59e0b")
-            import math as _mth
-            _ang = _mth.pi + (_fg/100) * _mth.pi
-            _nx = 100 + 72*_mth.cos(_ang); _ny = 100 + 72*_mth.sin(_ang)
-            _gauge_svg = f"""<svg width='200' height='115' viewBox='0 0 200 115'>
-  <defs>
-    <linearGradient id="grd" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%"   stop-color="#ef4444"/>
-      <stop offset="25%"  stop-color="#f97316"/>
-      <stop offset="50%"  stop-color="#f59e0b"/>
-      <stop offset="75%"  stop-color="#26a69a"/>
-      <stop offset="100%" stop-color="#00ff88"/>
-    </linearGradient>
-  </defs>
-  <path d="M 20,100 A 80,80 0 1,1 180,100"
-    fill="none" stroke="#1e222d" stroke-width="20" stroke-linecap="round"/>
-  <path d="M 20,100 A 80,80 0 1,1 180,100"
-    fill="none" stroke="url(#grd)" stroke-width="20" stroke-linecap="round" opacity="0.35"/>
-  <line x1="100" y1="100" x2="{_nx:.1f}" y2="{_ny:.1f}"
-    stroke="{_fg_col_v}" stroke-width="3.5" stroke-linecap="round"/>
-  <circle cx="100" cy="100" r="6" fill="{_fg_col_v}"/>
-  <text x="100" y="85" text-anchor="middle" font-size="24" font-weight="bold" fill="{_fg_col_v}">{_fg}</text>
-  <text x="100" y="112" text-anchor="middle" font-size="9" fill="#787b86">FEAR / GREED PROXY</text>
-  <text x="18" y="113" font-size="8" fill="#ef4444">FEAR</text>
-  <text x="155" y="113" font-size="8" fill="#00ff88">GREED</text>
-</svg>"""
-            st.markdown(
-                f"<div style='text-align:center'>{_gauge_svg}"
-                f"<div style='color:{_fg_col_v};font-weight:bold;font-size:0.95rem;"
-                f"margin-top:-4px'>{_fg_lbl}</div></div>",
-                unsafe_allow_html=True)
-
-        with _fg_col2:
-            # Regime score bar
-            _rs = _rg.get("regime_score",0)
-            _rs_pct = min(100, max(0, _rs/9*100))
-            _rs_col = "#00ff88" if _rs>=7 else "#26a69a" if _rs>=5 else "#f59e0b" if _rs>=3 else "#ef4444"
-            st.markdown(
-                f"<div style='margin-bottom:12px'>"
-                f"<span style='color:#787b86;font-size:0.75rem'>REGIME SCORE: "
-                f"<b style='color:{_rs_col}'>{_rs}/9</b></span>"
-                f"<div style='height:8px;background:#1e222d;border-radius:4px;margin-top:3px'>"
-                f"<div style='width:{_rs_pct:.0f}%;height:8px;background:{_rs_col};"
-                f"border-radius:4px'></div></div></div>",
-                unsafe_allow_html=True)
-
-            # Multi-indice breadth
-            for _nm_b,_mom_b in [("SPY",_rg["spy_mom_20d"]),
-                                   ("QQQ",_rg.get("qqq_mom_20d",0)),
-                                   ("IWM",_rg.get("iwm_mom_20d",0))]:
-                _bc = "#00ff88" if _mom_b>2 else "#26a69a" if _mom_b>0 else "#ef4444"
-                _bar_w = min(100, abs(_mom_b)*8)
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:5px'>"
-                    f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.8rem;"
-                    f"min-width:32px'>{_nm_b}</span>"
-                    f"<div style='flex:1;height:10px;background:#1e222d;border-radius:3px;overflow:hidden'>"
-                    f"<div style='width:{_bar_w:.0f}%;height:10px;background:{_bc};border-radius:3px'>"
-                    f"</div></div>"
-                    f"<span style='font-family:Courier New;color:{_bc};font-size:0.8rem;"
-                    f"min-width:50px;text-align:right'>{_mom_b:+.1f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True)
-
-        # ── Playbook operativo ────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("#### 📋 Playbook Operativo")
-        _playbook = {
-            "Risk-On":  [("✅ Scanner","Tutti i tab attivi: EARLY·PRO·CONFLUENCE·STRONG"),
-                         ("✅ Size","100% del sizing calcolato"),
-                         ("✅ Setup","Priorità CONFLUENCE (EARLY+PRO+Weekly Bull)"),
-                         ("✅ Hold","Mantieni posizioni — trend è amico"),
-                         ("⚠️ Alert","VIX < 12 = compiacenza, occhio agli ingressi tardivi")],
-            "Caution":  [("🟡 Scanner","STRONG e CONFLUENCE. Skip EARLY isolati"),
-                         ("🟡 Size","75% della size standard"),
-                         ("🟡 Stop","Stop più stretti: 1× ATR invece di 1.5×"),
-                         ("🟡 Settori","Privilegia difensivi: XLV·XLU·XLP"),
-                         ("⚠️ Evita","Settori ciclici ad alta volatilità")],
-            "Risk-Off": [("🟠 Scanner","Solo STRONG (Pro≥8). Ignora EARLY e PRO base"),
-                         ("🟠 Size","50% del sizing — capitale protetto"),
-                         ("🟠 Crisis","Apri Crisis Monitor: GLD·TLT·XLV"),
-                         ("🟠 Setup","Solo titoli L2+ liquidità, ATR% < 4%"),
-                         ("❌ Evita","No nuovi long su growth/tech/small-cap")],
-            "Crisis":   [("🔴 Scanner","NON aprire nuovi long"),
-                         ("🔴 Size","0% — cash preservation totale"),
-                         ("🔴 Azione","Chiudi posizioni deboli, gestisci le forti"),
-                         ("🔴 Crisis","Crisis Monitor ATTIVO: GLD·TLT·SHY·USD"),
-                         ("✅ Rientro","Aspetta VIX < 25 per 3gg prima di rientrare")],
-        }
-        _pb = _playbook.get(_rg["regime"], _playbook["Caution"])
-        _pb_c = _rg["color"]
-        for _rt, _rtxt in _pb:
-            st.markdown(
-                f"<div style='display:flex;gap:10px;padding:6px 0;border-bottom:1px solid #1e222d'>"
-                f"<span style='color:{_pb_c};font-weight:bold;min-width:115px;font-size:0.82rem'>{_rt}</span>"
-                f"<span style='color:#d1d4dc;font-size:0.82rem'>{_rtxt}</span></div>",
-                unsafe_allow_html=True)
-
-        # ── VIX storico 60gg ──────────────────────────────────────────────
-        st.markdown("---")
-        st.markdown("#### 📉 VIX — Storico 60 giorni con zone regime")
+@st.cache_data(ttl=600)
+def _fetch_news_sentiment_v38(tickers: tuple) -> list:
+    import urllib.request as _ur, xml.etree.ElementTree as _ET
+    _BULL = {"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong",
+             "growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
+    _BEAR = {"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss",
+             "decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
+    _res = []
+    for _t in tickers[:20]:
         try:
-            import yfinance as _yf_vh
-            _vh = _yf_vh.download("^VIX","60d","1d", auto_adjust=True, progress=False)
-            _vh.columns = [c[0] if isinstance(c,tuple) else c for c in _vh.columns]
-            _vh_cl = _vh["Close"].dropna() if not _vh.empty else pd.Series(dtype=float)
-            if len(_vh_cl) > 2:
-                import plotly.graph_objects as _pgo_v
-                _fig_v = _pgo_v.Figure()
-                _fig_v.add_hrect(y0=35,y1=80,fillcolor="rgba(239,68,68,0.07)",line_width=0)
-                _fig_v.add_hrect(y0=25,y1=35,fillcolor="rgba(249,115,22,0.07)",line_width=0)
-                _fig_v.add_hrect(y0=18,y1=25,fillcolor="rgba(245,158,11,0.07)",line_width=0)
-                _fig_v.add_hrect(y0=0,y1=18,fillcolor="rgba(38,166,154,0.05)",line_width=0)
-                for _lv,_lc,_ll in [(35,"#ef4444","Crisis"),(25,"#f97316","Risk-Off"),(18,"#f59e0b","Caution")]:
-                    _fig_v.add_hline(y=_lv, line=dict(color=_lc,width=1,dash="dot"),
-                        annotation_text=f" {_ll}", annotation_font_color=_lc, annotation_font_size=9)
-                _vcolors = ["#ef4444" if v>=35 else "#f97316" if v>=25 else "#f59e0b" if v>=18 else "#26a69a"
-                            for v in _vh_cl.tolist()]
-                _fig_v.add_trace(_pgo_v.Scatter(
-                    x=[str(d)[:10] for d in _vh_cl.index], y=_vh_cl.tolist(),
-                    mode="lines+markers", name="VIX",
-                    line=dict(color="#58a6ff",width=2),
-                    marker=dict(color=_vcolors,size=5),
-                    fill="tozeroy", fillcolor="rgba(88,166,255,0.05)",
-                    hovertemplate="VIX: %{y:.1f} — %{x}<extra></extra>"))
-                _vix_ly = dict(PLOTLY_DARK)
-                _vix_ly["yaxis"] = dict(_vix_ly.get("yaxis",{}),
-                    title="VIX", range=[0,max(45,max(_vh_cl.tolist())*1.1)], tickfont=dict(size=9))
-                _fig_v.update_layout(**_vix_ly,
-                    title=dict(text=f"VIX: <b>{_rg['vix']}</b> | Regime: <b>{_rg['regime']}</b>",
-                               font=dict(color="#50c4e0",size=12),x=0.01),
-                    height=240, margin=dict(l=0,r=0,t=38,b=0),
-                    showlegend=False, hovermode="x unified")
-                st.plotly_chart(_fig_v, use_container_width=True, key="vix_hist_chart")
-        except Exception as _vhe:
-            st.caption(f"VIX storico: {_vhe}")
+            _url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
+            _req = _ur.Request(_url, headers={"User-Agent":"Mozilla/5.0"})
+            with _ur.urlopen(_req, timeout=6) as _r: _xml = _r.read()
+            _root = _ET.fromstring(_xml)
+            for _item in _root.findall(".//item")[:5]:
+                _title = _item.findtext("title","")
+                _words = set(_title.lower().split())
+                _b = len(_words & _BULL); _br = len(_words & _BEAR)
+                _sent = "🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
+                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
+                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
+        except Exception: pass
+    return sorted(_res, key=lambda x: abs(x["Score"]), reverse=True)
 
-    except Exception as _rge:
-        st.warning(f"Regime data non disponibile: {_rge}")
-
-    st.markdown("---")
-
-    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
-
-    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
-    st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 6 Periodi</div>',
-                unsafe_allow_html=True)
-    st.caption("Click su una cella per vedere i ticker del settore. Dati in tempo reale da ETF GICS.")
-
-    _sr_cache_col1, _sr_cache_col2 = st.columns([3,1])
-    with _sr_cache_col2:
-        if st.button("🗑️ Aggiorna dati settori", key="sr_clear_cache",
-                     help="Forza il refresh dei dati settoriali da Yahoo Finance"):
-            st.cache_data.clear()
-            st.rerun()
-    with st.spinner("Carico dati settoriali (6 periodi: 1d/5d/1m/3m/6m/1y)..."):
-        _sr_df = _get_sector_returns()
-
-    if not _sr_df.empty:
-        # ── Heatmap Plotly interattiva ─────────────────────────────────
-        import plotly.graph_objects as _pgo
-
-        _periods_sr = ["1d","5d","1m","3m","6m","1y"]
-        _period_labels = {"1d":"1 Giorno","5d":"5 Giorni","1m":"1 Mese","3m":"3 Mesi","6m":"6 Mesi","1y":"1 Anno"}
-        _sectors_sr = _sr_df["Sector"].tolist()
-
-        # Matrice valori
-        _z_matrix = []
-        _text_matrix = []
-        for _p in _periods_sr:
-            _col_vals = []
-            _col_text = []
-            for _sec in _sectors_sr:
-                _row = _sr_df[_sr_df["Sector"]==_sec]
-                _v = float(_row[_p].iloc[0]) if not _row.empty and _p in _row.columns else 0
-                _col_vals.append(_v)
-                _col_text.append(f"{_v:+.1f}%")
-            _z_matrix.append(_col_vals)
-            _text_matrix.append(_col_text)
-
-        _fig_sr = _pgo.Figure(data=_pgo.Heatmap(
-            z=_z_matrix,
-            x=_sectors_sr,
-            y=[_period_labels.get(_p,_p) for _p in _periods_sr],
-            text=_text_matrix,
-            texttemplate="%{text}",
-            textfont=dict(size=11, color="white", family="Courier New"),
-            colorscale=[
-                [0.0,  "#7f0000"], [0.25, "#ef4444"],
-                [0.45, "#1e222d"], [0.55, "#1e222d"],
-                [0.75, "#26a69a"], [1.0,  "#00ff88"],
-            ],
-            zmid=0,
-            showscale=True,
-            colorbar=dict(
-                title="Return %",
-                tickfont=dict(color="#787b86", size=9),
-                outlinecolor="#2a2e39",
-            ),
-            hovertemplate="<b>%{x}</b><br>Periodo: %{y}<br>Return: %{text}<extra></extra>",
-        ))
-        _sr_layout = dict(PLOTLY_DARK)
-        _sr_layout["xaxis"] = dict(_sr_layout.get("xaxis",{}), tickfont=dict(size=10,color="#b2b5be"), side="bottom")
-        _sr_layout["yaxis"] = dict(_sr_layout.get("yaxis",{}), tickfont=dict(size=10,color="#b2b5be"))
-        _fig_sr.update_layout(
-            **_sr_layout,
-            title=dict(text="Sector Rotation — Return % per periodo",
-                       font=dict(color="#50c4e0",size=13), x=0.01),
-            height=320,
-            margin=dict(l=0,r=0,t=45,b=0),
-        )
-        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v36")
-
-        # ── Drill-down: click su settore ───────────────────────────────
-        st.markdown("#### 🔍 Drill-down per Settore")
-        _sr_cols = st.columns([2,1])
-        with _sr_cols[0]:
-            _sel_sector = st.selectbox(
-                "Seleziona settore per vedere i ticker",
-                _sectors_sr, key="sr_drilldown_sector"
-            )
-        with _sr_cols[1]:
-            _sel_period_dd = st.selectbox(
-                "Periodo di riferimento",
-                _periods_sr, index=2,
-                format_func=lambda p: _period_labels.get(p,p),
-                key="sr_drilldown_period"
-            )
-
-        if _sel_sector:
-            # Mostra performance ETF settore
-            _etf_name = _SECTOR_ETFS.get(_sel_sector,"")
-            _etf_row  = _sr_df[_sr_df["Sector"]==_sel_sector]
-            if not _etf_row.empty:
-                _etf_vals = {p: float(_etf_row[p].iloc[0]) for p in _periods_sr if p in _etf_row.columns}
-                _ev1,_ev2,_ev3,_ev4,_ev5,_ev6 = st.columns(6)
-                for _col_ev, _p in zip([_ev1,_ev2,_ev3,_ev4,_ev5,_ev6], _periods_sr):
-                    _v = _etf_vals.get(_p,0)
-                    _col_ev.metric(f"{_etf_name} {_period_labels.get(_p,_p)}", f"{_v:+.1f}%",
-                                   delta=None)
-
-            # Ticker del settore
-            _sector_tkrs = _SECTOR_TICKERS.get(_sel_sector,[])
-            if _sector_tkrs:
-                st.markdown(f"**Ticker principali — {_sel_sector}:**")
-                _tkr_cols = st.columns(5)
-                for _i, _tkr_s in enumerate(_sector_tkrs):
-                    # Evidenzia se è in watchlist o scanner
-                    _in_wl = False
-                    _in_sc = False
-                    try:
-                        _wl_check = load_watchlist()
-                        if not _wl_check.empty and "Ticker" in _wl_check.columns:
-                            _in_wl = _tkr_s in _wl_check["Ticker"].values
-                    except Exception:
-                        pass
-                    if not df_ep.empty and "Ticker" in df_ep.columns:
-                        _in_sc = _tkr_s in df_ep["Ticker"].values
-                    _badge_s = " ⭐" if _in_sc else " 📋" if _in_wl else ""
-                    _color_s = "#00ff88" if _in_sc else "#58a6ff" if _in_wl else "#b2b5be"
-                    _tv_s = _tkr_s.replace(".MI","").replace(".","")
-                    _tv_url_s = f"https://it.tradingview.com/chart/?symbol={_tv_s}"
-                    with _tkr_cols[_i % 5]:
-                        # st.link_button funziona sia in local che in Streamlit Cloud
-                        _btn_label = f"{_tkr_s}{_badge_s} ↗"
-                        st.link_button(
-                            _btn_label, _tv_url_s,
-                            use_container_width=True,
-                            help=f"Apri {_tkr_s} su TradingView IT",
-                            type="secondary",
-                        )
-                st.caption("⭐ = in scanner · 📋 = in watchlist · click → TradingView IT")
-
-        # ── Sector Rankings table ──────────────────────────────────────
-        st.markdown("---")
-        st.markdown("#### 🏆 Ranking Settori")
-        _sr_rank = _sr_df[["Sector","ETF"] + _periods_sr].copy().sort_values(
-            _sel_period_dd, ascending=False).reset_index(drop=True)
-        _sr_rank.index += 1
-
-        for _i, _rk_row in _sr_rank.iterrows():
-            _rk1,_rk2,_rk3,_rk4,_rk5,_rk6,_rk7,_rk8 = st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
-            _medal = "🥇" if _i==1 else "🥈" if _i==2 else "🥉" if _i==3 else f"{_i}."
-            _rk1.markdown(f"<b style='color:#787b86'>{_medal}</b>", unsafe_allow_html=True)
-            _rk2.markdown(f"<b>{_rk_row['Sector']}</b> <span style='color:#6b7280;font-size:0.78rem'>"
-                          f"({_rk_row['ETF']})</span>", unsafe_allow_html=True)
-            for _col_rk, _p in zip([_rk3,_rk4,_rk5,_rk6,_rk7,_rk8], _periods_sr):
-                _v = float(_rk_row[_p])
-                _c = "#00ff88" if _v>0 else "#ef4444" if _v<0 else "#6b7280"
-                _col_rk.markdown(f"<span style='font-family:Courier New;color:{_c};"
-                                  f"font-size:0.82rem'>{_v:+.1f}%</span>",
-                                  unsafe_allow_html=True)
-    else:
-        st.warning("Dati settoriali non disponibili. Controlla la connessione a Yahoo Finance.")
-
-    # ── v36 #2 — POSITION SIZING ENGINE ──────────────────────────────────
-    st.markdown("---")
-    st.markdown('<div class="section-pill">⚖️ POSITION SIZING ENGINE v36</div>',
-                unsafe_allow_html=True)
-    st.caption("Calcolo professionale della size ottimale basato su rischio per trade.")
-
-    _ps_c1,_ps_c2,_ps_c3,_ps_c4 = st.columns(4)
-    with _ps_c1: _ps_capital = st.number_input("Capitale ($)", min_value=1000.0,
-                                               value=float(st.session_state.get("ps_capital",50000)),
-                                               step=1000.0, key="ps_capital")
-    with _ps_c2: _ps_risk    = st.number_input("Rischio % per trade", min_value=0.1,
-                                               max_value=10.0, value=1.0, step=0.1, key="ps_risk")
-    with _ps_c3: _ps_entry   = st.number_input("Entry $",  min_value=0.0, step=0.01, key="ps_entry")
-    with _ps_c4: _ps_stop    = st.number_input("Stop Loss $", min_value=0.0, step=0.01, key="ps_stop")
-
-    _ps_atr_auto = st.checkbox("Calcola stop da ATR (1.5× ATR)", key="ps_atr_auto")
-    if _ps_atr_auto and _ps_entry > 0:
-        _ps_atr_v = st.number_input("ATR $", min_value=0.0, step=0.01, key="ps_atr_v")
-        if _ps_atr_v > 0:
-            _ps_stop = round(_ps_entry - 1.5 * _ps_atr_v, 4)
-            st.caption(f"Stop auto: **${_ps_stop:.2f}**  (entry − 1.5 × ATR)")
-
-    if _ps_entry > 0 and _ps_stop > 0 and _ps_stop < _ps_entry:
-        _ps_result = _calc_position_size(_ps_capital, _ps_risk, _ps_entry, _ps_stop)
-        _psr1,_psr2,_psr3,_psr4,_psr5 = st.columns(5)
-        _psr1.metric("📦 N. Azioni",       _ps_result["shares"])
-        _psr2.metric("💰 Size Posizione",   f"${_ps_result['position_usd']:,.0f}")
-        _psr3.metric("⚠️ Rischio $",        f"${_ps_result['risk_usd']:,.0f}")
-        _psr4.metric("📊 % del Capitale",   f"{_ps_result['pct_capital']:.1f}%")
-        _psr5.metric("📐 R/S per Azione",   f"${_ps_result['risk_per_share']:.4f}")
-
-        # Target levels
-        _t1 = round(_ps_entry + (_ps_entry - _ps_stop), 2)
-        _t2 = round(_ps_entry + 2*(_ps_entry - _ps_stop), 2)
-        _t3 = round(_ps_entry + 3*(_ps_entry - _ps_stop), 2)
-        st.markdown(
-            f"<div style='background:#1e222d;border-radius:8px;padding:10px 16px;"
-            f"margin-top:8px;font-family:Courier New;font-size:0.84rem'>"
-            f"🔴 SL: <b style='color:#ef4444'>${_ps_stop:.2f}</b> &nbsp;|&nbsp; "
-            f"🟠 T1 (R:1): <b style='color:#f59e0b'>${_t1:.2f}</b> &nbsp;|&nbsp; "
-            f"🟢 T2 (R:2): <b style='color:#26a69a'>${_t2:.2f}</b> &nbsp;|&nbsp; "
-            f"✅ T3 (R:3): <b style='color:#00ff88'>${_t3:.2f}</b>"
-            f"</div>",
-            unsafe_allow_html=True
-        )
-    else:
-        st.info("Inserisci Entry e Stop Loss per calcolare la size.")
-
-# =========================================================================
-# v37 — Aggiunge 3 nuovi tab alla lista esistente
-# Tab: 🧠 AI Explainer, 📱 Telegram, 📊 Risk Pro, 🔍 Gap Scanner
-# =========================================================================
-# Nota: i tab vengono aggiunti alla definizione esistente tramite
-# session_state flag — usa st.expander nei tab esistenti per compatibilità
-
-# ── v37 scan stats update (batch info) ────────────────────────────────────
-if "scan_stats" in st.session_state:
-    _ss37 = st.session_state.scan_stats
-    _batches_info = (f" · 📦 {_ss37.get('batches','?')} batch×{_ss37.get('batch_size','?')}"
-                     if "batches" in _ss37 else "")
-    st.sidebar.caption(
-        f"⏱️ **{_ss37.get('elapsed_s','?')}s** · "
-        f"⚡ {_ss37.get('cache_hits',0)} cache · "
-        f"☁️ {_ss37.get('downloaded',0)} scaricati"
-        f"{_batches_info}"
-    )
-
-# =========================================================================
-# v37 UPGRADE #3 — AI SIGNAL EXPLAINER
-# =========================================================================
-# =========================================================================
-# v37 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
-# Provider chain: Gemini (free) → Groq (free) → OpenRouter → Claude
-# =========================================================================
-
-def _ai_call_gemini(api_key: str, prompt: str) -> str:
-    """Google Gemini 2.0 Flash — gratuito 1500 req/day."""
-    import requests as _r
-    _url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.0-flash:generateContent?key={api_key}")
-    _resp = _r.post(_url,
-        json={"contents":[{"parts":[{"text": prompt}]}],
-              "generationConfig":{"maxOutputTokens":500,"temperature":0.3}},
-        timeout=20)
-    if _resp.status_code == 200:
-        _d = _resp.json()
-        return _d["candidates"][0]["content"]["parts"][0]["text"]
-    raise Exception(f"Gemini {_resp.status_code}: {_resp.text[:120]}")
-
-
-def _ai_call_groq(api_key: str, prompt: str) -> str:
-    """Groq — Llama 3.3 70B, gratuito con rate limits."""
-    import requests as _r
-    _resp = _r.post("https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}",
-                 "Content-Type": "application/json"},
-        json={"model": "llama-3.3-70b-versatile",
-              "messages": [{"role":"user","content": prompt}],
-              "max_tokens": 500, "temperature": 0.3},
-        timeout=20)
-    if _resp.status_code == 200:
-        return _resp.json()["choices"][0]["message"]["content"]
-    raise Exception(f"Groq {_resp.status_code}: {_resp.text[:120]}")
-
-
-def _ai_call_openrouter(api_key: str, prompt: str) -> str:
-    """OpenRouter — accesso a molti modelli, free tier disponibile."""
-    import requests as _r
-    _resp = _r.post("https://openrouter.ai/api/v1/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}",
-                 "Content-Type": "application/json",
-                 "HTTP-Referer": "https://trading-scanner-pro.streamlit.app"},
-        json={"model": "mistralai/mistral-7b-instruct:free",
-              "messages": [{"role":"user","content": prompt}],
-              "max_tokens": 500},
-        timeout=20)
-    if _resp.status_code == 200:
-        return _resp.json()["choices"][0]["message"]["content"]
-    raise Exception(f"OpenRouter {_resp.status_code}: {_resp.text[:120]}")
-
-
-def _ai_call_claude(api_key: str, prompt: str) -> str:
-    """Anthropic Claude Haiku — a pagamento, massima qualità."""
-    import requests as _r
-    _resp = _r.post("https://api.anthropic.com/v1/messages",
-        headers={"Content-Type": "application/json",
-                 "anthropic-version": "2023-06-01",
-                 "x-api-key": api_key},
-        json={"model": "claude-haiku-4-5-20251001",
-              "max_tokens": 500,
-              "messages": [{"role":"user","content": prompt}]},
-        timeout=25)
-    if _resp.status_code == 200:
-        return _resp.json()["content"][0]["text"]
-    _err = _resp.json().get("error",{})
-    raise Exception(f"Claude {_resp.status_code}: {_err.get('message','')[:120]}")
-
-
-def _ai_call_with_fallback(prompt: str) -> tuple:
-    """
-    Prova i provider in ordine: Gemini → Groq → OpenRouter → Claude.
-    Restituisce (testo_risposta, provider_usato) o lancia Exception.
-    """
-    _ss = st.session_state
-
-    # Costruisce lista provider configurati nell'ordine preferito
-    _providers = []
-
-    _gem_key = st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key","")
-    if _gem_key:
-        _providers.append(("🟢 Gemini Flash", _ai_call_gemini, _gem_key))
-
-    _groq_key = st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key","")
-    if _groq_key:
-        _providers.append(("🟣 Groq Llama", _ai_call_groq, _groq_key))
-
-    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
-    if _or_key:
-        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
-
-    _ant_key = st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")
-    if _ant_key:
-        _providers.append(("🟡 Claude Haiku", _ai_call_claude, _ant_key))
-
-    if not _providers:
-        raise Exception("NO_KEYS")
-
-    _errors = []
-    for _name, _fn, _key in _providers:
-        try:
-            _result = _fn(_key, prompt)
-            return _result, _name
-        except Exception as _e:
-            _errors.append(f"{_name}: {_e}")
-            continue  # prova il prossimo
-
-    raise Exception("ALL_FAILED: " + " | ".join(_errors))
-
-
-def _render_ai_explainer_v37(df_source, tab_name="PRO"):
-    """AI Signal Explainer — multi-provider con fallback automatico."""
-    st.markdown(
-        '<div class="section-pill">🧠 AI SIGNAL EXPLAINER v37 — Gemini · Groq · OpenRouter · Claude</div>',
-        unsafe_allow_html=True)
-    st.caption("Fallback automatico: Gemini (free) → Groq (free) → OpenRouter → Claude")
-
-    # ── Pannello configurazione API keys ──────────────────────────────────
-    _any_key = any([
-        st.secrets.get("GEMINI_API_KEY","")      or st.session_state.get("_gemini_api_key",""),
-        st.secrets.get("GROQ_API_KEY","")        or st.session_state.get("_groq_api_key",""),
-        st.secrets.get("OPENROUTER_API_KEY","")  or st.session_state.get("_openrouter_api_key",""),
-        st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
-    ])
-
-    with st.expander(
-        "🔑 Configura API Keys" + (" ✅" if _any_key else " ⚠️ Nessuna key — configura qui"),
-        expanded=not _any_key
-    ):
-        st.markdown(
-            "<div style='background:#0d1117;border:1px solid #1f2937;border-radius:6px;"
-            "padding:10px 14px;margin-bottom:10px;font-size:0.80rem;color:#b2b5be'>"
-            "Configura almeno una key. Il sistema usa quella disponibile con fallback automatico.<br><br>"
-            "🟢 <b>Gemini Flash</b> — gratis · <a href='https://aistudio.google.com' target='_blank' "
-            "style='color:#2962ff'>aistudio.google.com</a> → Get API Key<br>"
-            "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
-            "style='color:#2962ff'>console.groq.com</a> → API Keys → Create<br>"
-            "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
-            "style='color:#2962ff'>openrouter.ai</a> → Keys → Create Key<br>"
-            "🟡 <b>Claude</b> — a pagamento · <a href='https://console.anthropic.com' target='_blank' "
-            "style='color:#2962ff'>console.anthropic.com</a> → API Keys"
-            "</div>",
-            unsafe_allow_html=True
-        )
-
-        _kc1, _kc2 = st.columns(2)
-        with _kc1:
-            # Gemini
-            _gem_cur = st.session_state.get("_gemini_api_key","")
-            _gem_inp = st.text_input("🟢 Gemini API Key",
-                value=_gem_cur, type="password",
-                placeholder="AIzaSy...",
-                key=f"gem_inp_{tab_name}")
-            # Groq
-            _groq_cur = st.session_state.get("_groq_api_key","")
-            _groq_inp = st.text_input("🟣 Groq API Key",
-                value=_groq_cur, type="password",
-                placeholder="gsk_...",
-                key=f"groq_inp_{tab_name}")
-        with _kc2:
-            # OpenRouter
-            _or_cur = st.session_state.get("_openrouter_api_key","")
-            _or_inp = st.text_input("🔵 OpenRouter API Key",
-                value=_or_cur, type="password",
-                placeholder="sk-or-...",
-                key=f"or_inp_{tab_name}")
-            # Claude
-            _ant_cur = st.session_state.get("_anthropic_api_key","")
-            _ant_inp = st.text_input("🟡 Claude API Key",
-                value=_ant_cur, type="password",
-                placeholder="sk-ant-api03-...",
-                key=f"ant_inp_{tab_name}")
-
-        _save_col, _reset_col, _ = st.columns([1,1,2])
-        with _save_col:
-            if st.button("💾 Salva keys", key=f"ai_keys_save_{tab_name}", type="primary",
-                         use_container_width=True):
-                if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
-                if _groq_inp.strip(): st.session_state["_groq_api_key"]       = _groq_inp.strip()
-                if _or_inp.strip():   st.session_state["_openrouter_api_key"] = _or_inp.strip()
-                if _ant_inp.strip():  st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
-                st.success("✅ Keys salvate per questa sessione!")
-                st.rerun()
-        with _reset_col:
-            if st.button("🗑️ Reset tutte", key=f"ai_keys_reset_{tab_name}",
-                         use_container_width=True):
-                for _k in ["_gemini_api_key","_groq_api_key",
-                           "_openrouter_api_key","_anthropic_api_key"]:
-                    st.session_state.pop(_k, None)
-                st.rerun()
-
-        # Status provider
-        _prov_status = []
-        for _pn, _sk, _ssk in [
-            ("🟢 Gemini",    "GEMINI_API_KEY",     "_gemini_api_key"),
-            ("🟣 Groq",      "GROQ_API_KEY",        "_groq_api_key"),
-            ("🔵 OpenRouter","OPENROUTER_API_KEY",   "_openrouter_api_key"),
-            ("🟡 Claude",    "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
-        ]:
-            _ok = bool(st.secrets.get(_sk,"") or st.session_state.get(_ssk,""))
-            _prov_status.append(f"{'✅' if _ok else '❌'} {_pn}")
-        st.caption("  ·  ".join(_prov_status))
-
-    if not _any_key:
-        st.info("Inserisci almeno una API key sopra per usare l'AI Explainer.")
-        return
-
-    if df_source is None or (hasattr(df_source,"empty") and df_source.empty):
-        st.info("Avvia lo scanner per usare l'AI Explainer.")
-        return
-
-    # Filtra PRO/STRONG
-    _df_ai = df_source.copy()
-    if "Stato_Pro" in _df_ai.columns:
-        _df_ai = _df_ai[_df_ai["Stato_Pro"].isin(["PRO","STRONG"])]
-    if _df_ai.empty:
-        st.info("Nessun segnale PRO/STRONG trovato. Avvia lo scanner.")
-        return
-
-    # Regime context
+def _render_news_sentiment_v38(df_ep_news):
+    _tickers = []
+    if not (df_ep_news is None or (hasattr(df_ep_news,"empty") and df_ep_news.empty)):
+        if "Stato_Pro" in df_ep_news.columns:
+            _tickers = df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
+        if not _tickers: _tickers = df_ep_news["Ticker"].dropna().tolist()[:15]
     try:
-        _rg_ai = _get_market_regime()
-        _regime_ctx = (f"VIX={_rg_ai['vix']}, Regime={_rg_ai['regime']}, "
-                       f"SPY momentum 20d={_rg_ai['spy_mom_20d']:+.1f}%")
-    except Exception:
-        _regime_ctx = "dati regime non disponibili"
-
-    # Header griglia
-    _ai_cols = st.columns([2,1,1,1,1])
-    for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","AI"]):
-        _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
-                      f"letter-spacing:1px'>{_lbl}</span>", unsafe_allow_html=True)
-    st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
-
-    for _, _row_ai in _df_ai.head(15).iterrows():
-        _tkr_ai   = str(_row_ai.get("Ticker",""))
-        _stato_ai = str(_row_ai.get("Stato_Pro","-"))
-        _css_ai   = _row_ai.get("CSS","—")
-        _rsi_ai   = _row_ai.get("RSI","—")
-        _nome_ai  = str(_row_ai.get("Nome",""))[:25]
-        _pr_ai    = _row_ai.get("Prezzo","")
-        _atr_ai   = _row_ai.get("ATR","")
-        _rs_ai    = _row_ai.get("RS_20d","")
-        _vol_ai   = _row_ai.get("Vol_Ratio","")
-
-        _ac1,_ac2,_ac3,_ac4,_ac5 = st.columns([2,1,1,1,1])
-        _sc = "#ffd700" if _stato_ai=="STRONG" else "#00ff88"
-        _ac1.markdown(
-            f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
-            f"{_tkr_ai}</span><br>"
-            f"<span style='color:#787b86;font-size:0.72rem'>{_nome_ai}</span>",
-            unsafe_allow_html=True)
-        _ac2.markdown(f"<span style='color:{_sc};font-weight:bold;font-size:0.82rem'>"
-                      f"{_stato_ai}</span>", unsafe_allow_html=True)
-        _ac3.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_css_ai}</span>")
-        _ac4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_rsi_ai}</span>")
-
-        with _ac5:
-            if st.button("🧠", key=f"ai_explain_{_tkr_ai}_{tab_name}",
-                         use_container_width=True, help=f"Analisi AI di {_tkr_ai}"):
-                st.session_state[f"_ai_req_{_tkr_ai}_{tab_name}"] = True
-
-        if st.session_state.get(f"_ai_req_{_tkr_ai}_{tab_name}"):
-            with st.expander(f"🧠 Analisi AI — {_tkr_ai}", expanded=True):
-                _prompt_ai = f"""Sei un analista tecnico professionista. Analizza questo setup.
-
-TICKER: {_tkr_ai} ({_nome_ai}) | PREZZO: ${_pr_ai}
-SEGNALE: {_stato_ai} | CSS: {_css_ai}/100 | RSI: {_rsi_ai}
-ATR: {_atr_ai} | Vol Ratio: {_vol_ai}x | RS vs SPY: {_rs_ai}%
-MERCATO: {_regime_ctx}
-
-Rispondi in italiano, ESATTAMENTE in questo formato (max 2 righe per punto):
-
-✅ VALIDITÀ SETUP:
-[perché il setup è valido con questi dati]
-
-⚠️ RISCHIO PRINCIPALE:
-[rischio specifico più importante ora]
-
-📐 GESTIONE POSIZIONE:
-[entry, stop loss ATR-based, target R:R]"""
-
-                with st.spinner(f"Analisi {_tkr_ai}..."):
-                    try:
-                        _txt, _prov_used = _ai_call_with_fallback(_prompt_ai)
-                        st.markdown(
-                            f"<div style='background:#0d1117;border:1px solid #1f2937;"
-                            f"border-left:3px solid #2962ff;border-radius:0 8px 8px 0;"
-                            f"padding:12px 16px;font-size:0.88rem;line-height:1.6'>"
-                            f"{_txt.replace(chr(10),'<br>')}</div>",
-                            unsafe_allow_html=True)
-                        st.caption(f"Provider: {_prov_used}")
-                    except Exception as _ai_err:
-                        _err_msg = str(_ai_err)
-                        if "NO_KEYS" in _err_msg:
-                            st.warning("⚠️ Nessuna API key configurata — espandi il pannello 🔑 sopra.")
-                        elif "ALL_FAILED" in _err_msg:
-                            st.error(f"❌ Tutti i provider hanno fallito:\n{_err_msg.replace('ALL_FAILED: ','')}")
-                        else:
-                            st.error(f"❌ Errore: {_err_msg[:200]}")
-
-                if st.button("✕ Chiudi", key=f"ai_close_{_tkr_ai}_{tab_name}"):
-                    st.session_state.pop(f"_ai_req_{_tkr_ai}_{tab_name}", None)
-                    st.rerun()
-
-
-# =========================================================================
-# v37 UPGRADE #4 — TELEGRAM ALERT ENGINE
-# =========================================================================
-def _send_telegram_v37(bot_token: str, chat_id: str, message: str) -> bool:
-    """Invia messaggio via Telegram Bot API."""
-    try:
-        import requests as _req_tg
-        _url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        _r = _req_tg.post(_url, json={
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "HTML",
-        }, timeout=10)
-        return _r.status_code == 200
-    except Exception:
-        return False
-
-
-def _render_telegram_settings_v37():
-    """Pannello configurazione Telegram nel Risk Manager."""
-    st.markdown('<div class="section-pill">📱 NOTIFICHE TELEGRAM v37</div>',
-                unsafe_allow_html=True)
-
-    _tg_c1, _tg_c2 = st.columns(2)
-    with _tg_c1:
-        st.markdown("**Configurazione Bot**")
-        _tg_token = st.text_input("Bot Token",
-            value=st.secrets.get("TELEGRAM_BOT_TOKEN",""),
-            type="password", key="tg_token_inp",
-            help="Ottieni da @BotFather su Telegram")
-        _tg_chat  = st.text_input("Chat ID",
-            value=st.secrets.get("TELEGRAM_CHAT_ID",""),
-            key="tg_chat_inp",
-            help="Usa @userinfobot per trovare il tuo Chat ID")
-
-        if st.button("🔔 Test notifica", key="tg_test_btn"):
-            if _tg_token and _tg_chat:
-                _ok = _send_telegram_v37(_tg_token, _tg_chat,
-                    "✅ <b>Trading Scanner PRO v37</b>\nNotifiche Telegram attive!")
-                if _ok:
-                    st.success("✅ Messaggio inviato!")
-                else:
-                    st.error("❌ Errore invio. Verifica token e chat ID.")
-            else:
-                st.warning("Inserisci Bot Token e Chat ID.")
-
-    with _tg_c2:
-        st.markdown("**Alert automatici**")
-        _tg_on_pro   = st.checkbox("Notifica segnali PRO/STRONG", True, key="tg_on_pro")
-        _tg_on_conf  = st.checkbox("Notifica CONFLUENCE",         True, key="tg_on_conf")
-        _tg_on_hot   = st.checkbox("Notifica REA-HOT",            False, key="tg_on_hot")
-        _tg_min_css  = st.slider("CSS minimo per notifica", 0, 100, 60, key="tg_min_css")
-
-        st.markdown("**Digest giornaliero**")
-        _tg_digest   = st.checkbox("Abilita digest mattutino (9:00)", False, key="tg_digest")
-        _tg_digest_h = st.number_input("Ora invio (UTC)", 0, 23, 7, key="tg_digest_h")
-
-    # Invio manuale del digest
+        _wl = load_watchlist()
+        if not _wl.empty and "Ticker" in _wl.columns:
+            _tickers += _wl[_wl["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
+    except Exception: pass
+    _tickers = list(dict.fromkeys(_tickers))[:25]
+    if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
+    _, _fc2 = st.columns([3,1])
+    with _fc2:
+        _ns_f = st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"], key="ns_filter_v38")
+        if st.button("🔄 Aggiorna", key="ns_refresh_v38"): st.cache_data.clear(); st.rerun()
+    with st.spinner("Carico news..."):
+        _news = _fetch_news_sentiment_v38(tuple(_tickers))
+    if _ns_f=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
+    elif _ns_f=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
+    elif _ns_f=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
+    if not _news: st.info("Nessuna news trovata."); return
+    _nb,_nr,_nn = (sum(1 for n in _news if x in n["Sentiment"]) for x in ("Bullish","Bearish","Neutral"))
+    _k1,_k2,_k3,_k4 = st.columns(4)
+    _k1.metric("📰 Totale",len(_news)); _k2.metric("🟢",_nb); _k3.metric("🔴",_nr); _k4.metric("⚪",_nn)
     st.markdown("---")
-    if st.button("📤 Invia digest ora", key="tg_send_digest"):
-        _df_ep_tg = st.session_state.get("df_ep", pd.DataFrame())
-        if not _df_ep_tg.empty and _tg_token and _tg_chat:
-            # Costruisce messaggio
-            _pro_tg = _df_ep_tg[_df_ep_tg.get("Stato_Pro",pd.Series()).isin(["PRO","STRONG"])] \
-                      if "Stato_Pro" in _df_ep_tg.columns else pd.DataFrame()
-            _n_pro = len(_pro_tg)
-            _top5  = _pro_tg.head(5)["Ticker"].tolist() if not _pro_tg.empty else []
-            _rg_tg = st.session_state.get("_regime_cache", {})
-            _msg_tg = (
-                f"📊 <b>Trading Scanner PRO v37 — Digest</b>\n"
-                f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
-                f"💪 Segnali PRO/STRONG: <b>{_n_pro}</b>\n"
-                f"🏆 Top 5: {', '.join(_top5) if _top5 else '—'}\n"
-                f"🌡️ Regime: {_rg_tg.get('regime','N/A')} · VIX: {_rg_tg.get('vix','N/A')}"
-            )
-            _ok = _send_telegram_v37(_tg_token, _tg_chat, _msg_tg)
-            if _ok: st.success("✅ Digest inviato!")
-            else:   st.error("❌ Errore invio digest.")
-        else:
-            st.info("Avvia lo scanner e configura il bot prima.")
+    for n in _news[:40]:
+        _sc2 = "#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
+        _c1,_c2,_c3 = st.columns([1,0.8,4.5])
+        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>", unsafe_allow_html=True)
+        _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>", unsafe_allow_html=True)
+        _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>", unsafe_allow_html=True)
 
-    # Auto-notifica dopo ogni scan
-    _df_ep_new = st.session_state.get("df_ep", pd.DataFrame())
-    _scan_notified_key = f"_tg_notified_{id(_df_ep_new)}"
-    if (_tg_on_pro and _tg_token and _tg_chat
-            and not st.session_state.get(_scan_notified_key)
-            and not _df_ep_new.empty):
-        _auto_pro = _df_ep_new[_df_ep_new.get("Stato_Pro",pd.Series()).isin(["PRO","STRONG"])] \
-                    if "Stato_Pro" in _df_ep_new.columns else pd.DataFrame()
-        if not _auto_pro.empty and "CSS" in _auto_pro.columns:
-            _auto_top = _auto_pro[pd.to_numeric(_auto_pro["CSS"],errors="coerce").fillna(0)>=_tg_min_css]
-            if not _auto_top.empty:
-                _auto_tickers = _auto_top.head(5)["Ticker"].tolist()
-                _auto_msg = (
-                    f"🚀 <b>Nuovi segnali scanner v37</b>\n"
-                    f"💪 {len(_auto_top)} PRO/STRONG (CSS≥{_tg_min_css})\n"
-                    f"📌 {', '.join(_auto_tickers)}"
-                )
-                _send_telegram_v37(_tg_token, _tg_chat, _auto_msg)
-                st.session_state[_scan_notified_key] = True
-
-
-# =========================================================================
-# v37 UPGRADE #5 — RISK DASHBOARD PRO
-# =========================================================================
-def _render_risk_dashboard_v37(df_ep_risk):
-    """Correlation matrix, VaR 95%, portfolio heat, drawdown alert."""
-    st.markdown('<div class="section-pill">📊 RISK DASHBOARD PRO v37 — Correlazioni · VaR · Portfolio Heat</div>',
-                unsafe_allow_html=True)
-
-    # Selezione ticker per il portfolio
-    _rk_tickers_all = []
-    try:
-        _wl_rk = load_watchlist()
-        if not _wl_rk.empty and "Ticker" in _wl_rk.columns:
-            _rk_tickers_all = _wl_rk[_wl_rk["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
-    except Exception:
-        pass
-    if not _rk_tickers_all and not (df_ep_risk is None or df_ep_risk.empty):
-        _rk_tickers_all = df_ep_risk["Ticker"].dropna().unique().tolist()[:20]
-
-    if not _rk_tickers_all:
-        st.info("Aggiungi ticker alla watchlist o avvia lo scanner per usare il Risk Dashboard.")
-        return
-
-    _rk_c1, _rk_c2 = st.columns([3,1])
-    with _rk_c1:
-        _rk_sel = st.multiselect("Ticker portfolio (max 15)",
-            _rk_tickers_all, default=_rk_tickers_all[:min(8,len(_rk_tickers_all))],
-            key="risk_tkr_sel")
-    with _rk_c2:
-        _rk_period = st.selectbox("Periodo analisi", ["1mo","3mo","6mo","1y"], index=1,
-                                   key="risk_period")
-        _rk_capital = st.number_input("Capitale ($)", 10000, 10000000, 100000, 10000,
-                                       key="risk_capital")
-
-    if st.button("📊 Calcola Risk Dashboard", key="risk_calc", type="primary") and _rk_sel:
-        with st.spinner("Scarico dati e calcolo metriche risk..."):
+@st.cache_data(ttl=3600)
+def _fetch_macro_calendar_v38() -> list:
+    import calendar as _cal
+    _today = datetime.now().date()
+    _events = []
+    for _day,_name,_impact,_desc in [
+        (1,"ISM Manufacturing","🟡 Med","Attività manifatturiera"),(3,"ISM Services","🟡 Med","Settore servizi"),
+        (5,"NFP + Unemployment","🔴 High","Non-Farm Payrolls"),(10,"CPI Inflation","🔴 High","Consumer Price Index"),
+        (14,"PPI","🟡 Med","Producer Price Index"),(15,"Retail Sales","🟡 Med","Vendite al dettaglio"),
+        (20,"FOMC Minutes","🔴 High","Verbali Fed"),(25,"GDP Revision","🟡 Med","Revisione PIL"),
+        (28,"PCE Inflation","🔴 High","Personal Consumption Expenditures")]:
+        for _dm in range(3):
             try:
-                import yfinance as _yf_rk
-                import numpy as _np_rk
-
-                # Download returns
-                _raw_rk = _yf_rk.download(
-                    " ".join(_rk_sel), period=_rk_period, interval="1d",
-                    auto_adjust=True, progress=False,
-                    group_by="ticker" if len(_rk_sel)>1 else "column"
-                )
-                _raw_rk.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_rk.columns]
-
-                # Estrai close per ogni ticker
-                _closes_rk = {}
-                for _t in _rk_sel:
-                    try:
-                        if len(_rk_sel) == 1:
-                            _cl = _raw_rk["Close"].dropna()
-                        elif _t in _raw_rk.columns:
-                            _cl = _raw_rk[_t].dropna() if not isinstance(_raw_rk[_t], pd.DataFrame) \
-                                  else _raw_rk[_t]["Close"].dropna()
-                        else:
-                            continue
-                        if len(_cl) > 5:
-                            _closes_rk[_t] = _cl
-                    except Exception:
-                        pass
-
-                if len(_closes_rk) < 2:
-                    st.warning("Dati insufficienti per calcolare le correlazioni.")
-                    return
-
-                # Returns daily
-                _df_ret = pd.DataFrame({t: c.pct_change().dropna() for t,c in _closes_rk.items()})
-                _df_ret = _df_ret.dropna()
-
-                # ── Correlation Matrix ─────────────────────────────────
-                st.markdown("#### 🔗 Correlation Matrix (return giornalieri)")
-                _corr = _df_ret.corr().round(2)
-
-                import plotly.graph_objects as _pgo_rk
-                _fig_corr = _pgo_rk.Figure(data=_pgo_rk.Heatmap(
-                    z=_corr.values,
-                    x=_corr.columns.tolist(),
-                    y=_corr.index.tolist(),
-                    text=_corr.values.round(2),
-                    texttemplate="%{text}",
-                    textfont=dict(size=10, family="Courier New"),
-                    colorscale=[
-                        [0.0,"#ef4444"],[0.5,"#1e222d"],[1.0,"#00ff88"]
-                    ],
-                    zmid=0, zmin=-1, zmax=1,
-                    showscale=True,
-                    colorbar=dict(tickfont=dict(color="#787b86",size=9),
-                                  outlinecolor="#2a2e39"),
-                    hovertemplate="<b>%{y}</b> vs <b>%{x}</b><br>Corr: %{text}<extra></extra>",
-                ))
-                _corr_layout = dict(PLOTLY_DARK)
-                _corr_layout["xaxis"] = dict(_corr_layout.get("xaxis",{}),
-                    tickfont=dict(size=9,color="#b2b5be"))
-                _corr_layout["yaxis"] = dict(_corr_layout.get("yaxis",{}),
-                    tickfont=dict(size=9,color="#b2b5be"))
-                _fig_corr.update_layout(**_corr_layout,
-                    title=dict(text="Correlation Matrix", font=dict(color="#50c4e0",size=12),x=0.01),
-                    height=max(250, len(_rk_sel)*40+80),
-                    margin=dict(l=0,r=0,t=40,b=0))
-                st.plotly_chart(_fig_corr, use_container_width=True, key="risk_corr_chart")
-
-                # ── VaR 95% e metriche aggregate ──────────────────────
-                st.markdown("#### 📉 Metriche di Rischio Portfolio")
-                _port_ret = _df_ret.mean(axis=1)  # equal weight portfolio
-                _var95    = float(_np_rk.percentile(_port_ret, 5))
-                _var99    = float(_np_rk.percentile(_port_ret, 1))
-                _cvar95   = float(_port_ret[_port_ret <= _var95].mean())
-                _vol_ann  = float(_port_ret.std() * _np_rk.sqrt(252) * 100)
-                _sharpe   = float(_port_ret.mean() / _port_ret.std() * _np_rk.sqrt(252)) if _port_ret.std()>0 else 0
-                _max_dd   = float(((1+_port_ret).cumprod() / (1+_port_ret).cumprod().cummax() - 1).min() * 100)
-
-                _rm1,_rm2,_rm3,_rm4,_rm5,_rm6 = st.columns(6)
-                _rm1.metric("📉 VaR 95% (1g)",   f"{_var95*100:+.2f}%", help="Perdita massima con 95% confidenza in 1 giorno")
-                _rm2.metric("📉 VaR 99% (1g)",   f"{_var99*100:+.2f}%", help="Perdita massima con 99% confidenza in 1 giorno")
-                _rm3.metric("💀 CVaR 95%",        f"{_cvar95*100:+.2f}%", help="Expected Shortfall — perdita media oltre il VaR")
-                _rm4.metric("📊 Volatilità ann.", f"{_vol_ann:.1f}%")
-                _rm5.metric("⚡ Sharpe",           f"{_sharpe:.2f}")
-                _rm6.metric("📉 Max Drawdown",    f"{_max_dd:.1f}%")
-
-                # VaR in dollari
-                _var_usd = abs(_var95) * _rk_capital
-                _cvar_usd= abs(_cvar95) * _rk_capital
-                st.markdown(
-                    f"<div style='background:#1e222d;border-radius:6px;padding:8px 14px;"
-                    f"margin-top:6px;font-size:0.83rem;font-family:Courier New'>"
-                    f"Su capitale <b style='color:#d1d4dc'>${_rk_capital:,.0f}</b> &nbsp;·&nbsp; "
-                    f"VaR giornaliero 95%: <b style='color:#ef4444'>${_var_usd:,.0f}</b> &nbsp;·&nbsp; "
-                    f"CVaR: <b style='color:#ef5350'>${_cvar_usd:,.0f}</b>"
-                    f"</div>", unsafe_allow_html=True)
-
-                # ── Portfolio Heat (concentrazione per settore) ────────
-                st.markdown("#### 🌡️ Portfolio Heat — Esposizione per Settore")
-                _sector_exposure = {}
-                for _t in _rk_sel:
-                    try:
-                        _info_rk = _yf_rk.Ticker(_t).info
-                        _sec = _info_rk.get("sector","Unknown") or "Unknown"
-                        _sector_exposure[_sec] = _sector_exposure.get(_sec,0) + 1
-                    except Exception:
-                        _sector_exposure["Unknown"] = _sector_exposure.get("Unknown",0) + 1
-
-                _total_sec = sum(_sector_exposure.values())
-                _sec_sorted = sorted(_sector_exposure.items(), key=lambda x: -x[1])
-                for _sec_nm, _cnt in _sec_sorted:
-                    _pct_sec = _cnt/_total_sec*100
-                    _c_sec   = "#ef4444" if _pct_sec>40 else "#f59e0b" if _pct_sec>25 else "#26a69a"
-                    st.markdown(
-                        f"<div style='display:flex;align-items:center;gap:8px;margin:4px 0'>"
-                        f"<span style='font-family:Courier New;font-size:0.82rem;min-width:160px;"
-                        f"color:#b2b5be'>{_sec_nm}</span>"
-                        f"<div style='flex:1;height:6px;background:#1e222d;border-radius:3px'>"
-                        f"<div style='width:{_pct_sec:.0f}%;height:6px;background:{_c_sec};"
-                        f"border-radius:3px'></div></div>"
-                        f"<span style='font-family:Courier New;font-size:0.82rem;color:{_c_sec};"
-                        f"min-width:50px;text-align:right'>{_pct_sec:.0f}% ({_cnt})</span>"
-                        f"</div>", unsafe_allow_html=True)
-                if any(p>40 for _,p in [(s,c/_total_sec*100) for s,c in _sector_exposure.items()]):
-                    st.warning("⚠️ Concentrazione settoriale elevata (>40%). Considera la diversificazione.")
-
-                # ── Drawdown Alert ─────────────────────────────────────
-                st.markdown("#### 🚨 Drawdown Alert")
-                _dd_threshold = st.slider("Soglia alert drawdown %", 5, 30, 10, key="risk_dd_thr")
-                if _max_dd < -_dd_threshold:
-                    st.error(f"🚨 DRAWDOWN ALERT: portfolio in drawdown {_max_dd:.1f}% "
-                             f"(soglia: -{_dd_threshold}%)")
-                else:
-                    st.success(f"✅ Drawdown attuale {_max_dd:.1f}% — entro la soglia -{_dd_threshold}%")
-
-            except Exception as _rk_err:
-                import traceback as _tbrk
-                st.error(f"Errore Risk Dashboard: {_rk_err}")
-                st.code(_tbrk.format_exc())
-
-
-# =========================================================================
-# v37 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
-# =========================================================================
-@st.cache_data(ttl=300)
-def _scan_gaps_v37(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
-    """Gap Scanner: trova ticker con gap apertura > min_gap_pct con volume confermato."""
-    import yfinance as _yf_g
-    _results = []
-    for _tg in tickers:
+                _m=(_today.month+_dm-1)%12+1; _y=_today.year+((_today.month+_dm-1)//12)
+                _d=min(_day,_cal.monthrange(_y,_m)[1]); _cand=_today.replace(year=_y,month=_m,day=_d)
+                _dt=(_cand-_today).days
+                if _dt>=-1: _events.append({"Data":str(_cand),"Evento":_name,"Impatto":_impact,"Desc":_desc,"Giorni":_dt}); break
+            except Exception: pass
+    for _fd in ["2026-04-29","2026-06-18","2026-07-30","2026-09-17","2026-11-05","2026-12-17"]:
         try:
-            _raw_g = _yf_g.download(_tg, period="5d", interval="1d",
-                                     auto_adjust=True, progress=False)
-            _raw_g.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_g.columns]
-            if len(_raw_g) < 2: continue
-            _prev_close = float(_raw_g["Close"].iloc[-2])
-            _today_open = float(_raw_g["Open"].iloc[-1])
-            _today_close= float(_raw_g["Close"].iloc[-1])
-            _today_vol  = float(_raw_g["Volume"].iloc[-1]) if "Volume" in _raw_g.columns else 0
-            _avg_vol    = float(_raw_g["Volume"].iloc[:-1].mean()) if "Volume" in _raw_g.columns else 1
+            from datetime import datetime as _dt2
+            _fd_d=_dt2.strptime(_fd,"%Y-%m-%d").date(); _dt=(_fd_d-_today).days
+            if -1<=_dt<=120:
+                _events.append({"Data":_fd,"Evento":"⚠️ FOMC Rate Decision","Impatto":"🔴 High","Desc":"Decisione tassi Fed","Giorni":_dt})
+        except Exception: pass
+    return sorted(_events, key=lambda x: x["Giorni"])
 
-            _gap_pct = (_today_open / _prev_close - 1) * 100
-            _vol_ratio = _today_vol / _avg_vol if _avg_vol > 0 else 0
+@st.cache_data(ttl=3600)
+def _fetch_short_interest_v38(tickers: tuple) -> dict:
+    import yfinance as _yf_si
+    _res = {}
+    for _t in tickers[:40]:
+        try:
+            _s = _yf_si.Ticker(_t).info.get("shortPercentOfFloat")
+            if _s is not None: _res[_t] = round(float(_s)*100, 1)
+        except Exception: pass
+    return _res
 
-            if abs(_gap_pct) >= min_gap_pct and _vol_ratio >= 1.2:
-                _gap_filled = (
-                    (_gap_pct > 0 and _today_close < _today_open) or
-                    (_gap_pct < 0 and _today_close > _today_open)
-                )
-                _results.append({
-                    "Ticker":     _tg,
-                    "Gap %":      round(_gap_pct, 2),
-                    "Gap Type":   "UP ▲" if _gap_pct > 0 else "DOWN ▼",
-                    "Prev Close": f"${_prev_close:.2f}",
-                    "Open":       f"${_today_open:.2f}",
-                    "Close":      f"${_today_close:.2f}",
-                    "Vol Ratio":  round(_vol_ratio, 2),
-                    "Gap Filled": "✅" if _gap_filled else "❌",
-                })
-        except Exception:
-            pass
-    _df_g = pd.DataFrame(_results)
-    if not _df_g.empty:
-        _df_g = _df_g.sort_values("Gap %", key=abs, ascending=False)
-    return _df_g
+@st.cache_data(ttl=900)
+def _fetch_options_flow_v38(ticker: str) -> dict:
+    import yfinance as _yf_op
+    try:
+        _tk=_yf_op.Ticker(ticker); _exps=_tk.options
+        if not _exps: return {}
+        _ch=_tk.option_chain(_exps[0])
+        _cv=float(_ch.calls["volume"].fillna(0).sum()) if not _ch.calls.empty else 0
+        _pv=float(_ch.puts["volume"].fillna(0).sum()) if not _ch.puts.empty else 0
+        _pcr=_pv/_cv if _cv>0 else None
+        _sig="🟢 Bullish" if _pcr and _pcr<0.7 else "🔴 Bearish" if _pcr and _pcr>1.2 else "⚪ Neutro"
+        return {"ticker":ticker,"pcr":round(_pcr,2) if _pcr else None,
+                "call_vol":int(_cv),"put_vol":int(_pv),"signal":_sig,"expiry":_exps[0]}
+    except Exception: return {}
 
+@st.cache_data(ttl=3600)
+def _fetch_insider_v38(tickers: tuple) -> list:
+    import urllib.request as _ur, json as _js
+    _res = []
+    for _t in tickers[:15]:
+        try:
+            _url=f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22&forms=4&hits.hits._source=entity_name,file_date"
+            _req=_ur.Request(_url,headers={"User-Agent":"TradingScanner/1.0 info@example.com","Accept":"application/json"})
+            with _ur.urlopen(_req,timeout=8) as _r: _data=_js.loads(_r.read())
+            for _h in _data.get("hits",{}).get("hits",[])[:3]:
+                _s=_h.get("_source",{})
+                _res.append({"Ticker":_t,"Insider":_s.get("entity_name","—")[:30],
+                             "Data":_s.get("file_date","—")[:10],"Tipo":"Form 4"})
+        except Exception: pass
+    return _res
 
-def _render_advanced_scanner_v37():
-    """Tab Scanner Avanzato: Gap Scanner + Earnings Play."""
-    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v37 — Gap · Earnings Play</div>',
-                unsafe_allow_html=True)
-
-    _adv_t1, _adv_t2 = st.tabs(["📈 Gap Scanner", "🗓️ Earnings Play"])
-
-    with _adv_t1:
-        st.caption("Trova gap di apertura significativi con volume confermato.")
-        _gap_c1, _gap_c2, _gap_c3 = st.columns(3)
-        with _gap_c1:
-            _gap_min = st.slider("Gap minimo %", 0.5, 5.0, 1.0, 0.5, key="gap_min_pct")
-        with _gap_c2:
-            _gap_markets = st.multiselect("Universo", ["S&P500 (top 50)","Nasdaq (top 50)","Watchlist"],
-                default=["S&P500 (top 50)"], key="gap_markets")
-        with _gap_c3:
-            st.write("")
-            _run_gap = st.button("🔍 Scansiona Gap", key="gap_run", type="primary",
-                                  use_container_width=True)
-
-        if _run_gap:
-            # Costruisce universo
-            _gap_universe = []
-            if "S&P500 (top 50)" in _gap_markets:
-                _gap_universe += ["AAPL","MSFT","NVDA","AMZN","GOOGL","META","TSLA","BRK-B",
-                                   "JPM","V","UNH","XOM","JNJ","WMT","MA","PG","HD","CVX",
-                                   "MRK","ABBV","LLY","BAC","COST","AVGO","PEP","TMO","ORCL",
-                                   "NFLX","CSCO","ABT","ACN","CRM","AMD","INTC","TXN","QCOM",
-                                   "HON","UPS","CAT","DE","GS","MS","BLK","SPGI","AXP","SYK",
-                                   "ISRG","MDT","C","SCHW"]
-            if "Nasdaq (top 50)" in _gap_markets:
-                _gap_universe += ["AAPL","MSFT","NVDA","AMZN","META","GOOGL","TSLA","AVGO",
-                                   "ASML","COST","NFLX","AMD","QCOM","INTC","ADBE","TXN",
-                                   "INTU","MU","LRCX","KLAC","SNPS","CDNS","MRVL","PANW","FTNT"]
-            if "Watchlist" in _gap_markets:
-                try:
-                    _wl_gap = load_watchlist()
-                    if not _wl_gap.empty and "Ticker" in _wl_gap.columns:
-                        _gap_universe += _wl_gap[_wl_gap["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()
-                except Exception:
-                    pass
-
-            _gap_universe = list(dict.fromkeys(_gap_universe))[:100]
-
-            with st.spinner(f"Scansiono {len(_gap_universe)} ticker per gap ≥{_gap_min}%..."):
-                _df_gaps = _scan_gaps_v37(tuple(_gap_universe), _gap_min)
-
-            if _df_gaps.empty:
-                st.info(f"Nessun gap significativo (≥{_gap_min}%) trovato oggi.")
-            else:
-                _g_up   = len(_df_gaps[_df_gaps["Gap Type"]=="UP ▲"])
-                _g_down = len(_df_gaps[_df_gaps["Gap Type"]=="DOWN ▼"])
-                _gc1,_gc2,_gc3 = st.columns(3)
-                _gc1.metric("📈 Gap UP",     _g_up)
-                _gc2.metric("📉 Gap DOWN",   _g_down)
-                _gc3.metric("🔍 Totale",     len(_df_gaps))
-
-                # Colora Gap %
-                def _color_gap(v):
-                    try:
-                        val = float(str(v).replace("%",""))
-                        return f"color:{'#00ff88' if val>0 else '#ef4444'};font-weight:bold;font-family:Courier New"
-                    except: return ""
-
-                st.dataframe(
-                    _df_gaps.style.applymap(_color_gap, subset=["Gap %"]),
-                    use_container_width=True, hide_index=True
-                )
-
-                # Export
-                _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
-                st.download_button("📊 Export Gap Scanner",
-                    _df_gaps.to_csv(index=False).encode(),
-                    f"GapScanner_v37_{_gap_ts}.csv", "text/csv", key="gap_export")
-
-    with _adv_t2:
-        st.caption("Setup pre-earnings: titoli con earnings nei prossimi 7 giorni e CSS elevato.")
-        _ep_tickers_src = []
-        if not (df_ep is None or (hasattr(df_ep,"empty") and df_ep.empty)):
-            _ep_tickers_src = df_ep["Ticker"].dropna().unique().tolist()[:80]
-
-        if not _ep_tickers_src:
-            st.info("Avvia lo scanner per popolare l'universo Earnings Play.")
-        else:
-            _run_ep = st.button("🗓️ Trova Earnings Play", key="ep_run", type="primary")
-            if _run_ep:
-                with st.spinner("Scarico calendario earnings..."):
-                    _earn_ep = _fetch_earnings_calendar(tuple(_ep_tickers_src))
-
-                # Filtra solo entro 7 giorni
-                _ep_imm = [e for e in _earn_ep if 0 <= e["Giorni"] <= 7]
-
-                if not _ep_imm:
-                    st.info("Nessun earnings imminente (entro 7 giorni) tra i ticker scanner.")
-                else:
-                    # Arricchisce con CSS dal df_ep
-                    _ep_rows = []
-                    for _ep_item in _ep_imm:
-                        _t_ep = _ep_item["Ticker"]
-                        _css_ep = "—"; _pro_ep = "—"; _rs_ep = "—"
-                        if not (df_ep is None or df_ep.empty) and "Ticker" in df_ep.columns:
-                            _match_ep = df_ep[df_ep["Ticker"]==_t_ep]
-                            if not _match_ep.empty:
-                                _css_ep = _match_ep.iloc[0].get("CSS","—")
-                                _pro_ep = _match_ep.iloc[0].get("Stato_Pro","—")
-                                _rs_ep  = _match_ep.iloc[0].get("RS_20d","—")
-                        _ep_rows.append({
-                            "Ticker":        _t_ep,
-                            "Earnings Date": _ep_item["Earnings Date"],
-                            "Giorni":        _ep_item["Giorni"],
-                            "Badge":         _ep_item["Badge"],
-                            "CSS":           _css_ep,
-                            "Stato Pro":     _pro_ep,
-                            "RS vs SPY":     f"{_rs_ep:+.1f}%" if isinstance(_rs_ep,(int,float)) else _rs_ep,
-                        })
-
-                    _df_ep_play = pd.DataFrame(_ep_rows).sort_values("Giorni")
-                    st.dataframe(_df_ep_play, use_container_width=True, hide_index=True)
-                    st.caption("Strategia: entra 3-5 giorni prima · esci il giorno prima degli earnings · non tenere oltre la data")
+tabs = st.tabs([
+    "🏠 Home",
+    "📊 Comparatore",
+    "💎 Blue Chip Dip",
+    "📡 EARLY",
+    "💪 PRO",
+    "🔥 REA-HOT",
+    "⭐ CONFLUENCE",
+    "🎯 Serafini",
+    "🔎 Finviz Pro",
+    "🔬 Order Flow",
+    "🛡️ Crisis Monitor",
+    "🔀 MTF Matrix",
+    "📓 Journal",
+    "🌡️ Regime",
+    "📋 Watchlist",
+    "⚖️ Risk Manager",
+    "📈 Backtest",
+    "💡 Analisi Personale",
+])
+(tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
+ tab_ser, tab_fvpro, tab_of, tab_crisis,
+ tab_mtfmatrix, tab_journal, tab_regime,
+ tab_w, tab_rm, tab_bt, tab_analisi) = tabs
 
 
-# =========================================================================
-# v37 — INTEGRAZIONE NEI TAB ESISTENTI
-# =========================================================================
-
-
-# =========================================================================
-# v38 — TAB 💡 ANALISI PERSONALE
-# =========================================================================
 # =========================================================================
 # v38 — TAB 💡 ANALISI PERSONALE
 # =========================================================================
@@ -7672,91 +5960,106 @@ with tab_analisi:
 
     if _run_ap and _ap_input and _ap_input.strip():
         _ap_tickers = [t.strip().upper() for t in _ap_input.strip().splitlines() if t.strip()][:15]
-        if not _ap_tickers:
-            st.warning("Inserisci almeno un ticker.")
-        else:
-            for _ap_tkr in _ap_tickers:
-                with st.expander(f"💡 {_ap_tkr}", expanded=True):
-                    with st.spinner(f"Scarico dati {_ap_tkr}..."):
-                        _apd = {}
-                        try:
-                            import yfinance as _yf_ap
-                            _raw_ap = _yf_ap.download(_ap_tkr, period=_ap_period, interval="1d",
-                                                       auto_adjust=True, progress=False)
-                            _raw_ap.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_ap.columns]
-                            if not _raw_ap.empty:
-                                _cl=_raw_ap["Close"].dropna(); _hi=_raw_ap["High"].dropna(); _lo=_raw_ap["Low"].dropna()
-                                _pr=float(_cl.iloc[-1]); _e20=float(_cl.ewm(span=20,adjust=False).mean().iloc[-1])
-                                _e50=float(_cl.ewm(span=50,adjust=False).mean().iloc[-1])
-                                _e200=float(_cl.ewm(span=min(200,len(_cl)),adjust=False).mean().iloc[-1])
-                                _d=_cl.diff(); _g=_d.clip(lower=0); _l=-_d.clip(upper=0)
-                                _rs=_g.ewm(com=13,adjust=False).mean()/(_l.ewm(com=13,adjust=False).mean()+1e-10)
-                                _rsi=float((100-100/(1+_rs)).iloc[-1])
-                                _atr=float((_hi-_lo).ewm(com=13,adjust=False).mean().iloc[-1])
-                                _atr_pct=round(_atr/_pr*100,2)
-                                _ret1m=round((_cl.iloc[-1]/_cl.iloc[max(-22,-len(_cl))]-1)*100,1)
-                                _ret3m=round((_cl.iloc[-1]/_cl.iloc[max(-63,-len(_cl))]-1)*100,1)
-                                _52wh=float(_hi.tail(252).max()); _dist_52wh=round((_pr/_52wh-1)*100,1)
-                                _trend=("RIALZISTA" if _pr>_e20>_e50 else "RIBASSISTA" if _pr<_e20<_e50 else "LATERALE")
-                                _info_ap={}
-                                try:
-                                    _ti=_yf_ap.Ticker(_ap_tkr).info
-                                    _info_ap={"name":_ti.get("longName","—"),"sector":_ti.get("sector","—"),
-                                              "pe":_ti.get("trailingPE","—"),"beta":_ti.get("beta","—")}
-                                except Exception: pass
-                                _apd={"ticker":_ap_tkr,"nome":_info_ap.get("name","—"),"settore":_info_ap.get("sector","—"),
-                                      "prezzo":round(_pr,2),"ema20":round(_e20,2),"ema50":round(_e50,2),"ema200":round(_e200,2),
-                                      "rsi":round(_rsi,1),"atr":round(_atr,4),"atr_pct":_atr_pct,
-                                      "ret1m":_ret1m,"ret3m":_ret3m,"52wh":round(_52wh,2),
-                                      "dist_52wh":_dist_52wh,"trend":_trend,
-                                      "pe":_info_ap.get("pe","—"),"beta":_info_ap.get("beta","—")}
-                        except Exception as _ae:
-                            st.warning(f"Impossibile scaricare dati: {_ae}")
-                    if not _apd: continue
-                    _m1,_m2,_m3,_m4,_m5,_m6=st.columns(6)
-                    _m1.metric("💰 Prezzo",f"${_apd['prezzo']:.2f}"); _m2.metric("📊 RSI",f"{_apd['rsi']:.1f}")
-                    _m3.metric("📈 Trend",_apd["trend"]); _m4.metric("1M",f"{_apd['ret1m']:+.1f}%")
-                    _m5.metric("3M",f"{_apd['ret3m']:+.1f}%"); _m6.metric("ATR%",f"{_apd['atr_pct']:.1f}%")
-                    _ap_types=[t for t,c in [("Swing Trading",_ap_swing),("Trend Following",_ap_trend),
-                                              ("Risk Assessment",_ap_risk),("Entry ottimale",_ap_entry)] if c]
-                    try: _rg_ap=_get_market_regime(); _regime_ap=f"VIX={_rg_ap['vix']}, Regime={_rg_ap['regime']}"
-                    except Exception: _regime_ap="N/D"
-                    _ap_prompt=f"""Sei un trader professionista. Analizza questo titolo.
-TITOLO: {_apd['ticker']} — {_apd['nome']} | SETTORE: {_apd['settore']}
-Prezzo: ${_apd['prezzo']} | EMA20: ${_apd['ema20']} | EMA50: ${_apd['ema50']} | EMA200: ${_apd['ema200']}
-RSI: {_apd['rsi']} | ATR: {_apd['atr_pct']}% | Trend: {_apd['trend']}
-Performance: 1M {_apd['ret1m']:+.1f}% | 3M {_apd['ret3m']:+.1f}% | Dist 52W High: {_apd['dist_52wh']:+.1f}%
-P/E: {_apd['pe']} | Beta: {_apd['beta']} | Mercato: {_regime_ap}
-Analisi: {', '.join(_ap_types)}
-
-Rispondi in italiano:
-
-📊 SETUP ATTUALE:
-[2-3 righe sulla situazione tecnica]
-
-🎯 STRATEGIA CONSIGLIATA:
-[tipo operazione, timing, motivazione]
-
-🔴 ENTRY: $[prezzo entry]
-🔴 STOP LOSS: $[entry - 1.5×ATR] ([%]%)
-🟢 TARGET 1: $[entry + 1.5×ATR] (R:R 1:1)
-🟢 TARGET 2: $[entry + 3×ATR] (R:R 2:1)
-
-⚠️ RISCHI PRINCIPALI:
-[2 righe]
-
-💡 CONSIGLIO FINALE:
-[1 riga sintetica]"""
-                    with st.spinner("Analisi AI..."):
-                        try:
-                            _ap_text,_ap_prov=_ai_call_with_fallback(_ap_prompt)
-                            st.markdown(f"<div style='background:#0d1117;border:1px solid #1f2937;border-left:3px solid #26a69a;border-radius:0 8px 8px 0;padding:14px 18px;font-size:0.88rem;line-height:1.7'>{_ap_text.replace(chr(10),'<br>')}</div>",unsafe_allow_html=True)
-                            st.caption(f"Provider: {_ap_prov} · Yahoo Finance · {_ap_period}")
-                        except Exception as _ap_err:
-                            _em=str(_ap_err)
-                            if "NO_KEYS" in _em: st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
-                            else: st.error(f"Errore AI: {_em[:200]}")
+        for _ap_tkr in _ap_tickers:
+            with st.expander(f"💡 {_ap_tkr}", expanded=True):
+                with st.spinner(f"Scarico dati {_ap_tkr}..."):
+                    _apd = {}
+                    try:
+                        import yfinance as _yf_ap
+                        _raw_ap = _yf_ap.download(_ap_tkr, period=_ap_period, interval="1d",
+                                                   auto_adjust=True, progress=False)
+                        _raw_ap.columns = [c[0] if isinstance(c,tuple) else c for c in _raw_ap.columns]
+                        if not _raw_ap.empty:
+                            _cl=_raw_ap["Close"].dropna(); _hi=_raw_ap["High"].dropna(); _lo=_raw_ap["Low"].dropna()
+                            _pr=float(_cl.iloc[-1])
+                            _e20=float(_cl.ewm(span=20,adjust=False).mean().iloc[-1])
+                            _e50=float(_cl.ewm(span=50,adjust=False).mean().iloc[-1])
+                            _e200=float(_cl.ewm(span=min(200,len(_cl)),adjust=False).mean().iloc[-1])
+                            _d=_cl.diff(); _g=_d.clip(lower=0); _l=-_d.clip(upper=0)
+                            _rs=_g.ewm(com=13,adjust=False).mean()/(_l.ewm(com=13,adjust=False).mean()+1e-10)
+                            _rsi=float((100-100/(1+_rs)).iloc[-1])
+                            _atr=float((_hi-_lo).ewm(com=13,adjust=False).mean().iloc[-1])
+                            _atr_pct=round(_atr/_pr*100,2)
+                            _ret1m=round((_cl.iloc[-1]/_cl.iloc[max(-22,-len(_cl))]-1)*100,1)
+                            _ret3m=round((_cl.iloc[-1]/_cl.iloc[max(-63,-len(_cl))]-1)*100,1)
+                            _52wh=float(_hi.tail(252).max()); _dist_52wh=round((_pr/_52wh-1)*100,1)
+                            _trend="RIALZISTA" if _pr>_e20>_e50 else "RIBASSISTA" if _pr<_e20<_e50 else "LATERALE"
+                            _info_ap={}
+                            try:
+                                _ti=_yf_ap.Ticker(_ap_tkr).info
+                                _info_ap={"name":_ti.get("longName","—"),"sector":_ti.get("sector","—"),
+                                          "pe":_ti.get("trailingPE","—"),"beta":_ti.get("beta","—")}
+                            except Exception: pass
+                            _apd={"ticker":_ap_tkr,"nome":_info_ap.get("name","—"),
+                                  "settore":_info_ap.get("sector","—"),
+                                  "prezzo":round(_pr,2),"ema20":round(_e20,2),"ema50":round(_e50,2),
+                                  "ema200":round(_e200,2),"rsi":round(_rsi,1),"atr":round(_atr,4),
+                                  "atr_pct":_atr_pct,"ret1m":_ret1m,"ret3m":_ret3m,
+                                  "52wh":round(_52wh,2),"dist_52wh":_dist_52wh,"trend":_trend,
+                                  "pe":_info_ap.get("pe","—"),"beta":_info_ap.get("beta","—")}
+                    except Exception as _ae:
+                        st.warning(f"Impossibile scaricare dati: {_ae}")
+                if not _apd:
+                    continue
+                _m1,_m2,_m3,_m4,_m5,_m6 = st.columns(6)
+                _m1.metric("💰 Prezzo", f"${_apd['prezzo']:.2f}")
+                _m2.metric("📊 RSI", f"{_apd['rsi']:.1f}")
+                _m3.metric("📈 Trend", _apd["trend"])
+                _m4.metric("1M", f"{_apd['ret1m']:+.1f}%")
+                _m5.metric("3M", f"{_apd['ret3m']:+.1f}%")
+                _m6.metric("ATR%", f"{_apd['atr_pct']:.1f}%")
+                _ap_types = [t for t,c in [("Swing Trading",_ap_swing),("Trend Following",_ap_trend),
+                                            ("Risk Assessment",_ap_risk),("Entry ottimale",_ap_entry)] if c]
+                try:
+                    _rg_ap = _get_market_regime()
+                    _regime_ap = f"VIX={_rg_ap['vix']}, Regime={_rg_ap['regime']}"
+                except Exception:
+                    _regime_ap = "N/D"
+                _ap_prompt = (
+                    f"Sei un trader professionista. Analizza questo titolo.\n"
+                    f"TITOLO: {_apd['ticker']} - {_apd['nome']} | SETTORE: {_apd['settore']}\n"
+                    f"Prezzo: ${_apd['prezzo']} | EMA20: ${_apd['ema20']} | EMA50: ${_apd['ema50']} | EMA200: ${_apd['ema200']}\n"
+                    f"RSI: {_apd['rsi']} | ATR: {_apd['atr_pct']}% | Trend: {_apd['trend']}\n"
+                    f"Performance: 1M {_apd['ret1m']:+.1f}% | 3M {_apd['ret3m']:+.1f}% | Dist 52W High: {_apd['dist_52wh']:+.1f}%\n"
+                    f"P/E: {_apd['pe']} | Beta: {_apd['beta']} | Mercato: {_regime_ap}\n"
+                    f"Analisi: {chr(44).join(_ap_types)}\n\n"
+                    f"Rispondi in italiano:\n\n"
+                    f"SETUP ATTUALE:\n[2-3 righe sulla situazione tecnica]\n\n"
+                    f"STRATEGIA CONSIGLIATA:\n[tipo operazione, timing, motivazione]\n\n"
+                    f"ENTRY: $[prezzo entry]\n"
+                    f"STOP LOSS: $[entry - 1.5xATR] ([%]%)\n"
+                    f"TARGET 1: $[entry + 1.5xATR] (R:R 1:1)\n"
+                    f"TARGET 2: $[entry + 3xATR] (R:R 2:1)\n\n"
+                    f"RISCHI PRINCIPALI:\n[2 righe]\n\n"
+                    f"CONSIGLIO FINALE:\n[1 riga sintetica]"
+                )
+                with st.spinner("Analisi AI..."):
+                    try:
+                        _ap_text, _ap_prov = _ai_call_with_fallback(_ap_prompt)
+                        st.markdown(
+                            f"<div style='background:#0d1117;border:1px solid #1f2937;"
+                            f"border-left:3px solid #26a69a;border-radius:0 8px 8px 0;"
+                            f"padding:14px 18px;font-size:0.88rem;line-height:1.7'>"
+                            f"{_ap_text.replace(chr(10),'<br>')}</div>",
+                            unsafe_allow_html=True)
+                        st.caption(f"Provider: {_ap_prov} · Yahoo Finance · {_ap_period}")
+                    except Exception as _ap_err:
+                        _em = str(_ap_err)
+                        if "NO_KEYS" in _em:
+                            st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
+                        else:
+                            st.error(f"Errore AI: {_em[:200]}")
     elif not _ap_has_key:
-        st.info("👆 Configura una API key gratuita (Gemini o Groq) nel tab **PRO → AI Explainer**.")
+        st.info("👆 Configura una API key gratuita (Gemini o Groq) nel tab PRO → AI Explainer.")
     else:
-        st.markdown("<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:16px 20px'><b style='color:#50c4e0'>Come funziona:</b><br><br><span style='color:#b2b5be'>1. Inserisci ticker (es. AAPL, ENI.MI, RACE.MI)<br>2. Seleziona tipo di analisi<br>3. Clicca Analizza — dati freschi da Yahoo Finance<br>4. L'AI genera: setup tecnico, entry/stop/target precisi, rischi, consiglio</span></div>",unsafe_allow_html=True)
+        st.markdown(
+            "<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:16px 20px'>"
+            "<b style='color:#50c4e0'>Come funziona:</b><br><br>"
+            "<span style='color:#b2b5be'>"
+            "1. Inserisci ticker (es. AAPL, ENI.MI, RACE.MI)<br>"
+            "2. Seleziona tipo di analisi<br>"
+            "3. Clicca Analizza: dati freschi da Yahoo Finance<br>"
+            "4. L'AI genera: setup tecnico, entry/stop/target precisi, rischi, consiglio"
+            "</span></div>",
+            unsafe_allow_html=True)
+
