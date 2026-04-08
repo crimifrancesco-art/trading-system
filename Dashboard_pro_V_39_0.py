@@ -2769,11 +2769,22 @@ function(p){
 }""")
 
     update=GridUpdateMode.VALUE_CHANGED if editable_cols else GridUpdateMode.SELECTION_CHANGED
-    resp = AgGrid(df_disp,gridOptions=go_opts,height=height,
-                  update_mode=update,
-                  data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-                  fit_columns_on_grid_load=False,theme="streamlit",
-                  allow_unsafe_jscode=True,key=grid_key)
+    try:
+        resp = AgGrid(df_disp,gridOptions=go_opts,height=height,
+                      update_mode=update,
+                      data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+                      fit_columns_on_grid_load=False,theme="streamlit",
+                      allow_unsafe_jscode=True,key=grid_key)
+        # v39: verifica che AgGrid abbia restituito dati — altrimenti fallback
+        _resp_data = resp.get("data", None)
+        if _resp_data is not None and hasattr(_resp_data, '__len__') and len(_resp_data) == 0 and len(df_disp) > 0:
+            raise ValueError("AgGrid returned empty data — using fallback")
+    except Exception as _ag_err:
+        # Fallback: st.dataframe nativo se AgGrid non funziona
+        st.dataframe(df_disp, use_container_width=True, hide_index=True,
+                     height=min(height, 600))
+        # Crea resp dummy compatibile
+        resp = {"selected_rows": [], "data": df_disp}
 
     # ── Pulsante salva/reset layout ──────────────────────────────
     _lc1,_lc2,_lc3=st.columns([1,1,8])
@@ -3394,7 +3405,21 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     with ce2: st.caption(f"Seleziona → **➕** per aggiungere a `{st.session_state.current_list_name}`. Doppio click Nome → TradingView.")
 
     grid_resp  =build_aggrid(df_disp,f"grid_{title}")
-    selected_df=pd.DataFrame(grid_resp["selected_rows"])
+    # v39 FIX: se AgGrid non renderizza (versione incompatibile), usa st.dataframe come fallback
+    try:
+        selected_df=pd.DataFrame(grid_resp["selected_rows"])
+    except Exception:
+        selected_df=pd.DataFrame()
+    # Controlla se AgGrid ha renderizzato dati — se no, usa dataframe nativo
+    _aggrid_ok = True
+    try:
+        _rd = grid_resp.get("data", None)
+        if _rd is not None and len(_rd) == 0 and len(df_disp) > 0:
+            _aggrid_ok = False
+    except Exception:
+        _aggrid_ok = False
+    if not _aggrid_ok:
+        st.dataframe(df_disp, use_container_width=True, hide_index=True)
 
     if st.button(f"➕ Aggiungi a '{st.session_state.current_list_name}'",key=f"btn_{title}"):
         if not selected_df.empty and "Ticker" in selected_df.columns:
