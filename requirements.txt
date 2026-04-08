@@ -6,4 +6,4 @@ requests
 yfinance
 yahooquery
 xlsxwriter
-st-aggrid
+streamlit-aggrid
