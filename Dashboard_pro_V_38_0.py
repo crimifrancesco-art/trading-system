@@ -2703,7 +2703,44 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
     for c,r in rmap.items():
         if c in df_disp.columns: gb.configure_column(c,cellRenderer=r)
 
-    if "Ticker" in df_disp.columns: gb.configure_column("Ticker",pinned="left")
+    if "Ticker" in dfdisp.columns:
+    gb.configure_column(
+        "Ticker",
+        width=110,
+        pinned="left",
+        headerName="Ticker",
+        cellRenderer=JsCode("""
+class TickerCell {
+    init(params) {
+        this.eGui = document.createElement('span');
+        const t = params.value || '';
+        this.eGui.innerText = t;
+        this.eGui.style.cursor = 'pointer';
+        this.eGui.style.color = '#00ff88';
+        this.eGui.style.fontWeight = 'bold';
+        this.eGui.style.fontFamily = 'Courier New, monospace';
+        this.eGui.style.fontSize = '0.95rem';
+        this.eGui.style.letterSpacing = '0.5px';
+        this.eGui.style.padding = '2px 6px';
+        this.eGui.style.borderRadius = '6px';
+        this.eGui.style.background = 'rgba(0,255,136,0.10)';
+        this.eGui.style.border = '1px solid rgba(0,255,136,0.25)';
+        this.eGui.title = 'Doppio click → TradingView';
+
+        if (t) {
+            this.eGui.ondblclick = () => {
+                window.open(
+                    'https://it.tradingview.com/chart/?symbol=' + String(t).split('.')[0],
+                    '_blank'
+                );
+            };
+        }
+    }
+    getGui() { return this.eGui; }
+    refresh() { return false; }
+}
+""")
+    )
     if "Nome"   in df_disp.columns: gb.configure_column("Nome",  pinned="left")
     # v34 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
     if "CSS" in df_disp.columns:
