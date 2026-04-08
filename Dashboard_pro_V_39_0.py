@@ -3513,6 +3513,212 @@ st.markdown("""<style>
 }
 </style>""", unsafe_allow_html=True)
 
+
+# =========================================================================
+# v39 — FUNZIONI (prima dei tab per evitare NameError)
+# =========================================================================
+
+_PATTERN_ALERTS_V39 = {
+    "ema_breakout":   {"label":"EMA Breakout",      "icon":"📈","desc":"Prezzo > EMA20"},
+    "golden_cross":   {"label":"Golden Cross",       "icon":"⭐","desc":"EMA20 > EMA50"},
+    "death_cross":    {"label":"Death Cross",        "icon":"💀","desc":"EMA20 < EMA50"},
+    "squeeze_fire":   {"label":"Squeeze Fire",       "icon":"🔥","desc":"Uscita da Squeeze"},
+    "volume_spike":   {"label":"Volume Spike",       "icon":"⚡","desc":"Volume > 3x media"},
+    "rsi_oversold":   {"label":"RSI Oversold",       "icon":"🔵","desc":"RSI < 32"},
+    "rsi_overbought": {"label":"RSI Overbought",     "icon":"🔴","desc":"RSI > 68"},
+    "bb_breakout":    {"label":"BB Breakout",        "icon":"🎯","desc":"Prezzo > EMA20+2xATR"},
+}
+
+def _detect_patterns_v39(row):
+    out = []
+    try:
+        pr  = float(row.get("Prezzo",  0) or 0)
+        e20 = float(row.get("EMA20",   0) or 0)
+        e50 = float(row.get("EMA50",   0) or 0)
+        rsi = float(row.get("RSI",    50) or 50)
+        vr  = float(row.get("Vol_Ratio",0) or 0)
+        sq  = row.get("Squeeze", False)
+        atr = float(row.get("ATR",     0) or 0)
+        if pr>0 and e20>0 and pr>e20 and rsi>45: out.append("ema_breakout")
+        if e20>0 and e50>0:
+            if e20>e50 and rsi>50: out.append("golden_cross")
+            elif e20<e50 and rsi<50: out.append("death_cross")
+        if sq in (True,"True","true",1): out.append("squeeze_fire")
+        if vr>=3.0: out.append("volume_spike")
+        if rsi<32: out.append("rsi_oversold")
+        if rsi>68: out.append("rsi_overbought")
+        if pr>0 and e20>0 and atr>0 and pr>e20+2*atr: out.append("bb_breakout")
+    except Exception: pass
+    return out
+
+def _render_pattern_alerts_v39(df_src, tab_name="x"):
+    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v39 — Pattern Tecnici</div>', unsafe_allow_html=True)
+    if df_src is None or (hasattr(df_src,"empty") and df_src.empty):
+        st.info("Avvia lo scanner per rilevare i pattern."); return
+    with st.expander("⚙️ Pattern da monitorare", expanded=False):
+        _pc = st.columns(4)
+        _en = {pid: _pc[i%4].checkbox(f"{p['icon']} {p['label']}", True,
+               key=f"pat_en_{pid}_{tab_name}", help=p["desc"])
+               for i,(pid,p) in enumerate(_PATTERN_ALERTS_V39.items())}
+    _rows = []
+    for _, r in df_src.iterrows():
+        _pats = [p for p in _detect_patterns_v39(r) if _en.get(p,True)]
+        if _pats:
+            _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
+                          "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
+                          "CSS":r.get("CSS",""),"Pattern":_pats,"_stato":str(r.get("Stato_Pro","-"))})
+    if not _rows: st.info("Nessun pattern rilevato."); return
+    _cnt = {p: sum(1 for r in _rows if p in r["Pattern"]) for p in _PATTERN_ALERTS_V39}
+    _kpi = st.columns(min(sum(1 for v in _cnt.values() if v>0),6))
+    _ki=0
+    for pid,cnt in sorted(_cnt.items(),key=lambda x:-x[1]):
+        if cnt>0 and _ki<6:
+            _kpi[_ki].metric(f"{_PATTERN_ALERTS_V39[pid]['icon']} {_PATTERN_ALERTS_V39[pid]['label']}",cnt); _ki+=1
+    st.markdown("---")
+    for ar in sorted(_rows,key=lambda x:len(x["Pattern"]),reverse=True)[:30]:
+        _ac1,_ac2,_ac3,_ac4 = st.columns([1.5,1.5,3,1])
+        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#00ff88" if ar["_stato"]=="PRO" else "#b2b5be"
+        _ac1.markdown(f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>",unsafe_allow_html=True)
+        _ac2.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>",unsafe_allow_html=True)
+        _parts=[]
+        for p in ar["Pattern"]:
+            _bear=p in("death_cross","rsi_overbought","bb_breakout"); _gold=p=="golden_cross"
+            _bg="#ffd70022" if _gold else "#ef444422" if _bear else "#2962ff22"
+            _tx="#ffd700" if _gold else "#ef4444" if _bear else "#58a6ff"
+            _parts.append(f"<span style='background:{_bg};color:{_tx};border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>{_PATTERN_ALERTS_V39.get(p,{}).get('icon','🔔')} {_PATTERN_ALERTS_V39.get(p,{}).get('label',p)}</span>")
+        _ac3.markdown(" ".join(_parts),unsafe_allow_html=True)
+        with _ac4:
+            if st.button("📋",key=f"alwl_{ar['Ticker']}_{tab_name}",help="Aggiungi a watchlist"):
+                try: gh_add_to_watchlist(ar["Ticker"],st.session_state.current_list_name); st.success(f"✅ {ar['Ticker']} aggiunto!")
+                except Exception: pass
+    _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
+    _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
+    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v39_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
+
+# ── v39 #2: News & Sentiment ───────────────────────────────────────────────
+@st.cache_data(ttl=600)
+def _fetch_news_v39(tickers:tuple)->list:
+    import urllib.request as _ur, xml.etree.ElementTree as _ET
+    _BULL={"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong","growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
+    _BEAR={"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss","decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
+    _res=[]
+    for _t in tickers[:20]:
+        try:
+            _url=f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
+            _req=_ur.Request(_url,headers={"User-Agent":"Mozilla/5.0"})
+            with _ur.urlopen(_req,timeout=6) as _r: _xml=_r.read()
+            _root=_ET.fromstring(_xml)
+            for _item in _root.findall(".//item")[:5]:
+                _title=_item.findtext("title",""); _words=set(_title.lower().split())
+                _b=len(_words&_BULL); _br=len(_words&_BEAR)
+                _sent="🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
+                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
+                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
+        except Exception: pass
+    return sorted(_res,key=lambda x:abs(x["Score"]),reverse=True)
+
+def _render_news_v39(df_ep_news):
+    _tickers=[]
+    if not(df_ep_news is None or(hasattr(df_ep_news,"empty")and df_ep_news.empty)):
+        if "Stato_Pro" in df_ep_news.columns:
+            _tickers=df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
+        if not _tickers: _tickers=df_ep_news["Ticker"].dropna().tolist()[:15]
+    try:
+        _wl=load_watchlist()
+        if not _wl.empty and "Ticker" in _wl.columns:
+            _tickers+=_wl[_wl["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
+    except Exception: pass
+    _tickers=list(dict.fromkeys(_tickers))[:25]
+    if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
+    _,_fc2=st.columns([3,1])
+    with _fc2:
+        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v39")
+        if st.button("🔄 Aggiorna",key="ns_refresh_v39"): st.cache_data.clear(); st.rerun()
+    with st.spinner("Carico news..."): _news=_fetch_news_v39(tuple(_tickers))
+    if _nsf=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
+    elif _nsf=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
+    elif _nsf=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
+    if not _news: st.info("Nessuna news trovata."); return
+    _nb,_nr,_nn=(sum(1 for n in _news if x in n["Sentiment"]) for x in("Bullish","Bearish","Neutral"))
+    _k1,_k2,_k3,_k4=st.columns(4)
+    _k1.metric("📰 Totale",len(_news)); _k2.metric("🟢",_nb); _k3.metric("🔴",_nr); _k4.metric("⚪",_nn)
+    st.markdown("---")
+    for n in _news[:40]:
+        _sc2="#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
+        _c1,_c2,_c3=st.columns([1,0.8,4.5])
+        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>",unsafe_allow_html=True)
+        _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
+        _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
+
+# ── v39 #3: Macro Calendar ─────────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def _fetch_macro_v39()->list:
+    import calendar as _cal
+    _today=datetime.now().date()
+    _events=[]
+    for _day,_name,_impact,_desc in [
+        (1,"ISM Manufacturing","🟡 Med","Attività manifatturiera"),(3,"ISM Services","🟡 Med","Settore servizi"),
+        (5,"NFP + Unemployment","🔴 High","Non-Farm Payrolls"),(10,"CPI Inflation","🔴 High","Consumer Price Index"),
+        (14,"PPI","🟡 Med","Producer Price Index"),(15,"Retail Sales","🟡 Med","Vendite al dettaglio"),
+        (20,"FOMC Minutes","🔴 High","Verbali Fed"),(28,"PCE Inflation","🔴 High","Personal Consumption Expenditures")]:
+        for _dm in range(3):
+            try:
+                _m=(_today.month+_dm-1)%12+1; _y=_today.year+((_today.month+_dm-1)//12)
+                _d=min(_day,_cal.monthrange(_y,_m)[1]); _cand=_today.replace(year=_y,month=_m,day=_d)
+                _dt=(_cand-_today).days
+                if _dt>=-1: _events.append({"Data":str(_cand),"Evento":_name,"Impatto":_impact,"Desc":_desc,"Giorni":_dt}); break
+            except Exception: pass
+    for _fd in ["2026-04-29","2026-06-18","2026-07-30","2026-09-17","2026-11-05","2026-12-17"]:
+        try:
+            from datetime import datetime as _dt2
+            _fd_d=_dt2.strptime(_fd,"%Y-%m-%d").date(); _dt=(_fd_d-_today).days
+            if -1<=_dt<=120: _events.append({"Data":_fd,"Evento":"⚠️ FOMC Rate Decision","Impatto":"🔴 High","Desc":"Decisione tassi Fed","Giorni":_dt})
+        except Exception: pass
+    return sorted(_events,key=lambda x:x["Giorni"])
+
+# ── v39 #4: Short Interest + Options + Insider ─────────────────────────────
+@st.cache_data(ttl=3600)
+def _fetch_short_v39(tickers:tuple)->dict:
+    import yfinance as _yf_si
+    _res={}
+    for _t in tickers[:40]:
+        try:
+            _s=_yf_si.Ticker(_t).info.get("shortPercentOfFloat")
+            if _s is not None: _res[_t]=round(float(_s)*100,1)
+        except Exception: pass
+    return _res
+
+@st.cache_data(ttl=900)
+def _fetch_options_v39(ticker:str)->dict:
+    import yfinance as _yf_op
+    try:
+        _tk=_yf_op.Ticker(ticker); _exps=_tk.options
+        if not _exps: return {}
+        _ch=_tk.option_chain(_exps[0])
+        _cv=float(_ch.calls["volume"].fillna(0).sum()) if not _ch.calls.empty else 0
+        _pv=float(_ch.puts["volume"].fillna(0).sum()) if not _ch.puts.empty else 0
+        _pcr=_pv/_cv if _cv>0 else None
+        _sig="🟢 Bullish" if _pcr and _pcr<0.7 else "🔴 Bearish" if _pcr and _pcr>1.2 else "⚪ Neutro"
+        return {"ticker":ticker,"pcr":round(_pcr,2) if _pcr else None,"call_vol":int(_cv),"put_vol":int(_pv),"signal":_sig,"expiry":_exps[0]}
+    except Exception: return {}
+
+@st.cache_data(ttl=3600)
+def _fetch_insider_v39(tickers:tuple)->list:
+    import urllib.request as _ur, json as _js
+    _res=[]
+    for _t in tickers[:15]:
+        try:
+            _url=f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22&forms=4&hits.hits._source=entity_name,file_date"
+            _req=_ur.Request(_url,headers={"User-Agent":"TradingScanner/1.0 info@example.com","Accept":"application/json"})
+            with _ur.urlopen(_req,timeout=8) as _r: _data=_js.loads(_r.read())
+            for _h in _data.get("hits",{}).get("hits",[])[:3]:
+                _s=_h.get("_source",{})
+                _res.append({"Ticker":_t,"Insider":_s.get("entity_name","—")[:30],"Data":_s.get("file_date","—")[:10],"Tipo":"Form 4"})
+        except Exception: pass
+    return _res
+
+# =========================================================================
+
 tabs = st.tabs([
     "🏠 Home",
     "📊 Comparatore",
@@ -7431,206 +7637,6 @@ def _render_advanced_scanner_v37():
 # =========================================================================
 
 # ── v39 #1: Pattern Alerts ────────────────────────────────────────────────
-_PATTERN_ALERTS_V39 = {
-    "ema_breakout":   {"label":"EMA Breakout",      "icon":"📈","desc":"Prezzo > EMA20"},
-    "golden_cross":   {"label":"Golden Cross",       "icon":"⭐","desc":"EMA20 > EMA50"},
-    "death_cross":    {"label":"Death Cross",        "icon":"💀","desc":"EMA20 < EMA50"},
-    "squeeze_fire":   {"label":"Squeeze Fire",       "icon":"🔥","desc":"Uscita da Squeeze"},
-    "volume_spike":   {"label":"Volume Spike",       "icon":"⚡","desc":"Volume > 3x media"},
-    "rsi_oversold":   {"label":"RSI Oversold",       "icon":"🔵","desc":"RSI < 32"},
-    "rsi_overbought": {"label":"RSI Overbought",     "icon":"🔴","desc":"RSI > 68"},
-    "bb_breakout":    {"label":"BB Breakout",        "icon":"🎯","desc":"Prezzo > EMA20+2xATR"},
-}
-
-def _detect_patterns_v39(row):
-    out = []
-    try:
-        pr  = float(row.get("Prezzo",  0) or 0)
-        e20 = float(row.get("EMA20",   0) or 0)
-        e50 = float(row.get("EMA50",   0) or 0)
-        rsi = float(row.get("RSI",    50) or 50)
-        vr  = float(row.get("Vol_Ratio",0) or 0)
-        sq  = row.get("Squeeze", False)
-        atr = float(row.get("ATR",     0) or 0)
-        if pr>0 and e20>0 and pr>e20 and rsi>45: out.append("ema_breakout")
-        if e20>0 and e50>0:
-            if e20>e50 and rsi>50: out.append("golden_cross")
-            elif e20<e50 and rsi<50: out.append("death_cross")
-        if sq in (True,"True","true",1): out.append("squeeze_fire")
-        if vr>=3.0: out.append("volume_spike")
-        if rsi<32: out.append("rsi_oversold")
-        if rsi>68: out.append("rsi_overbought")
-        if pr>0 and e20>0 and atr>0 and pr>e20+2*atr: out.append("bb_breakout")
-    except Exception: pass
-    return out
-
-def _render_pattern_alerts_v39(df_src, tab_name="x"):
-    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v39 — Pattern Tecnici</div>', unsafe_allow_html=True)
-    if df_src is None or (hasattr(df_src,"empty") and df_src.empty):
-        st.info("Avvia lo scanner per rilevare i pattern."); return
-    with st.expander("⚙️ Pattern da monitorare", expanded=False):
-        _pc = st.columns(4)
-        _en = {pid: _pc[i%4].checkbox(f"{p['icon']} {p['label']}", True,
-               key=f"pat_en_{pid}_{tab_name}", help=p["desc"])
-               for i,(pid,p) in enumerate(_PATTERN_ALERTS_V39.items())}
-    _rows = []
-    for _, r in df_src.iterrows():
-        _pats = [p for p in _detect_patterns_v39(r) if _en.get(p,True)]
-        if _pats:
-            _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
-                          "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
-                          "CSS":r.get("CSS",""),"Pattern":_pats,"_stato":str(r.get("Stato_Pro","-"))})
-    if not _rows: st.info("Nessun pattern rilevato."); return
-    _cnt = {p: sum(1 for r in _rows if p in r["Pattern"]) for p in _PATTERN_ALERTS_V39}
-    _kpi = st.columns(min(sum(1 for v in _cnt.values() if v>0),6))
-    _ki=0
-    for pid,cnt in sorted(_cnt.items(),key=lambda x:-x[1]):
-        if cnt>0 and _ki<6:
-            _kpi[_ki].metric(f"{_PATTERN_ALERTS_V39[pid]['icon']} {_PATTERN_ALERTS_V39[pid]['label']}",cnt); _ki+=1
-    st.markdown("---")
-    for ar in sorted(_rows,key=lambda x:len(x["Pattern"]),reverse=True)[:30]:
-        _ac1,_ac2,_ac3,_ac4 = st.columns([1.5,1.5,3,1])
-        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#00ff88" if ar["_stato"]=="PRO" else "#b2b5be"
-        _ac1.markdown(f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>",unsafe_allow_html=True)
-        _ac2.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>",unsafe_allow_html=True)
-        _parts=[]
-        for p in ar["Pattern"]:
-            _bear=p in("death_cross","rsi_overbought","bb_breakout"); _gold=p=="golden_cross"
-            _bg="#ffd70022" if _gold else "#ef444422" if _bear else "#2962ff22"
-            _tx="#ffd700" if _gold else "#ef4444" if _bear else "#58a6ff"
-            _parts.append(f"<span style='background:{_bg};color:{_tx};border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>{_PATTERN_ALERTS_V39.get(p,{}).get('icon','🔔')} {_PATTERN_ALERTS_V39.get(p,{}).get('label',p)}</span>")
-        _ac3.markdown(" ".join(_parts),unsafe_allow_html=True)
-        with _ac4:
-            if st.button("📋",key=f"alwl_{ar['Ticker']}_{tab_name}",help="Aggiungi a watchlist"):
-                try: gh_add_to_watchlist(ar["Ticker"],st.session_state.current_list_name); st.success(f"✅ {ar['Ticker']} aggiunto!")
-                except Exception: pass
-    _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
-    _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v39_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
-
-# ── v39 #2: News & Sentiment ───────────────────────────────────────────────
-@st.cache_data(ttl=600)
-def _fetch_news_v39(tickers:tuple)->list:
-    import urllib.request as _ur, xml.etree.ElementTree as _ET
-    _BULL={"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong","growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
-    _BEAR={"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss","decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
-    _res=[]
-    for _t in tickers[:20]:
-        try:
-            _url=f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={_t}&region=US&lang=en-US"
-            _req=_ur.Request(_url,headers={"User-Agent":"Mozilla/5.0"})
-            with _ur.urlopen(_req,timeout=6) as _r: _xml=_r.read()
-            _root=_ET.fromstring(_xml)
-            for _item in _root.findall(".//item")[:5]:
-                _title=_item.findtext("title",""); _words=set(_title.lower().split())
-                _b=len(_words&_BULL); _br=len(_words&_BEAR)
-                _sent="🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
-                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
-                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
-        except Exception: pass
-    return sorted(_res,key=lambda x:abs(x["Score"]),reverse=True)
-
-def _render_news_v39(df_ep_news):
-    _tickers=[]
-    if not(df_ep_news is None or(hasattr(df_ep_news,"empty")and df_ep_news.empty)):
-        if "Stato_Pro" in df_ep_news.columns:
-            _tickers=df_ep_news[df_ep_news["Stato_Pro"].isin(["PRO","STRONG"])]["Ticker"].dropna().tolist()[:20]
-        if not _tickers: _tickers=df_ep_news["Ticker"].dropna().tolist()[:15]
-    try:
-        _wl=load_watchlist()
-        if not _wl.empty and "Ticker" in _wl.columns:
-            _tickers+=_wl[_wl["list_name"]==st.session_state.current_list_name]["Ticker"].dropna().tolist()[:10]
-    except Exception: pass
-    _tickers=list(dict.fromkeys(_tickers))[:25]
-    if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
-    _,_fc2=st.columns([3,1])
-    with _fc2:
-        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v39")
-        if st.button("🔄 Aggiorna",key="ns_refresh_v39"): st.cache_data.clear(); st.rerun()
-    with st.spinner("Carico news..."): _news=_fetch_news_v39(tuple(_tickers))
-    if _nsf=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
-    elif _nsf=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
-    elif _nsf=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
-    if not _news: st.info("Nessuna news trovata."); return
-    _nb,_nr,_nn=(sum(1 for n in _news if x in n["Sentiment"]) for x in("Bullish","Bearish","Neutral"))
-    _k1,_k2,_k3,_k4=st.columns(4)
-    _k1.metric("📰 Totale",len(_news)); _k2.metric("🟢",_nb); _k3.metric("🔴",_nr); _k4.metric("⚪",_nn)
-    st.markdown("---")
-    for n in _news[:40]:
-        _sc2="#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
-        _c1,_c2,_c3=st.columns([1,0.8,4.5])
-        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>",unsafe_allow_html=True)
-        _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
-        _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
-
-# ── v39 #3: Macro Calendar ─────────────────────────────────────────────────
-@st.cache_data(ttl=3600)
-def _fetch_macro_v39()->list:
-    import calendar as _cal
-    _today=datetime.now().date()
-    _events=[]
-    for _day,_name,_impact,_desc in [
-        (1,"ISM Manufacturing","🟡 Med","Attività manifatturiera"),(3,"ISM Services","🟡 Med","Settore servizi"),
-        (5,"NFP + Unemployment","🔴 High","Non-Farm Payrolls"),(10,"CPI Inflation","🔴 High","Consumer Price Index"),
-        (14,"PPI","🟡 Med","Producer Price Index"),(15,"Retail Sales","🟡 Med","Vendite al dettaglio"),
-        (20,"FOMC Minutes","🔴 High","Verbali Fed"),(28,"PCE Inflation","🔴 High","Personal Consumption Expenditures")]:
-        for _dm in range(3):
-            try:
-                _m=(_today.month+_dm-1)%12+1; _y=_today.year+((_today.month+_dm-1)//12)
-                _d=min(_day,_cal.monthrange(_y,_m)[1]); _cand=_today.replace(year=_y,month=_m,day=_d)
-                _dt=(_cand-_today).days
-                if _dt>=-1: _events.append({"Data":str(_cand),"Evento":_name,"Impatto":_impact,"Desc":_desc,"Giorni":_dt}); break
-            except Exception: pass
-    for _fd in ["2026-04-29","2026-06-18","2026-07-30","2026-09-17","2026-11-05","2026-12-17"]:
-        try:
-            from datetime import datetime as _dt2
-            _fd_d=_dt2.strptime(_fd,"%Y-%m-%d").date(); _dt=(_fd_d-_today).days
-            if -1<=_dt<=120: _events.append({"Data":_fd,"Evento":"⚠️ FOMC Rate Decision","Impatto":"🔴 High","Desc":"Decisione tassi Fed","Giorni":_dt})
-        except Exception: pass
-    return sorted(_events,key=lambda x:x["Giorni"])
-
-# ── v39 #4: Short Interest + Options + Insider ─────────────────────────────
-@st.cache_data(ttl=3600)
-def _fetch_short_v39(tickers:tuple)->dict:
-    import yfinance as _yf_si
-    _res={}
-    for _t in tickers[:40]:
-        try:
-            _s=_yf_si.Ticker(_t).info.get("shortPercentOfFloat")
-            if _s is not None: _res[_t]=round(float(_s)*100,1)
-        except Exception: pass
-    return _res
-
-@st.cache_data(ttl=900)
-def _fetch_options_v39(ticker:str)->dict:
-    import yfinance as _yf_op
-    try:
-        _tk=_yf_op.Ticker(ticker); _exps=_tk.options
-        if not _exps: return {}
-        _ch=_tk.option_chain(_exps[0])
-        _cv=float(_ch.calls["volume"].fillna(0).sum()) if not _ch.calls.empty else 0
-        _pv=float(_ch.puts["volume"].fillna(0).sum()) if not _ch.puts.empty else 0
-        _pcr=_pv/_cv if _cv>0 else None
-        _sig="🟢 Bullish" if _pcr and _pcr<0.7 else "🔴 Bearish" if _pcr and _pcr>1.2 else "⚪ Neutro"
-        return {"ticker":ticker,"pcr":round(_pcr,2) if _pcr else None,"call_vol":int(_cv),"put_vol":int(_pv),"signal":_sig,"expiry":_exps[0]}
-    except Exception: return {}
-
-@st.cache_data(ttl=3600)
-def _fetch_insider_v39(tickers:tuple)->list:
-    import urllib.request as _ur, json as _js
-    _res=[]
-    for _t in tickers[:15]:
-        try:
-            _url=f"https://efts.sec.gov/LATEST/search-index?q=%22{_t}%22&forms=4&hits.hits._source=entity_name,file_date"
-            _req=_ur.Request(_url,headers={"User-Agent":"TradingScanner/1.0 info@example.com","Accept":"application/json"})
-            with _ur.urlopen(_req,timeout=8) as _r: _data=_js.loads(_r.read())
-            for _h in _data.get("hits",{}).get("hits",[])[:3]:
-                _s=_h.get("_source",{})
-                _res.append({"Ticker":_t,"Insider":_s.get("entity_name","—")[:30],"Data":_s.get("file_date","—")[:10],"Tipo":"Form 4"})
-        except Exception: pass
-    return _res
-
-# =========================================================================
 # v39 — AGGIUNTE NEI TAB ESISTENTI (singole, no duplicati)
 # =========================================================================
 
