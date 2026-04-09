@@ -4008,6 +4008,11 @@ with tab_p:
     with st.expander('🔔 Alert Multipli v39 — Pattern su segnali PRO', expanded=False):
         _render_pattern_alerts_v39(df_ep, tab_name='pro')
 
+    # ── Modulo 2 — 🤖 AI Analyst ─────────────────────────────────────────
+    st.markdown("---")
+    with st.expander("🤖 Modulo 2 — AI Analyst · Analisi per ogni ticker PRO/STRONG", expanded=False):
+        _render_ai_explainer_v37(df_ep, "PRO")
+
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
 
@@ -4149,6 +4154,13 @@ with tab_r:
 with tab_conf:
     st.session_state.last_active_tab="CONFLUENCE"; show_legend("⭐ CONFLUENCE")
     render_scan_tab(df_ep,"CONFLUENCE",["Quality_Score","Early_Score","Pro_Score"],[False,False,False],"CONFLUENCE")
+    st.markdown("---")
+    with st.expander("🤖 Modulo 2 — AI Analyst · Analisi CONFLUENCE", expanded=False):
+        _df_conf_ai = pd.DataFrame()
+        if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+            _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY") &
+                                (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
+        _render_ai_explainer_v37(_df_conf_ai, "CONF")
 
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
@@ -7014,9 +7026,9 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
 def _render_ai_explainer_v37(df_source, tab_name="PRO"):
     """AI Signal Explainer — multi-provider con fallback automatico."""
     st.markdown(
-        '<div class="section-pill">🧠 AI SIGNAL EXPLAINER v37 — Gemini · Groq · OpenRouter · Claude</div>',
+        '<div class="section-pill">🤖 MODULO 2 — AI ANALYST · Setup · Target · Invalidazione · Rischio</div>',
         unsafe_allow_html=True)
-    st.caption("Fallback automatico: Gemini (free) → Groq (free) → OpenRouter → Claude")
+    st.caption("Fallback automatico: Gemini (free) → Groq (free) → OpenRouter → Claude · Clicca 🧠 Analizza su ogni ticker")
 
     # ── Pannello configurazione API keys ──────────────────────────────────
     _any_key = any([
@@ -7130,7 +7142,7 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
 
     # Header griglia
     _ai_cols = st.columns([2,1,1,1,1])
-    for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","AI"]):
+    for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","Modulo 2"]):
         _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
                       f"letter-spacing:1px'>{_lbl}</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
@@ -7159,29 +7171,37 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
         _ac4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_rsi_ai}</span>")
 
         with _ac5:
-            if st.button("🧠", key=f"ai_explain_{_tkr_ai}_{tab_name}",
-                         use_container_width=True, help=f"Analisi AI di {_tkr_ai}"):
+            if st.button("🧠 Analizza", key=f"ai_explain_{_tkr_ai}_{tab_name}",
+                         use_container_width=True, help=f"Modulo 2 AI Analyst — {_tkr_ai}"):
                 st.session_state[f"_ai_req_{_tkr_ai}_{tab_name}"] = True
 
         if st.session_state.get(f"_ai_req_{_tkr_ai}_{tab_name}"):
-            with st.expander(f"🧠 Analisi AI — {_tkr_ai}", expanded=True):
-                _prompt_ai = f"""Sei un analista tecnico professionista. Analizza questo setup.
+            with st.expander(f"🤖 Modulo 2 — AI Analyst · {_tkr_ai} ({_nome_ai})", expanded=True):
+                # Dati aggiuntivi dal row
+                _sq_ai  = _row_ai.get("Squeeze", False)
+                _e20_ai = _row_ai.get("EMA20", "")
+                _e50_ai = _row_ai.get("EMA50", "")
+                _wk_ai  = _row_ai.get("Weekly_Bull", "")
+                _st_ai  = _row_ai.get("Stato_Early", "")
 
-TICKER: {_tkr_ai} ({_nome_ai}) | PREZZO: ${_pr_ai}
-SEGNALE: {_stato_ai} | CSS: {_css_ai}/100 | RSI: {_rsi_ai}
-ATR: {_atr_ai} | Vol Ratio: {_vol_ai}x | RS vs SPY: {_rs_ai}%
-MERCATO: {_regime_ctx}
-
-Rispondi in italiano, ESATTAMENTE in questo formato (max 2 righe per punto):
-
-✅ VALIDITÀ SETUP:
-[perché il setup è valido con questi dati]
-
-⚠️ RISCHIO PRINCIPALE:
-[rischio specifico più importante ora]
-
-📐 GESTIONE POSIZIONE:
-[entry, stop loss ATR-based, target R:R]"""
+                _prompt_ai = (
+                    f"Sei un analista tecnico professionista. Produci un brief operativo conciso.\n\n"
+                    f"TICKER: {_tkr_ai} ({_nome_ai}) | PREZZO: ${_pr_ai}\n"
+                    f"SEGNALE: {_stato_ai} | CSS: {_css_ai}/100 | RSI: {_rsi_ai}\n"
+                    f"ATR: {_atr_ai} | Vol Ratio: {_vol_ai}x | RS vs SPY: {_rs_ai}%\n"
+                    f"EMA20: {_e20_ai} | EMA50: {_e50_ai} | Squeeze: {_sq_ai}\n"
+                    f"Weekly Bull: {_wk_ai} | Stato Early: {_st_ai}\n"
+                    f"SCENARIO MACRO: {_regime_ctx}\n\n"
+                    f"Rispondi in italiano con questo formato ESATTO (max 2 righe per sezione):\n\n"
+                    f"📊 SETUP:\n"
+                    f"[descrivi la struttura tecnica — trend, momentum, volume, squeeze]\n\n"
+                    f"🎯 TARGET:\n"
+                    f"[T1 = entry + 1.5×ATR | T2 = entry + 3×ATR — valori numerici precisi]\n\n"
+                    f"❌ INVALIDAZIONE:\n"
+                    f"[livello di prezzo che invalida il setup — stop loss ATR-based]\n\n"
+                    f"⚠️ RISCHIO:\n"
+                    f"[rischio specifico principale in questo momento per questo titolo]"
+                )
 
                 with st.spinner(f"Analisi {_tkr_ai}..."):
                     try:
@@ -7795,3 +7815,4 @@ with tab_analisi:
             "4. L'AI genera: setup, entry/stop/target precisi, rischi, consiglio"
             "</span></div>",
             unsafe_allow_html=True)
+
