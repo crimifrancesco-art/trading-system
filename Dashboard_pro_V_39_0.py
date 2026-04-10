@@ -3876,7 +3876,7 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
                       f"letter-spacing:1px'>{_lbl}</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
-    for _, _row_ai in _df_ai.head(15).iterrows():
+    for _, _row_ai in _df_ai.iterrows():
         _tkr_ai   = str(_row_ai.get("Ticker",""))
         _stato_ai = str(_row_ai.get("Stato_Pro","-"))
         _css_ai   = _row_ai.get("CSS","—")
