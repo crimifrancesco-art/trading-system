@@ -3861,6 +3861,14 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
     except Exception:
         _regime_ctx = "dati regime non disponibili"
 
+    # Ordina per Nome (alfabetico, case-insensitive)
+    if "Nome" in _df_ai.columns:
+        _df_ai = _df_ai.sort_values(
+            "Nome",
+            key=lambda x: x.str.upper().fillna(""),
+            na_position="last"
+        )
+
     # Header griglia
     _ai_cols = st.columns([2,1,1,1,1])
     for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","Modulo 2"]):
@@ -3879,17 +3887,55 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
         _rs_ai    = _row_ai.get("RS_20d","")
         _vol_ai   = _row_ai.get("Vol_Ratio","")
 
+        # ── Estrai valori numerici puliti (rimuovi HTML se presente) ────
+        def _strip_html_val(v):
+            if v is None: return "—"
+            s = str(v)
+            import re as _re2
+            cleaned = _re2.sub(r"<[^>]+>", "", s).strip()
+            return cleaned if cleaned else "—"
+        def _css_color(v):
+            try:
+                f = float(_strip_html_val(v).replace(",","."))
+                if f >= 75: return "#00ff88"
+                if f >= 55: return "#ffd700"
+                if f >= 35: return "#fb923c"
+                return "#ef4444"
+            except Exception: return "#b2b5be"
+        def _rsi_color(v):
+            try:
+                f = float(_strip_html_val(v).replace(",","."))
+                if f >= 70: return "#ef4444"
+                if f >= 50: return "#00ff88"
+                if f >= 30: return "#ffd700"
+                return "#ef4444"
+            except Exception: return "#b2b5be"
+
+        _css_str = _strip_html_val(_css_ai)
+        _rsi_str = _strip_html_val(_rsi_ai)
+
+        # Link TradingView IT
+        _tv_sym  = _tkr_ai.replace(".MI", "%3AMI").replace(".L", "%3AL").replace(".PA", "%3APA").replace(".DE", "%3ADE").replace(".AS", "%3AAS")
+        _tv_link = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
+
         _ac1,_ac2,_ac3,_ac4,_ac5 = st.columns([2,1,1,1,1])
         _sc = "#ffd700" if _stato_ai=="STRONG" else "#00ff88"
         _ac1.markdown(
+            f"<a href='{_tv_link}' target='_blank' style='text-decoration:none'>"
             f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
-            f"{_tkr_ai}</span><br>"
+            f"{_tkr_ai}</span></a><br>"
             f"<span style='color:#787b86;font-size:0.72rem'>{_nome_ai}</span>",
             unsafe_allow_html=True)
         _ac2.markdown(f"<span style='color:{_sc};font-weight:bold;font-size:0.82rem'>"
                       f"{_stato_ai}</span>", unsafe_allow_html=True)
-        _ac3.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_css_ai}</span>")
-        _ac4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>{_rsi_ai}</span>")
+        _ac3.markdown(
+            f"<span style='font-family:Courier New;font-size:0.82rem;"
+            f"color:{_css_color(_css_ai)};font-weight:bold'>{_css_str}</span>",
+            unsafe_allow_html=True)
+        _ac4.markdown(
+            f"<span style='font-family:Courier New;font-size:0.82rem;"
+            f"color:{_rsi_color(_rsi_ai)};font-weight:bold'>{_rsi_str}</span>",
+            unsafe_allow_html=True)
 
         with _ac5:
             if st.button("🧠 Analizza", key=f"ai_explain_{_tkr_ai}_{tab_name}",
@@ -7817,4 +7863,3 @@ with tab_analisi:
             "4. L'AI genera: setup, entry/stop/target precisi, rischi, consiglio"
             "</span></div>",
             unsafe_allow_html=True)
-
