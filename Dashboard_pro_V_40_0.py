@@ -7995,3 +7995,4 @@ with tab_analisi:
             "4. L'AI genera: setup, entry/stop/target precisi, rischi, consiglio"
             "</span></div>",
             unsafe_allow_html=True)
+
