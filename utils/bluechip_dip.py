@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-bluechip_dip.py  —  💎 Blue Chip Dip Screener  v31.1
+bluechip_dip.py  —  💎 Blue Chip Dip Screener  v40.0
 ══════════════════════════════════════════════════════
 Monitora le 60 maggiori aziende mondiali per market cap.
 Per ognuna calcola:
@@ -987,8 +987,8 @@ def _compute_indicators(df_ohlcv: pd.DataFrame) -> dict:
     vwap   = vwap_s.values
 
     # ADX (14 periodi, approssimazione)
-    h = df_ohlcv["high"].fillna(method="ffill").values.astype(float)
-    lo = df_ohlcv["low"].fillna(method="ffill").values.astype(float)
+    h = df_ohlcv["high"].ffill().values.astype(float)
+    lo = df_ohlcv["low"].ffill().values.astype(float)
     tr  = np.maximum(h[1:] - lo[1:],
           np.maximum(np.abs(h[1:] - c[:-1]),
                      np.abs(lo[1:] - c[:-1])))
@@ -1611,7 +1611,7 @@ def render_bluechip_dip():
         f'<span style="color:{TV_GOLD};font-weight:700;font-size:1rem">'
         f'💎 BLUE CHIP DIP SCREENER</span>'
         f'<span style="color:{TV_GRAY};font-size:0.8rem;margin-left:12px">'
-        f'Top 100 aziende mondiali · Opportunità di rientro · v31.1</span>'
+        f'Top 100 aziende mondiali · Opportunità di rientro · v40.0</span>'
         f'</div>',
         unsafe_allow_html=True
     )
@@ -1820,7 +1820,7 @@ def render_bluechip_dip():
         f'<div style="color:{TV_GRAY};font-size:0.72rem;text-align:center;'
         f'margin-top:16px;padding-top:8px;border-top:1px solid {TV_BORDER}">'
         f'Dati: Yahoo Finance · Cache 30 min · Universe: {len(BLUE_CHIPS)} Blue Chip globali · '
-        f'v31.1 · Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
+        f'v40.0 · Aggiornato: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}'
         f'</div>',
         unsafe_allow_html=True
     )
