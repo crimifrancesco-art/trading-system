@@ -5151,15 +5151,32 @@ with tab_crisis:
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
             break  # primo df disponibile basta
 
-        # ── v40 FIX: sanitize NaN/inf → stringa vuota per evitare JSON parse error in AgGrid
+        # ── v40 FIX ROBUSTO: elimina tutti i NaN/inf prima di AgGrid ──────
+        import numpy as _np, math as _math
+        # 1) Colonne testo: qualsiasi NaN → "—"
+        _text_cols_crisis = {"Ticker","Nome","Descrizione Tattica","OBV_Trend",
+                             "Stato_Early","RSI_Div","CSS_Grade","Squeeze","Weekly_Bull"}
         for _col in df_crisis_cat.columns:
-            if df_crisis_cat[_col].dtype == object:
-                df_crisis_cat[_col] = df_crisis_cat[_col].fillna("—")
+            if _col in _text_cols_crisis or df_crisis_cat[_col].dtype == object:
+                df_crisis_cat[_col] = (
+                    df_crisis_cat[_col].astype(str)
+                    .replace({"nan":"—","None":"—","<NA>":"—","NaN":"—"})
+                )
             else:
-                import numpy as _np
-                df_crisis_cat[_col] = pd.to_numeric(df_crisis_cat[_col], errors="coerce")
-                df_crisis_cat[_col] = df_crisis_cat[_col].replace([_np.inf, -_np.inf], _np.nan)
-                df_crisis_cat[_col] = df_crisis_cat[_col].where(df_crisis_cat[_col].notna(), other=None)
+                df_crisis_cat[_col] = (
+                    pd.to_numeric(df_crisis_cat[_col], errors="coerce")
+                    .replace([_np.inf, -_np.inf], _np.nan)
+                    .fillna(0.0)
+                )
+        # 2) Ultimo controllo record-per-record: float NaN → None (→ JSON null)
+        _safe_recs = []
+        for _rec in df_crisis_cat.to_dict(orient="records"):
+            _safe = {
+                _k: (None if isinstance(_v, float) and (_math.isnan(_v) or _math.isinf(_v)) else _v)
+                for _k, _v in _rec.items()
+            }
+            _safe_recs.append(_safe)
+        df_crisis_cat = pd.DataFrame(_safe_recs)
 
         gb_c = GridOptionsBuilder.from_dataframe(df_crisis_cat)
         gb_c.configure_default_column(sortable=True, resizable=True, filterable=False, minWidth=65)
