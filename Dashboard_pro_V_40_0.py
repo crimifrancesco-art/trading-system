@@ -4175,43 +4175,54 @@ with tab_home:
         import yfinance as _yf_live
         _mkts = [
             # Azionari USA
-            ("^GSPC",      "S&P 500",       "🇺🇸"),
-            ("^IXIC",      "NASDAQ",         "💻"),
-            ("^DJI",       "Dow Jones",      "🏭"),
-            ("^RUT",       "Russell2K",      "📊"),
+            ("^GSPC",       "S&P 500",        "🇺🇸"),
+            ("^IXIC",       "NASDAQ",          "💻"),
+            ("^DJI",        "Dow Jones",       "🏭"),
+            ("^RUT",        "Russell 2K",      "📊"),
             # Azionari Europa
-            ("FTSEMIB.MI", "FTSE MIB",       "🇮🇹"),
-            ("^FTSE",      "FTSE 100",       "🇬🇧"),
-            ("^GDAXI",     "DAX 30",         "🇩🇪"),
-            ("^FCHI",      "CAC 40",         "🇫🇷"),
-            ("^IBEX",      "IBEX 35",        "🇪🇸"),
-            # Azionari Asia/EM
-            ("^N225",      "Nikkei 225",     "🇯🇵"),
-            ("^KS11",      "KOSPI",          "🇰🇷"),
-            ("^BVSP",      "BVSP Brasile",   "🇧🇷"),
+            ("FTSEMIB.MI",  "FTSE MIB",        "🇮🇹"),
+            ("^FTSE",       "FTSE 100",        "🇬🇧"),
+            ("^GDAXI",      "DAX 40",          "🇩🇪"),
+            ("^FCHI",       "CAC 40",          "🇫🇷"),
+            ("^IBEX",       "IBEX 35",         "🇪🇸"),
+            ("^AEX",        "AEX Olanda",      "🇳🇱"),
+            ("^SSMI",       "SMI Svizzera",    "🇨🇭"),
+            # Azionari Asia / EM
+            ("^N225",       "Nikkei 225",      "🇯🇵"),
+            ("^HSI",        "Hang Seng",       "🇭🇰"),
+            ("000001.SS",   "Shanghai",        "🇨🇳"),
+            ("^KS11",       "KOSPI Korea",     "🇰🇷"),
+            ("^BVSP",       "BVSP Brasile",    "🇧🇷"),
+            ("^NSEI",       "Nifty 50 India",  "🇮🇳"),
             # Volatilità
-            ("^VIX",       "VIX",            "😰"),
+            ("^VIX",        "VIX",             "😰"),
+            ("^VXN",        "VXN NASDAQ",      "😱"),
             # Crypto
-            ("BTC-USD",    "Bitcoin",        "₿"),
+            ("BTC-USD",     "Bitcoin",         "₿"),
+            ("ETH-USD",     "Ethereum",        "⟠"),
             # Commodities
-            ("GC=F",       "Gold",           "🥇"),
-            ("SI=F",       "Argento",        "⚪"),
-            ("CL=F",       "Oil WTI",        "🛢️"),
-            # Valute
-            ("DX-Y.NYB",   "DXY",            "💵"),
+            ("GC=F",        "Gold",            "🥇"),
+            ("SI=F",        "Argento",         "⚪"),
+            ("CL=F",        "Oil WTI",         "🛢️"),
+            ("NG=F",        "Gas Naturale",    "🔥"),
+            ("HG=F",        "Rame",            "🟤"),
+            ("ZW=F",        "Grano",           "🌾"),
+            # Valute & Bond
+            ("DX-Y.NYB",    "DXY",             "💵"),
+            ("EURUSD=X",    "EUR/USD",         "🇪🇺"),
+            ("JPY=X",       "USD/JPY",         "¥"),
+            ("TLT",         "TLT Bond 20Y",    "🏦"),
         ]
         _results = []
         for _sym, _name, _ico in _mkts:
             try:
-                # YTD richiede period="ytd" — fallback su 1y se vuoto
                 _dy = _yf_live.download(_sym, period="ytd", interval="1d",
                                         auto_adjust=True, progress=False, threads=False)
-                _dy.columns = [c[0] if isinstance(c,tuple) else c for c in _dy.columns]
+                _dy.columns = [co[0] if isinstance(co,tuple) else co for co in _dy.columns]
                 _cly = _dy["Close"].dropna()
-                # 5d per prezzo corrente + variazione giornaliera
                 _d5 = _yf_live.download(_sym, period="5d", interval="1d",
                                         auto_adjust=True, progress=False, threads=False)
-                _d5.columns = [c[0] if isinstance(c,tuple) else c for c in _d5.columns]
+                _d5.columns = [co[0] if isinstance(co,tuple) else co for co in _d5.columns]
                 _cl5 = _d5["Close"].dropna()
                 if len(_cl5) < 1:
                     continue
@@ -4229,76 +4240,78 @@ with tab_home:
         if _live_data_v40:
             _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-            # ── Gruppi di asset per riga ──────────────────────────────────
             _groups = [
-                ("🌍 Azionari USA",    ["^GSPC","^IXIC","^DJI","^RUT"]),
-                ("🌍 Azionari Europa", ["FTSEMIB.MI","^FTSE","^GDAXI","^FCHI","^IBEX"]),
-                ("🌍 Azionari Asia/EM",["^N225","^KS11","^BVSP"]),
-                ("😰 Vol · ₿ Crypto",  ["^VIX","BTC-USD"]),
-                ("🥇 Commodities · 💵 DXY", ["GC=F","SI=F","CL=F","DX-Y.NYB"]),
+                ("🇺🇸 Azionari USA",          ["^GSPC","^IXIC","^DJI","^RUT"]),
+                ("🌍 Azionari Europa",         ["FTSEMIB.MI","^FTSE","^GDAXI","^FCHI","^IBEX","^AEX","^SSMI"]),
+                ("🌏 Azionari Asia / EM",      ["^N225","^HSI","000001.SS","^KS11","^BVSP","^NSEI"]),
+                ("😰 Volatilità · ₿ Crypto",   ["^VIX","^VXN","BTC-USD","ETH-USD"]),
+                ("🥇 Commodities",             ["GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F"]),
+                ("💵 Valute · 🏦 Bond",        ["DX-Y.NYB","EURUSD=X","JPY=X","TLT"]),
             ]
             _data_map = {m["sym"]: m for m in _live_data_v40}
 
-            def _fmt_price(m):
-                s = m["sym"]
-                p = m["price"]
-                if s in ("GC=F","SI=F","CL=F","BTC-USD"): return f"${p:,.2f}"
-                if s in ("^VIX","DX-Y.NYB"):               return f"{p:,.2f}"
-                if p > 1000:                                return f"{p:,.0f}"
+            def _fmt_price_v40(m):
+                s = m["sym"]; p = m["price"]
+                if s in ("BTC-USD",):                return f"${p:,.0f}"
+                if s in ("GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F","ETH-USD"): return f"${p:,.2f}"
+                if s in ("^VIX","^VXN","DX-Y.NYB","EURUSD=X","JPY=X"):         return f"{p:,.3f}" if p < 10 else f"{p:,.2f}"
+                if p > 10000: return f"{p:,.0f}"
+                if p > 1000:  return f"{p:,.1f}"
                 return f"{p:,.2f}"
 
-            # ── Build HTML ─────────────────────────────────────────────────
             _yf_url = "https://it.finance.yahoo.com/markets/"
             _live_html = (
                 f"<div style='background:#1a1e2e;border:1px solid #2a2e39;"
                 f"border-left:4px solid #2962ff;"
-                f"border-radius:0 8px 8px 0;padding:10px 14px 12px 14px;margin-bottom:14px'>"
-                # Titolo cliccabile
-                f"<div style='margin-bottom:10px'>"
+                f"border-radius:0 10px 10px 0;padding:14px 18px 16px 18px;margin-bottom:16px'>"
+                f"<div style='margin-bottom:12px'>"
                 f"<a href='{_yf_url}' target='_blank' style='text-decoration:none'>"
-                f"<span style='color:#2962ff;font-weight:bold;font-size:0.80rem;"
-                f"letter-spacing:1px'>📊 MERCATI LIVE</span></a>"
-                f"<span style='color:#6b7280;font-size:0.70rem;margin-left:10px'>{_now_str}</span>"
-                f"<span style='color:#374151;font-size:0.68rem;margin-left:8px'>· aggiorna ogni 60s · YTD = da inizio anno</span>"
+                f"<span style='color:#2962ff;font-weight:bold;font-size:0.90rem;"
+                f"letter-spacing:1.5px'>📊 MERCATI LIVE</span></a>"
+                f"<span style='color:#6b7280;font-size:0.73rem;margin-left:12px'>{_now_str}</span>"
+                f"<span style='color:#374151;font-size:0.70rem;margin-left:10px'>· aggiorna ogni 60s · YTD = performance da inizio anno</span>"
                 f"</div>"
             )
 
             for _grp_name, _syms in _groups:
+                _avail = [s for s in _syms if s in _data_map]
+                if not _avail: continue
                 _live_html += (
-                    f"<div style='margin-bottom:6px'>"
-                    f"<div style='color:#4b5563;font-size:0.65rem;font-weight:bold;"
-                    f"letter-spacing:1.5px;margin-bottom:4px;text-transform:uppercase'>"
+                    f"<div style='margin-bottom:12px'>"
+                    f"<div style='color:#50c4e0;font-size:0.68rem;font-weight:bold;"
+                    f"letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;"
+                    f"border-bottom:1px solid #2a2e39;padding-bottom:4px'>"
                     f"{_grp_name}</div>"
-                    f"<div style='display:flex;gap:6px;flex-wrap:wrap'>"
+                    f"<div style='display:flex;gap:8px;flex-wrap:wrap'>"
                 )
-                for _sym in _syms:
-                    _m = _data_map.get(_sym)
-                    if not _m:
-                        continue
+                for _sym in _avail:
+                    _m   = _data_map[_sym]
                     _c   = "#26a69a" if _m["chg"]>=0 else "#ef4444"
                     _ar  = "▲" if _m["chg"]>=0 else "▼"
-                    _pr  = _fmt_price(_m)
+                    _pr  = _fmt_price_v40(_m)
                     _ytd = _m.get("ytd")
                     if _ytd is not None:
                         _ytd_c  = "#26a69a" if _ytd>=0 else "#ef4444"
                         _ytd_ar = "▲" if _ytd>=0 else "▼"
                         _ytd_html = (
-                            f"<div style='color:{_ytd_c};font-size:0.62rem;margin-top:1px'>"
+                            f"<div style='color:{_ytd_c};font-size:0.68rem;"
+                            f"margin-top:3px;font-weight:500'>"
                             f"YTD {_ytd_ar}{abs(_ytd):.1f}%</div>"
                         )
                     else:
-                        _ytd_html = "<div style='color:#374151;font-size:0.62rem'>YTD —</div>"
+                        _ytd_html = "<div style='color:#374151;font-size:0.68rem;margin-top:3px'>YTD —</div>"
 
                     _live_html += (
                         f"<div style='background:#131722;border:1px solid #2a2e39;"
-                        f"border-top:2px solid {_c}66;"
-                        f"border-radius:4px;padding:6px 10px;"
-                        f"min-width:90px;text-align:center;flex:1;max-width:140px'>"
-                        f"<div style='color:#787b86;font-size:0.62rem;white-space:nowrap;"
-                        f"margin-bottom:2px'>{_m['icon']} {_m['name']}</div>"
-                        f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.84rem;"
-                        f"font-weight:bold'>{_pr}</div>"
-                        f"<div style='color:{_c};font-size:0.68rem;font-weight:bold;margin-top:2px'>"
+                        f"border-top:3px solid {_c}88;"
+                        f"border-radius:6px;padding:9px 13px;"
+                        f"min-width:108px;max-width:160px;flex:1;text-align:center;"
+                        f"transition:border-color .2s'>"
+                        f"<div style='color:#9ca3af;font-size:0.68rem;white-space:nowrap;"
+                        f"margin-bottom:4px;letter-spacing:0.5px'>{_m['icon']} {_m['name']}</div>"
+                        f"<div style='color:#e2e8f0;font-family:Courier New;font-size:0.96rem;"
+                        f"font-weight:bold;letter-spacing:0.5px'>{_pr}</div>"
+                        f"<div style='color:{_c};font-size:0.75rem;font-weight:bold;margin-top:3px'>"
                         f"{_ar} {abs(_m['chg']):.2f}%</div>"
                         f"{_ytd_html}"
                         f"</div>"
@@ -4310,7 +4323,7 @@ with tab_home:
     except Exception:
         pass
 
-    # ── v40 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
+        # ── v40 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
     with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):
         @st.cache_data(ttl=3600, show_spinner=False)
         def _fetch_corr_v40():
@@ -5137,6 +5150,16 @@ with tab_crisis:
             _sub = _ldf[[c for c in _live_keep if c in _ldf.columns]].copy()
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
             break  # primo df disponibile basta
+
+        # ── v40 FIX: sanitize NaN/inf → stringa vuota per evitare JSON parse error in AgGrid
+        for _col in df_crisis_cat.columns:
+            if df_crisis_cat[_col].dtype == object:
+                df_crisis_cat[_col] = df_crisis_cat[_col].fillna("—")
+            else:
+                import numpy as _np
+                df_crisis_cat[_col] = pd.to_numeric(df_crisis_cat[_col], errors="coerce")
+                df_crisis_cat[_col] = df_crisis_cat[_col].replace([_np.inf, -_np.inf], _np.nan)
+                df_crisis_cat[_col] = df_crisis_cat[_col].where(df_crisis_cat[_col].notna(), other=None)
 
         gb_c = GridOptionsBuilder.from_dataframe(df_crisis_cat)
         gb_c.configure_default_column(sortable=True, resizable=True, filterable=False, minWidth=65)
@@ -7995,4 +8018,3 @@ with tab_analisi:
             "4. L'AI genera: setup, entry/stop/target precisi, rischi, consiglio"
             "</span></div>",
             unsafe_allow_html=True)
-
