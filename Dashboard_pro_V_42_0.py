@@ -1,30 +1,49 @@
 # -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║         TRADING SCANNER PRO  —  v42.0                                  ║
-# ║         Versione professionale completa con tutte le funzionalita       ║
-# ║         Scanner avanzato, AI Assistant, Options, Alerts e Sentiment    ║
-# ║         Database permanente per tutti i dati                           ║
+# ║         TRADING SCANNER PRO  —  v39.0                                  ║
+# ║         Upgrade professionale su v36.0 — tutto il codice esistente      ║
+# ║         è intatto. Aggiunti 7 upgrade v37 completamente additivi.       ║
 # ╠══════════════════════════════════════════════════════════════════════════╣
-# ║  CHANGELOG v42                                                         ║
-# ║  #1  Database Permanente — Tutti i dati salvati in SQLite              ║
-# ║      Watchlist, Scan History, Signals, Journal, P&L, API Keys          ║
-# ║      Settings e preferenze utente persistenti                          ║
-# ║      Alert e momentum alerts salvati automaticamente                   ║
-# ║  #2  AI Trading Assistant — Chatbot AI per analisi ticker             ║
-# ║      Chat interattivo con Claude API: spiegazioni pattern,             ║
-# ║      suggerimenti strategia, gestione posizione, risk assessment       ║
-# ║      Supporto multi-provider: Anthropic, OpenAI, Groq                 ║
-# ║  #3  Options Scanner — Scanner opzioni avanzato                        ║
-# ║      Implied/Historical Volatility ratio, Put/Call ratio,               ║
-# ║      Unusual Options Activity, IV rank/percentile, options chain      ║
-# ║      Filtri: delta range, gamma squeeze, earnings proximity           ║
-# ║  #4  Momentum Alerts — Sistema alert momentum in tempo reale            ║
-# ║      Alert su: breakout >2%, volume spike >3x, price action signals    ║
-# ║      Configurazione soglie, storico alert, notification Telegram       ║
-# ║      Badge real-time con countdown e priorita                          ║
-# ║  #5  News & Sentiment Tab — Tab dedicato con sentiment analysis       ║
-# ║      News con score Bullish/Bearish/Neutral, filtri, export CSV      ║
-# ║      Link a TradingView Italia nella sezione Home e nel nuovo tab     ║
+# ║  CHANGELOG v37  (su base v36 intatta)                                  ║
+# ║  #1  Scanner Turbo — batch download 5 ticker/chiamata (-80% latenza)   ║
+# ║      Pre-warming cache al boot, smart skip, ETA live stimata           ║
+# ║  #2  Menu fisso sticky — tab bar rimane visibile scorrendo la pagina   ║
+# ║      Font adattivo, tab attivo evidenziato, scroll-to-top automatico   ║
+# ║  #3  AI Signal Explainer — Claude API su ogni ticker PRO/CONFLUENCE    ║
+# ║      Setup analysis: validità + rischio + gestione posizione           ║
+# ║  #4  Notifiche Telegram — alert engine con bot token configurabile     ║
+# ║      Invio automatico su segnale PRO/STRONG, digest mattutino          ║
+# ║  #5  Risk Dashboard Pro — correlation matrix, VaR 95%, portfolio heat  ║
+# ║      Nuovo tab dedicato con heatmap interattiva e metriche aggregate   ║
+# ║  #6  Scanner Avanzato — Gap Scanner e Earnings Play Scanner            ║
+# ║      Gap >1% con volume confermato, pre-earnings IV screen             ║
+# ║  #7  Ticker Search Globale — Ctrl+K cerca in tutti i tab               ║
+# ║  #1  Market Regime Detection — VIX + % sopra EMA200 + Adv/Dec ratio    ║
+# ║      Classifica regime: Risk-On / Caution / Risk-Off / Crisis           ║
+# ║      Disabilita segnali deboli automaticamente in Risk-Off/Crisis       ║
+# ║  #2  Position Sizing Engine — Kelly, Fixed Fractional, ATR-based        ║
+# ║      Calcola size ottimale da capitale + rischio% + ATR stop            ║
+# ║      Integrato nel tab Risk Manager e nel P&L Tracker                   ║
+# ║  #3  Scanner Scheduling (auto-scan) — scan automatico ogni N minuti     ║
+# ║      Finestra oraria configurabile (NYSE 9:30-16:00 default)            ║
+# ║      Countdown live, pausa/riprendi, storico auto-scan                  ║
+# ║  #4  Earnings Calendar — tutti i ticker watchlist con earnings           ║
+# ║      nei prossimi 7-14 giorni da Yahoo Finance, nella Home in basso     ║
+# ║      Badge: ⚠️ Imminente / 🔔 Questa settimana / 📅 Prossima            ║
+# ║  #5  Multi-Timeframe Confluence Matrix — daily/weekly/monthly per tkr   ║
+# ║      🟢 3/3 allineati | 🟡 2/3 | 🔴 1/3 | ⚪ no data                  ║
+# ║      Nuovo tab "🔀 MTF Matrix" con griglia compatta e drill-down        ║
+# ║  #6  Relative Strength vs SPY — RS = return_20d - SPY_return_20d        ║
+# ║      Colonne RS_20d, RS_Rank aggiunte a tutti i tab scanner             ║
+# ║      Renderer con barra orizzontale verde/rossa                         ║
+# ║  #7  Sector Rotation Heatmap interattiva — 11 settori GICS × 4 periodi  ║
+# ║      1d/5d/1m/3m | Click su cella → drill-down ticker nel settore       ║
+# ║      Sostituzione heatmap statica Home tab con versione interattiva      ║
+# ║  #8  Paper Trading Journal — log strutturato entry/exit/note/outcome    ║
+# ║      Metriche aggregate per setup type: Win Rate, Avg R, P&L totale     ║
+# ║      Nuovo tab "📓 Journal" con export XLSX                             ║
+# ║  #9  Earnings in Home — sezione dedicata in fondo alla Home             ║
+# ║      Mostra prossimi earnings da watchlist + scanner con countdown      ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 import io
 import time
@@ -154,8 +173,8 @@ except ImportError:
                       vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
                       n_workers=16, progress_callback=None):
         # ══════════════════════════════════════════════════════════════════
-        # v42 SCANNER TURBO ENGINE
-        # Upgrade vs v42:
+        # v37 SCANNER TURBO ENGINE
+        # Upgrade vs v36:
         #   1. Batch yfinance download (5 ticker/chiamata) → -80% latenza
         #   2. Smart skip: ticker in cache fresca bypassano completamente il pool
         #   3. ETA live: stima tempo rimanente basata su velocità corrente
@@ -204,7 +223,7 @@ except ImportError:
         _size_cap = 24 if n_stale > 300 else 20 if n_stale > 150 else 16 if n_stale > 80 else 12
         nw = min(max(n_workers, 1), max(4, _cpu_count * 2), _size_cap)
 
-        # ── v42 BATCH DOWNLOAD: raggruppa ticker in batch da 5 ────────────
+        # ── v37 BATCH DOWNLOAD: raggruppa ticker in batch da 5 ────────────
         # yfinance supporta download multiplo: yf.download("AAPL MSFT NVDA")
         # Riduce il numero di connessioni HTTP del ~80%
         _BATCH_SIZE = 5
@@ -300,7 +319,7 @@ except ImportError:
         df_ep  = pd.DataFrame(rep)  if rep  else pd.DataFrame()
         df_rea = pd.DataFrame(rrea) if rrea else pd.DataFrame()
 
-        # Soglie percentile dinamico (v42, mantenuto)
+        # Soglie percentile dinamico (v36, mantenuto)
         if not df_ep.empty and "Pro_Score" in df_ep.columns:
             _scores = pd.to_numeric(df_ep["Pro_Score"], errors="coerce").dropna()
             if len(_scores) > 0:
@@ -346,13 +365,13 @@ except ImportError as _bt_ie:
         st.warning(f"⚠️ backtest_tab.py non trovato: {_bt_ie}")
         st.info("Carica utils/backtest_tab.py nel repo e fai redeploy.")
 # =========================================================================
-# v42 ENGINE FUNCTIONS
+# v36 ENGINE FUNCTIONS
 # =========================================================================
 
 # ── #1 MARKET REGIME DETECTION ───────────────────────────────────────────
 @st.cache_data(ttl=120)
 def _get_market_regime():
-    """v42 ENHANCED: VIX+SPY+QQQ+IWM+TLT+TNX, Fear&Greed proxy, breadth multi-indice."""
+    """v36 ENHANCED: VIX+SPY+QQQ+IWM+TLT+TNX, Fear&Greed proxy, breadth multi-indice."""
     import yfinance as _yf
     import math as _m
     try:
@@ -966,7 +985,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
                   "B" if v >= 60 else
                   "C" if v >= 40 else "D")
 
-    # ── v42 UPGRADE #6 — RELATIVE STRENGTH vs SPY ───────────────────────
+    # ── v36 UPGRADE #6 — RELATIVE STRENGTH vs SPY ───────────────────────
     df = _add_rs_column(df)
 
     return df
@@ -1047,7 +1066,7 @@ hr{border-color:#1f2937 !important;}
 .legend-col-range{color:#f59e0b;}
 .crit-ok{color:#00ff88;font-weight:bold;}
 .crit-no{color:#ef4444;}
-/* v42 MOBILE */
+/* v39 MOBILE */
 @media(max-width:480px){
  [data-testid="block-container"]{padding:0.5rem!important}
  [data-testid="stMetricValue"]{font-size:1.2rem!important}
@@ -1880,7 +1899,7 @@ this.eGui.style.color=v>0?'#00ff88':v<0?'#ef4444':'#6b7280';
 this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';}
 }getGui(){return this.eGui;}}""")
 
-# v42 — RS vs SPY renderer (barra orizzontale con valore)
+# v36 — RS vs SPY renderer (barra orizzontale con valore)
 rs_renderer=JsCode("""class RS{init(p){
 this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:4px;height:100%;';
@@ -1899,7 +1918,7 @@ lbl.style.cssText='font-family:Courier New;font-size:0.78rem;color:'+col+';min-w
 this.eGui.appendChild(lbl);this.eGui.appendChild(bar);
 }getGui(){return this.eGui;}}""")
 
-# v42 — RS Rank renderer (0-100 badge)
+# v36 — RS Rank renderer (0-100 badge)
 rs_rank_renderer=JsCode("""class RR{init(p){this.eGui=document.createElement('span');
 const v=parseInt(p.value||0);
 const col=v>=80?'#00ff88':v>=60?'#26a69a':v>=40?'#f59e0b':'#ef4444';
@@ -1973,7 +1992,7 @@ PRESETS={
 st.set_page_config(page_title="Trading Scanner PRO 39.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 39.0")
-st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">SCANNER V39 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -2071,7 +2090,7 @@ with st.sidebar.container():
             st.rerun()
     with _qf_cols[1]:
         if st.button("🎯 Bilanciato", key="qf_balanced", use_container_width=True,
-                     help="Reset filtri bilanciati (default v42)"):
+                     help="Reset filtri bilanciati (default v36)"):
             for k,v in PRESETS["⚖️ Bilanciato"].items():
                 st.session_state[k] = v
             st.session_state.show_strong_only = False
@@ -2215,7 +2234,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
     st.divider()
     # ── v34: Filtro CSS (Composite Signal Score) ─────────────────────────
     css_filter_enabled = st.checkbox(
-        "🏆 Filtro CSS (v42)",
+        "🏆 Filtro CSS (v36)",
         value=bool(st.session_state.get("css_filter_enabled", False)),
         help="Mostra solo titoli con Composite Signal Score sopra la soglia. "
              "CSS combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV.",
@@ -2242,7 +2261,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
         options=["Tutti","WEAK+","MODERATE+","STRONG"],
         index=["Tutti","WEAK+","MODERATE+","STRONG"].index(
             st.session_state.get("ts_filter","Tutti")),
-        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v42)",
+        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v36)",
         key="sb_ts_filter",
     )
     st.session_state["ts_filter"] = ts_filter
@@ -2289,7 +2308,7 @@ if st.sidebar.button("⚠️ Reset Watchlist DB",key="rst_wl"):
     reset_watchlist_db(); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("⚡ Scanner v42")
+st.sidebar.subheader("⚡ Scanner v36")
 with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
     use_cache  = st.checkbox("⚡ Cache SQLite (più veloce)",True,key="use_cache",
                               help="Riusa dati yfinance già scaricati oggi (TTL 4h). "
@@ -2313,8 +2332,8 @@ with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
         except Exception as e:
             st.info("Cache non disponibile.")
 
-# ── v42 UPGRADE #3 — SCANNER SCHEDULER ────────────────────────────────────
-with st.sidebar.expander("⏰ Auto-Scanner v42", expanded=False):
+# ── v36 UPGRADE #3 — SCANNER SCHEDULER ────────────────────────────────────
+with st.sidebar.expander("⏰ Auto-Scanner v36", expanded=False):
     st.caption("Scan automatico a intervalli regolari.")
     _sched_enabled = st.checkbox("🟢 Abilita Auto-Scan", key="sched_enabled",
                                   value=st.session_state.get("sched_enabled", False))
@@ -2360,7 +2379,7 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
         st.sidebar.success("Storico cancellato.");st.rerun()
     except Exception as e: st.sidebar.error(f"Errore: {e}")
 
-# ── v42: AI multi-provider status in sidebar ────────────────────────────
+# ── v37: AI multi-provider status in sidebar ────────────────────────────
 _ai_providers_status = {
     "🟢 Gemini":     bool(st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key","")),
     "🟣 Groq":       bool(st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key","")),
@@ -2641,7 +2660,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
            # Nuove colonne v34
            "Dollar_Vol":110,"Liq_Grade":130,"ATR_pct":90,"ATR_OK":85,"Liq_OK":80,
            "CSS":130,"CSS_Grade":85,"Trend_Strength":120,"ADX_Proxy":110,
-           # v42
+           # v36
            "RS_20d":120,"RS_Rank":80,
            "RSI_Div_Score":90,
            # v34 REA-HOT
@@ -2677,7 +2696,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
           "CSS":css_renderer,
           "CSS_Grade":css_grade_renderer,
           "Trend_Strength":trend_strength_renderer,
-          # v42
+          # v36
           "RS_20d":rs_renderer,
           "RS_Rank":rs_rank_renderer,
           "Dist_POC_%":JsCode("""class DP{init(p){this.eGui=document.createElement('span');const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'\u2014':v.toFixed(2)+'%';this.eGui.style.fontFamily='Courier New';}getGui(){return this.eGui;}}""")}
@@ -2689,7 +2708,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
     # v34 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
     if "CSS" in df_disp.columns:
         gb.configure_column("CSS", pinned="right", sort="desc",
-                            headerTooltip="Composite Signal Score v42 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
+                            headerTooltip="Composite Signal Score v36 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
     if "CSS_Grade" in df_disp.columns:
         gb.configure_column("CSS_Grade", pinned="right",
                             headerTooltip="A≥80 | B≥60 | C≥40 | D<40")
@@ -2756,7 +2775,7 @@ function(p){
                       data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
                       fit_columns_on_grid_load=False,theme="streamlit",
                       allow_unsafe_jscode=True,key=grid_key)
-        # v42: verifica che AgGrid abbia restituito dati — altrimenti fallback
+        # v39: verifica che AgGrid abbia restituito dati — altrimenti fallback
         _resp_data = resp.get("data", None)
         if _resp_data is not None and hasattr(_resp_data, '__len__') and len(_resp_data) == 0 and len(df_disp) > 0:
             raise ValueError("AgGrid returned empty data — using fallback")
@@ -3090,13 +3109,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v42."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v36."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v42."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v36."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -3243,7 +3262,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     valid_sort=[c for c in sort_cols if c in df_f.columns]
     if valid_sort: df_f=df_f.sort_values(valid_sort,ascending=ascending[:len(valid_sort)])
 
-    # ── v42: Pannello diagnostica filtri sempre visibile ──────────────────
+    # ── v37: Pannello diagnostica filtri sempre visibile ──────────────────
     with st.expander(f"🔬 Diagnostica filtri — {len(df_f)} segnali visibili", expanded=False):
         _n_raw = len(df)
         _n_after_state  = len(df_f) + 0  # dopo classificazione (prima del head)
@@ -3289,17 +3308,17 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
             "Oppure aumenta il TOP N (sidebar) per vedere più risultati."
         )
 
-    # ── v42: Opzioni ordinamento inline ───────────────────────────────────
+    # ── v37: Opzioni ordinamento inline ───────────────────────────────────
     _sort_options = {
         "🏆 CSS (default)":      ("CSS", False),
         "📈 RS vs SPY":          ("RS_20d", False),
-        "⚡ Momentum (Pro×RSI)": ("_Momentum_v42", False),
+        "⚡ Momentum (Pro×RSI)": ("_Momentum_v37", False),
         "📊 Quality Score":      ("Quality_Score", False),
         "🔥 Volume Ratio":       ("Vol_Ratio", False),
         "📡 Early Score":        ("Early_Score", False),
     }
     _sort_avail = {k:v for k,v in _sort_options.items()
-                   if v[0] in df_f.columns or v[0] == "_Momentum_v42"}
+                   if v[0] in df_f.columns or v[0] == "_Momentum_v37"}
 
     _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
     with _sc1:
@@ -3330,9 +3349,9 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     # Applica ordinamento scelto
     _sort_col, _sort_asc = _sort_avail.get(_sort_choice, ("CSS", False))
 
-    if _sort_col == "_Momentum_v42" and "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
+    if _sort_col == "_Momentum_v37" and "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
         df_f = df_f.copy()
-        df_f["_Momentum_v42"] = (
+        df_f["_Momentum_v37"] = (
             pd.to_numeric(df_f["Pro_Score"], errors="coerce").fillna(0) * 10 +
             pd.to_numeric(df_f["RSI"], errors="coerce").fillna(50)
         )
@@ -3386,7 +3405,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     with ce2: st.caption(f"Seleziona → **➕** per aggiungere a `{st.session_state.current_list_name}`. Doppio click Nome → TradingView.")
 
     grid_resp  =build_aggrid(df_disp,f"grid_{title}")
-    # v42 FIX: se AgGrid non renderizza (versione incompatibile), usa st.dataframe come fallback
+    # v39 FIX: se AgGrid non renderizza (versione incompatibile), usa st.dataframe come fallback
     try:
         selected_df=pd.DataFrame(grid_resp["selected_rows"])
     except Exception:
@@ -3465,7 +3484,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 # TABS
 # =========================================================================
-# ── v42: Menu sticky + 2 righe + font adattivo + tab attivo evidenziato ──
+# ── v37: Menu sticky + 2 righe + font adattivo + tab attivo evidenziato ──
 st.markdown("""<style>
 /* Sticky tab bar — rimane visibile scorrendo */
 [data-testid="stTabs"] {
@@ -3521,7 +3540,7 @@ st.markdown("""<style>
 
 
 # =========================================================================
-# v42 — FUNZIONI (prima dei tab per evitare NameError)
+# v39 — FUNZIONI (prima dei tab per evitare NameError)
 # =========================================================================
 
 _PATTERN_ALERTS_V39 = {
@@ -3535,7 +3554,7 @@ _PATTERN_ALERTS_V39 = {
     "bb_breakout":    {"label":"BB Breakout",        "icon":"🎯","desc":"Prezzo > EMA20+2xATR"},
 }
 
-def _detect_patterns_v42(row):
+def _detect_patterns_v39(row):
     out = []
     try:
         pr  = float(row.get("Prezzo",  0) or 0)
@@ -3557,8 +3576,8 @@ def _detect_patterns_v42(row):
     except Exception: pass
     return out
 
-def _render_pattern_alerts_v42(df_src, tab_name="x"):
-    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v42 — Pattern Tecnici</div>', unsafe_allow_html=True)
+def _render_pattern_alerts_v39(df_src, tab_name="x"):
+    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v39 — Pattern Tecnici</div>', unsafe_allow_html=True)
     if df_src is None or (hasattr(df_src,"empty") and df_src.empty):
         st.info("Avvia lo scanner per rilevare i pattern."); return
     with st.expander("⚙️ Pattern da monitorare", expanded=False):
@@ -3568,7 +3587,7 @@ def _render_pattern_alerts_v42(df_src, tab_name="x"):
                for i,(pid,p) in enumerate(_PATTERN_ALERTS_V39.items())}
     _rows = []
     for _, r in df_src.iterrows():
-        _pats = [p for p in _detect_patterns_v42(r) if _en.get(p,True)]
+        _pats = [p for p in _detect_patterns_v39(r) if _en.get(p,True)]
         if _pats:
             _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
                           "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
@@ -3599,27 +3618,14 @@ def _render_pattern_alerts_v42(df_src, tab_name="x"):
                 except Exception: pass
     _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
     _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v42_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
+    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v39_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
 
-# ── v42 #2: News & Sentiment ───────────────────────────────────────────────
+# ── v39 #2: News & Sentiment ───────────────────────────────────────────────
 @st.cache_data(ttl=600)
-def _fetch_news_v42(tickers:tuple)->list:
+def _fetch_news_v39(tickers:tuple)->list:
     import urllib.request as _ur, xml.etree.ElementTree as _ET
     _BULL={"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong","growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
     _BEAR={"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss","decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
-
-    # Cache nomi aziende
-    _names={}
-    try:
-        import yfinance as yf
-        for _t in tickers[:25]:
-            try:
-                _tk=yf.Ticker(_t)
-                _info=_tk.info if hasattr(_tk,'info') else {}
-                _names[_t]=_info.get("shortName",_info.get("longName",_t))
-            except: _names[_t]=_t
-    except Exception: _names={t:t for t in tickers}
-
     _res=[]
     for _t in tickers[:20]:
         try:
@@ -3631,15 +3637,12 @@ def _fetch_news_v42(tickers:tuple)->list:
                 _title=_item.findtext("title",""); _words=set(_title.lower().split())
                 _b=len(_words&_BULL); _br=len(_words&_BEAR)
                 _sent="🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
-                _tk_name=_names.get(_t,_t)
-                _tv_link=f"https://it.tradingview.com/symbols/{_t.replace('.','-')}" if '.' not in _t else f"https://it.tradingview.com/symbols/{_t}"
-                _res.append({"Ticker":_t,"Nome":_tk_name,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
-                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link",""),
-                             "TVLink":_tv_link})
+                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
+                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
         except Exception: pass
     return sorted(_res,key=lambda x:abs(x["Score"]),reverse=True)
 
-def _render_news_v42(df_ep_news):
+def _render_news_v39(df_ep_news):
     _tickers=[]
     if not(df_ep_news is None or(hasattr(df_ep_news,"empty")and df_ep_news.empty)):
         if "Stato_Pro" in df_ep_news.columns:
@@ -3654,9 +3657,9 @@ def _render_news_v42(df_ep_news):
     if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
     _,_fc2=st.columns([3,1])
     with _fc2:
-        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v42")
-        if st.button("🔄 Aggiorna",key="ns_refresh_v42"): st.cache_data.clear(); st.rerun()
-    with st.spinner("Carico news..."): _news=_fetch_news_v42(tuple(_tickers))
+        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v39")
+        if st.button("🔄 Aggiorna",key="ns_refresh_v39"): st.cache_data.clear(); st.rerun()
+    with st.spinner("Carico news..."): _news=_fetch_news_v39(tuple(_tickers))
     if _nsf=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
     elif _nsf=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
     elif _nsf=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
@@ -3667,16 +3670,14 @@ def _render_news_v42(df_ep_news):
     st.markdown("---")
     for n in _news[:40]:
         _sc2="#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
-        _tk_nome=n.get("Nome",n["Ticker"])
-        _tv_link=n.get("TVLink","#")
-        _c1,_c2,_c3=st.columns([1.2,0.8,4])
-        _c1.markdown(f"<a href='{_tv_link}' target='_blank' style='color:#00ff88;font-weight:bold;text-decoration:none'>{n['Ticker']}</a> <span style='color:#6b7280;font-size:0.7rem'>{_tk_nome}</span>",unsafe_allow_html=True)
+        _c1,_c2,_c3=st.columns([1,0.8,4.5])
+        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>",unsafe_allow_html=True)
         _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
         _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
 
-# ── v42 #3: Macro Calendar ─────────────────────────────────────────────────
+# ── v39 #3: Macro Calendar ─────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def _fetch_macro_v42()->list:
+def _fetch_macro_v39()->list:
     import calendar as _cal
     _today=datetime.now().date()
     _events=[]
@@ -3700,9 +3701,9 @@ def _fetch_macro_v42()->list:
         except Exception: pass
     return sorted(_events,key=lambda x:x["Giorni"])
 
-# ── v42 #4: Short Interest + Options + Insider ─────────────────────────────
+# ── v39 #4: Short Interest + Options + Insider ─────────────────────────────
 @st.cache_data(ttl=3600)
-def _fetch_short_v42(tickers:tuple)->dict:
+def _fetch_short_v39(tickers:tuple)->dict:
     import yfinance as _yf_si
     _res={}
     for _t in tickers[:40]:
@@ -3713,7 +3714,7 @@ def _fetch_short_v42(tickers:tuple)->dict:
     return _res
 
 @st.cache_data(ttl=900)
-def _fetch_options_v42(ticker:str)->dict:
+def _fetch_options_v39(ticker:str)->dict:
     import yfinance as _yf_op
     try:
         _tk=_yf_op.Ticker(ticker); _exps=_tk.options
@@ -3727,7 +3728,7 @@ def _fetch_options_v42(ticker:str)->dict:
     except Exception: return {}
 
 @st.cache_data(ttl=3600)
-def _fetch_insider_v42(tickers:tuple)->list:
+def _fetch_insider_v39(tickers:tuple)->list:
     import urllib.request as _ur, json as _js
     _res=[]
     for _t in tickers[:15]:
@@ -3743,7 +3744,7 @@ def _fetch_insider_v42(tickers:tuple)->list:
 
 # =========================================================================
 
-def _render_ai_explainer_v42(df_source, tab_name="PRO"):
+def _render_ai_explainer_v37(df_source, tab_name="PRO"):
     """AI Signal Explainer — multi-provider con fallback automatico."""
     st.markdown(
         '<div class="section-pill">🤖 MODULO 2 — AI ANALYST · Setup · Target · Invalidazione · Rischio</div>',
@@ -3756,9 +3757,6 @@ def _render_ai_explainer_v42(df_source, tab_name="PRO"):
         st.secrets.get("GROQ_API_KEY","")        or st.session_state.get("_groq_api_key",""),
         st.secrets.get("OPENROUTER_API_KEY","")  or st.session_state.get("_openrouter_api_key",""),
         st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
-        st.secrets.get("HUGGINGFACE_API_KEY","") or st.session_state.get("_huggingface_api_key",""),
-        st.secrets.get("COHERE_API_KEY","")      or st.session_state.get("_cohere_api_key",""),
-        st.secrets.get("PERPLEXITY_API_KEY","")  or st.session_state.get("_perplexity_api_key",""),
     ])
 
     with st.expander(
@@ -3771,20 +3769,12 @@ def _render_ai_explainer_v42(df_source, tab_name="PRO"):
             "Configura almeno una key. Il sistema usa quella disponibile con fallback automatico.<br><br>"
             "🟢 <b>Gemini Flash</b> — gratis · <a href='https://aistudio.google.com' target='_blank' "
             "style='color:#2962ff'>aistudio.google.com</a> → Get API Key<br>"
-            "🟠 <b>HuggingFace</b> — gratis · <a href='https://huggingface.co' target='_blank' "
-            "style='color:#2962ff'>huggingface.co</a> → Settings → Tokens<br>"
-            "🔷 <b>Cohere</b> — free tier · <a href='https://cohere.com' target='_blank' "
-            "style='color:#2962ff'>cohere.com</a> → API Keys<br>"
-            "🟣 <b>Perplexity</b> — free tier · <a href='https://perplexity.ai' target='_blank' "
-            "style='color:#2962ff'>perplexity.ai</a> → Settings → API<br>"
-            "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
-            "style='color:#2962ff'>openrouter.ai</a> → Keys<br>"
             "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
-            "style='color:#2962ff'>console.groq.com</a> → API Keys<br>"
+            "style='color:#2962ff'>console.groq.com</a> → API Keys → Create<br>"
+            "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
+            "style='color:#2962ff'>openrouter.ai</a> → Keys → Create Key<br>"
             "🟡 <b>Claude</b> — a pagamento · <a href='https://console.anthropic.com' target='_blank' "
-            "style='color:#2962ff'>console.anthropic.com</a> → API Keys<br>"
-            "🏠 <b>Ollama</b> — locale (gratis) · <a href='https://ollama.com' target='_blank' "
-            "style='color:#2962ff'>ollama.com</a> → Download"
+            "style='color:#2962ff'>console.anthropic.com</a> → API Keys"
             "</div>",
             unsafe_allow_html=True
         )
@@ -3797,24 +3787,12 @@ def _render_ai_explainer_v42(df_source, tab_name="PRO"):
                 value=_gem_cur, type="password",
                 placeholder="AIzaSy...",
                 key=f"gem_inp_{tab_name}")
-            # HuggingFace
-            _hf_cur = st.session_state.get("_huggingface_api_key","")
-            _hf_inp = st.text_input("🟠 HuggingFace API Key",
-                value=_hf_cur, type="password",
-                placeholder="hf_...",
-                key=f"hf_inp_{tab_name}")
-            # Cohere
-            _coh_cur = st.session_state.get("_cohere_api_key","")
-            _coh_inp = st.text_input("🔷 Cohere API Key",
-                value=_coh_cur, type="password",
-                placeholder="...",
-                key=f"coh_inp_{tab_name}")
-            # Perplexity
-            _perp_cur = st.session_state.get("_perplexity_api_key","")
-            _perp_inp = st.text_input("🟣 Perplexity API Key",
-                value=_perp_cur, type="password",
-                placeholder="...",
-                key=f"perp_inp_{tab_name}")
+            # Groq
+            _groq_cur = st.session_state.get("_groq_api_key","")
+            _groq_inp = st.text_input("🟣 Groq API Key",
+                value=_groq_cur, type="password",
+                placeholder="gsk_...",
+                key=f"groq_inp_{tab_name}")
         with _kc2:
             # OpenRouter
             _or_cur = st.session_state.get("_openrouter_api_key","")
@@ -3822,43 +3800,38 @@ def _render_ai_explainer_v42(df_source, tab_name="PRO"):
                 value=_or_cur, type="password",
                 placeholder="sk-or-...",
                 key=f"or_inp_{tab_name}")
-            # Groq
-            _groq_cur = st.session_state.get("_groq_api_key","")
-            _groq_inp = st.text_input("🟣 Groq API Key",
-                value=_groq_cur, type="password",
-                placeholder="gsk_...",
-                key=f"groq_inp_{tab_name}")
             # Claude
             _ant_cur = st.session_state.get("_anthropic_api_key","")
             _ant_inp = st.text_input("🟡 Claude API Key",
                 value=_ant_cur, type="password",
-                placeholder="sk-ant-...",
+                placeholder="sk-ant-api03-...",
                 key=f"ant_inp_{tab_name}")
 
-        # Salva tutte le chiavi
-        if st.button("💾 Salva Keys", key=f"save_keys_{tab_name}"):
-            if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
-            if _hf_inp.strip():   st.session_state["_huggingface_api_key"]= _hf_inp.strip()
-            if _coh_inp.strip(): st.session_state["_cohere_api_key"]      = _coh_inp.strip()
-            if _perp_inp.strip():st.session_state["_perplexity_api_key"] = _perp_inp.strip()
-            if _or_inp.strip():  st.session_state["_openrouter_api_key"] = _or_inp.strip()
-            if _groq_inp.strip():st.session_state["_groq_api_key"]       = _groq_inp.strip()
-            if _ant_inp.strip():st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
-            st.success("✅ Keys salvate!"); st.rerun()
-
-        st.caption("💡 Ollama: installa localmente, non serve key. Gli altri provider hanno free tier.")
+        _save_col, _reset_col, _ = st.columns([1,1,2])
+        with _save_col:
+            if st.button("💾 Salva keys", key=f"ai_keys_save_{tab_name}", type="primary",
+                         use_container_width=True):
+                if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
+                if _groq_inp.strip(): st.session_state["_groq_api_key"]       = _groq_inp.strip()
+                if _or_inp.strip():   st.session_state["_openrouter_api_key"] = _or_inp.strip()
+                if _ant_inp.strip():  st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
+                st.success("✅ Keys salvate per questa sessione!")
+                st.rerun()
+        with _reset_col:
+            if st.button("🗑️ Reset tutte", key=f"ai_keys_reset_{tab_name}",
+                         use_container_width=True):
+                for _k in ["_gemini_api_key","_groq_api_key",
+                           "_openrouter_api_key","_anthropic_api_key"]:
+                    st.session_state.pop(_k, None)
+                st.rerun()
 
         # Status provider
         _prov_status = []
         for _pn, _sk, _ssk in [
-            ("🟢 Gemini",      "GEMINI_API_KEY",       "_gemini_api_key"),
-            ("🟠 HuggingFace", "HUGGINGFACE_API_KEY",  "_huggingface_api_key"),
-            ("🔷 Cohere",     "COHERE_API_KEY",       "_cohere_api_key"),
-            ("🟣 Perplexity", "PERPLEXITY_API_KEY",   "_perplexity_api_key"),
-            ("🔵 OpenRouter", "OPENROUTER_API_KEY",    "_openrouter_api_key"),
-            ("🟣 Groq",       "GROQ_API_KEY",         "_groq_api_key"),
-            ("🟡 Claude",     "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
-            ("🏠 Ollama",     "-",                    "-"),
+            ("🟢 Gemini",    "GEMINI_API_KEY",     "_gemini_api_key"),
+            ("🟣 Groq",      "GROQ_API_KEY",        "_groq_api_key"),
+            ("🔵 OpenRouter","OPENROUTER_API_KEY",   "_openrouter_api_key"),
+            ("🟡 Claude",    "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
         ]:
             _ok = bool(st.secrets.get(_sk,"") or st.session_state.get(_ssk,""))
             _prov_status.append(f"{'✅' if _ok else '❌'} {_pn}")
@@ -4022,7 +3995,7 @@ def _render_ai_explainer_v42(df_source, tab_name="PRO"):
 
 
 # =========================================================================
-# v42 UPGRADE #4 — TELEGRAM ALERT ENGINE
+# v37 UPGRADE #4 — TELEGRAM ALERT ENGINE
 # =========================================================================
 
 def _ai_call_gemini(api_key: str, prompt: str) -> str:
@@ -4088,68 +4061,9 @@ def _ai_call_claude(api_key: str, prompt: str) -> str:
     raise Exception(f"Claude {_resp.status_code}: {_err.get('message','')[:120]}")
 
 
-def _ai_call_huggingface(api_key: str, prompt: str) -> str:
-    """HuggingFace Inference API — free tier con limiti."""
-    import requests as _r
-    _resp = _r.post(
-        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={"inputs": prompt, "parameters": {"max_new_tokens": 300}},
-        timeout=30
-    )
-    if _resp.status_code == 200:
-        _j = _resp.json()
-        if isinstance(_j, list) and _j:
-            return _j[0].get("generated_text", str(_j))[:2000]
-        return str(_j)[:2000]
-    raise Exception(f"HuggingFace {_resp.status_code}: {_resp.text[:100]}")
-
-
-def _ai_call_cohere(api_key: str, prompt: str) -> str:
-    """Cohere API — free tier disponibile."""
-    import requests as _r
-    _resp = _r.post(
-        "https://api.cohere.ai/v1/chat",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": "command-r", "message": prompt, "max_tokens": 300},
-        timeout=25
-    )
-    if _resp.status_code == 200:
-        return _resp.json()["text"]
-    raise Exception(f"Cohere {_resp.status_code}: {_resp.text[:100]}")
-
-
-def _ai_call_ollama(prompt: str) -> str:
-    """Ollama — modelli locali gratuiti (richiede Ollama installato)."""
-    import requests as _r
-    try:
-        _resp = _r.post("http://localhost:11434/api/generate",
-            json={"model": "llama3", "prompt": prompt, "stream": False},
-            timeout=60)
-        if _resp.status_code == 200:
-            return _resp.json().get("response", "")[:2000]
-    except Exception as _e:
-        raise Exception(f"Ollama non disponibile: {_e}")
-    raise Exception("Ollama failed")
-
-
-def _ai_call_perplexity(api_key: str, prompt: str) -> str:
-    """Perplexity API — free tier disponibile."""
-    import requests as _r
-    _resp = _r.post(
-        "https://api.perplexity.ai/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": "llama-3.1-sonar-small-128k-online", "messages": [{"role": "user", "content": prompt}]},
-        timeout=25
-    )
-    if _resp.status_code == 200:
-        return _resp.json()["choices"][0]["message"]["content"]
-    raise Exception(f"Perplexity {_resp.status_code}: {_resp.text[:100]}")
-
-
 def _ai_call_with_fallback(prompt: str) -> tuple:
     """
-    Prova i provider in ordine: Gemini → HuggingFace → Cohere → Perplexity → OpenRouter → Groq → Claude.
+    Prova i provider in ordine: Gemini → Groq → OpenRouter → Claude.
     Restituisce (testo_risposta, provider_usato) o lancia Exception.
     """
     _ss = st.session_state
@@ -4157,44 +4071,21 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
     # Costruisce lista provider configurati nell'ordine preferito
     _providers = []
 
-    # Provider gratuiti / freemium
     _gem_key = st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key","")
     if _gem_key:
         _providers.append(("🟢 Gemini Flash", _ai_call_gemini, _gem_key))
-
-    _hf_key = st.secrets.get("HUGGINGFACE_API_KEY","") or _ss.get("_huggingface_api_key","")
-    if _hf_key:
-        _providers.append(("🟠 HuggingFace", _ai_call_huggingface, _hf_key))
-
-    _coh_key = st.secrets.get("COHERE_API_KEY","") or _ss.get("_cohere_api_key","")
-    if _coh_key:
-        _providers.append(("🔷 Cohere", _ai_call_cohere, _coh_key))
-
-    _perp_key = st.secrets.get("PERPLEXITY_API_KEY","") or _ss.get("_perplexity_api_key","")
-    if _perp_key:
-        _providers.append(("🟣 Perplexity", _ai_call_perplexity, _perp_key))
-
-    # Provider con free tier
-    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
-    if _or_key:
-        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
 
     _groq_key = st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key","")
     if _groq_key:
         _providers.append(("🟣 Groq Llama", _ai_call_groq, _groq_key))
 
-    # Provider a pagamento
+    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
+    if _or_key:
+        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
+
     _ant_key = st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")
     if _ant_key:
         _providers.append(("🟡 Claude Haiku", _ai_call_claude, _ant_key))
-
-    # Prova Ollama locale (senza API key)
-    try:
-        import requests as _r_test
-        _r_test.get("http://localhost:11434/", timeout=2)
-        _providers.append(("🏠 Ollama (locale)", _ai_call_ollama, ""))
-    except:
-        pass
 
     if not _providers:
         raise Exception("NO_KEYS")
@@ -4202,11 +4093,7 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
     _errors = []
     for _name, _fn, _key in _providers:
         try:
-            # Ollama non richiede api_key
-            if "Ollama" in _name:
-                _result = _fn(prompt)
-            else:
-                _result = _fn(_key, prompt)
+            _result = _fn(_key, prompt)
             return _result, _name
         except Exception as _e:
             _errors.append(f"{_name}: {_e}")
@@ -4235,19 +4122,14 @@ tabs = st.tabs([
     "⚖️ Risk Manager",
     "📈 Backtest",
     "💡 Analisi Personale",
-    "🤖 AI Assistant",       # v42 #1
-    "🎲 Options Scanner",    # v42 #2
-    "⚡ Momentum Alerts",     # v42 #3
-    "📰 News & Sentiment",    # v42 #4
 ])
 (tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
  tab_ser, tab_fvpro, tab_of, tab_crisis,
  tab_mtfmatrix, tab_journal, tab_regime,
- tab_w, tab_rm, tab_bt, tab_analisi,
- tab_ai, tab_opts, tab_mom, tab_news) = tabs
+ tab_w, tab_rm, tab_bt, tab_analisi) = tabs
 
 with tab_home:
-    # ── v42 #1 — MARKET REGIME BANNER ────────────────────────────────────
+    # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
     try:
         _regime_data = _get_market_regime()
         _rc = _regime_data["color"]; _ri = _regime_data["icon"]
@@ -4282,244 +4164,103 @@ with tab_home:
     except Exception:
         pass
 
-    # ── v42 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
+    # ── v36 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
     if st.session_state.get("_trigger_autoscan"):
         st.session_state["_trigger_autoscan"] = False
         st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
 
-    # ── v42 — MERCATI LIVE GLOBALE (full panel, multi-row, YTD) ─────────────
+    # ── v36 — MERCATI LIVE con FTSE MIB ──────────────────────────────────
+    # Sovrascrive la barra di home_tab aggiungendo FTSE MIB dopo Russell2K
     @st.cache_data(ttl=60, show_spinner=False)
-    def _fetch_live_markets_v42():
+    def _fetch_live_markets_v36():
         import yfinance as _yf_live
         _mkts = [
-            # Azionari USA
-            ("^GSPC",       "S&P 500",        "🇺🇸"),
-            ("^IXIC",       "NASDAQ",          "💻"),
-            ("^DJI",        "Dow Jones",       "🏭"),
-            ("^RUT",        "Russell 2K",      "📊"),
-            # Azionari Europa
-            ("FTSEMIB.MI",  "FTSE MIB",        "🇮🇹"),
-            ("^FTSE",       "FTSE 100",        "🇬🇧"),
-            ("^GDAXI",      "DAX 40",          "🇩🇪"),
-            ("^FCHI",       "CAC 40",          "🇫🇷"),
-            ("^IBEX",       "IBEX 35",         "🇪🇸"),
-            ("^AEX",        "AEX Olanda",      "🇳🇱"),
-            ("^SSMI",       "SMI Svizzera",    "🇨🇭"),
-            # Azionari Asia / EM
-            ("^N225",       "Nikkei 225",      "🇯🇵"),
-            ("^HSI",        "Hang Seng",       "🇭🇰"),
-            ("000001.SS",   "Shanghai",        "🇨🇳"),
-            ("^KS11",       "KOSPI Korea",     "🇰🇷"),
-            ("^BVSP",       "BVSP Brasile",    "🇧🇷"),
-            ("^NSEI",       "Nifty 50 India",  "🇮🇳"),
-            # Volatilità
-            ("^VIX",        "VIX",             "😰"),
-            ("^VXN",        "VXN NASDAQ",      "😱"),
-            # Crypto
-            ("BTC-USD",     "Bitcoin",         "₿"),
-            ("ETH-USD",     "Ethereum",        "⟠"),
-            # Commodities
-            ("GC=F",        "Gold",            "🥇"),
-            ("SI=F",        "Argento",         "⚪"),
-            ("CL=F",        "Oil WTI",         "🛢️"),
-            ("NG=F",        "Gas Naturale",    "🔥"),
-            ("HG=F",        "Rame",            "🟤"),
-            ("ZW=F",        "Grano",           "🌾"),
-            # Valute & Bond
-            ("DX-Y.NYB",    "DXY",             "💵"),
-            ("EURUSD=X",    "EUR/USD",         "🇪🇺"),
-            ("JPY=X",       "USD/JPY",         "¥"),
-            ("TLT",         "TLT Bond 20Y",    "🏦"),
+            ("^GSPC",   "S&P 500",    "🇺🇸"),
+            ("^IXIC",   "NASDAQ",     "💻"),
+            ("^DJI",    "Dow Jones",  "🏭"),
+            ("^RUT",    "Russell2K",  "📊"),
+            ("FTSEMIB.MI","FTSE MIB", "🇮🇹"),
+            ("^VIX",    "VIX",        "😰"),
+            ("BTC-USD", "Bitcoin",    "₿"),
+            ("GC=F",    "Gold",       "🥇"),
+            ("CL=F",    "Oil WTI",    "🛢️"),
+            ("DX-Y.NYB","DXY",        "💵"),
         ]
         _results = []
         for _sym, _name, _ico in _mkts:
             try:
-                _dy = _yf_live.download(_sym, period="ytd", interval="1d",
-                                        auto_adjust=True, progress=False, threads=False)
-                _dy.columns = [co[0] if isinstance(co,tuple) else co for co in _dy.columns]
-                _cly = _dy["Close"].dropna()
-                _d5 = _yf_live.download(_sym, period="5d", interval="1d",
-                                        auto_adjust=True, progress=False, threads=False)
-                _d5.columns = [co[0] if isinstance(co,tuple) else co for co in _d5.columns]
-                _cl5 = _d5["Close"].dropna()
-                if len(_cl5) < 1:
+                _d = _yf_live.download(_sym, period="5d", interval="1d",
+                                       auto_adjust=True, progress=False)
+                _d.columns = [c[0] if isinstance(c,tuple) else c for c in _d.columns]
+                _cl_v = _d["Close"].dropna()
+                if len(_cl_v) >= 2:
+                    _cur = float(_cl_v.iloc[-1])
+                    _prev= float(_cl_v.iloc[-2])
+                    _chg = (_cur/_prev-1)*100
+                elif len(_cl_v) == 1:
+                    _cur = float(_cl_v.iloc[-1])
+                    _chg = 0.0
+                else:
                     continue
-                _cur  = float(_cl5.iloc[-1])
-                _chg  = (_cur / float(_cl5.iloc[-2]) - 1)*100 if len(_cl5)>=2 else 0.0
-                _ytd  = (_cur / float(_cly.iloc[0]) - 1)*100  if len(_cly)>=2 else None
                 _results.append({"sym":_sym,"name":_name,"icon":_ico,
-                                 "price":_cur,"chg":_chg,"ytd":_ytd})
+                                 "price":_cur,"chg":_chg})
             except Exception:
                 pass
         return _results
 
     try:
-        _live_data_v42 = _fetch_live_markets_v42()
-        if _live_data_v42:
+        _live_data = _fetch_live_markets_v36()
+        if _live_data:
             _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-            _groups = [
-                ("🇺🇸 Azionari USA",          ["^GSPC","^IXIC","^DJI","^RUT"]),
-                ("🌍 Azionari Europa",         ["FTSEMIB.MI","^FTSE","^GDAXI","^FCHI","^IBEX","^AEX","^SSMI"]),
-                ("🌏 Azionari Asia / EM",      ["^N225","^HSI","000001.SS","^KS11","^BVSP","^NSEI"]),
-                ("😰 Volatilità · ₿ Crypto",   ["^VIX","^VXN","BTC-USD","ETH-USD"]),
-                ("🥇 Commodities",             ["GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F"]),
-                ("💵 Valute · 🏦 Bond",        ["DX-Y.NYB","EURUSD=X","JPY=X","TLT"]),
-            ]
-            _data_map = {m["sym"]: m for m in _live_data_v42}
-
-            def _fmt_price_v42(m):
-                s = m["sym"]; p = m["price"]
-                if s in ("BTC-USD",):                return f"${p:,.0f}"
-                if s in ("GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F","ETH-USD"): return f"${p:,.2f}"
-                if s in ("^VIX","^VXN","DX-Y.NYB","EURUSD=X","JPY=X"):         return f"{p:,.3f}" if p < 10 else f"{p:,.2f}"
-                if p > 10000: return f"{p:,.0f}"
-                if p > 1000:  return f"{p:,.1f}"
-                return f"{p:,.2f}"
-
-            _yf_url = "https://it.finance.yahoo.com/markets/"
+            # v36: header SOPRA i box, box su riga separata con scroll orizzontale
             _live_html = (
-                f"<div style='background:#1a1e2e;border:1px solid #2a2e39;"
-                f"border-left:4px solid #2962ff;"
-                f"border-radius:0 10px 10px 0;padding:14px 18px 16px 18px;margin-bottom:16px'>"
-                f"<div style='margin-bottom:12px'>"
-                f"<a href='{_yf_url}' target='_blank' style='text-decoration:none'>"
-                f"<span style='color:#2962ff;font-weight:bold;font-size:0.90rem;"
-                f"letter-spacing:1.5px'>📊 MERCATI LIVE</span></a>"
-                f"<span style='color:#6b7280;font-size:0.73rem;margin-left:12px'>{_now_str}</span>"
-                f"<span style='color:#374151;font-size:0.70rem;margin-left:10px'>· aggiorna ogni 60s · YTD = performance da inizio anno</span>"
+                f"<div style='background:#1e222d;border-left:3px solid #2962ff;"
+                f"border-radius:0 6px 6px 0;padding:6px 12px 8px 12px;margin-bottom:10px'>"
+                # Riga 1: titolo + timestamp
+                f"<div style='color:#2962ff;font-weight:bold;font-size:0.78rem;"
+                f"letter-spacing:1px;margin-bottom:6px'>"
+                f"📊 MERCATI LIVE "
+                f"<span style='color:#6b7280;font-weight:normal;font-size:0.72rem'>{_now_str}</span>"
                 f"</div>"
+                # Riga 2: box mercati scrollabili
+                f"<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:2px'>"
             )
-
-            for _grp_name, _syms in _groups:
-                _avail = [s for s in _syms if s in _data_map]
-                if not _avail: continue
+            for _m in _live_data:
+                _c  = "#26a69a" if _m["chg"]>=0 else "#ef4444"
+                _ar = "▲" if _m["chg"]>=0 else "▼"
+                _pr = (f"${_m['price']:,.2f}" if _m["sym"] in ("GC=F","CL=F","BTC-USD")
+                       else f"{_m['price']:,.2f}" if _m["sym"] in ("^VIX","DX-Y.NYB")
+                       else f"{_m['price']:,.0f}" if _m["price"]>1000
+                       else f"{_m['price']:,.2f}")
                 _live_html += (
-                    f"<div style='margin-bottom:12px'>"
-                    f"<div style='color:#50c4e0;font-size:0.68rem;font-weight:bold;"
-                    f"letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;"
-                    f"border-bottom:1px solid #2a2e39;padding-bottom:4px'>"
-                    f"{_grp_name}</div>"
-                    f"<div style='display:flex;gap:8px;flex-wrap:wrap'>"
+                    f"<div style='background:#131722;border:1px solid #2a2e39;"
+                    f"border-top:2px solid {_c}44;"
+                    f"border-radius:4px;padding:5px 10px;"
+                    f"min-width:100px;flex-shrink:0;text-align:center'>"
+                    f"<div style='color:#787b86;font-size:0.65rem;white-space:nowrap'>{_m['icon']} {_m['name']}</div>"
+                    f"<div style='color:#d1d4dc;font-family:Courier New;font-size:0.82rem;"
+                    f"font-weight:bold;margin:2px 0'>{_pr}</div>"
+                    f"<div style='color:{_c};font-size:0.70rem;font-weight:bold'>"
+                    f"{_ar} {abs(_m['chg']):.2f}%</div>"
+                    f"</div>"
                 )
-                for _sym in _avail:
-                    _m   = _data_map[_sym]
-                    _c   = "#26a69a" if _m["chg"]>=0 else "#ef4444"
-                    _ar  = "▲" if _m["chg"]>=0 else "▼"
-                    _pr  = _fmt_price_v42(_m)
-                    _ytd = _m.get("ytd")
-                    if _ytd is not None:
-                        _ytd_c  = "#26a69a" if _ytd>=0 else "#ef4444"
-                        _ytd_ar = "▲" if _ytd>=0 else "▼"
-                        _ytd_html = (
-                            f"<div style='color:{_ytd_c};font-size:0.68rem;"
-                            f"margin-top:3px;font-weight:500'>"
-                            f"YTD {_ytd_ar}{abs(_ytd):.1f}%</div>"
-                        )
-                    else:
-                        _ytd_html = "<div style='color:#374151;font-size:0.68rem;margin-top:3px'>YTD —</div>"
-
-                    _live_html += (
-                        f"<div style='background:#131722;border:1px solid #2a2e39;"
-                        f"border-top:3px solid {_c}88;"
-                        f"border-radius:6px;padding:9px 13px;"
-                        f"min-width:108px;max-width:160px;flex:1;text-align:center;"
-                        f"transition:border-color .2s'>"
-                        f"<div style='color:#9ca3af;font-size:0.68rem;white-space:nowrap;"
-                        f"margin-bottom:4px;letter-spacing:0.5px'>{_m['icon']} {_m['name']}</div>"
-                        f"<div style='color:#e2e8f0;font-family:Courier New;font-size:0.96rem;"
-                        f"font-weight:bold;letter-spacing:0.5px'>{_pr}</div>"
-                        f"<div style='color:{_c};font-size:0.75rem;font-weight:bold;margin-top:3px'>"
-                        f"{_ar} {abs(_m['chg']):.2f}%</div>"
-                        f"{_ytd_html}"
-                        f"</div>"
-                    )
-                _live_html += "</div></div>"
-
-            _live_html += "</div>"
+            _live_html += "</div></div>"
             st.markdown(_live_html, unsafe_allow_html=True)
     except Exception:
         pass
 
-        # ── v42 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
-    with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):
-        @st.cache_data(ttl=3600, show_spinner=False)
-        def _fetch_corr_v42():
-            import yfinance as _yc
-            _corr_syms = {
-                "S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DAX": "^GDAXI",
-                "FTSE MIB": "FTSEMIB.MI", "Nikkei": "^N225",
-                "Bitcoin": "BTC-USD", "Gold": "GC=F", "Oil WTI": "CL=F",
-                "Silver": "SI=F", "DXY": "DX-Y.NYB", "VIX": "^VIX",
-                "TLT Bond": "TLT",
-            }
-            _raw = _yc.download(
-                list(_corr_syms.values()), period="30d", interval="1d",
-                auto_adjust=True, progress=False, group_by="ticker"
-            )
-            _closes = {}
-            for _lab, _sym in _corr_syms.items():
-                try:
-                    if isinstance(_raw.columns, pd.MultiIndex):
-                        _s = _raw[(_sym, "Close")].dropna() if (_sym,"Close") in _raw.columns else _raw["Close"][_sym].dropna()
-                    else:
-                        _s = _raw["Close"].dropna()
-                    if len(_s) >= 10:
-                        _closes[_lab] = _s
-                except Exception:
-                    pass
-            if len(_closes) < 2:
-                return None
-            _df_c = pd.DataFrame(_closes).pct_change().dropna()
-            return _df_c.corr().round(2)
+    # v39: render_home nascosto — Mercati Live già mostrato sopra
+    try:
+        from utils.home_tab import render_home
+        # Inject CSS to hide the home_tab Mercati Live widget (already shown above)
+        st.markdown("<style>div[data-testid='stMarkdownContainer']:has(div.element-container:first-child){}</style>",unsafe_allow_html=True)
+        render_home(df_ep, df_rea)
+    except Exception:
+        pass
 
-        try:
-            _corr_df = _fetch_corr_v42()
-            if _corr_df is not None and not _corr_df.empty:
-                import plotly.graph_objects as _go_corr
-                _labs = list(_corr_df.columns)
-                _zvals = _corr_df.values.tolist()
-                _text  = [[f"{v:.2f}" for v in row] for row in _zvals]
-                _fig_corr = _go_corr.Figure(_go_corr.Heatmap(
-                    z=_zvals, x=_labs, y=_labs, text=_text,
-                    texttemplate="%{text}",
-                    colorscale=[
-                        [0.0,  "#ef4444"], [0.4, "#991b1b"],
-                        [0.5,  "#1e222d"],
-                        [0.6,  "#1a3a2e"], [1.0, "#26a69a"],
-                    ],
-                    zmid=0, zmin=-1, zmax=1,
-                    showscale=True,
-                    colorbar=dict(
-                        tickfont=dict(color="#787b86", size=10),
-                        bgcolor="#131722", bordercolor="#2a2e39",
-                    )
-                ))
-                _fig_corr.update_layout(
-                    paper_bgcolor="#131722", plot_bgcolor="#131722",
-                    margin=dict(l=10,r=10,t=10,b=10),
-                    height=420,
-                    font=dict(color="#d1d4dc", size=11),
-                    xaxis=dict(tickfont=dict(size=10), gridcolor="#2a2e39"),
-                    yaxis=dict(tickfont=dict(size=10), gridcolor="#2a2e39"),
-                )
-                st.plotly_chart(_fig_corr, use_container_width=True, key="home_corr_v42")
-                st.caption(
-                    "🟢 +1 = si muovono insieme (rischio correlato) &nbsp;·&nbsp; "
-                    "🔴 −1 = hedge naturale (si muovono opposti) &nbsp;·&nbsp; "
-                    "⬛ 0 = scorrelati. Periodo: 30gg giornaliero."
-                )
-            else:
-                st.info("Dati correlazione non disponibili — riprova tra qualche secondo.")
-        except Exception as _ce:
-            st.warning(f"Errore correlazioni: {str(_ce)[:120]}")
-
-    # v42: render_home saltato per evitare duplicato Mercati Live
-    # (i Mercati Live sono gia' nel blocco principale qui sopra)
-
-    # ── v42 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
+    # ── v36 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
-    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v42 — Prossimi earnings da Watchlist + Scanner</div>',
+    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v36 — Prossimi earnings da Watchlist + Scanner</div>',
                 unsafe_allow_html=True)
     _earn_tickers = set()
     # Da watchlist
@@ -4582,30 +4323,30 @@ with tab_home:
         st.info("Aggiungi ticker alla watchlist o avvia lo scanner per vedere gli earnings.")
 
     st.markdown('---')
-    with st.expander('📰 NEWS & SENTIMENT v42 — Ultime news con score sentiment · [TradingView Italia](https://it.tradingview.com/)', expanded=False):
-        _render_news_v42(df_ep)
+    with st.expander('📰 NEWS & SENTIMENT v39 — Ultime news con score sentiment', expanded=False):
+        _render_news_v39(df_ep)
     st.markdown('---')
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v42 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
-    _macro_ev42=_fetch_macro_v42()
-    _mc39=[e for e in _macro_ev42 if 0<=e['Giorni']<=14]
+    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v39 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
+    _macro_ev39=_fetch_macro_v39()
+    _mc39=[e for e in _macro_ev39 if 0<=e['Giorni']<=14]
     if _mc39:
         _mc39c=st.columns(min(len(_mc39),4))
-        for _i39,_ev42 in enumerate(_mc39[:4]):
-            _ic39='#ef4444' if 'High' in _ev42['Impatto'] else '#f59e0b'
-            _mc39c[_i39].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic39};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic39};font-size:0.70rem'>{_ev42['Impatto']} · {_ev42['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev42['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev42['Data']}</div></div>",unsafe_allow_html=True)
+        for _i39,_ev39 in enumerate(_mc39[:4]):
+            _ic39='#ef4444' if 'High' in _ev39['Impatto'] else '#f59e0b'
+            _mc39c[_i39].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic39};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic39};font-size:0.70rem'>{_ev39['Impatto']} · {_ev39['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev39['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev39['Data']}</div></div>",unsafe_allow_html=True)
     with st.expander('📅 Calendario completo 90 giorni',expanded=False):
-        for _ev42 in _macro_ev42[:20]:
-            _ic392='#ef4444' if 'High' in _ev42['Impatto'] else '#f59e0b' if 'Med' in _ev42['Impatto'] else '#6b7280'
-            _dot39='🔴' if _ev42['Giorni']<=3 else '🟡' if _ev42['Giorni']<=7 else '🟢'
-            st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev42['Data']}</span> <b style='color:#d1d4dc'>{_ev42['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev42['Giorni']}gg</span></div>",unsafe_allow_html=True)
+        for _ev39 in _macro_ev39[:20]:
+            _ic392='#ef4444' if 'High' in _ev39['Impatto'] else '#f59e0b' if 'Med' in _ev39['Impatto'] else '#6b7280'
+            _dot39='🔴' if _ev39['Giorni']<=3 else '🟡' if _ev39['Giorni']<=7 else '🟢'
+            st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev39['Data']}</span> <b style='color:#d1d4dc'>{_ev39['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev39['Giorni']}gg</span></div>",unsafe_allow_html=True)
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
     render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
 
     st.markdown('---')
-    with st.expander('🔔 Alert Multipli v42 — Pattern tecnici', expanded=False):
-        _render_pattern_alerts_v42(df_ep, tab_name='early')
+    with st.expander('🔔 Alert Multipli v39 — Pattern tecnici', expanded=False):
+        _render_pattern_alerts_v39(df_ep, tab_name='early')
 
 with tab_p:
     st.session_state.last_active_tab="PRO"; show_legend("PRO")
@@ -4623,13 +4364,13 @@ with tab_p:
         render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
     st.markdown('---')
-    with st.expander('🔔 Alert Multipli v42 — Pattern su segnali PRO', expanded=False):
-        _render_pattern_alerts_v42(df_ep, tab_name='pro')
+    with st.expander('🔔 Alert Multipli v39 — Pattern su segnali PRO', expanded=False):
+        _render_pattern_alerts_v39(df_ep, tab_name='pro')
 
     # ── Modulo 2 — 🤖 AI Analyst ─────────────────────────────────────────
     st.markdown("---")
     with st.expander("🤖 Modulo 2 — AI Analyst · Analisi per ogni ticker PRO/STRONG", expanded=False):
-        _render_ai_explainer_v42(df_ep, "PRO")
+        _render_ai_explainer_v37(df_ep, "PRO")
 
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
@@ -4778,16 +4519,16 @@ with tab_conf:
         if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
             _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY") &
                                 (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
-        _render_ai_explainer_v42(_df_conf_ai, "CONF")
+        _render_ai_explainer_v37(_df_conf_ai, "CONF")
 
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
-    # COMPARATORE MULTI-TICKER v42
+    # COMPARATORE MULTI-TICKER v36
     # Top 5 per capitalizzazione (Mar 2025): AAPL > MSFT > NVDA > GOOGL > META
     # Il comparatore inline è SEMPRE visibile. Se compare_tab.py esiste,
     # viene mostrato anche il comparatore esterno sotto.
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v42</div>',
+    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v36</div>',
                 unsafe_allow_html=True)
 
     # ── Badge capitalizzazione — sempre visibili ─────────────────────────
@@ -4918,7 +4659,7 @@ with tab_mtf:
                         hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:+.2f}}%<extra></extra>",
                     ))
 
-                    # ── v42: colonne professionali ───────────────────────
+                    # ── v36: colonne professionali ───────────────────────
                     _52wh = inf.get("52w_high")
                     _52wl = inf.get("52w_low")
                     _dist_52wh = round((cur_price/_52wh-1)*100,1) if _52wh and _52wh>0 else None
@@ -4982,7 +4723,7 @@ with tab_mtf:
                 )
                 st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
 
-                # ── Tabella KPI professionale v42 ─────────────────────
+                # ── Tabella KPI professionale v36 ─────────────────────
                 df_kpi = (pd.DataFrame(_kpi_rows)
                             .sort_values("_chg", ascending=False)
                             .drop(columns=["_rs","_chg"])
@@ -5037,7 +4778,7 @@ with tab_mtf:
 with tab_ser:
     show_legend("🎯 Serafini")
     # Mostra criteri dettaglio
-    with st.expander("✅ Criteri Serafini nel dettaglio — v42",expanded=False):
+    with st.expander("✅ Criteri Serafini nel dettaglio — v36",expanded=False):
         st.markdown("""
 | # | Criterio | Calcolo | Soglia | Novità v34 |
 |---|----------|---------|--------|------------|
@@ -5264,33 +5005,6 @@ with tab_crisis:
             _sub = _ldf[[c for c in _live_keep if c in _ldf.columns]].copy()
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
             break  # primo df disponibile basta
-
-        # ── v42 FIX ROBUSTO: elimina tutti i NaN/inf prima di AgGrid ──────
-        import numpy as _np, math as _math
-        # 1) Colonne testo: qualsiasi NaN → "—"
-        _text_cols_crisis = {"Ticker","Nome","Descrizione Tattica","OBV_Trend",
-                             "Stato_Early","RSI_Div","CSS_Grade","Squeeze","Weekly_Bull"}
-        for _col in df_crisis_cat.columns:
-            if _col in _text_cols_crisis or df_crisis_cat[_col].dtype == object:
-                df_crisis_cat[_col] = (
-                    df_crisis_cat[_col].astype(str)
-                    .replace({"nan":"—","None":"—","<NA>":"—","NaN":"—"})
-                )
-            else:
-                df_crisis_cat[_col] = (
-                    pd.to_numeric(df_crisis_cat[_col], errors="coerce")
-                    .replace([_np.inf, -_np.inf], _np.nan)
-                    .fillna(0.0)
-                )
-        # 2) Ultimo controllo record-per-record: float NaN → None (→ JSON null)
-        _safe_recs = []
-        for _rec in df_crisis_cat.to_dict(orient="records"):
-            _safe = {
-                _k: (None if isinstance(_v, float) and (_math.isnan(_v) or _math.isinf(_v)) else _v)
-                for _k, _v in _rec.items()
-            }
-            _safe_recs.append(_safe)
-        df_crisis_cat = pd.DataFrame(_safe_recs)
 
         gb_c = GridOptionsBuilder.from_dataframe(df_crisis_cat)
         gb_c.configure_default_column(sortable=True, resizable=True, filterable=False, minWidth=65)
@@ -5579,15 +5293,15 @@ with tab_w:
     # ══════════════════════════════════════════════════════════════════════
     _df_ep_wl = st.session_state.get("df_ep", pd.DataFrame())
 
-    with st.expander("📈 P&L Tracker & Alert Engine v42", expanded=False):
+    with st.expander("📈 P&L Tracker & Alert Engine v36", expanded=False):
         st.caption("Inserisci prezzo entrata e size per ogni ticker — P&L si aggiorna con prezzi scanner.")
         _pnl_col1, _pnl_col2 = st.columns([2, 1])
 
         with _pnl_col1:
             st.markdown("**💰 P&L Tracker (Mark-to-Market)**")
-            if "v42_pnl_entries" not in st.session_state:
-                st.session_state["v42_pnl_entries"] = {}
-            _pnl = st.session_state["v42_pnl_entries"]
+            if "v36_pnl_entries" not in st.session_state:
+                st.session_state["v36_pnl_entries"] = {}
+            _pnl = st.session_state["v36_pnl_entries"]
 
             # Form aggiunta posizione
             _pa, _pb, _pc, _pd = st.columns([2,1.5,1.5,1])
@@ -5654,9 +5368,9 @@ with tab_w:
 
         with _pnl_col2:
             st.markdown("**🔔 Alert Engine**")
-            if "v42_alerts" not in st.session_state:
-                st.session_state["v42_alerts"] = {}
-            _alerts = st.session_state["v42_alerts"]
+            if "v36_alerts" not in st.session_state:
+                st.session_state["v36_alerts"] = {}
+            _alerts = st.session_state["v36_alerts"]
 
             _at, _av, _atype = st.columns([1.5, 1.5, 1.5])
             with _at:   _alert_tkr   = st.text_input("Ticker", key="alt_tkr", placeholder="AAPL").upper().strip()
@@ -6250,19 +5964,19 @@ with tab_bt:
     # Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, Avg R
     # Equity Curve con drawdown overlay — tutto inline senza dipendenze esterne
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v42 — Metriche Professionali</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v36 — Metriche Professionali</div>', unsafe_allow_html=True)
 
-    with st.expander("📊 Backtest Pro v42 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
-        _bt_tickers_v42 = []
+    with st.expander("📊 Backtest Pro v36 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
+        _bt_tickers_v36 = []
         if not df_ep.empty and "Ticker" in df_ep.columns:
-            _bt_tickers_v42 = sorted(df_ep["Ticker"].dropna().unique().tolist())
+            _bt_tickers_v36 = sorted(df_ep["Ticker"].dropna().unique().tolist())
 
-        if not _bt_tickers_v42:
+        if not _bt_tickers_v36:
             st.info("Avvia lo scanner per popolare l'universo di backtest.")
         else:
             _bc1, _bc2, _bc3, _bc4 = st.columns([2,1,1,1])
             with _bc1:
-                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v42, key="bt35_tkr")
+                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v36, key="bt35_tkr")
             with _bc2:
                 _bt_period = st.selectbox("Periodo", ["6mo","1y","2y","3y"], index=1, key="bt35_period")
             with _bc3:
@@ -6619,7 +6333,7 @@ Ogni scansione viene automaticamente salvata qui con timestamp, mercati, segnali
 # EXPORT GLOBALI v35 PRO
 # =========================================================================
 st.markdown("---")
-st.markdown('<div class="section-pill">💾 EXPORT PRO v42 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">💾 EXPORT PRO v36 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
 
 df_conf_exp=pd.DataFrame()
 if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
@@ -6657,7 +6371,7 @@ with ec1:
     st.download_button(
         "📊 XLSX Pro Tutti",
         _to_excel_pro(all_exp),
-        f"TradingScanner_v42_Tutti_{_ts}.xlsx",
+        f"TradingScanner_v37_Tutti_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_all",
         help="Tutti i tab + sheet Summary con conteggi"
@@ -6673,7 +6387,7 @@ with ec2:
         st.download_button(
             "📈 CSV TV Tutti",
             df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v42_TV_{_ts}.csv",
+            f"TradingScanner_v37_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_all",
             help="CSV pronto per import in TradingView Watchlist"
@@ -6682,7 +6396,7 @@ with ec3:
     st.download_button(
         f"📊 XLSX {cur_tab}",
         _to_excel_pro({cur_tab: df_cur}),
-        f"TradingScanner_v42_{cur_tab}_{_ts}.xlsx",
+        f"TradingScanner_v37_{cur_tab}_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_curr"
     )
@@ -6691,13 +6405,13 @@ with ec4:
         st.download_button(
             f"📈 CSV TV {cur_tab}",
             make_tv_csv(df_cur, cur_tab),
-            f"TradingScanner_v42_{cur_tab}_TV_{_ts}.csv",
+            f"TradingScanner_v37_{cur_tab}_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_curr"
         )
 with ec5:
     # v35: export P&L tracker se presente
-    _pnl_data = st.session_state.get("v42_pnl_entries", {})
+    _pnl_data = st.session_state.get("v36_pnl_entries", {})
     if _pnl_data:
         _df_pnl_exp = pd.DataFrame([
             {"Ticker": _t, "Entry $": _pos["entry"], "Size": _pos["size"], "Added": _pos.get("added","")}
@@ -6706,16 +6420,16 @@ with ec5:
         st.download_button(
             "💰 Export P&L",
             _df_pnl_exp.to_csv(index=False).encode(),
-            f"PnL_Tracker_v42_{_ts}.csv",
+            f"PnL_Tracker_v37_{_ts}.csv",
             "text/csv",
             key="csv_pnl_exp",
             help="Esporta posizioni P&L tracker"
         )
 # =========================================================================
-# v42 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
+# v36 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
 # =========================================================================
 with tab_mtfmatrix:
-    st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v42</div>',
+    st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v36</div>',
                 unsafe_allow_html=True)
     st.caption("Stato Daily / Weekly / Monthly per ogni ticker. 🟢 3/3 allineati · 🟡 2/3 · 🔴 1/3 · ⚪ no data")
 
@@ -6877,7 +6591,7 @@ with tab_mtfmatrix:
                 _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
                 _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
                 _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
-                # v42 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
+                # v36 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
                 _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
                 _tv_url  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
                 _nome_disp = (f"<span style='color:#787b86;font-size:0.72rem;display:block'>{_r['Nome']}</span>"
@@ -6988,22 +6702,22 @@ with tab_mtfmatrix:
             _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
             st.download_button("📊 Export MTF Matrix",
                 _df_mtf_exp.to_csv(index=False).encode(),
-                f"MTF_Matrix_v42_{_mtf_ts}.csv", "text/csv", key="mtf_export")
+                f"MTF_Matrix_v37_{_mtf_ts}.csv", "text/csv", key="mtf_export")
 
 
 
 # =========================================================================
-# v42 TAB #8 — PAPER TRADING JOURNAL
+# v36 TAB #8 — PAPER TRADING JOURNAL
 # =========================================================================
 with tab_journal:
-    st.markdown('<div class="section-pill">📓 PAPER TRADING JOURNAL v42</div>',
+    st.markdown('<div class="section-pill">📓 PAPER TRADING JOURNAL v36</div>',
                 unsafe_allow_html=True)
     st.caption("Log strutturato entry/exit/note. Metriche aggregate per setup type.")
 
     # Init journal in session state (persiste in sessione; export per persistenza lunga)
-    if "v42_journal" not in st.session_state:
-        st.session_state["v42_journal"] = []
-    _journal = st.session_state["v42_journal"]
+    if "v36_journal" not in st.session_state:
+        st.session_state["v36_journal"] = []
+    _journal = st.session_state["v36_journal"]
 
     # ── Form aggiunta trade ──────────────────────────────────────────────
     with st.expander("➕ Aggiungi Trade", expanded=len(_journal)==0):
@@ -7141,7 +6855,7 @@ with tab_journal:
                 _journal.pop(); st.rerun()
         with _jd2:
             if st.button("🗑️ Svuota tutto", key="j_clear_all"):
-                st.session_state["v42_journal"] = []; st.rerun()
+                st.session_state["v36_journal"] = []; st.rerun()
 
         # Export Journal XLSX
         st.markdown("---")
@@ -7153,7 +6867,7 @@ with tab_journal:
         _j_ts = datetime.now().strftime("%Y%m%d_%H%M")
         st.download_button("📊 Export Journal XLSX",
             _j_export_buf.getvalue(),
-            f"TradingJournal_v42_{_j_ts}.xlsx",
+            f"TradingJournal_v37_{_j_ts}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="j_export_xlsx")
     else:
@@ -7161,10 +6875,10 @@ with tab_journal:
 
 
 # =========================================================================
-# v42 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
+# v36 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
 # =========================================================================
 with tab_regime:
-    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v42 — VIX · Fear&Greed · Breadth · Bonds</div>',
+    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v36 — VIX · Fear&Greed · Breadth · Bonds</div>',
                 unsafe_allow_html=True)
 
     if st.button("🔄 Aggiorna dati Regime", key="regime_refresh",
@@ -7336,9 +7050,9 @@ with tab_regime:
 
     st.markdown("---")
 
-    # ── v42 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
+    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
 
-    # ── v42 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
+    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
     st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 6 Periodi</div>',
                 unsafe_allow_html=True)
     st.caption("Click su una cella per vedere i ticker del settore. Dati in tempo reale da ETF GICS.")
@@ -7405,7 +7119,7 @@ with tab_regime:
             height=320,
             margin=dict(l=0,r=0,t=45,b=0),
         )
-        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v42")
+        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v36")
 
         # ── Drill-down: click su settore ───────────────────────────────
         st.markdown("#### 🔍 Drill-down per Settore")
@@ -7489,9 +7203,9 @@ with tab_regime:
     else:
         st.warning("Dati settoriali non disponibili. Controlla la connessione a Yahoo Finance.")
 
-    # ── v42 #2 — POSITION SIZING ENGINE ──────────────────────────────────
+    # ── v36 #2 — POSITION SIZING ENGINE ──────────────────────────────────
     st.markdown("---")
-    st.markdown('<div class="section-pill">⚖️ POSITION SIZING ENGINE v42</div>',
+    st.markdown('<div class="section-pill">⚖️ POSITION SIZING ENGINE v36</div>',
                 unsafe_allow_html=True)
     st.caption("Calcolo professionale della size ottimale basato su rischio per trade.")
 
@@ -7538,13 +7252,13 @@ with tab_regime:
         st.info("Inserisci Entry e Stop Loss per calcolare la size.")
 
 # =========================================================================
-# v42 — Aggiunge 3 nuovi tab alla lista esistente
+# v37 — Aggiunge 3 nuovi tab alla lista esistente
 # Tab: 🧠 AI Explainer, 📱 Telegram, 📊 Risk Pro, 🔍 Gap Scanner
 # =========================================================================
 # Nota: i tab vengono aggiunti alla definizione esistente tramite
 # session_state flag — usa st.expander nei tab esistenti per compatibilità
 
-# ── v42 scan stats update (batch info) ────────────────────────────────────
+# ── v37 scan stats update (batch info) ────────────────────────────────────
 if "scan_stats" in st.session_state:
     _ss37 = st.session_state.scan_stats
     _batches_info = (f" · 📦 {_ss37.get('batches','?')} batch×{_ss37.get('batch_size','?')}"
@@ -7557,14 +7271,14 @@ if "scan_stats" in st.session_state:
     )
 
 # =========================================================================
-# v42 UPGRADE #3 — AI SIGNAL EXPLAINER
+# v37 UPGRADE #3 — AI SIGNAL EXPLAINER
 # =========================================================================
 # =========================================================================
-# v42 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
+# v37 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
 # Provider chain: Gemini (free) → Groq (free) → OpenRouter → Claude
 # =========================================================================
 
-def _send_telegram_v42(bot_token: str, chat_id: str, message: str) -> bool:
+def _send_telegram_v37(bot_token: str, chat_id: str, message: str) -> bool:
     """Invia messaggio via Telegram Bot API."""
     try:
         import requests as _req_tg
@@ -7579,9 +7293,9 @@ def _send_telegram_v42(bot_token: str, chat_id: str, message: str) -> bool:
         return False
 
 
-def _render_telegram_settings_v42():
+def _render_telegram_settings_v37():
     """Pannello configurazione Telegram nel Risk Manager."""
-    st.markdown('<div class="section-pill">📱 NOTIFICHE TELEGRAM v42</div>',
+    st.markdown('<div class="section-pill">📱 NOTIFICHE TELEGRAM v37</div>',
                 unsafe_allow_html=True)
 
     _tg_c1, _tg_c2 = st.columns(2)
@@ -7598,8 +7312,8 @@ def _render_telegram_settings_v42():
 
         if st.button("🔔 Test notifica", key="tg_test_btn"):
             if _tg_token and _tg_chat:
-                _ok = _send_telegram_v42(_tg_token, _tg_chat,
-                    "✅ <b>Trading Scanner PRO v42</b>\nNotifiche Telegram attive!")
+                _ok = _send_telegram_v37(_tg_token, _tg_chat,
+                    "✅ <b>Trading Scanner PRO v37</b>\nNotifiche Telegram attive!")
                 if _ok:
                     st.success("✅ Messaggio inviato!")
                 else:
@@ -7630,13 +7344,13 @@ def _render_telegram_settings_v42():
             _top5  = _pro_tg.head(5)["Ticker"].tolist() if not _pro_tg.empty else []
             _rg_tg = st.session_state.get("_regime_cache", {})
             _msg_tg = (
-                f"📊 <b>Trading Scanner PRO v42 — Digest</b>\n"
+                f"📊 <b>Trading Scanner PRO v37 — Digest</b>\n"
                 f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
                 f"💪 Segnali PRO/STRONG: <b>{_n_pro}</b>\n"
                 f"🏆 Top 5: {', '.join(_top5) if _top5 else '—'}\n"
                 f"🌡️ Regime: {_rg_tg.get('regime','N/A')} · VIX: {_rg_tg.get('vix','N/A')}"
             )
-            _ok = _send_telegram_v42(_tg_token, _tg_chat, _msg_tg)
+            _ok = _send_telegram_v37(_tg_token, _tg_chat, _msg_tg)
             if _ok: st.success("✅ Digest inviato!")
             else:   st.error("❌ Errore invio digest.")
         else:
@@ -7655,20 +7369,20 @@ def _render_telegram_settings_v42():
             if not _auto_top.empty:
                 _auto_tickers = _auto_top.head(5)["Ticker"].tolist()
                 _auto_msg = (
-                    f"🚀 <b>Nuovi segnali scanner v42</b>\n"
+                    f"🚀 <b>Nuovi segnali scanner v37</b>\n"
                     f"💪 {len(_auto_top)} PRO/STRONG (CSS≥{_tg_min_css})\n"
                     f"📌 {', '.join(_auto_tickers)}"
                 )
-                _send_telegram_v42(_tg_token, _tg_chat, _auto_msg)
+                _send_telegram_v37(_tg_token, _tg_chat, _auto_msg)
                 st.session_state[_scan_notified_key] = True
 
 
 # =========================================================================
-# v42 UPGRADE #5 — RISK DASHBOARD PRO
+# v37 UPGRADE #5 — RISK DASHBOARD PRO
 # =========================================================================
-def _render_risk_dashboard_v42(df_ep_risk):
+def _render_risk_dashboard_v37(df_ep_risk):
     """Correlation matrix, VaR 95%, portfolio heat, drawdown alert."""
-    st.markdown('<div class="section-pill">📊 RISK DASHBOARD PRO v42 — Correlazioni · VaR · Portfolio Heat</div>',
+    st.markdown('<div class="section-pill">📊 RISK DASHBOARD PRO v37 — Correlazioni · VaR · Portfolio Heat</div>',
                 unsafe_allow_html=True)
 
     # Selezione ticker per il portfolio
@@ -7841,10 +7555,10 @@ def _render_risk_dashboard_v42(df_ep_risk):
 
 
 # =========================================================================
-# v42 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
+# v37 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
 # =========================================================================
 @st.cache_data(ttl=300)
-def _scan_gaps_v42(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
+def _scan_gaps_v37(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
     """Gap Scanner: trova ticker con gap apertura > min_gap_pct con volume confermato."""
     import yfinance as _yf_g
     _results = []
@@ -7886,9 +7600,9 @@ def _scan_gaps_v42(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
     return _df_g
 
 
-def _render_advanced_scanner_v42():
+def _render_advanced_scanner_v37():
     """Tab Scanner Avanzato: Gap Scanner + Earnings Play."""
-    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v42 — Gap · Earnings Play</div>',
+    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v37 — Gap · Earnings Play</div>',
                 unsafe_allow_html=True)
 
     _adv_t1, _adv_t2 = st.tabs(["📈 Gap Scanner", "🗓️ Earnings Play"])
@@ -7931,7 +7645,7 @@ def _render_advanced_scanner_v42():
             _gap_universe = list(dict.fromkeys(_gap_universe))[:100]
 
             with st.spinner(f"Scansiono {len(_gap_universe)} ticker per gap ≥{_gap_min}%..."):
-                _df_gaps = _scan_gaps_v42(tuple(_gap_universe), _gap_min)
+                _df_gaps = _scan_gaps_v37(tuple(_gap_universe), _gap_min)
 
             if _df_gaps.empty:
                 st.info(f"Nessun gap significativo (≥{_gap_min}%) trovato oggi.")
@@ -7959,7 +7673,7 @@ def _render_advanced_scanner_v42():
                 _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
                 st.download_button("📊 Export Gap Scanner",
                     _df_gaps.to_csv(index=False).encode(),
-                    f"GapScanner_v42_{_gap_ts}.csv", "text/csv", key="gap_export")
+                    f"GapScanner_v37_{_gap_ts}.csv", "text/csv", key="gap_export")
 
     with _adv_t2:
         st.caption("Setup pre-earnings: titoli con earnings nei prossimi 7 giorni e CSS elevato.")
@@ -8008,23 +7722,23 @@ def _render_advanced_scanner_v42():
 
 
 # =========================================================================
-# v42 — FUNZIONI (definite dopo i tab v42 ma usate nei with tab_ qui sotto)
+# v39 — FUNZIONI (definite dopo i tab v37 ma usate nei with tab_ qui sotto)
 # Nota: in Python le funzioni possono essere chiamate in "with tab_X:" anche
 # se definite prima nella stessa sessione Streamlit — purché la chiamata
 # avvenga DOPO la definizione nello stesso file. Qui le definiamo e poi
 # le usiamo immediatamente nei blocchi with tab_X: che seguono.
 # =========================================================================
 
-# ── v42 #1: Pattern Alerts ────────────────────────────────────────────────
-# v42 — AGGIUNTE NEI TAB ESISTENTI (singole, no duplicati)
+# ── v39 #1: Pattern Alerts ────────────────────────────────────────────────
+# v39 — AGGIUNTE NEI TAB ESISTENTI (singole, no duplicati)
 # =========================================================================
 
 
 # =========================================================================
-# v42 — TAB 💡 ANALISI PERSONALE
+# v39 — TAB 💡 ANALISI PERSONALE
 # =========================================================================
 with tab_analisi:
-    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v42 — Carica ticker · Ricevi consigli AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v39 — Carica ticker · Ricevi consigli AI</div>', unsafe_allow_html=True)
     st.caption("Inserisci i ticker. L'AI scarica dati freschi e fornisce consigli con entry/stop/target precisi.")
 
     _ap_c1, _ap_c2 = st.columns([2, 1.5])
@@ -8149,384 +7863,3 @@ with tab_analisi:
             "4. L'AI genera: setup, entry/stop/target precisi, rischi, consiglio"
             "</span></div>",
             unsafe_allow_html=True)
-
-
-# =========================================================================
-# v42 — TAB 🤖 AI ASSISTANT
-# =========================================================================
-with tab_ai:
-    st.markdown('<div class="section-pill">🤖 AI TRADING ASSISTANT v42 — Chatbot per analisi e strategie</div>', unsafe_allow_html=True)
-    st.caption("Chat interattiva con AI. Chiedi analisi ticker, spiegazioni pattern, consigli strategia.")
-
-    # Session state per chat
-    if "ai_chat_history" not in st.session_state:
-        st.session_state.ai_chat_history = []
-    if "ai_ticker_context" not in st.session_state:
-        st.session_state.ai_ticker_context = {}
-
-    # Sidebar configurazione AI
-    with st.expander("⚙️ Configurazione AI", expanded=False):
-        _ai_provider = st.selectbox("Provider", ["Anthropic (Claude)", "OpenAI (GPT)", "Groq (Llama)"], index=0)
-        _ai_model = st.text_input("Model", value="claude-3-haiku-20240307" if "Anthropic" in _ai_provider else "gpt-4o-mini" if "OpenAI" in _ai_provider else "llama-3.1-70b-versatile")
-        _ai_api_key = st.text_input("API Key", type="password", key="ai_chat_key")
-
-    # Input ticker opzionale per contesto
-    _ai_ticker_input = st.text_input("Ticker (opzionale per contesto)", placeholder="AAPL, MSFT, ENI.MI").strip().upper()
-    if _ai_ticker_input:
-        try:
-            import yfinance as yf
-            _tkr = yf.Ticker(_ai_ticker_input)
-            _info = _tkr.info if hasattr(_tkr, 'info') else {}
-            st.session_state.ai_ticker_context[_ai_ticker_input] = {
-                "price": _info.get("currentPrice", _info.get("regularMarketPrice", "N/A")),
-                "volume": _info.get("volume", "N/A"),
-                "marketCap": _info.get("marketCap", "N/A"),
-                "pe": _info.get("trailingPE", "N/A"),
-                "beta": _info.get("beta", "N/A"),
-                "52w_high": _info.get("fiftyTwoWeekHigh", "N/A"),
-                "52w_low": _info.get("fiftyTwoWeekLow", "N/A"),
-            }
-            st.success(f"📊 {_ai_ticker_input}: ${st.session_state.ai_ticker_context[_ai_ticker_input]['price']}")
-        except Exception as _e:
-            st.warning(f"Errore download dati: {_e}")
-
-    # Chat input
-    _ai_user_msg = st.chat_input("Chiedi qualcosa sull'analisi tecnica, pattern, o strategie trading...")
-    if _ai_user_msg:
-        st.session_state.ai_chat_history.append({"role": "user", "content": _ai_user_msg})
-
-        # Costruisci prompt con contesto
-        _ai_context = ""
-        if st.session_state.ai_ticker_context:
-            for _tk, _dt in st.session_state.ai_ticker_context.items():
-                _ai_context += f"\nTicker: {_tk} | Prezzo: ${_dt['price']} | Vol: {_dt['volume']} | 52w: ${_dt['52w_low']}-${_dt['52w_high']}\n"
-
-        _ai_prompt = (
-            f"Sei un trader professionista con 20 anni di esperienza. "
-            f"{_ai_context}\n\n"
-            f"Domanda: {_ai_user_msg}\n\n"
-            "Rispondi in modo chiaro e professionale in italiano. "
-            "Includi quando possibile: entry zone, stop loss, target, gestione rischio."
-        )
-
-        if _ai_api_key:
-            with st.spinner("AI in elaborazione..."):
-                try:
-                    if "Anthropic" in _ai_provider:
-                        import anthropic
-                        _client = anthropic.Anthropic(api_key=_ai_api_key)
-                        _resp = _client.messages.create(
-                            model=_ai_model,
-                            max_tokens=1024,
-                            messages=[{"role": "user", "content": _ai_prompt}]
-                        )
-                        _ai_resp = _resp.content[0].text
-                    elif "OpenAI" in _ai_provider:
-                        import openai
-                        _client = openai.OpenAI(api_key=_ai_api_key)
-                        _resp = _client.chat.completions.create(
-                            model=_ai_model,
-                            messages=[{"role": "user", "content": _ai_prompt}]
-                        )
-                        _ai_resp = _resp.choices[0].message.content
-                    else:  # Groq
-                        import openai
-                        _client = openai.OpenAI(api_key=_ai_api_key, base_url="https://api.groq.com/openai/v1")
-                        _resp = _client.chat.completions.create(
-                            model=_ai_model,
-                            messages=[{"role": "user", "content": _ai_prompt}]
-                        )
-                        _ai_resp = _resp.choices[0].message.content
-
-                    st.session_state.ai_chat_history.append({"role": "assistant", "content": _ai_resp})
-                except Exception as _e:
-                    st.error(f"Errore API: {_e}")
-                    st.session_state.ai_chat_history.append({"role": "assistant", "content": f"Errore: {_e}"})
-        else:
-            st.warning("⚠️ Inserisci API key per usare l'AI")
-
-    # Mostra cronologia chat
-    for _msg in st.session_state.ai_chat_history:
-        with st.chat_message(_msg["role"]):
-            st.markdown(_msg["content"])
-
-    if st.button("🗑️ Pulisci cronologia"):
-        st.session_state.ai_chat_history = []
-        st.rerun()
-
-
-# =========================================================================
-# v42 — TAB 🎲 OPTIONS SCANNER
-# =========================================================================
-with tab_opts:
-    st.markdown('<div class="section-pill">🎲 OPTIONS SCANNER v42 — Volatilità e Opzioni</div>', unsafe_allow_html=True)
-    st.caption("Scanner avanzato per opzioni: IV, P/C ratio, unusual activity, gamma squeeze.")
-
-    # Input
-    _opt_cols = st.columns([2, 1, 1, 1])
-    with _opt_cols[0]:
-        _opt_universe = st.text_input("Ticker (comma separated)", value="SPY,QQQ,IWM,AAPL,TSLA,NVDA,AMD").strip()
-    with _opt_cols[1]:
-        _opt_iv_min = st.slider("IV Rank min", 0, 100, 30)
-    with _opt_cols[2]:
-        _opt_pc_max = st.slider("P/C Ratio max", 0.5, 3.0, 2.0)
-    with _opt_cols[3]:
-        _opt_ivol = st.selectbox("IV Filter", ["IV > HV", "IV < HV", "Any"])
-
-    if st.button("🔍 Scan Opzioni", use_container_width=True):
-        with st.spinner("Scaricando dati options..."):
-            _opt_tickers = [t.strip().upper() for t in _opt_universe.split(",") if t.strip()]
-            _opt_results = []
-
-            for _tk in _opt_tickers:
-                try:
-                    import yfinance as yf
-                    _t = yf.Ticker(_tk)
-                    _opt = _t.option_chain if hasattr(_t, 'option_chain') else None
-
-                    if _opt is not None:
-                        _calls = _opt.calls if hasattr(_opt, 'calls') else pd.DataFrame()
-                        _puts = _opt.puts if hasattr(_opt, 'puts') else pd.DataFrame()
-
-                        _pc_ratio = len(_puts) / max(len(_calls), 1)
-
-                        # Calcola IV approssimativa (usa median di strike vicini)
-                        _iv = _calls['impliedVolatility'].median() if not _calls.empty and 'impliedVolatility' in _calls.columns else 0
-                        _hv = 20  # placeholder, calcolerebbe da historical
-
-                        _opt_results.append({
-                            "Ticker": _tk,
-                            "IV": round(_iv * 100, 1) if _iv else 0,
-                            "IV Rank": min(100, int((_iv / 0.5) * 100)) if _iv else 0,
-                            "P/C Ratio": round(_pc_ratio, 2),
-                            "Calls": len(_calls),
-                            "Puts": len(_puts),
-                            "Vol Tot": _calls['volume'].sum() + _puts['volume'].sum() if not _calls.empty and not _puts.empty else 0,
-                        })
-                except Exception as _e:
-                    _opt_results.append({"Ticker": _tk, "IV": 0, "IV Rank": 0, "P/C Ratio": 0, "Calls": 0, "Puts": 0, "Vol Tot": 0})
-
-            _opt_df = pd.DataFrame(_opt_results)
-
-            # Filtri
-            if _opt_ivol == "IV > HV":
-                _opt_df = _opt_df[_opt_df["IV"] > _opt_df["IV"] * 0.8]  # semplificato
-            elif _opt_ivol == "IV < HV":
-                _opt_df = _opt_df[_opt_df["IV"] < _opt_df["IV"] * 0.8]
-
-            _opt_df = _opt_df[_opt_df["IV Rank"] >= _opt_iv_min]
-            _opt_df = _opt_df[_opt_df["P/C Ratio"] <= _opt_pc_max]
-
-            if not _opt_df.empty:
-                st.dataframe(
-                    _opt_df.style.background_gradient(subset=["IV Rank", "P/C Ratio"], cmap="Reds"),
-                    use_container_width=True, height=400
-                )
-            else:
-                st.info("Nessun risultato con i filtri applicati.")
-
-    # Spiegazione metriche
-    with st.expander("📖 Guida Metriche Options"):
-        st.markdown("""
-        - **IV (Implied Volatility)**: Volatilità implicita delle opzioni
-        - **IV Rank**: Posizione IV attuale rispetto ai 52w (0-100)
-        - **P/C Ratio**: Rapporto puts/calls. >1.5 = più puts (bearish), <0.7 = più calls (bullish)
-        - **Unusual Activity**: Volume opzioni >3x media recente
-        """)
-
-
-# =========================================================================
-# v42 — TAB ⚡ MOMENTUM ALERTS
-# =========================================================================
-with tab_mom:
-    st.markdown('<div name="section-pill">⚡ MOMENTUM ALERTS v42 — Alert tempo reale</div>', unsafe_allow_html=True)
-    st.caption("Configura alert per breakout, volume spike e price action in tempo reale.")
-
-    # Configurazione alert
-    _ma_cols = st.columns(4)
-    with _ma_cols[0]:
-        _ma_breakout = st.checkbox("Breakout >2%", value=True)
-    with _ma_cols[1]:
-        _ma_vol_spike = st.checkbox("Volume >3x", value=True)
-    with _ma_cols[2]:
-        _ma_price = st.checkbox("Price Action", value=False)
-    with _ma_cols[3]:
-        _ma_earnings = st.checkbox("Earnings", value=True)
-
-    _ma_universe = st.text_input("Ticker da monitorare", value="SPY,QQQ,NVDA,TSLA,AAPL,AMD,META,GOOGL").strip()
-    _ma_refresh = st.slider("Refresh (sec)", 30, 300, 60)
-
-    # Session per alert
-    if "mom_alerts" not in st.session_state:
-        st.session_state.mom_alerts = []
-
-    # Btn forza scan
-    if st.button("⚡ Scan Now", use_container_width=True):
-        _ma_tickers = [t.strip().upper() for t in _ma_universe.split(",") if t.strip()]
-        _ma_new_alerts = []
-
-        with st.spinner("Scanning momentum..."):
-            for _tk in _ma_tickers:
-                try:
-                    import yfinance as yf
-                    _t = yf.Ticker(_tk)
-                    _hist = _t.history(period="5d")
-
-                    if _hist.empty:
-                        continue
-
-                    _price = _hist['Close'].iloc[-1]
-                    _prev_price = _hist['Close'].iloc[-2]
-                    _vol = _hist['Volume'].iloc[-1]
-                    _vol_avg = _hist['Volume'].mean()
-
-                    # Check breakout
-                    if _ma_breakout and _price > _prev_price * 1.02:
-                        _ma_new_alerts.append({
-                            "Ticker": _tk, "Type": "🚀 Breakout", "Value": f"+{((_price/_prev_price)-1)*100:.1f}%",
-                            "Price": _price, "Priority": "HIGH" if _price > _prev_price * 1.05 else "MEDIUM"
-                        })
-
-                    # Check volume spike
-                    if _ma_vol_spike and _vol > _vol_avg * 3:
-                        _ma_new_alerts.append({
-                            "Ticker": _tk, "Type": "📈 Volume Spike", "Value": f"{_vol/_vol_avg:.1f}x",
-                            "Price": _price, "Priority": "MEDIUM"
-                        })
-
-                except Exception as _e:
-                    continue
-
-        st.session_state.mom_alerts = _ma_new_alerts
-        if _ma_new_alerts:
-            st.success(f"✅ Trovati {len(_ma_new_alerts)} alert!")
-        else:
-            st.info("Nessun alert rilevato.")
-
-    # Mostra alert
-    if st.session_state.mom_alerts:
-        _ma_df = pd.DataFrame(st.session_state.mom_alerts)
-
-        # Colori per priorità
-        def _ma_color(val):
-            if val == "HIGH": return "background-color: #ff4b4b; color: white"
-            if val == "MEDIUM": return "background-color: #ffa500; color: black"
-            return ""
-
-        st.dataframe(
-            _ma_df.style.applymap(_ma_color, subset=["Priority"]),
-            use_container_width=True, height=300
-        )
-
-        # Export
-        _ma_csv = _ma_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Export CSV", _ma_csv, "momentum_alerts.csv", "text/csv")
-    else:
-        st.info("Nessun alert attivo. Clicca 'Scan Now' per verificare.")
-
-    # Clear alert
-    if st.button("🗑️ Pulisci Alert"):
-        st.session_state.mom_alerts = []
-        st.rerun()
-
-    # Info
-    with st.expander("📖 Come funziona"):
-        st.markdown("""
-        - **Breakout >2%**: Prezzo sale sopra 2% rispetto a ieri
-        - **Volume >3x**: Volume交易日 >3x media 5gg
-        - **Price Action**: Engulfing, Hammer, Doji (basic)
-        - **Earnings**: Alert su titoli con earnings imminenti
-        """)
-
-
-# =========================================================================
-# v42 — TAB 📰 NEWS & SENTIMENT
-# =========================================================================
-with tab_news:
-    st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v42 — Ultime news con sentiment analysis</div>', unsafe_allow_html=True)
-
-    # Link a TradingView Italia
-    st.markdown("🔗 **[TradingView Italia](https://it.tradingview.com/)** — Community italiana analysis", unsafe_allow_html=True)
-    st.markdown("---")
-
-    # Input ticker
-    _ns_cols = st.columns([2, 1, 1])
-    with _ns_cols[0]:
-        _ns_tickers = st.text_input("Ticker da monitorare", value="SPY,QQQ,NVDA,TSLA,AAPL,META,AMD,GOOGL").strip()
-    with _ns_cols[1]:
-        _ns_filter = st.selectbox("Filtro Sentiment", ["Tutti", "🟢 Bullish", "🔴 Bearish", "⚪ Neutral"])
-    with _ns_cols[2]:
-        _ns_source = st.selectbox("Fonte", ["Yahoo Finance", "NewsAPI"])
-
-    # Carica da watchlist opzionale
-    try:
-        _wl = load_watchlist()
-        if not _wl.empty and "Ticker" in _wl.columns:
-            _wl_tickers = _wl["Ticker"].dropna().unique().tolist()[:20]
-            if st.checkbox("📋 Includi Watchlist", value=True):
-                _all_tk = list(set([t.strip().upper() for t in _ns_tickers.split(",") if t.strip()] + _wl_tickers))
-                _ns_tickers = ",".join(_all_tk)
-    except Exception:
-        pass
-
-    if st.button("📥 Carica News", use_container_width=True):
-        _tk_list = [t.strip().upper() for t in _ns_tickers.split(",") if t.strip()]
-        with st.spinner("Scaricando news..."):
-            _news_data = _fetch_news_v42(tuple(_tk_list[:25]))
-
-        # Filtro
-        if _ns_filter == "🟢 Bullish":
-            _news_data = [n for n in _news_data if "Bullish" in n["Sentiment"]]
-        elif _ns_filter == "🔴 Bearish":
-            _news_data = [n for n in _news_data if "Bearish" in n["Sentiment"]]
-        elif _ns_filter == "⚪ Neutral":
-            _news_data = [n for n in _news_data if "Neutral" in n["Sentiment"]]
-
-        if _news_data:
-            # Statistiche
-            _nb = sum(1 for n in _news_data if "Bullish" in n["Sentiment"])
-            _nr = sum(1 for n in _news_data if "Bearish" in n["Sentiment"])
-            _nn = sum(1 for n in _news_data if "Neutral" in n["Sentiment"])
-
-            _s1, _s2, _s3, _s4 = st.columns(4)
-            _s1.metric("📰 Totale", len(_news_data))
-            _s2.metric("🟢 Bullish", _nb)
-            _s3.metric("🔴 Bearish", _nr)
-            _s4.metric("⚪ Neutral", _nn)
-
-            st.markdown("---")
-
-            # Lista news
-            for _n in _news_data[:50]:
-                _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
-                _tk_nome = _n.get("Nome", _n["Ticker"])
-                _tv_link = _n.get("TVLink", "#")
-                _nc1, _nc2, _nc3 = st.columns([1.2, 0.8, 4])
-                _nc1.markdown(f"<a href='{_tv_link}' target='_blank' style='color:#00ff88;font-weight:bold;text-decoration:none'>{_n['Ticker']}</a> <span style='color:#6b7280;font-size:0.7rem'>{_tk_nome}</span>", unsafe_allow_html=True)
-                _nc2.markdown(f"<span style='color:{_sc};font-weight:bold'>{_n['Sentiment']}</span>", unsafe_allow_html=True)
-                _nc3.markdown(f"[{_n['Titolo']}]({_n['Link']}) <span style='color:#6b7280;font-size:0.7rem'>{_n['Data']}</span>", unsafe_allow_html=True)
-                st.divider()
-
-            # Export
-            _ns_df = pd.DataFrame(_news_data)
-            _ns_csv = _ns_df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Export CSV", _ns_csv, "news_sentiment.csv", "text/csv")
-        else:
-            st.info("Nessuna news trovata.")
-
-    # Guida
-    with st.expander("📖 Guida Sentiment Analysis"):
-        st.markdown("""
-        **Come funziona:**
-        - Le news vengono analizzate per parole chiave bullish/bearish
-        - Score positivo = più termini bullish
-        - Score negativo = più termini bearish
-
-        **Fonti:**
-        - Yahoo Finance RSS feed (default)
-        - NewsAPI (con API key opzionale)
-
-        **Link utili:**
-        - [TradingView Italia](https://it.tradingview.com/) — Community analysis
-        - [TradingView](https://tradingview.com) — Charts e analisi
-        """)
