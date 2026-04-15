@@ -1965,9 +1965,9 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 41.0",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 39.0",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 41.0")
+st.markdown("# 🧠 Trading Scanner PRO 39.0")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
@@ -2402,7 +2402,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 41.0",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 39.0",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -3602,6 +3602,19 @@ def _fetch_news_v41(tickers:tuple)->list:
     import urllib.request as _ur, xml.etree.ElementTree as _ET
     _BULL={"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong","growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
     _BEAR={"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss","decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
+
+    # Cache nomi aziende
+    _names={}
+    try:
+        import yfinance as yf
+        for _t in tickers[:25]:
+            try:
+                _tk=yf.Ticker(_t)
+                _info=_tk.info if hasattr(_tk,'info') else {}
+                _names[_t]=_info.get("shortName",_info.get("longName",_t))
+            except: _names[_t]=_t
+    except Exception: _names={t:t for t in tickers}
+
     _res=[]
     for _t in tickers[:20]:
         try:
@@ -3613,8 +3626,11 @@ def _fetch_news_v41(tickers:tuple)->list:
                 _title=_item.findtext("title",""); _words=set(_title.lower().split())
                 _b=len(_words&_BULL); _br=len(_words&_BEAR)
                 _sent="🟢 Bullish" if _b>_br else "🔴 Bearish" if _br>_b else "⚪ Neutral"
-                _res.append({"Ticker":_t,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
-                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link","")})
+                _tk_name=_names.get(_t,_t)
+                _tv_link=f"https://it.tradingview.com/symbols/{_t.replace('.','-')}" if '.' not in _t else f"https://it.tradingview.com/symbols/{_t}"
+                _res.append({"Ticker":_t,"Nome":_tk_name,"Titolo":_title[:80],"Sentiment":_sent,"Score":_b-_br,
+                             "Data":_item.findtext("pubDate","")[:16],"Link":_item.findtext("link",""),
+                             "TVLink":_tv_link})
         except Exception: pass
     return sorted(_res,key=lambda x:abs(x["Score"]),reverse=True)
 
@@ -3646,8 +3662,10 @@ def _render_news_v41(df_ep_news):
     st.markdown("---")
     for n in _news[:40]:
         _sc2="#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
-        _c1,_c2,_c3=st.columns([1,0.8,4.5])
-        _c1.markdown(f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span>",unsafe_allow_html=True)
+        _tk_nome=n.get("Nome",n["Ticker"])
+        _tv_link=n.get("TVLink","#")
+        _c1,_c2,_c3=st.columns([1.2,0.8,4])
+        _c1.markdown(f"<a href='{_tv_link}' target='_blank' style='color:#00ff88;font-weight:bold;text-decoration:none'>{n['Ticker']}</a> <span style='color:#6b7280;font-size:0.7rem'>{_tk_nome}</span>",unsafe_allow_html=True)
         _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
         _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
 
@@ -3733,6 +3751,9 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
         st.secrets.get("GROQ_API_KEY","")        or st.session_state.get("_groq_api_key",""),
         st.secrets.get("OPENROUTER_API_KEY","")  or st.session_state.get("_openrouter_api_key",""),
         st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
+        st.secrets.get("HUGGINGFACE_API_KEY","") or st.session_state.get("_huggingface_api_key",""),
+        st.secrets.get("COHERE_API_KEY","")      or st.session_state.get("_cohere_api_key",""),
+        st.secrets.get("PERPLEXITY_API_KEY","")  or st.session_state.get("_perplexity_api_key",""),
     ])
 
     with st.expander(
@@ -3745,12 +3766,20 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
             "Configura almeno una key. Il sistema usa quella disponibile con fallback automatico.<br><br>"
             "🟢 <b>Gemini Flash</b> — gratis · <a href='https://aistudio.google.com' target='_blank' "
             "style='color:#2962ff'>aistudio.google.com</a> → Get API Key<br>"
-            "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
-            "style='color:#2962ff'>console.groq.com</a> → API Keys → Create<br>"
+            "🟠 <b>HuggingFace</b> — gratis · <a href='https://huggingface.co' target='_blank' "
+            "style='color:#2962ff'>huggingface.co</a> → Settings → Tokens<br>"
+            "🔷 <b>Cohere</b> — free tier · <a href='https://cohere.com' target='_blank' "
+            "style='color:#2962ff'>cohere.com</a> → API Keys<br>"
+            "🟣 <b>Perplexity</b> — free tier · <a href='https://perplexity.ai' target='_blank' "
+            "style='color:#2962ff'>perplexity.ai</a> → Settings → API<br>"
             "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
-            "style='color:#2962ff'>openrouter.ai</a> → Keys → Create Key<br>"
+            "style='color:#2962ff'>openrouter.ai</a> → Keys<br>"
+            "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
+            "style='color:#2962ff'>console.groq.com</a> → API Keys<br>"
             "🟡 <b>Claude</b> — a pagamento · <a href='https://console.anthropic.com' target='_blank' "
-            "style='color:#2962ff'>console.anthropic.com</a> → API Keys"
+            "style='color:#2962ff'>console.anthropic.com</a> → API Keys<br>"
+            "🏠 <b>Ollama</b> — locale (gratis) · <a href='https://ollama.com' target='_blank' "
+            "style='color:#2962ff'>ollama.com</a> → Download"
             "</div>",
             unsafe_allow_html=True
         )
@@ -3763,12 +3792,24 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
                 value=_gem_cur, type="password",
                 placeholder="AIzaSy...",
                 key=f"gem_inp_{tab_name}")
-            # Groq
-            _groq_cur = st.session_state.get("_groq_api_key","")
-            _groq_inp = st.text_input("🟣 Groq API Key",
-                value=_groq_cur, type="password",
-                placeholder="gsk_...",
-                key=f"groq_inp_{tab_name}")
+            # HuggingFace
+            _hf_cur = st.session_state.get("_huggingface_api_key","")
+            _hf_inp = st.text_input("🟠 HuggingFace API Key",
+                value=_hf_cur, type="password",
+                placeholder="hf_...",
+                key=f"hf_inp_{tab_name}")
+            # Cohere
+            _coh_cur = st.session_state.get("_cohere_api_key","")
+            _coh_inp = st.text_input("🔷 Cohere API Key",
+                value=_coh_cur, type="password",
+                placeholder="...",
+                key=f"coh_inp_{tab_name}")
+            # Perplexity
+            _perp_cur = st.session_state.get("_perplexity_api_key","")
+            _perp_inp = st.text_input("🟣 Perplexity API Key",
+                value=_perp_cur, type="password",
+                placeholder="...",
+                key=f"perp_inp_{tab_name}")
         with _kc2:
             # OpenRouter
             _or_cur = st.session_state.get("_openrouter_api_key","")
@@ -3776,38 +3817,43 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
                 value=_or_cur, type="password",
                 placeholder="sk-or-...",
                 key=f"or_inp_{tab_name}")
+            # Groq
+            _groq_cur = st.session_state.get("_groq_api_key","")
+            _groq_inp = st.text_input("🟣 Groq API Key",
+                value=_groq_cur, type="password",
+                placeholder="gsk_...",
+                key=f"groq_inp_{tab_name}")
             # Claude
             _ant_cur = st.session_state.get("_anthropic_api_key","")
             _ant_inp = st.text_input("🟡 Claude API Key",
                 value=_ant_cur, type="password",
-                placeholder="sk-ant-api03-...",
+                placeholder="sk-ant-...",
                 key=f"ant_inp_{tab_name}")
 
-        _save_col, _reset_col, _ = st.columns([1,1,2])
-        with _save_col:
-            if st.button("💾 Salva keys", key=f"ai_keys_save_{tab_name}", type="primary",
-                         use_container_width=True):
-                if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
-                if _groq_inp.strip(): st.session_state["_groq_api_key"]       = _groq_inp.strip()
-                if _or_inp.strip():   st.session_state["_openrouter_api_key"] = _or_inp.strip()
-                if _ant_inp.strip():  st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
-                st.success("✅ Keys salvate per questa sessione!")
-                st.rerun()
-        with _reset_col:
-            if st.button("🗑️ Reset tutte", key=f"ai_keys_reset_{tab_name}",
-                         use_container_width=True):
-                for _k in ["_gemini_api_key","_groq_api_key",
-                           "_openrouter_api_key","_anthropic_api_key"]:
-                    st.session_state.pop(_k, None)
-                st.rerun()
+        # Salva tutte le chiavi
+        if st.button("💾 Salva Keys", key=f"save_keys_{tab_name}"):
+            if _gem_inp.strip():  st.session_state["_gemini_api_key"]     = _gem_inp.strip()
+            if _hf_inp.strip():   st.session_state["_huggingface_api_key"]= _hf_inp.strip()
+            if _coh_inp.strip(): st.session_state["_cohere_api_key"]      = _coh_inp.strip()
+            if _perp_inp.strip():st.session_state["_perplexity_api_key"] = _perp_inp.strip()
+            if _or_inp.strip():  st.session_state["_openrouter_api_key"] = _or_inp.strip()
+            if _groq_inp.strip():st.session_state["_groq_api_key"]       = _groq_inp.strip()
+            if _ant_inp.strip():st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
+            st.success("✅ Keys salvate!"); st.rerun()
+
+        st.caption("💡 Ollama: installa localmente, non serve key. Gli altri provider hanno free tier.")
 
         # Status provider
         _prov_status = []
         for _pn, _sk, _ssk in [
-            ("🟢 Gemini",    "GEMINI_API_KEY",     "_gemini_api_key"),
-            ("🟣 Groq",      "GROQ_API_KEY",        "_groq_api_key"),
-            ("🔵 OpenRouter","OPENROUTER_API_KEY",   "_openrouter_api_key"),
-            ("🟡 Claude",    "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
+            ("🟢 Gemini",      "GEMINI_API_KEY",       "_gemini_api_key"),
+            ("🟠 HuggingFace", "HUGGINGFACE_API_KEY",  "_huggingface_api_key"),
+            ("🔷 Cohere",     "COHERE_API_KEY",       "_cohere_api_key"),
+            ("🟣 Perplexity", "PERPLEXITY_API_KEY",   "_perplexity_api_key"),
+            ("🔵 OpenRouter", "OPENROUTER_API_KEY",    "_openrouter_api_key"),
+            ("🟣 Groq",       "GROQ_API_KEY",         "_groq_api_key"),
+            ("🟡 Claude",     "ANTHROPIC_API_KEY",    "_anthropic_api_key"),
+            ("🏠 Ollama",     "-",                    "-"),
         ]:
             _ok = bool(st.secrets.get(_sk,"") or st.session_state.get(_ssk,""))
             _prov_status.append(f"{'✅' if _ok else '❌'} {_pn}")
@@ -4037,9 +4083,68 @@ def _ai_call_claude(api_key: str, prompt: str) -> str:
     raise Exception(f"Claude {_resp.status_code}: {_err.get('message','')[:120]}")
 
 
+def _ai_call_huggingface(api_key: str, prompt: str) -> str:
+    """HuggingFace Inference API — free tier con limiti."""
+    import requests as _r
+    _resp = _r.post(
+        "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.1",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"inputs": prompt, "parameters": {"max_new_tokens": 300}},
+        timeout=30
+    )
+    if _resp.status_code == 200:
+        _j = _resp.json()
+        if isinstance(_j, list) and _j:
+            return _j[0].get("generated_text", str(_j))[:2000]
+        return str(_j)[:2000]
+    raise Exception(f"HuggingFace {_resp.status_code}: {_resp.text[:100]}")
+
+
+def _ai_call_cohere(api_key: str, prompt: str) -> str:
+    """Cohere API — free tier disponibile."""
+    import requests as _r
+    _resp = _r.post(
+        "https://api.cohere.ai/v1/chat",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": "command-r", "message": prompt, "max_tokens": 300},
+        timeout=25
+    )
+    if _resp.status_code == 200:
+        return _resp.json()["text"]
+    raise Exception(f"Cohere {_resp.status_code}: {_resp.text[:100]}")
+
+
+def _ai_call_ollama(prompt: str) -> str:
+    """Ollama — modelli locali gratuiti (richiede Ollama installato)."""
+    import requests as _r
+    try:
+        _resp = _r.post("http://localhost:11434/api/generate",
+            json={"model": "llama3", "prompt": prompt, "stream": False},
+            timeout=60)
+        if _resp.status_code == 200:
+            return _resp.json().get("response", "")[:2000]
+    except Exception as _e:
+        raise Exception(f"Ollama non disponibile: {_e}")
+    raise Exception("Ollama failed")
+
+
+def _ai_call_perplexity(api_key: str, prompt: str) -> str:
+    """Perplexity API — free tier disponibile."""
+    import requests as _r
+    _resp = _r.post(
+        "https://api.perplexity.ai/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": "llama-3.1-sonar-small-128k-online", "messages": [{"role": "user", "content": prompt}]},
+        timeout=25
+    )
+    if _resp.status_code == 200:
+        return _resp.json()["choices"][0]["message"]["content"]
+    raise Exception(f"Perplexity {_resp.status_code}: {_resp.text[:100]}")
+
+
 def _ai_call_with_fallback(prompt: str) -> tuple:
     """
-    Prova i provider in ordine: Gemini → Groq → OpenRouter → Claude.
+    Prova i provider in ordine: Gemini → HuggingFace → Cohere → Perplexity → OpenRouter → Groq → Claude.
     Restituisce (testo_risposta, provider_usato) o lancia Exception.
     """
     _ss = st.session_state
@@ -4047,21 +4152,44 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
     # Costruisce lista provider configurati nell'ordine preferito
     _providers = []
 
+    # Provider gratuiti / freemium
     _gem_key = st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key","")
     if _gem_key:
         _providers.append(("🟢 Gemini Flash", _ai_call_gemini, _gem_key))
+
+    _hf_key = st.secrets.get("HUGGINGFACE_API_KEY","") or _ss.get("_huggingface_api_key","")
+    if _hf_key:
+        _providers.append(("🟠 HuggingFace", _ai_call_huggingface, _hf_key))
+
+    _coh_key = st.secrets.get("COHERE_API_KEY","") or _ss.get("_cohere_api_key","")
+    if _coh_key:
+        _providers.append(("🔷 Cohere", _ai_call_cohere, _coh_key))
+
+    _perp_key = st.secrets.get("PERPLEXITY_API_KEY","") or _ss.get("_perplexity_api_key","")
+    if _perp_key:
+        _providers.append(("🟣 Perplexity", _ai_call_perplexity, _perp_key))
+
+    # Provider con free tier
+    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
+    if _or_key:
+        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
 
     _groq_key = st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key","")
     if _groq_key:
         _providers.append(("🟣 Groq Llama", _ai_call_groq, _groq_key))
 
-    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
-    if _or_key:
-        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
-
+    # Provider a pagamento
     _ant_key = st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")
     if _ant_key:
         _providers.append(("🟡 Claude Haiku", _ai_call_claude, _ant_key))
+
+    # Prova Ollama locale (senza API key)
+    try:
+        import requests as _r_test
+        _r_test.get("http://localhost:11434/", timeout=2)
+        _providers.append(("🏠 Ollama (locale)", _ai_call_ollama, ""))
+    except:
+        pass
 
     if not _providers:
         raise Exception("NO_KEYS")
@@ -4069,7 +4197,11 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
     _errors = []
     for _name, _fn, _key in _providers:
         try:
-            _result = _fn(_key, prompt)
+            # Ollama non richiede api_key
+            if "Ollama" in _name:
+                _result = _fn(prompt)
+            else:
+                _result = _fn(_key, prompt)
             return _result, _name
         except Exception as _e:
             _errors.append(f"{_name}: {_e}")
@@ -4377,12 +4509,8 @@ with tab_home:
         except Exception as _ce:
             st.warning(f"Errore correlazioni: {str(_ce)[:120]}")
 
-    # v41: render_home per sparklines/breadth (senza Mercati Live duplicato)
-    try:
-        from utils.home_tab import render_home
-        render_home(df_ep, df_rea)
-    except Exception:
-        pass
+    # v41: render_home saltato per evitare duplicato Mercati Live
+    # (i Mercati Live sono gia' nel blocco principale qui sopra)
 
     # ── v41 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
@@ -8366,8 +8494,10 @@ with tab_news:
             # Lista news
             for _n in _news_data[:50]:
                 _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
-                _nc1, _nc2, _nc3 = st.columns([1, 0.8, 4])
-                _nc1.markdown(f"**{_n['Ticker']}**", unsafe_allow_html=True)
+                _tk_nome = _n.get("Nome", _n["Ticker"])
+                _tv_link = _n.get("TVLink", "#")
+                _nc1, _nc2, _nc3 = st.columns([1.2, 0.8, 4])
+                _nc1.markdown(f"<a href='{_tv_link}' target='_blank' style='color:#00ff88;font-weight:bold;text-decoration:none'>{_n['Ticker']}</a> <span style='color:#6b7280;font-size:0.7rem'>{_tk_nome}</span>", unsafe_allow_html=True)
                 _nc2.markdown(f"<span style='color:{_sc};font-weight:bold'>{_n['Sentiment']}</span>", unsafe_allow_html=True)
                 _nc3.markdown(f"[{_n['Titolo']}]({_n['Link']}) <span style='color:#6b7280;font-size:0.7rem'>{_n['Data']}</span>", unsafe_allow_html=True)
                 st.divider()
