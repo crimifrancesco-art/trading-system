@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║         TRADING SCANNER PRO  —  v41.0                                  ║
-# ║         Upgrade professionale su v40.0 — tutto il codice esistente      ║
-# ║         è intatto. Aggiunti 3 nuovi tab completamente additivi.         ║
+# ║         Versione professionale completa con tutte le funzionalita       ║
+# ║         Scanner avanzato, AI Assistant, Options, Alerts e Sentiment    ║
 # ╠══════════════════════════════════════════════════════════════════════════╣
-# ║  CHANGELOG v41  (su base v40 intatta)                                  ║
+# ║  CHANGELOG v41                                                         ║
 # ║  #1  AI Trading Assistant — Chatbot AI per analisi ticker             ║
 # ║      Chat interattivo con Claude API: spiegazioni pattern,             ║
 # ║      suggerimenti strategia, gestione posizione, risk assessment       ║
@@ -17,6 +17,9 @@
 # ║      Alert su: breakout >2%, volume spike >3x, price action signals    ║
 # ║      Configurazione soglie, storico alert, notification Telegram       ║
 # ║      Badge real-time con countdown e priorita                          ║
+# ║  #4  News & Sentiment Tab — Tab dedicato con sentiment analysis       ║
+# ║      News con score Bullish/Bearish/Neutral, filtri, export CSV      ║
+# ║      Link a TradingView Italia nella sezione Home e nel nuovo tab     ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 import io
 import time
@@ -146,8 +149,8 @@ except ImportError:
                       vol_ratio_hot=1.5, cache_enabled=True, finviz_enabled=False,
                       n_workers=16, progress_callback=None):
         # ══════════════════════════════════════════════════════════════════
-        # v37 SCANNER TURBO ENGINE
-        # Upgrade vs v36:
+        # v41 SCANNER TURBO ENGINE
+        # Upgrade vs v41:
         #   1. Batch yfinance download (5 ticker/chiamata) → -80% latenza
         #   2. Smart skip: ticker in cache fresca bypassano completamente il pool
         #   3. ETA live: stima tempo rimanente basata su velocità corrente
@@ -196,7 +199,7 @@ except ImportError:
         _size_cap = 24 if n_stale > 300 else 20 if n_stale > 150 else 16 if n_stale > 80 else 12
         nw = min(max(n_workers, 1), max(4, _cpu_count * 2), _size_cap)
 
-        # ── v37 BATCH DOWNLOAD: raggruppa ticker in batch da 5 ────────────
+        # ── v41 BATCH DOWNLOAD: raggruppa ticker in batch da 5 ────────────
         # yfinance supporta download multiplo: yf.download("AAPL MSFT NVDA")
         # Riduce il numero di connessioni HTTP del ~80%
         _BATCH_SIZE = 5
@@ -292,7 +295,7 @@ except ImportError:
         df_ep  = pd.DataFrame(rep)  if rep  else pd.DataFrame()
         df_rea = pd.DataFrame(rrea) if rrea else pd.DataFrame()
 
-        # Soglie percentile dinamico (v36, mantenuto)
+        # Soglie percentile dinamico (v41, mantenuto)
         if not df_ep.empty and "Pro_Score" in df_ep.columns:
             _scores = pd.to_numeric(df_ep["Pro_Score"], errors="coerce").dropna()
             if len(_scores) > 0:
@@ -338,13 +341,13 @@ except ImportError as _bt_ie:
         st.warning(f"⚠️ backtest_tab.py non trovato: {_bt_ie}")
         st.info("Carica utils/backtest_tab.py nel repo e fai redeploy.")
 # =========================================================================
-# v36 ENGINE FUNCTIONS
+# v41 ENGINE FUNCTIONS
 # =========================================================================
 
 # ── #1 MARKET REGIME DETECTION ───────────────────────────────────────────
 @st.cache_data(ttl=120)
 def _get_market_regime():
-    """v36 ENHANCED: VIX+SPY+QQQ+IWM+TLT+TNX, Fear&Greed proxy, breadth multi-indice."""
+    """v41 ENHANCED: VIX+SPY+QQQ+IWM+TLT+TNX, Fear&Greed proxy, breadth multi-indice."""
     import yfinance as _yf
     import math as _m
     try:
@@ -958,7 +961,7 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
                   "B" if v >= 60 else
                   "C" if v >= 40 else "D")
 
-    # ── v36 UPGRADE #6 — RELATIVE STRENGTH vs SPY ───────────────────────
+    # ── v41 UPGRADE #6 — RELATIVE STRENGTH vs SPY ───────────────────────
     df = _add_rs_column(df)
 
     return df
@@ -1039,7 +1042,7 @@ hr{border-color:#1f2937 !important;}
 .legend-col-range{color:#f59e0b;}
 .crit-ok{color:#00ff88;font-weight:bold;}
 .crit-no{color:#ef4444;}
-/* v39 MOBILE */
+/* v41 MOBILE */
 @media(max-width:480px){
  [data-testid="block-container"]{padding:0.5rem!important}
  [data-testid="stMetricValue"]{font-size:1.2rem!important}
@@ -1872,7 +1875,7 @@ this.eGui.style.color=v>0?'#00ff88':v<0?'#ef4444':'#6b7280';
 this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';}
 }getGui(){return this.eGui;}}""")
 
-# v36 — RS vs SPY renderer (barra orizzontale con valore)
+# v41 — RS vs SPY renderer (barra orizzontale con valore)
 rs_renderer=JsCode("""class RS{init(p){
 this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:4px;height:100%;';
@@ -1891,7 +1894,7 @@ lbl.style.cssText='font-family:Courier New;font-size:0.78rem;color:'+col+';min-w
 this.eGui.appendChild(lbl);this.eGui.appendChild(bar);
 }getGui(){return this.eGui;}}""")
 
-# v36 — RS Rank renderer (0-100 badge)
+# v41 — RS Rank renderer (0-100 badge)
 rs_rank_renderer=JsCode("""class RR{init(p){this.eGui=document.createElement('span');
 const v=parseInt(p.value||0);
 const col=v>=80?'#00ff88':v>=60?'#26a69a':v>=40?'#f59e0b':'#ef4444';
@@ -2063,7 +2066,7 @@ with st.sidebar.container():
             st.rerun()
     with _qf_cols[1]:
         if st.button("🎯 Bilanciato", key="qf_balanced", use_container_width=True,
-                     help="Reset filtri bilanciati (default v36)"):
+                     help="Reset filtri bilanciati (default v41)"):
             for k,v in PRESETS["⚖️ Bilanciato"].items():
                 st.session_state[k] = v
             st.session_state.show_strong_only = False
@@ -2207,7 +2210,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
     st.divider()
     # ── v34: Filtro CSS (Composite Signal Score) ─────────────────────────
     css_filter_enabled = st.checkbox(
-        "🏆 Filtro CSS (v36)",
+        "🏆 Filtro CSS (v41)",
         value=bool(st.session_state.get("css_filter_enabled", False)),
         help="Mostra solo titoli con Composite Signal Score sopra la soglia. "
              "CSS combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV.",
@@ -2234,7 +2237,7 @@ with st.sidebar.expander("🔬 Soglie Filtri (live)",expanded=True):
         options=["Tutti","WEAK+","MODERATE+","STRONG"],
         index=["Tutti","WEAK+","MODERATE+","STRONG"].index(
             st.session_state.get("ts_filter","Tutti")),
-        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v36)",
+        help="Filtra per forza trend calcolata su EMA/Volume/OBV/ATR (ADX Proxy v41)",
         key="sb_ts_filter",
     )
     st.session_state["ts_filter"] = ts_filter
@@ -2281,7 +2284,7 @@ if st.sidebar.button("⚠️ Reset Watchlist DB",key="rst_wl"):
     reset_watchlist_db(); st.rerun()
 
 st.sidebar.divider()
-st.sidebar.subheader("⚡ Scanner v36")
+st.sidebar.subheader("⚡ Scanner v41")
 with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
     use_cache  = st.checkbox("⚡ Cache SQLite (più veloce)",True,key="use_cache",
                               help="Riusa dati yfinance già scaricati oggi (TTL 4h). "
@@ -2305,8 +2308,8 @@ with st.sidebar.expander("🔧 Opzioni avanzate",expanded=False):
         except Exception as e:
             st.info("Cache non disponibile.")
 
-# ── v36 UPGRADE #3 — SCANNER SCHEDULER ────────────────────────────────────
-with st.sidebar.expander("⏰ Auto-Scanner v36", expanded=False):
+# ── v41 UPGRADE #3 — SCANNER SCHEDULER ────────────────────────────────────
+with st.sidebar.expander("⏰ Auto-Scanner v41", expanded=False):
     st.caption("Scan automatico a intervalli regolari.")
     _sched_enabled = st.checkbox("🟢 Abilita Auto-Scan", key="sched_enabled",
                                   value=st.session_state.get("sched_enabled", False))
@@ -2352,7 +2355,7 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
         st.sidebar.success("Storico cancellato.");st.rerun()
     except Exception as e: st.sidebar.error(f"Errore: {e}")
 
-# ── v37: AI multi-provider status in sidebar ────────────────────────────
+# ── v41: AI multi-provider status in sidebar ────────────────────────────
 _ai_providers_status = {
     "🟢 Gemini":     bool(st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key","")),
     "🟣 Groq":       bool(st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key","")),
@@ -2633,7 +2636,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
            # Nuove colonne v34
            "Dollar_Vol":110,"Liq_Grade":130,"ATR_pct":90,"ATR_OK":85,"Liq_OK":80,
            "CSS":130,"CSS_Grade":85,"Trend_Strength":120,"ADX_Proxy":110,
-           # v36
+           # v41
            "RS_20d":120,"RS_Rank":80,
            "RSI_Div_Score":90,
            # v34 REA-HOT
@@ -2669,7 +2672,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
           "CSS":css_renderer,
           "CSS_Grade":css_grade_renderer,
           "Trend_Strength":trend_strength_renderer,
-          # v36
+          # v41
           "RS_20d":rs_renderer,
           "RS_Rank":rs_rank_renderer,
           "Dist_POC_%":JsCode("""class DP{init(p){this.eGui=document.createElement('span');const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'\u2014':v.toFixed(2)+'%';this.eGui.style.fontFamily='Courier New';}getGui(){return this.eGui;}}""")}
@@ -2681,7 +2684,7 @@ def build_aggrid(df_disp, grid_key, height=480, editable_cols=None):
     # v34 — CSS sempre visibile, ordinata discendente di default (i migliori in cima)
     if "CSS" in df_disp.columns:
         gb.configure_column("CSS", pinned="right", sort="desc",
-                            headerTooltip="Composite Signal Score v36 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
+                            headerTooltip="Composite Signal Score v41 — punteggio 0-100 che combina Pro/Ser/FV score + ADX + ATR + liquidità + OBV")
     if "CSS_Grade" in df_disp.columns:
         gb.configure_column("CSS_Grade", pinned="right",
                             headerTooltip="A≥80 | B≥60 | C≥40 | D<40")
@@ -2748,7 +2751,7 @@ function(p){
                       data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
                       fit_columns_on_grid_load=False,theme="streamlit",
                       allow_unsafe_jscode=True,key=grid_key)
-        # v39: verifica che AgGrid abbia restituito dati — altrimenti fallback
+        # v41: verifica che AgGrid abbia restituito dati — altrimenti fallback
         _resp_data = resp.get("data", None)
         if _resp_data is not None and hasattr(_resp_data, '__len__') and len(_resp_data) == 0 and len(df_disp) > 0:
             raise ValueError("AgGrid returned empty data — using fallback")
@@ -3082,13 +3085,13 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 
     elif status_filter=="SERAFINI":
         if "Ser_OK" not in df.columns:
-            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v36."); return
+            st.warning("Colonna Ser_OK non trovata. Riesegui scanner v41."); return
         df_f=df[df["Ser_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
     elif status_filter=="FINVIZ_PRO":
         if "FV_Score" not in df.columns:
-            st.warning("Colonna FV_Score non trovata. Riesegui scanner v36."); return
+            st.warning("Colonna FV_Score non trovata. Riesegui scanner v41."); return
         df_f=df[df["FV_OK"].isin([True,"True","true"])].copy()
         if "Quality_Score" in df_f.columns and s_q>0: df_f=df_f[df_f["Quality_Score"]>=s_q]
 
@@ -3235,7 +3238,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     valid_sort=[c for c in sort_cols if c in df_f.columns]
     if valid_sort: df_f=df_f.sort_values(valid_sort,ascending=ascending[:len(valid_sort)])
 
-    # ── v37: Pannello diagnostica filtri sempre visibile ──────────────────
+    # ── v41: Pannello diagnostica filtri sempre visibile ──────────────────
     with st.expander(f"🔬 Diagnostica filtri — {len(df_f)} segnali visibili", expanded=False):
         _n_raw = len(df)
         _n_after_state  = len(df_f) + 0  # dopo classificazione (prima del head)
@@ -3281,17 +3284,17 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
             "Oppure aumenta il TOP N (sidebar) per vedere più risultati."
         )
 
-    # ── v37: Opzioni ordinamento inline ───────────────────────────────────
+    # ── v41: Opzioni ordinamento inline ───────────────────────────────────
     _sort_options = {
         "🏆 CSS (default)":      ("CSS", False),
         "📈 RS vs SPY":          ("RS_20d", False),
-        "⚡ Momentum (Pro×RSI)": ("_Momentum_v37", False),
+        "⚡ Momentum (Pro×RSI)": ("_Momentum_v41", False),
         "📊 Quality Score":      ("Quality_Score", False),
         "🔥 Volume Ratio":       ("Vol_Ratio", False),
         "📡 Early Score":        ("Early_Score", False),
     }
     _sort_avail = {k:v for k,v in _sort_options.items()
-                   if v[0] in df_f.columns or v[0] == "_Momentum_v37"}
+                   if v[0] in df_f.columns or v[0] == "_Momentum_v41"}
 
     _sc1, _sc2, _sc3 = st.columns([2, 1, 1])
     with _sc1:
@@ -3322,9 +3325,9 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     # Applica ordinamento scelto
     _sort_col, _sort_asc = _sort_avail.get(_sort_choice, ("CSS", False))
 
-    if _sort_col == "_Momentum_v37" and "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
+    if _sort_col == "_Momentum_v41" and "Pro_Score" in df_f.columns and "RSI" in df_f.columns:
         df_f = df_f.copy()
-        df_f["_Momentum_v37"] = (
+        df_f["_Momentum_v41"] = (
             pd.to_numeric(df_f["Pro_Score"], errors="coerce").fillna(0) * 10 +
             pd.to_numeric(df_f["RSI"], errors="coerce").fillna(50)
         )
@@ -3378,7 +3381,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     with ce2: st.caption(f"Seleziona → **➕** per aggiungere a `{st.session_state.current_list_name}`. Doppio click Nome → TradingView.")
 
     grid_resp  =build_aggrid(df_disp,f"grid_{title}")
-    # v39 FIX: se AgGrid non renderizza (versione incompatibile), usa st.dataframe come fallback
+    # v41 FIX: se AgGrid non renderizza (versione incompatibile), usa st.dataframe come fallback
     try:
         selected_df=pd.DataFrame(grid_resp["selected_rows"])
     except Exception:
@@ -3457,7 +3460,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
 # =========================================================================
 # TABS
 # =========================================================================
-# ── v37: Menu sticky + 2 righe + font adattivo + tab attivo evidenziato ──
+# ── v41: Menu sticky + 2 righe + font adattivo + tab attivo evidenziato ──
 st.markdown("""<style>
 /* Sticky tab bar — rimane visibile scorrendo */
 [data-testid="stTabs"] {
@@ -3513,7 +3516,7 @@ st.markdown("""<style>
 
 
 # =========================================================================
-# v39 — FUNZIONI (prima dei tab per evitare NameError)
+# v41 — FUNZIONI (prima dei tab per evitare NameError)
 # =========================================================================
 
 _PATTERN_ALERTS_V39 = {
@@ -3527,7 +3530,7 @@ _PATTERN_ALERTS_V39 = {
     "bb_breakout":    {"label":"BB Breakout",        "icon":"🎯","desc":"Prezzo > EMA20+2xATR"},
 }
 
-def _detect_patterns_v39(row):
+def _detect_patterns_v41(row):
     out = []
     try:
         pr  = float(row.get("Prezzo",  0) or 0)
@@ -3549,8 +3552,8 @@ def _detect_patterns_v39(row):
     except Exception: pass
     return out
 
-def _render_pattern_alerts_v39(df_src, tab_name="x"):
-    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v39 — Pattern Tecnici</div>', unsafe_allow_html=True)
+def _render_pattern_alerts_v41(df_src, tab_name="x"):
+    st.markdown('<div class="section-pill">🔔 ALERT MULTIPLI v41 — Pattern Tecnici</div>', unsafe_allow_html=True)
     if df_src is None or (hasattr(df_src,"empty") and df_src.empty):
         st.info("Avvia lo scanner per rilevare i pattern."); return
     with st.expander("⚙️ Pattern da monitorare", expanded=False):
@@ -3560,7 +3563,7 @@ def _render_pattern_alerts_v39(df_src, tab_name="x"):
                for i,(pid,p) in enumerate(_PATTERN_ALERTS_V39.items())}
     _rows = []
     for _, r in df_src.iterrows():
-        _pats = [p for p in _detect_patterns_v39(r) if _en.get(p,True)]
+        _pats = [p for p in _detect_patterns_v41(r) if _en.get(p,True)]
         if _pats:
             _rows.append({"Ticker":str(r.get("Ticker","")),"Nome":str(r.get("Nome",""))[:22],
                           "Prezzo":r.get("Prezzo",""),"RSI":r.get("RSI",""),
@@ -3591,11 +3594,11 @@ def _render_pattern_alerts_v39(df_src, tab_name="x"):
                 except Exception: pass
     _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
     _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v39_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
+    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v41_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
 
-# ── v39 #2: News & Sentiment ───────────────────────────────────────────────
+# ── v41 #2: News & Sentiment ───────────────────────────────────────────────
 @st.cache_data(ttl=600)
-def _fetch_news_v39(tickers:tuple)->list:
+def _fetch_news_v41(tickers:tuple)->list:
     import urllib.request as _ur, xml.etree.ElementTree as _ET
     _BULL={"surge","rally","soar","beat","record","upgrade","buy","bullish","outperform","strong","growth","profit","revenue","exceed","positive","gain","rise","boost","breakout"}
     _BEAR={"crash","fall","drop","miss","downgrade","sell","bearish","underperform","weak","loss","decline","below","negative","cut","reduce","layoff","concern","risk","warning","plunge"}
@@ -3615,7 +3618,7 @@ def _fetch_news_v39(tickers:tuple)->list:
         except Exception: pass
     return sorted(_res,key=lambda x:abs(x["Score"]),reverse=True)
 
-def _render_news_v39(df_ep_news):
+def _render_news_v41(df_ep_news):
     _tickers=[]
     if not(df_ep_news is None or(hasattr(df_ep_news,"empty")and df_ep_news.empty)):
         if "Stato_Pro" in df_ep_news.columns:
@@ -3630,9 +3633,9 @@ def _render_news_v39(df_ep_news):
     if not _tickers: st.info("Avvia scanner o aggiungi ticker alla watchlist."); return
     _,_fc2=st.columns([3,1])
     with _fc2:
-        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v39")
-        if st.button("🔄 Aggiorna",key="ns_refresh_v39"): st.cache_data.clear(); st.rerun()
-    with st.spinner("Carico news..."): _news=_fetch_news_v39(tuple(_tickers))
+        _nsf=st.selectbox("Filtro",["Tutti","🟢 Bullish","🔴 Bearish","⚪ Neutral"],key="ns_filter_v41")
+        if st.button("🔄 Aggiorna",key="ns_refresh_v41"): st.cache_data.clear(); st.rerun()
+    with st.spinner("Carico news..."): _news=_fetch_news_v41(tuple(_tickers))
     if _nsf=="🟢 Bullish": _news=[n for n in _news if "Bullish" in n["Sentiment"]]
     elif _nsf=="🔴 Bearish": _news=[n for n in _news if "Bearish" in n["Sentiment"]]
     elif _nsf=="⚪ Neutral": _news=[n for n in _news if "Neutral" in n["Sentiment"]]
@@ -3648,9 +3651,9 @@ def _render_news_v39(df_ep_news):
         _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
         _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
 
-# ── v39 #3: Macro Calendar ─────────────────────────────────────────────────
+# ── v41 #3: Macro Calendar ─────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def _fetch_macro_v39()->list:
+def _fetch_macro_v41()->list:
     import calendar as _cal
     _today=datetime.now().date()
     _events=[]
@@ -3674,9 +3677,9 @@ def _fetch_macro_v39()->list:
         except Exception: pass
     return sorted(_events,key=lambda x:x["Giorni"])
 
-# ── v39 #4: Short Interest + Options + Insider ─────────────────────────────
+# ── v41 #4: Short Interest + Options + Insider ─────────────────────────────
 @st.cache_data(ttl=3600)
-def _fetch_short_v39(tickers:tuple)->dict:
+def _fetch_short_v41(tickers:tuple)->dict:
     import yfinance as _yf_si
     _res={}
     for _t in tickers[:40]:
@@ -3687,7 +3690,7 @@ def _fetch_short_v39(tickers:tuple)->dict:
     return _res
 
 @st.cache_data(ttl=900)
-def _fetch_options_v39(ticker:str)->dict:
+def _fetch_options_v41(ticker:str)->dict:
     import yfinance as _yf_op
     try:
         _tk=_yf_op.Ticker(ticker); _exps=_tk.options
@@ -3701,7 +3704,7 @@ def _fetch_options_v39(ticker:str)->dict:
     except Exception: return {}
 
 @st.cache_data(ttl=3600)
-def _fetch_insider_v39(tickers:tuple)->list:
+def _fetch_insider_v41(tickers:tuple)->list:
     import urllib.request as _ur, json as _js
     _res=[]
     for _t in tickers[:15]:
@@ -3717,7 +3720,7 @@ def _fetch_insider_v39(tickers:tuple)->list:
 
 # =========================================================================
 
-def _render_ai_explainer_v37(df_source, tab_name="PRO"):
+def _render_ai_explainer_v41(df_source, tab_name="PRO"):
     """AI Signal Explainer — multi-provider con fallback automatico."""
     st.markdown(
         '<div class="section-pill">🤖 MODULO 2 — AI ANALYST · Setup · Target · Invalidazione · Rischio</div>',
@@ -3968,7 +3971,7 @@ def _render_ai_explainer_v37(df_source, tab_name="PRO"):
 
 
 # =========================================================================
-# v37 UPGRADE #4 — TELEGRAM ALERT ENGINE
+# v41 UPGRADE #4 — TELEGRAM ALERT ENGINE
 # =========================================================================
 
 def _ai_call_gemini(api_key: str, prompt: str) -> str:
@@ -4098,15 +4101,16 @@ tabs = st.tabs([
     "🤖 AI Assistant",       # v41 #1
     "🎲 Options Scanner",    # v41 #2
     "⚡ Momentum Alerts",     # v41 #3
+    "📰 News & Sentiment",    # v41 #4
 ])
 (tab_home, tab_mtf, tab_bcd, tab_e, tab_p, tab_r, tab_conf,
  tab_ser, tab_fvpro, tab_of, tab_crisis,
  tab_mtfmatrix, tab_journal, tab_regime,
  tab_w, tab_rm, tab_bt, tab_analisi,
- tab_ai, tab_opts, tab_mom) = tabs
+ tab_ai, tab_opts, tab_mom, tab_news) = tabs
 
 with tab_home:
-    # ── v36 #1 — MARKET REGIME BANNER ────────────────────────────────────
+    # ── v41 #1 — MARKET REGIME BANNER ────────────────────────────────────
     try:
         _regime_data = _get_market_regime()
         _rc = _regime_data["color"]; _ri = _regime_data["icon"]
@@ -4141,14 +4145,14 @@ with tab_home:
     except Exception:
         pass
 
-    # ── v36 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
+    # ── v41 #3 — AUTO-SCAN TRIGGER ───────────────────────────────────────
     if st.session_state.get("_trigger_autoscan"):
         st.session_state["_trigger_autoscan"] = False
         st.toast("⏰ Auto-scan avviato dallo scheduler!", icon="🤖")
 
-    # ── v40 — MERCATI LIVE GLOBALE (full panel, multi-row, YTD) ─────────────
+    # ── v41 — MERCATI LIVE GLOBALE (full panel, multi-row, YTD) ─────────────
     @st.cache_data(ttl=60, show_spinner=False)
-    def _fetch_live_markets_v40():
+    def _fetch_live_markets_v41():
         import yfinance as _yf_live
         _mkts = [
             # Azionari USA
@@ -4213,8 +4217,8 @@ with tab_home:
         return _results
 
     try:
-        _live_data_v40 = _fetch_live_markets_v40()
-        if _live_data_v40:
+        _live_data_v41 = _fetch_live_markets_v41()
+        if _live_data_v41:
             _now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
 
             _groups = [
@@ -4225,9 +4229,9 @@ with tab_home:
                 ("🥇 Commodities",             ["GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F"]),
                 ("💵 Valute · 🏦 Bond",        ["DX-Y.NYB","EURUSD=X","JPY=X","TLT"]),
             ]
-            _data_map = {m["sym"]: m for m in _live_data_v40}
+            _data_map = {m["sym"]: m for m in _live_data_v41}
 
-            def _fmt_price_v40(m):
+            def _fmt_price_v41(m):
                 s = m["sym"]; p = m["price"]
                 if s in ("BTC-USD",):                return f"${p:,.0f}"
                 if s in ("GC=F","SI=F","CL=F","NG=F","HG=F","ZW=F","ETH-USD"): return f"${p:,.2f}"
@@ -4265,7 +4269,7 @@ with tab_home:
                     _m   = _data_map[_sym]
                     _c   = "#26a69a" if _m["chg"]>=0 else "#ef4444"
                     _ar  = "▲" if _m["chg"]>=0 else "▼"
-                    _pr  = _fmt_price_v40(_m)
+                    _pr  = _fmt_price_v41(_m)
                     _ytd = _m.get("ytd")
                     if _ytd is not None:
                         _ytd_c  = "#26a69a" if _ytd>=0 else "#ef4444"
@@ -4300,10 +4304,10 @@ with tab_home:
     except Exception:
         pass
 
-        # ── v40 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
+        # ── v41 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
     with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):
         @st.cache_data(ttl=3600, show_spinner=False)
-        def _fetch_corr_v40():
+        def _fetch_corr_v41():
             import yfinance as _yc
             _corr_syms = {
                 "S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DAX": "^GDAXI",
@@ -4333,7 +4337,7 @@ with tab_home:
             return _df_c.corr().round(2)
 
         try:
-            _corr_df = _fetch_corr_v40()
+            _corr_df = _fetch_corr_v41()
             if _corr_df is not None and not _corr_df.empty:
                 import plotly.graph_objects as _go_corr
                 _labs = list(_corr_df.columns)
@@ -4362,7 +4366,7 @@ with tab_home:
                     xaxis=dict(tickfont=dict(size=10), gridcolor="#2a2e39"),
                     yaxis=dict(tickfont=dict(size=10), gridcolor="#2a2e39"),
                 )
-                st.plotly_chart(_fig_corr, use_container_width=True, key="home_corr_v40")
+                st.plotly_chart(_fig_corr, use_container_width=True, key="home_corr_v41")
                 st.caption(
                     "🟢 +1 = si muovono insieme (rischio correlato) &nbsp;·&nbsp; "
                     "🔴 −1 = hedge naturale (si muovono opposti) &nbsp;·&nbsp; "
@@ -4373,16 +4377,16 @@ with tab_home:
         except Exception as _ce:
             st.warning(f"Errore correlazioni: {str(_ce)[:120]}")
 
-    # v40: render_home per sparklines/breadth (senza Mercati Live duplicato)
+    # v41: render_home per sparklines/breadth (senza Mercati Live duplicato)
     try:
         from utils.home_tab import render_home
         render_home(df_ep, df_rea)
     except Exception:
         pass
 
-    # ── v36 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
+    # ── v41 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
-    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v36 — Prossimi earnings da Watchlist + Scanner</div>',
+    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v41 — Prossimi earnings da Watchlist + Scanner</div>',
                 unsafe_allow_html=True)
     _earn_tickers = set()
     # Da watchlist
@@ -4445,30 +4449,30 @@ with tab_home:
         st.info("Aggiungi ticker alla watchlist o avvia lo scanner per vedere gli earnings.")
 
     st.markdown('---')
-    with st.expander('📰 NEWS & SENTIMENT v39 — Ultime news con score sentiment', expanded=False):
-        _render_news_v39(df_ep)
+    with st.expander('📰 NEWS & SENTIMENT v41 — Ultime news con score sentiment · [TradingView Italia](https://it.tradingview.com/)', expanded=False):
+        _render_news_v41(df_ep)
     st.markdown('---')
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v39 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
-    _macro_ev39=_fetch_macro_v39()
-    _mc39=[e for e in _macro_ev39 if 0<=e['Giorni']<=14]
+    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v41 — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
+    _macro_ev41=_fetch_macro_v41()
+    _mc39=[e for e in _macro_ev41 if 0<=e['Giorni']<=14]
     if _mc39:
         _mc39c=st.columns(min(len(_mc39),4))
-        for _i39,_ev39 in enumerate(_mc39[:4]):
-            _ic39='#ef4444' if 'High' in _ev39['Impatto'] else '#f59e0b'
-            _mc39c[_i39].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic39};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic39};font-size:0.70rem'>{_ev39['Impatto']} · {_ev39['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev39['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev39['Data']}</div></div>",unsafe_allow_html=True)
+        for _i39,_ev41 in enumerate(_mc39[:4]):
+            _ic39='#ef4444' if 'High' in _ev41['Impatto'] else '#f59e0b'
+            _mc39c[_i39].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic39};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic39};font-size:0.70rem'>{_ev41['Impatto']} · {_ev41['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev41['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev41['Data']}</div></div>",unsafe_allow_html=True)
     with st.expander('📅 Calendario completo 90 giorni',expanded=False):
-        for _ev39 in _macro_ev39[:20]:
-            _ic392='#ef4444' if 'High' in _ev39['Impatto'] else '#f59e0b' if 'Med' in _ev39['Impatto'] else '#6b7280'
-            _dot39='🔴' if _ev39['Giorni']<=3 else '🟡' if _ev39['Giorni']<=7 else '🟢'
-            st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev39['Data']}</span> <b style='color:#d1d4dc'>{_ev39['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev39['Giorni']}gg</span></div>",unsafe_allow_html=True)
+        for _ev41 in _macro_ev41[:20]:
+            _ic392='#ef4444' if 'High' in _ev41['Impatto'] else '#f59e0b' if 'Med' in _ev41['Impatto'] else '#6b7280'
+            _dot39='🔴' if _ev41['Giorni']<=3 else '🟡' if _ev41['Giorni']<=7 else '🟢'
+            st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev41['Data']}</span> <b style='color:#d1d4dc'>{_ev41['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev41['Giorni']}gg</span></div>",unsafe_allow_html=True)
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
     render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
 
     st.markdown('---')
-    with st.expander('🔔 Alert Multipli v39 — Pattern tecnici', expanded=False):
-        _render_pattern_alerts_v39(df_ep, tab_name='early')
+    with st.expander('🔔 Alert Multipli v41 — Pattern tecnici', expanded=False):
+        _render_pattern_alerts_v41(df_ep, tab_name='early')
 
 with tab_p:
     st.session_state.last_active_tab="PRO"; show_legend("PRO")
@@ -4486,13 +4490,13 @@ with tab_p:
         render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
     st.markdown('---')
-    with st.expander('🔔 Alert Multipli v39 — Pattern su segnali PRO', expanded=False):
-        _render_pattern_alerts_v39(df_ep, tab_name='pro')
+    with st.expander('🔔 Alert Multipli v41 — Pattern su segnali PRO', expanded=False):
+        _render_pattern_alerts_v41(df_ep, tab_name='pro')
 
     # ── Modulo 2 — 🤖 AI Analyst ─────────────────────────────────────────
     st.markdown("---")
     with st.expander("🤖 Modulo 2 — AI Analyst · Analisi per ogni ticker PRO/STRONG", expanded=False):
-        _render_ai_explainer_v37(df_ep, "PRO")
+        _render_ai_explainer_v41(df_ep, "PRO")
 
 with tab_r:
     st.session_state.last_active_tab="REA-HOT"; show_legend("REA-HOT")
@@ -4641,16 +4645,16 @@ with tab_conf:
         if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
             _df_conf_ai = df_ep[(df_ep["Stato_Early"]=="EARLY") &
                                 (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))].copy()
-        _render_ai_explainer_v37(_df_conf_ai, "CONF")
+        _render_ai_explainer_v41(_df_conf_ai, "CONF")
 
 with tab_mtf:
     # ══════════════════════════════════════════════════════════════════════
-    # COMPARATORE MULTI-TICKER v36
+    # COMPARATORE MULTI-TICKER v41
     # Top 5 per capitalizzazione (Mar 2025): AAPL > MSFT > NVDA > GOOGL > META
     # Il comparatore inline è SEMPRE visibile. Se compare_tab.py esiste,
     # viene mostrato anche il comparatore esterno sotto.
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v36</div>',
+    st.markdown('<div class="section-pill">📊 COMPARATORE MULTI-TICKER v41</div>',
                 unsafe_allow_html=True)
 
     # ── Badge capitalizzazione — sempre visibili ─────────────────────────
@@ -4781,7 +4785,7 @@ with tab_mtf:
                         hovertemplate=f"<b>{ct}</b> {nmc}<br>%{{y:+.2f}}%<extra></extra>",
                     ))
 
-                    # ── v36: colonne professionali ───────────────────────
+                    # ── v41: colonne professionali ───────────────────────
                     _52wh = inf.get("52w_high")
                     _52wl = inf.get("52w_low")
                     _dist_52wh = round((cur_price/_52wh-1)*100,1) if _52wh and _52wh>0 else None
@@ -4845,7 +4849,7 @@ with tab_mtf:
                 )
                 st.plotly_chart(fig_cmp, use_container_width=True, key="cmp_chart")
 
-                # ── Tabella KPI professionale v36 ─────────────────────
+                # ── Tabella KPI professionale v41 ─────────────────────
                 df_kpi = (pd.DataFrame(_kpi_rows)
                             .sort_values("_chg", ascending=False)
                             .drop(columns=["_rs","_chg"])
@@ -4900,7 +4904,7 @@ with tab_mtf:
 with tab_ser:
     show_legend("🎯 Serafini")
     # Mostra criteri dettaglio
-    with st.expander("✅ Criteri Serafini nel dettaglio — v36",expanded=False):
+    with st.expander("✅ Criteri Serafini nel dettaglio — v41",expanded=False):
         st.markdown("""
 | # | Criterio | Calcolo | Soglia | Novità v34 |
 |---|----------|---------|--------|------------|
@@ -5128,7 +5132,7 @@ with tab_crisis:
             df_crisis_cat = df_crisis_cat.merge(_sub, on="Ticker", how="left")
             break  # primo df disponibile basta
 
-        # ── v40 FIX ROBUSTO: elimina tutti i NaN/inf prima di AgGrid ──────
+        # ── v41 FIX ROBUSTO: elimina tutti i NaN/inf prima di AgGrid ──────
         import numpy as _np, math as _math
         # 1) Colonne testo: qualsiasi NaN → "—"
         _text_cols_crisis = {"Ticker","Nome","Descrizione Tattica","OBV_Trend",
@@ -5442,15 +5446,15 @@ with tab_w:
     # ══════════════════════════════════════════════════════════════════════
     _df_ep_wl = st.session_state.get("df_ep", pd.DataFrame())
 
-    with st.expander("📈 P&L Tracker & Alert Engine v36", expanded=False):
+    with st.expander("📈 P&L Tracker & Alert Engine v41", expanded=False):
         st.caption("Inserisci prezzo entrata e size per ogni ticker — P&L si aggiorna con prezzi scanner.")
         _pnl_col1, _pnl_col2 = st.columns([2, 1])
 
         with _pnl_col1:
             st.markdown("**💰 P&L Tracker (Mark-to-Market)**")
-            if "v36_pnl_entries" not in st.session_state:
-                st.session_state["v36_pnl_entries"] = {}
-            _pnl = st.session_state["v36_pnl_entries"]
+            if "v41_pnl_entries" not in st.session_state:
+                st.session_state["v41_pnl_entries"] = {}
+            _pnl = st.session_state["v41_pnl_entries"]
 
             # Form aggiunta posizione
             _pa, _pb, _pc, _pd = st.columns([2,1.5,1.5,1])
@@ -5517,9 +5521,9 @@ with tab_w:
 
         with _pnl_col2:
             st.markdown("**🔔 Alert Engine**")
-            if "v36_alerts" not in st.session_state:
-                st.session_state["v36_alerts"] = {}
-            _alerts = st.session_state["v36_alerts"]
+            if "v41_alerts" not in st.session_state:
+                st.session_state["v41_alerts"] = {}
+            _alerts = st.session_state["v41_alerts"]
 
             _at, _av, _atype = st.columns([1.5, 1.5, 1.5])
             with _at:   _alert_tkr   = st.text_input("Ticker", key="alt_tkr", placeholder="AAPL").upper().strip()
@@ -6113,19 +6117,19 @@ with tab_bt:
     # Sharpe Ratio, Max Drawdown, Win Rate, Profit Factor, Avg R
     # Equity Curve con drawdown overlay — tutto inline senza dipendenze esterne
     # ══════════════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v36 — Metriche Professionali</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">🧪 BACKTEST PRO v41 — Metriche Professionali</div>', unsafe_allow_html=True)
 
-    with st.expander("📊 Backtest Pro v36 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
-        _bt_tickers_v36 = []
+    with st.expander("📊 Backtest Pro v41 — Sharpe · Drawdown · Win Rate · Equity Curve", expanded=False):
+        _bt_tickers_v41 = []
         if not df_ep.empty and "Ticker" in df_ep.columns:
-            _bt_tickers_v36 = sorted(df_ep["Ticker"].dropna().unique().tolist())
+            _bt_tickers_v41 = sorted(df_ep["Ticker"].dropna().unique().tolist())
 
-        if not _bt_tickers_v36:
+        if not _bt_tickers_v41:
             st.info("Avvia lo scanner per popolare l'universo di backtest.")
         else:
             _bc1, _bc2, _bc3, _bc4 = st.columns([2,1,1,1])
             with _bc1:
-                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v36, key="bt35_tkr")
+                _bt_tkr = st.selectbox("Ticker", _bt_tickers_v41, key="bt35_tkr")
             with _bc2:
                 _bt_period = st.selectbox("Periodo", ["6mo","1y","2y","3y"], index=1, key="bt35_period")
             with _bc3:
@@ -6482,7 +6486,7 @@ Ogni scansione viene automaticamente salvata qui con timestamp, mercati, segnali
 # EXPORT GLOBALI v35 PRO
 # =========================================================================
 st.markdown("---")
-st.markdown('<div class="section-pill">💾 EXPORT PRO v36 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">💾 EXPORT PRO v41 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
 
 df_conf_exp=pd.DataFrame()
 if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
@@ -6520,7 +6524,7 @@ with ec1:
     st.download_button(
         "📊 XLSX Pro Tutti",
         _to_excel_pro(all_exp),
-        f"TradingScanner_v37_Tutti_{_ts}.xlsx",
+        f"TradingScanner_v41_Tutti_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_all",
         help="Tutti i tab + sheet Summary con conteggi"
@@ -6536,7 +6540,7 @@ with ec2:
         st.download_button(
             "📈 CSV TV Tutti",
             df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v37_TV_{_ts}.csv",
+            f"TradingScanner_v41_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_all",
             help="CSV pronto per import in TradingView Watchlist"
@@ -6545,7 +6549,7 @@ with ec3:
     st.download_button(
         f"📊 XLSX {cur_tab}",
         _to_excel_pro({cur_tab: df_cur}),
-        f"TradingScanner_v37_{cur_tab}_{_ts}.xlsx",
+        f"TradingScanner_v41_{cur_tab}_{_ts}.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key="xlsx_curr"
     )
@@ -6554,13 +6558,13 @@ with ec4:
         st.download_button(
             f"📈 CSV TV {cur_tab}",
             make_tv_csv(df_cur, cur_tab),
-            f"TradingScanner_v37_{cur_tab}_TV_{_ts}.csv",
+            f"TradingScanner_v41_{cur_tab}_TV_{_ts}.csv",
             "text/csv",
             key="csv_tv_curr"
         )
 with ec5:
     # v35: export P&L tracker se presente
-    _pnl_data = st.session_state.get("v36_pnl_entries", {})
+    _pnl_data = st.session_state.get("v41_pnl_entries", {})
     if _pnl_data:
         _df_pnl_exp = pd.DataFrame([
             {"Ticker": _t, "Entry $": _pos["entry"], "Size": _pos["size"], "Added": _pos.get("added","")}
@@ -6569,16 +6573,16 @@ with ec5:
         st.download_button(
             "💰 Export P&L",
             _df_pnl_exp.to_csv(index=False).encode(),
-            f"PnL_Tracker_v37_{_ts}.csv",
+            f"PnL_Tracker_v41_{_ts}.csv",
             "text/csv",
             key="csv_pnl_exp",
             help="Esporta posizioni P&L tracker"
         )
 # =========================================================================
-# v36 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
+# v41 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
 # =========================================================================
 with tab_mtfmatrix:
-    st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v36</div>',
+    st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v41</div>',
                 unsafe_allow_html=True)
     st.caption("Stato Daily / Weekly / Monthly per ogni ticker. 🟢 3/3 allineati · 🟡 2/3 · 🔴 1/3 · ⚪ no data")
 
@@ -6740,7 +6744,7 @@ with tab_mtfmatrix:
                 _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
                 _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
                 _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
-                # v36 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
+                # v41 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
                 _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
                 _tv_url  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
                 _nome_disp = (f"<span style='color:#787b86;font-size:0.72rem;display:block'>{_r['Nome']}</span>"
@@ -6851,22 +6855,22 @@ with tab_mtfmatrix:
             _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
             st.download_button("📊 Export MTF Matrix",
                 _df_mtf_exp.to_csv(index=False).encode(),
-                f"MTF_Matrix_v37_{_mtf_ts}.csv", "text/csv", key="mtf_export")
+                f"MTF_Matrix_v41_{_mtf_ts}.csv", "text/csv", key="mtf_export")
 
 
 
 # =========================================================================
-# v36 TAB #8 — PAPER TRADING JOURNAL
+# v41 TAB #8 — PAPER TRADING JOURNAL
 # =========================================================================
 with tab_journal:
-    st.markdown('<div class="section-pill">📓 PAPER TRADING JOURNAL v36</div>',
+    st.markdown('<div class="section-pill">📓 PAPER TRADING JOURNAL v41</div>',
                 unsafe_allow_html=True)
     st.caption("Log strutturato entry/exit/note. Metriche aggregate per setup type.")
 
     # Init journal in session state (persiste in sessione; export per persistenza lunga)
-    if "v36_journal" not in st.session_state:
-        st.session_state["v36_journal"] = []
-    _journal = st.session_state["v36_journal"]
+    if "v41_journal" not in st.session_state:
+        st.session_state["v41_journal"] = []
+    _journal = st.session_state["v41_journal"]
 
     # ── Form aggiunta trade ──────────────────────────────────────────────
     with st.expander("➕ Aggiungi Trade", expanded=len(_journal)==0):
@@ -7004,7 +7008,7 @@ with tab_journal:
                 _journal.pop(); st.rerun()
         with _jd2:
             if st.button("🗑️ Svuota tutto", key="j_clear_all"):
-                st.session_state["v36_journal"] = []; st.rerun()
+                st.session_state["v41_journal"] = []; st.rerun()
 
         # Export Journal XLSX
         st.markdown("---")
@@ -7016,7 +7020,7 @@ with tab_journal:
         _j_ts = datetime.now().strftime("%Y%m%d_%H%M")
         st.download_button("📊 Export Journal XLSX",
             _j_export_buf.getvalue(),
-            f"TradingJournal_v37_{_j_ts}.xlsx",
+            f"TradingJournal_v41_{_j_ts}.xlsx",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="j_export_xlsx")
     else:
@@ -7024,10 +7028,10 @@ with tab_journal:
 
 
 # =========================================================================
-# v36 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
+# v41 TAB #1 — MARKET REGIME + SECTOR ROTATION HEATMAP INTERATTIVA
 # =========================================================================
 with tab_regime:
-    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v36 — VIX · Fear&Greed · Breadth · Bonds</div>',
+    st.markdown('<div class="section-pill">🌡️ MARKET REGIME DETECTION v41 — VIX · Fear&Greed · Breadth · Bonds</div>',
                 unsafe_allow_html=True)
 
     if st.button("🔄 Aggiorna dati Regime", key="regime_refresh",
@@ -7199,9 +7203,9 @@ with tab_regime:
 
     st.markdown("---")
 
-    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
+    # ── v41 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
 
-    # ── v36 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
+    # ── v41 #7 — SECTOR ROTATION HEATMAP INTERATTIVA ────────────────────
     st.markdown('<div class="section-pill">🔄 SECTOR ROTATION HEATMAP — 11 Settori × 6 Periodi</div>',
                 unsafe_allow_html=True)
     st.caption("Click su una cella per vedere i ticker del settore. Dati in tempo reale da ETF GICS.")
@@ -7268,7 +7272,7 @@ with tab_regime:
             height=320,
             margin=dict(l=0,r=0,t=45,b=0),
         )
-        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v36")
+        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v41")
 
         # ── Drill-down: click su settore ───────────────────────────────
         st.markdown("#### 🔍 Drill-down per Settore")
@@ -7352,9 +7356,9 @@ with tab_regime:
     else:
         st.warning("Dati settoriali non disponibili. Controlla la connessione a Yahoo Finance.")
 
-    # ── v36 #2 — POSITION SIZING ENGINE ──────────────────────────────────
+    # ── v41 #2 — POSITION SIZING ENGINE ──────────────────────────────────
     st.markdown("---")
-    st.markdown('<div class="section-pill">⚖️ POSITION SIZING ENGINE v36</div>',
+    st.markdown('<div class="section-pill">⚖️ POSITION SIZING ENGINE v41</div>',
                 unsafe_allow_html=True)
     st.caption("Calcolo professionale della size ottimale basato su rischio per trade.")
 
@@ -7401,13 +7405,13 @@ with tab_regime:
         st.info("Inserisci Entry e Stop Loss per calcolare la size.")
 
 # =========================================================================
-# v37 — Aggiunge 3 nuovi tab alla lista esistente
+# v41 — Aggiunge 3 nuovi tab alla lista esistente
 # Tab: 🧠 AI Explainer, 📱 Telegram, 📊 Risk Pro, 🔍 Gap Scanner
 # =========================================================================
 # Nota: i tab vengono aggiunti alla definizione esistente tramite
 # session_state flag — usa st.expander nei tab esistenti per compatibilità
 
-# ── v37 scan stats update (batch info) ────────────────────────────────────
+# ── v41 scan stats update (batch info) ────────────────────────────────────
 if "scan_stats" in st.session_state:
     _ss37 = st.session_state.scan_stats
     _batches_info = (f" · 📦 {_ss37.get('batches','?')} batch×{_ss37.get('batch_size','?')}"
@@ -7420,14 +7424,14 @@ if "scan_stats" in st.session_state:
     )
 
 # =========================================================================
-# v37 UPGRADE #3 — AI SIGNAL EXPLAINER
+# v41 UPGRADE #3 — AI SIGNAL EXPLAINER
 # =========================================================================
 # =========================================================================
-# v37 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
+# v41 UPGRADE #3 — AI SIGNAL EXPLAINER — Multi-Provider con Fallback
 # Provider chain: Gemini (free) → Groq (free) → OpenRouter → Claude
 # =========================================================================
 
-def _send_telegram_v37(bot_token: str, chat_id: str, message: str) -> bool:
+def _send_telegram_v41(bot_token: str, chat_id: str, message: str) -> bool:
     """Invia messaggio via Telegram Bot API."""
     try:
         import requests as _req_tg
@@ -7442,9 +7446,9 @@ def _send_telegram_v37(bot_token: str, chat_id: str, message: str) -> bool:
         return False
 
 
-def _render_telegram_settings_v37():
+def _render_telegram_settings_v41():
     """Pannello configurazione Telegram nel Risk Manager."""
-    st.markdown('<div class="section-pill">📱 NOTIFICHE TELEGRAM v37</div>',
+    st.markdown('<div class="section-pill">📱 NOTIFICHE TELEGRAM v41</div>',
                 unsafe_allow_html=True)
 
     _tg_c1, _tg_c2 = st.columns(2)
@@ -7461,8 +7465,8 @@ def _render_telegram_settings_v37():
 
         if st.button("🔔 Test notifica", key="tg_test_btn"):
             if _tg_token and _tg_chat:
-                _ok = _send_telegram_v37(_tg_token, _tg_chat,
-                    "✅ <b>Trading Scanner PRO v37</b>\nNotifiche Telegram attive!")
+                _ok = _send_telegram_v41(_tg_token, _tg_chat,
+                    "✅ <b>Trading Scanner PRO v41</b>\nNotifiche Telegram attive!")
                 if _ok:
                     st.success("✅ Messaggio inviato!")
                 else:
@@ -7493,13 +7497,13 @@ def _render_telegram_settings_v37():
             _top5  = _pro_tg.head(5)["Ticker"].tolist() if not _pro_tg.empty else []
             _rg_tg = st.session_state.get("_regime_cache", {})
             _msg_tg = (
-                f"📊 <b>Trading Scanner PRO v37 — Digest</b>\n"
+                f"📊 <b>Trading Scanner PRO v41 — Digest</b>\n"
                 f"🕐 {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
                 f"💪 Segnali PRO/STRONG: <b>{_n_pro}</b>\n"
                 f"🏆 Top 5: {', '.join(_top5) if _top5 else '—'}\n"
                 f"🌡️ Regime: {_rg_tg.get('regime','N/A')} · VIX: {_rg_tg.get('vix','N/A')}"
             )
-            _ok = _send_telegram_v37(_tg_token, _tg_chat, _msg_tg)
+            _ok = _send_telegram_v41(_tg_token, _tg_chat, _msg_tg)
             if _ok: st.success("✅ Digest inviato!")
             else:   st.error("❌ Errore invio digest.")
         else:
@@ -7518,20 +7522,20 @@ def _render_telegram_settings_v37():
             if not _auto_top.empty:
                 _auto_tickers = _auto_top.head(5)["Ticker"].tolist()
                 _auto_msg = (
-                    f"🚀 <b>Nuovi segnali scanner v37</b>\n"
+                    f"🚀 <b>Nuovi segnali scanner v41</b>\n"
                     f"💪 {len(_auto_top)} PRO/STRONG (CSS≥{_tg_min_css})\n"
                     f"📌 {', '.join(_auto_tickers)}"
                 )
-                _send_telegram_v37(_tg_token, _tg_chat, _auto_msg)
+                _send_telegram_v41(_tg_token, _tg_chat, _auto_msg)
                 st.session_state[_scan_notified_key] = True
 
 
 # =========================================================================
-# v37 UPGRADE #5 — RISK DASHBOARD PRO
+# v41 UPGRADE #5 — RISK DASHBOARD PRO
 # =========================================================================
-def _render_risk_dashboard_v37(df_ep_risk):
+def _render_risk_dashboard_v41(df_ep_risk):
     """Correlation matrix, VaR 95%, portfolio heat, drawdown alert."""
-    st.markdown('<div class="section-pill">📊 RISK DASHBOARD PRO v37 — Correlazioni · VaR · Portfolio Heat</div>',
+    st.markdown('<div class="section-pill">📊 RISK DASHBOARD PRO v41 — Correlazioni · VaR · Portfolio Heat</div>',
                 unsafe_allow_html=True)
 
     # Selezione ticker per il portfolio
@@ -7704,10 +7708,10 @@ def _render_risk_dashboard_v37(df_ep_risk):
 
 
 # =========================================================================
-# v37 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
+# v41 UPGRADE #6 — SCANNER AVANZATO: GAP + EARNINGS PLAY
 # =========================================================================
 @st.cache_data(ttl=300)
-def _scan_gaps_v37(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
+def _scan_gaps_v41(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
     """Gap Scanner: trova ticker con gap apertura > min_gap_pct con volume confermato."""
     import yfinance as _yf_g
     _results = []
@@ -7749,9 +7753,9 @@ def _scan_gaps_v37(tickers: tuple, min_gap_pct: float = 1.0) -> pd.DataFrame:
     return _df_g
 
 
-def _render_advanced_scanner_v37():
+def _render_advanced_scanner_v41():
     """Tab Scanner Avanzato: Gap Scanner + Earnings Play."""
-    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v37 — Gap · Earnings Play</div>',
+    st.markdown('<div class="section-pill">🔍 SCANNER AVANZATO v41 — Gap · Earnings Play</div>',
                 unsafe_allow_html=True)
 
     _adv_t1, _adv_t2 = st.tabs(["📈 Gap Scanner", "🗓️ Earnings Play"])
@@ -7794,7 +7798,7 @@ def _render_advanced_scanner_v37():
             _gap_universe = list(dict.fromkeys(_gap_universe))[:100]
 
             with st.spinner(f"Scansiono {len(_gap_universe)} ticker per gap ≥{_gap_min}%..."):
-                _df_gaps = _scan_gaps_v37(tuple(_gap_universe), _gap_min)
+                _df_gaps = _scan_gaps_v41(tuple(_gap_universe), _gap_min)
 
             if _df_gaps.empty:
                 st.info(f"Nessun gap significativo (≥{_gap_min}%) trovato oggi.")
@@ -7822,7 +7826,7 @@ def _render_advanced_scanner_v37():
                 _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
                 st.download_button("📊 Export Gap Scanner",
                     _df_gaps.to_csv(index=False).encode(),
-                    f"GapScanner_v37_{_gap_ts}.csv", "text/csv", key="gap_export")
+                    f"GapScanner_v41_{_gap_ts}.csv", "text/csv", key="gap_export")
 
     with _adv_t2:
         st.caption("Setup pre-earnings: titoli con earnings nei prossimi 7 giorni e CSS elevato.")
@@ -7871,23 +7875,23 @@ def _render_advanced_scanner_v37():
 
 
 # =========================================================================
-# v39 — FUNZIONI (definite dopo i tab v37 ma usate nei with tab_ qui sotto)
+# v41 — FUNZIONI (definite dopo i tab v41 ma usate nei with tab_ qui sotto)
 # Nota: in Python le funzioni possono essere chiamate in "with tab_X:" anche
 # se definite prima nella stessa sessione Streamlit — purché la chiamata
 # avvenga DOPO la definizione nello stesso file. Qui le definiamo e poi
 # le usiamo immediatamente nei blocchi with tab_X: che seguono.
 # =========================================================================
 
-# ── v39 #1: Pattern Alerts ────────────────────────────────────────────────
-# v39 — AGGIUNTE NEI TAB ESISTENTI (singole, no duplicati)
+# ── v41 #1: Pattern Alerts ────────────────────────────────────────────────
+# v41 — AGGIUNTE NEI TAB ESISTENTI (singole, no duplicati)
 # =========================================================================
 
 
 # =========================================================================
-# v39 — TAB 💡 ANALISI PERSONALE
+# v41 — TAB 💡 ANALISI PERSONALE
 # =========================================================================
 with tab_analisi:
-    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v39 — Carica ticker · Ricevi consigli AI</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">💡 ANALISI PERSONALE v41 — Carica ticker · Ricevi consigli AI</div>', unsafe_allow_html=True)
     st.caption("Inserisci i ticker. L'AI scarica dati freschi e fornisce consigli con entry/stop/target precisi.")
 
     _ap_c1, _ap_c2 = st.columns([2, 1.5])
@@ -8299,4 +8303,95 @@ with tab_mom:
         - **Volume >3x**: Volume交易日 >3x media 5gg
         - **Price Action**: Engulfing, Hammer, Doji (basic)
         - **Earnings**: Alert su titoli con earnings imminenti
+        """)
+
+
+# =========================================================================
+# v41 — TAB 📰 NEWS & SENTIMENT
+# =========================================================================
+with tab_news:
+    st.markdown('<div class="section-pill">📰 NEWS & SENTIMENT v41 — Ultime news con sentiment analysis</div>', unsafe_allow_html=True)
+
+    # Link a TradingView Italia
+    st.markdown("🔗 **[TradingView Italia](https://it.tradingview.com/)** — Community italiana analysis", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # Input ticker
+    _ns_cols = st.columns([2, 1, 1])
+    with _ns_cols[0]:
+        _ns_tickers = st.text_input("Ticker da monitorare", value="SPY,QQQ,NVDA,TSLA,AAPL,META,AMD,GOOGL").strip()
+    with _ns_cols[1]:
+        _ns_filter = st.selectbox("Filtro Sentiment", ["Tutti", "🟢 Bullish", "🔴 Bearish", "⚪ Neutral"])
+    with _ns_cols[2]:
+        _ns_source = st.selectbox("Fonte", ["Yahoo Finance", "NewsAPI"])
+
+    # Carica da watchlist opzionale
+    try:
+        _wl = load_watchlist()
+        if not _wl.empty and "Ticker" in _wl.columns:
+            _wl_tickers = _wl["Ticker"].dropna().unique().tolist()[:20]
+            if st.checkbox("📋 Includi Watchlist", value=True):
+                _all_tk = list(set([t.strip().upper() for t in _ns_tickers.split(",") if t.strip()] + _wl_tickers))
+                _ns_tickers = ",".join(_all_tk)
+    except Exception:
+        pass
+
+    if st.button("📥 Carica News", use_container_width=True):
+        _tk_list = [t.strip().upper() for t in _ns_tickers.split(",") if t.strip()]
+        with st.spinner("Scaricando news..."):
+            _news_data = _fetch_news_v41(tuple(_tk_list[:25]))
+
+        # Filtro
+        if _ns_filter == "🟢 Bullish":
+            _news_data = [n for n in _news_data if "Bullish" in n["Sentiment"]]
+        elif _ns_filter == "🔴 Bearish":
+            _news_data = [n for n in _news_data if "Bearish" in n["Sentiment"]]
+        elif _ns_filter == "⚪ Neutral":
+            _news_data = [n for n in _news_data if "Neutral" in n["Sentiment"]]
+
+        if _news_data:
+            # Statistiche
+            _nb = sum(1 for n in _news_data if "Bullish" in n["Sentiment"])
+            _nr = sum(1 for n in _news_data if "Bearish" in n["Sentiment"])
+            _nn = sum(1 for n in _news_data if "Neutral" in n["Sentiment"])
+
+            _s1, _s2, _s3, _s4 = st.columns(4)
+            _s1.metric("📰 Totale", len(_news_data))
+            _s2.metric("🟢 Bullish", _nb)
+            _s3.metric("🔴 Bearish", _nr)
+            _s4.metric("⚪ Neutral", _nn)
+
+            st.markdown("---")
+
+            # Lista news
+            for _n in _news_data[:50]:
+                _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
+                _nc1, _nc2, _nc3 = st.columns([1, 0.8, 4])
+                _nc1.markdown(f"**{_n['Ticker']}**", unsafe_allow_html=True)
+                _nc2.markdown(f"<span style='color:{_sc};font-weight:bold'>{_n['Sentiment']}</span>", unsafe_allow_html=True)
+                _nc3.markdown(f"[{_n['Titolo']}]({_n['Link']}) <span style='color:#6b7280;font-size:0.7rem'>{_n['Data']}</span>", unsafe_allow_html=True)
+                st.divider()
+
+            # Export
+            _ns_df = pd.DataFrame(_news_data)
+            _ns_csv = _ns_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Export CSV", _ns_csv, "news_sentiment.csv", "text/csv")
+        else:
+            st.info("Nessuna news trovata.")
+
+    # Guida
+    with st.expander("📖 Guida Sentiment Analysis"):
+        st.markdown("""
+        **Come funziona:**
+        - Le news vengono analizzate per parole chiave bullish/bearish
+        - Score positivo = più termini bullish
+        - Score negativo = più termini bearish
+
+        **Fonti:**
+        - Yahoo Finance RSS feed (default)
+        - NewsAPI (con API key opzionale)
+
+        **Link utili:**
+        - [TradingView Italia](https://it.tradingview.com/) — Community analysis
+        - [TradingView](https://tradingview.com) — Charts e analisi
         """)
