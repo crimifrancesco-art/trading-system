@@ -4166,31 +4166,52 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
 
 
 
-# ── v41d: Tab visibili su 2 righe ──────────────────────────────────────
+# ── v41d: CSS tab su 2 righe — versione corretta ──────────────────────
 st.markdown("""
 <style>
+/* Contenitore esterno: rimuove overflow hidden di Streamlit */
 [data-testid="stTabs"] > div:first-child {
     display: flex !important;
     flex-wrap: wrap !important;
-    gap: 2px 3px !important;
+    gap: 2px 2px !important;
     max-height: none !important;
     overflow: visible !important;
     border-bottom: 1px solid #2a2e39 !important;
     padding-bottom: 6px !important;
-    background: #0e1117 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
+/* Ogni singolo tab */
 [data-testid="stTabs"] [data-baseweb="tab"] {
     white-space: nowrap !important;
-    font-size: 0.75rem !important;
-    padding: 4px 9px !important;
+    font-size: 0.74rem !important;
+    padding: 4px 8px !important;
     border-radius: 4px 4px 0 0 !important;
     margin-bottom: 2px !important;
     border: 1px solid #2a2e3966 !important;
+    flex-shrink: 0 !important;
+    min-width: fit-content !important;
+    max-width: 160px !important;
 }
+/* Tab attivo */
 [data-testid="stTabs"] [aria-selected="true"] {
     border-bottom: 2px solid #2962ff !important;
     color: #2962ff !important;
     background: #131722 !important;
+    font-weight: bold !important;
+}
+/* Pannello contenuto — spazio extra sopra per 2 righe di tab */
+[data-testid="stTabs"] > div:last-child {
+    margin-top: 4px !important;
+}
+/* Rimuovi scrollbar orizzontale */
+[data-testid="stTabs"] > div:first-child::-webkit-scrollbar {
+    display: none !important;
+}
+/* Fix Streamlit: il wrapper interno ha overflow hidden — forza visible */
+[data-testid="stTabs"] > div:first-child > div {
+    overflow: visible !important;
+    max-height: none !important;
 }
 </style>
 """, unsafe_allow_html=True)
