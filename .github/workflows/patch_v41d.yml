@@ -1,0 +1,36 @@
+name: Generate Dashboard v41d
+
+on:
+  workflow_dispatch:       # ← lancia manualmente dal tab Actions
+  push:
+    paths:
+      - 'patch_v41d.py'   # oppure si attiva ad ogni push di patch_v41d.py
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Esegui patch_v41d.py
+        run: python patch_v41d.py
+
+      - name: Commit e push Dashboard_pro_V_41d.py
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Actions"
+          git add Dashboard_pro_V_41d.py
+          git diff-index --quiet HEAD || git commit -m "🚀 Genera Dashboard_pro_V_41d.py"
+
+      - name: Push
+        uses: ad-m/github-push-action@v0.8.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
