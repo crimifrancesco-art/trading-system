@@ -39,6 +39,9 @@ jobs:
       - name: Esegui patch_v41f.py
         run: python -u patch_v41f.py 2>&1
 
+      - name: Esegui patch_v41g.py
+        run: python -u patch_v41g.py 2>&1
+      
       - name: Verifica file generati
         run: |
           ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py
