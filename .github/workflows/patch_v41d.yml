@@ -58,3 +58,23 @@ jobs:
           git commit -m "build: Dashboard_pro_V_41h.py auto-generato [skip ci]"
           git pull --rebase https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git main
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+
+      - name: Esegui patch_v41h.py
+        run: python -u patch_v41h.py 2>&1
+
+      - name: Verifica file generati
+        run: |
+          ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py \
+                  Dashboard_pro_V_41f.py Dashboard_pro_V_41g.py Dashboard_pro_V_41h.py
+          echo "Righe v41h: $(wc -l < Dashboard_pro_V_41h.py)"
+
+      - name: Commit e push
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Actions"
+          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py \
+                  Dashboard_pro_V_41f.py Dashboard_pro_V_41g.py Dashboard_pro_V_41h.py \
+                  utils/home_tab.py
+          git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_41h.py auto-generato [skip ci]"
+          git pull --rebase ...
+          git push ...
