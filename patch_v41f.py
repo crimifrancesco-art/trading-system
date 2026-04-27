@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """patch_v41f.py - Dashboard_pro_V_41e.py -> Dashboard_pro_V_41f.py
-Fix: SVG Mappa Calore Globale responsiva (preserveAspectRatio + div wrapper)
-Approccio robusto: cerca marker corti e univoci via .find()
+Fix: Mappa Calore Globale responsive (st.columns fisso -> HTML flex puro)
 """
 import sys, os
 
@@ -15,62 +14,50 @@ with open(SRC, "r", encoding="utf-8") as f:
     src = f.read()
 print("FILE " + SRC + ": " + str(len(src)) + " chars")
 
-# ══ P1: SVG mappa — trova f"<svg ... nel blocco _map_svg e sostituisce ═════
-MAP_SVG_DEF = "_map_svg = ("
-ix_def = src.find(MAP_SVG_DEF)
-if ix_def == -1:
-    print("P1 SVG header: SKIP (_map_svg non trovato)")
-else:
-    # Trova il tag f"<svg subito dopo la definizione
-    ix_ftag = src.find('f"<svg', ix_def, ix_def + 2000)
-    if ix_ftag == -1:
-        ix_ftag = src.find("f'<svg", ix_def, ix_def + 2000)
-    if ix_ftag == -1:
-        print("P1 SVG header: SKIP (f<svg non trovato)")
-    else:
-        # Fine del blocco: cerca 2a2e39 (colore bordo) entro 400 chars dal tag
-        ix_border = src.find("2a2e39", ix_ftag, ix_ftag + 400)
-        if ix_border == -1:
-            print("P1 SVG header: SKIP (border color non trovato)")
-        else:
-            # Vai fino al primo > dopo il border color
-            ix_close = src.find(">", ix_border)
-            # Includi anche il carattere successivo (virgolette chiusura f-string)
-            ix_ftag_end = ix_close + 2  # include > e il " o '
-            old_full = src[ix_ftag: ix_ftag_end]
-            new_full = (
-                "f\"<svg width='100%' height='auto' viewBox='0 0 {_svg_w} {_svg_h}' \"\n"
-                "                    f\"preserveAspectRatio='xMidYMid meet' \"\n"
-                "                    f\"xmlns='http://www.w3.org/2000/svg' \"\n"
-                "                    f\"style='display:block;width:100%;max-width:100%;"
-                "background:#131722;border-radius:8px;border:1px solid #2a2e39'>\""
-            )
-            src = src[:ix_ftag] + new_full + src[ix_ftag_end:]
-            print("P1 SVG header responsivo: OK")
+q  = chr(39)
+dq = chr(34)
 
-# ══ P2: wrap st.markdown(_map_svg) in div overflow ══════════════════════════
-MK = "st.markdown(_map_svg, unsafe_allow_html=True)"
-ix_mk = src.find(MK)
-if ix_mk == -1:
-    print("P2 SVG div wrapper: SKIP")
-else:
-    ix_line_start = src.rfind("\n", 0, ix_mk) + 1
-    indent = ""
-    for ch in src[ix_line_start:]:
-        if ch == " ":
-            indent += " "
-        else:
-            break
-    new_mk = (
-        indent + "_map_svg_wrap = (\n"
-        + indent + "    \"<div style='width:100%;overflow-x:auto;overflow-y:hidden'>\"\n"
-        + indent + "    + _map_svg +\n"
-        + indent + "    \"</div>\"\n"
-        + indent + ")\n"
-        + indent + "st.markdown(_map_svg_wrap, unsafe_allow_html=True)"
-    )
-    src = src[:ix_line_start] + new_mk + src[ix_mk + len(MK):]
-    print("P2 SVG div wrapper: OK")
+# ══ P1: sostituisce _rc=st.columns([1,1.5,1]) + loop con HTML flex puro ════
+OLD1 = (
+    "                _rc=st.columns([1,1.5,1])\n"
+    "                for _ci,(_rn,_ra) in enumerate(_map_regions.items()):\n"
+    "                    with _rc[_ci]:\n"
+    "                        st.markdown(f\"<div style='color:#50c4e0;font-size:.70rem;font-weight:bold;text-align:center;\"\n"
+    "                                    f\"letter-spacing:2px;border-bottom:1px solid #2a2e39;padding-bottom:4px;\"\n"
+    "                                    f\"margin-bottom:6px'>{_rn}</div>\",unsafe_allow_html=True)\n"
+    "                        st.markdown(\"<div style='display:flex;flex-wrap:wrap;gap:4px;justify-content:center'>\"\n"
+    "                                    + \"\".join(_map_card_v41e(l,s) for l,s in _ra) + \"</div>\",unsafe_allow_html=True)\n"
+    "                st.markdown(\"<div style='margin-top:8px;display:flex;gap:5px;justify-content:center;flex-wrap:wrap'>\"\n"
+    "                            + \"\".join(_map_card_v41e(l,s) for l,s in _map_macro) + \"</div>\",unsafe_allow_html=True)\n"
+    "                st.caption(\"🟢 rialzo · 🔴 ribasso · intensità = % variazione\")"
+)
+NEW1 = (
+    "                # v41f: layout HTML flex puro - nessuna colonna Streamlit fissa\n"
+    "                _map_html = (\n"
+    "                    \"<div style='display:flex;flex-wrap:wrap;gap:10px;width:100%;box-sizing:border-box'>\"\n"
+    "                )\n"
+    "                for _rn, _ra in _map_regions.items():\n"
+    "                    _map_html += (\n"
+    "                        \"<div style='flex:1;min-width:180px;box-sizing:border-box'>\"\n"
+    "                        f\"<div style='color:#50c4e0;font-size:.70rem;font-weight:bold;text-align:center;\"\n"
+    "                        f\"letter-spacing:2px;border-bottom:1px solid #2a2e39;padding-bottom:4px;\"\n"
+    "                        f\"margin-bottom:6px'>{_rn}</div>\"\n"
+    "                        \"<div style='display:flex;flex-wrap:wrap;gap:4px;justify-content:center'>\"\n"
+    "                        + \"\".join(_map_card_v41e(l,s) for l,s in _ra) +\n"
+    "                        \"</div></div>\"\n"
+    "                    )\n"
+    "                _map_html += \"</div>\"\n"
+    "                _map_html += (\n"
+    "                    \"<div style='margin-top:8px;display:flex;gap:5px;justify-content:center;flex-wrap:wrap'>\"\n"
+    "                    + \"\".join(_map_card_v41e(l,s) for l,s in _map_macro) +\n"
+    "                    \"</div>\"\n"
+    "                )\n"
+    "                st.markdown(_map_html, unsafe_allow_html=True)\n"
+    "                st.caption(\"🟢 rialzo · 🔴 ribasso · intensità = % variazione\")"
+)
+n1 = src.count(OLD1)
+src = src.replace(OLD1, NEW1, 1)
+print("P1 Mappa flex HTML: " + ("OK" if n1 else "SKIP"))
 
 # ══ versione ════════════════════════════════════════════════════════════════
 src = src.replace("v41e", "v41f")
@@ -78,8 +65,8 @@ src = src.replace("V_41e", "V_41f")
 
 # ══ verifica ════════════════════════════════════════════════════════════════
 checks = {
-    "preserveAspectRatio": "preserveAspectRatio",
-    "div wrapper":         "_map_svg_wrap",
+    "flex puro":    "_map_html",
+    "min-width:180": "min-width:180px",
 }
 failed = []
 print("\n-- Verifica --")
