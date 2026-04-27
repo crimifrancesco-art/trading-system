@@ -26,6 +26,9 @@ jobs:
         run: |
           python -u patch_v41d.py 2>&1
           echo "Exit code: $?"
+          
+       - name: Esegui patch_v41e.py
+        run: python -u patch_v41e.py 2>&1   
 
       - name: Commit e push Dashboard_pro_V_41d.py
         run: |
