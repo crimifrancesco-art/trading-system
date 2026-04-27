@@ -4166,25 +4166,15 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
 
 
 
-# ── v41d: Tab su 2 righe ──────────────────────────────────
+# ── v41d: Tab su 2 righe ─────────────────────────────────
 st.markdown("""
 <style>
-[data-testid="stTabs"] > div:first-child {    display: flex !important; flex-wrap: wrap !important;
-    gap: 2px 3px !important; max-height: none !important;
-    overflow: visible !important; width: 100% !important;
-    border-bottom: 1px solid #2a2e39 !important; padding-bottom: 6px !important;}
-[data-testid="stTabs"] [data-baseweb="tab"] {    white-space: nowrap !important; font-size: 0.74rem !important;
-    padding: 4px 8px !important; flex-shrink: 0 !important;
-    margin-bottom: 2px !important; max-width: 160px !important;
-    border-radius: 4px 4px 0 0 !important; border: 1px solid #2a2e3966 !important;}
-[data-testid="stTabs"] [aria-selected="true"] {    border-bottom: 2px solid #2962ff !important;
-    color: #2962ff !important; background: #131722 !important;
-    font-weight: bold !important;}
-[data-testid="stTabs"] > div:first-child > div {    overflow: visible !important; max-height: none !important;}
-[role='tablist'] { display: flex !important; flex-wrap: wrap !important;
-    overflow: visible !important; max-height: none !important; height: auto !important;}
-[data-baseweb='tab-list'] { display: flex !important; flex-wrap: wrap !important;
-    overflow: visible !important; max-height: none !important; height: auto !important;}
+[data-testid="stTabs"] > div:first-child { display:flex !important; flex-wrap:wrap !important; gap:2px 3px !important; max-height:none !important; overflow:visible !important; width:100% !important; border-bottom:1px solid #2a2e39 !important; padding-bottom:6px !important;}
+[data-testid="stTabs"] [data-baseweb="tab"] { white-space:nowrap !important; font-size:0.74rem !important; padding:4px 8px !important; flex-shrink:0 !important; margin-bottom:2px !important; max-width:160px !important; border-radius:4px 4px 0 0 !important; border:1px solid #2a2e3966 !important;}
+[data-testid="stTabs"] [aria-selected="true"] { border-bottom:2px solid #2962ff !important; color:#2962ff !important; background:#131722 !important; font-weight:bold !important;}
+[data-testid="stTabs"] > div:first-child > div { overflow:visible !important; max-height:none !important;}
+[role='tablist'] { display:flex !important; flex-wrap:wrap !important; overflow:visible !important; max-height:none !important; height:auto !important;}
+[data-baseweb='tab-list'] { display:flex !important; flex-wrap:wrap !important; overflow:visible !important; max-height:none !important; height:auto !important;}
 </style>
 <script>
 (function fixTabWrap(){
@@ -4536,25 +4526,23 @@ with tab_home:
                 _map_regions = {
                     "🌎 AMERICAS": [("S&P500","^GSPC"),("NASDAQ","^IXIC"),("DowJones","^DJI"),("Russ2K","^RUT")],
                     "🌍 EUROPA":   [("IT MIB","FTSEMIB.MI"),("FTSE","^FTSE"),("DAX","^GDAXI"),("CAC","^FCHI"),
-                                   ("IBEX","^IBEX"),("AEX","^AEX"),("VIX","^VIX"),("BTC","BTC-USD")],
+                                           ("IBEX","^IBEX"),("AEX","^AEX"),("VIX","^VIX"),("BTC","BTC-USD")],
                     "🌏 ASIA/EM":  [("Nikkei","^N225"),("HSeng","^HSI"),("Shanghai","000001.SS"),
-                                   ("KOSPI","^KS11"),("Nifty","^NSEI"),("BVSP","^BVSP")],
+                                           ("KOSPI","^KS11"),("Nifty","^NSEI"),("BVSP","^BVSP")],
                 }
-                _map_macro = [("Gold","GC=F"),("Oil","CL=F"),("DXY","DX-Y.NYB"),("TLT","TLT")]
+                _map_macro = [("🥇 Gold","GC=F"),("🛢 Oil","CL=F"),("💵 DXY","DX-Y.NYB"),("📉 TLT","TLT")]
                 def _map_card_v41d(lbl, sym):
-                    _d = _map_data.get(sym,{})
-                    _c = float(_d.get("chg",0) or 0)
-                    _p = float(_d.get("price",0) or 0)
-                    _i = min(1.0, abs(_c)/3.0)
-                    _bg = f"rgba(0,{int(80+120*_i)},70,.88)" if _c>=0 else f"rgba({int(120+110*_i)},35,35,.88)"
-                    _ar, _cl = ("▲","#00ff88") if _c>=0 else ("▼","#ef4444")
-                    _ps = f"{_p:,.0f}" if _p>10000 else (f"{_p:.1f}" if _p>100 else (f"{_p:.2f}" if _p>0 else "—"))
+                    _d=_map_data.get(sym,{}); _c=float(_d.get("chg",0) or 0); _p=float(_d.get("price",0) or 0)
+                    _i=min(1.0,abs(_c)/3.0)
+                    _bg=f"rgba(0,{int(80+120*_i)},70,.88)" if _c>=0 else f"rgba({int(120+110*_i)},35,35,.88)"
+                    _ar,_cl=("▲","#00ff88") if _c>=0 else ("▼","#ef4444")
+                    _ps=f"{_p:,.0f}" if _p>10000 else (f"{_p:.1f}" if _p>100 else (f"{_p:.2f}" if _p>0 else "—"))
                     return (f"<div style='background:{_bg};border:1px solid #2a2e39;border-radius:6px;"
                             f"padding:6px 4px;text-align:center;min-width:72px;flex:1;max-width:110px'>"
                             f"<div style='color:#e2e8f0;font-size:.62rem;font-weight:bold'>{lbl}</div>"
                             f"<div style='color:{_cl};font-family:Courier New;font-weight:bold;font-size:.84rem'>{_ar}{abs(_c):.1f}%</div>"
                             f"<div style='color:#9ca3af;font-size:.62rem'>{_ps}</div></div>")
-                _rc = st.columns([1,1.5,1])
+                _rc=st.columns([1,1.5,1])
                 for _ci,(_rn,_ra) in enumerate(_map_regions.items()):
                     with _rc[_ci]:
                         st.markdown(f"<div style='color:#50c4e0;font-size:.70rem;font-weight:bold;text-align:center;"
@@ -4571,7 +4559,10 @@ with tab_home:
             st.warning(f"Mappa non disponibile: {str(_map_e)[:80]}")
 
 
+    # v41d: correlazioni spostate sotto Ranking Settori nel tab Settori
     with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):
+        st.info("ℹ️ v41d: le Correlazioni Asset sono ora disponibili nel tab 🏭 Settori, dopo il Ranking Settori.")
+        if False:  # v41d: disabilitato in Home per evitare duplicato
         @st.cache_data(ttl=3600, show_spinner=False)
         def _fetch_corr_v41():
             import yfinance as _yc
@@ -4822,11 +4813,14 @@ with tab_home:
                 for _, _r in _top_pro.iterrows():
                     _sc = "#ffd700" if _r.get("Stato_Pro")=="STRONG" else "#00ff88"
                     _tv = str(_r.get("Ticker","")).replace(".MI","%3AMI")
+                    _nome_pr=str(_r.get('Nome',_r.get('Company',_r.get('name','')))).strip()[:22]
+                    _nome_lbl=f" <span style='color:#9ca3af;font-size:0.70rem;font-style:italic'>{_nome_pr}</span>" if _nome_pr else ''
                     st.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' target='_blank' "
                         f"style='text-decoration:none'>"
                         f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
                         f"{_r.get('Ticker','')}</span></a>"
+                        f"{_nome_lbl}"
                         f"<span style='color:#6b7280;font-size:0.72rem'> · CSS {_r.get('CSS','—')} · {_r.get('Stato_Pro','')}</span>",
                         unsafe_allow_html=True)
             else:
@@ -4870,6 +4864,27 @@ with tab_home:
                         unsafe_allow_html=True)
             else:
                 st.caption("Avvia lo scanner")
+
+    # ── v41d: Suggerimenti ────────────────────────────────
+    with st.expander('💡 Suggerimenti v41d — Novità e roadmap', expanded=False):
+        st.markdown("""
+**✅ Implementato in v41d:**
+- 🗺️ Mappa Calore Globale: card HTML responsive a 3 regioni + macro
+- 🤖 Tab **Modulo 2 AI** dedicato (PRO / CONFLUENCE / Tutti)
+- 📡 Alert Engine: notifiche **Telegram** auto su FIRED + **Email Gmail**
+- 📊 Bar chart settori disabilitato (duplicato con Heatmap Live nella Home)
+- 🔗 Correlazioni Asset spostate sotto Ranking Settori nel tab Settori
+- 💪 Top PRO/STRONG: **Nome azienda** accanto al ticker
+- 📑 Tab su 2 righe: CSS flex-wrap + JS MutationObserver
+
+**🔜 Idee per v41e:**
+- 🔔 Alert push via browser (Web Push Notifications)
+- 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
+- 🗃️ Export segnali CSV/Excel con 1 click dalla Home
+- 🔄 Auto-refresh Home ogni N minuti con st.rerun() schedulato
+- 🧠 AI Analyst: storico analisi per ticker in SQLite
+- 📱 Layout mobile-first con CSS container queries
+        """)
     st.markdown("---")
 
     # ── v41d FEATURE 4 — Portfolio P&L dalla Watchlist ──────────────────────
@@ -6059,8 +6074,8 @@ with tab_w:
                         _alerts.pop(_ak, None); st.rerun()
 
             # ── v41d auto-notifica Telegram su FIRED ───────────────
-            _tgtv = (st.secrets.get('TELEGRAM_TOKEN','') if hasattr(st,'secrets') else '') or st.session_state.get('tg_token_pnl','')
-            _cgpv = (st.secrets.get('TELEGRAM_CHAT','')  if hasattr(st,'secrets') else '') or st.session_state.get('tg_chat_pnl','')
+            _tgtv=(st.secrets.get('TELEGRAM_TOKEN','') if hasattr(st,'secrets') else '') or st.session_state.get('tg_token_pnl','')
+            _cgpv=(st.secrets.get('TELEGRAM_CHAT','')  if hasattr(st,'secrets') else '') or st.session_state.get('tg_chat_pnl','')
             if _tgtv and _cgpv and _alerts:
                 for _fa in [a for a in _alerts.values() if a.get('fired') and not a.get('notified')]:
                     try:
@@ -6070,23 +6085,23 @@ with tab_w:
                         _fa['notified']=True
                     except Exception: pass
 
-        # ── v41d pannello notifiche ───────────────────────────────
+        # ── v41d pannello notifiche ─────────────────────────────
         with st.expander('📡 Canali Notifica v41d', expanded=False):
-            _nc1,_nc2 = st.columns(2)
+            _nc1,_nc2=st.columns(2)
             with _nc1:
                 st.markdown('**Telegram 🤖**')
-                _tgtok = st.text_input('Bot Token',type='password',key='pnl_tg_token',placeholder='123456:ABC-xyz')
-                _tgcht = st.text_input('Chat ID',key='pnl_tg_chat',placeholder='-100123456789')
+                _tgtok=st.text_input('Bot Token',type='password',key='pnl_tg_token',placeholder='123456:ABC-xyz')
+                _tgcht=st.text_input('Chat ID',key='pnl_tg_chat',placeholder='-100123456789')
                 if _tgtok: st.session_state['tg_token_pnl']=_tgtok
                 if _tgcht: st.session_state['tg_chat_pnl']=_tgcht
                 if st.button('📨 Report P&L Telegram',key='pnl_tg_send'):
                     try:
                         import requests as _rqt
                         _rqt.post(f'https://api.telegram.org/bot{_tgtok}/sendMessage',
-                            json={'chat_id':_tgcht,'text':'Dashboard v41d P&L report','parse_mode':'Markdown'},timeout=8)
+                            json={'chat_id':_tgcht,'text':'💼 Dashboard v41d P&L','parse_mode':'Markdown'},timeout=8)
                         st.success('✅ Inviato!')
                     except Exception as _e: st.error(str(_e))
-                if st.button('🔔 Test',key='pnl_tg_test'):
+                if st.button('🔔 Test Telegram',key='pnl_tg_test'):
                     try:
                         import requests as _rqt2
                         _rqt2.post(f'https://api.telegram.org/bot{_tgtok}/sendMessage',
@@ -6095,9 +6110,9 @@ with tab_w:
                     except Exception as _e2: st.error(str(_e2))
             with _nc2:
                 st.markdown('**Email 📧 Gmail**')
-                _emto  = st.text_input('Destinatario',key='pnl_email_to',placeholder='tuo@email.com')
-                _emfrm = st.text_input('Mittente',key='pnl_email_from',placeholder='bot@gmail.com')
-                _empwd = st.text_input('App Password',key='pnl_email_pwd',type='password')
+                _emto=st.text_input('Destinatario',key='pnl_email_to',placeholder='tuo@email.com')
+                _emfrm=st.text_input('Mittente',key='pnl_email_from',placeholder='bot@gmail.com')
+                _empwd=st.text_input('App Password',key='pnl_email_pwd',type='password')
                 if st.button('📧 Report P&L Email',key='pnl_email_send'):
                     try:
                         import smtplib; from email.mime.text import MIMEText as _MT
@@ -7824,7 +7839,9 @@ with tab_regime:
             height=320,
             margin=dict(l=0,r=0,t=45,b=0),
         )
-        st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v41")
+        # v41d: heatmap gia’ presente nella Home — bar chart disabilitato
+        # st.plotly_chart(_fig_sr, use_container_width=True, key="sector_heatmap_v41")  # disabled v41d
+        st.caption("📊 Heatmap settoriale già disponibile nella Home — tab 🌡️ Heatmap Settoriale Live.")
 
         # ── Drill-down: click su settore ───────────────────────────────
         st.markdown("#### 🔍 Drill-down per Settore")
@@ -8677,7 +8694,7 @@ with tab_ai:
 # =========================================================================
 # v41 — TAB 🎲 OPTIONS SCANNER
 # =========================================================================
-# ── v41d — MODULO 2 AI ────────────────────────────────
+# ── v41d — MODULO 2 AI ───────────────────────────────
 with tab_ai2:
     st.session_state["last_active_tab"] = "MODULO2_AI"
     st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST</div>", unsafe_allow_html=True)
@@ -8686,7 +8703,7 @@ with tab_ai2:
     if _ai2_sel == "PRO/STRONG":
         _df_ai2 = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])].copy() if not df_ep.empty and "Stato_Pro" in df_ep.columns else df_ep.copy()
     elif _ai2_sel == "CONFLUENCE":
-        _df_ai2 = df_ep[(df_ep.get("Stato_Early","")=="EARLY") & (df_ep.get("Stato_Pro","")=="PRO")].copy() if not df_ep.empty else df_ep.copy()
+        _df_ai2 = df_ep[(df_ep.get("Stato_Early",pd.Series(dtype=str))=="EARLY") & (df_ep.get("Stato_Pro",pd.Series(dtype=str))=="PRO")].copy() if not df_ep.empty else df_ep.copy()
     else:
         _df_ai2 = df_ep.copy()
     _render_ai_explainer_v41(_df_ai2, "MOD2")
