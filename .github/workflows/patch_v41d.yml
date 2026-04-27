@@ -25,6 +25,10 @@ jobs:
       - name: Esegui patch_v41d.py
         run: |
           python -u patch_v41d.py 2>&1
+      - name: Esegui patch_v41e.py
+        run: 
+          python -u patch_v41e.py 2>&1
+          
           echo "Exit code: $?"
           
        - name: Esegui patch_v41e.py
