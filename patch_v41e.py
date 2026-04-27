@@ -46,7 +46,7 @@ OLD_CORR2 = (
 )
 NEW_CORR2 = '    # v41e: correlazioni rimosse dalla Home \u2014 disponibili nel tab Settori\n'
 n2 = src.count(OLD_CORR2); src = src.replace(OLD_CORR2, NEW_CORR2, 1)
-print(f"  P2  Correlazioni doppia:   {'OK' if n2 else 'SKIP'}")
+print(f"  P2  Correlazioni doppia:   {'OK' if n2 else 'SKIP (non presente, OK)'}")
 
 # ═══ P3: NEWS — ticker linkabile TradingView Italia + Nome ════════════
 OLD_NEWS = (
@@ -147,12 +147,12 @@ src = src.replace('V_41d', 'V_41e')
 
 # ═══ VERIFICA FINALE ══════════════════════════════════════════════════
 checks = {
-    "STRONG Nome banner":    "_df_strong_map",
-    "Correlazioni rimossa":  "v41e: correlazioni rimosse",
-    "NEWS link TV":          "_tv_sym_n",
-    "EARLY Nome":            "_nome_ea_lbl",
-    "HOT Nome":              "_nome_hot_lbl",
-    "Crisis NaN fix":        "_safe_r",
+    "STRONG Nome banner": "_df_strong_map",
+    "NEWS link TV":       "_tv_sym_n",
+    "EARLY Nome":         "_nome_ea_lbl",
+    "HOT Nome":           "_nome_hot_lbl",
+    "Crisis NaN fix":     "_safe_r",
+}
 }
 failed = []
 print("\n\u2500\u2500 Verifica \u2500\u2500")
