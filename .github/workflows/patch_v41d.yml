@@ -1,4 +1,4 @@
-name: Generate Dashboard v41e
+name: Generate Dashboard v41f
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'patch_v41d.py'
       - 'patch_v41e.py'
+      - 'patch_v41f.py'
 
 permissions:
   contents: write
@@ -23,31 +24,35 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installa dipendenze (se requirements.txt esiste)
+      - name: Installa dipendenze
         run: |
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Esegui patch_v41d.py
         run: |
           python -u patch_v41d.py 2>&1
-          echo "Exit code patch_v41d: $?"
+          echo "Exit patch_v41d: $?"
 
       - name: Esegui patch_v41e.py
         run: |
           python -u patch_v41e.py 2>&1
-          echo "Exit code patch_v41e: $?"
+          echo "Exit patch_v41e: $?"
+
+      - name: Esegui patch_v41f.py
+        run: |
+          python -u patch_v41f.py 2>&1
+          echo "Exit patch_v41f: $?"
 
       - name: Verifica file generati
         run: |
-          ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py
-          echo "Righe v41d: $(wc -l < Dashboard_pro_V_41d.py)"
-          echo "Righe v41e: $(wc -l < Dashboard_pro_V_41e.py)"
+          ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py
+          echo "Righe v41f: $(wc -l < Dashboard_pro_V_41f.py)"
 
-      - name: Commit e push Dashboard_pro_V_41e.py
+      - name: Commit e push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Actions"
-          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py
-          git diff-index --quiet HEAD || git commit -m "🚀 Genera Dashboard_pro_V_41e.py [skip ci]"
+          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py
+          git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_41f.py auto-generato [skip ci]"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
 
