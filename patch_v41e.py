@@ -32,13 +32,11 @@ NEW_STRONG = (
     '                    f"<a href=\'https://it.tradingview.com/chart/?symbol={t.replace(\\".MI\\",\\"%3AMI\\")}\'"\n'
     '                    f" target=\'_blank\' style=\'color:#ffd700;font-family:Courier New;"\n'
     '                    f"font-weight:bold;text-decoration:none;font-size:0.88rem\'>{t}</a>"\n'
-    '                    f"<span style=\'color:#9ca3af;font-size:0.72rem;font-style:italic\'> {str(_df_strong_map.get(t,\'\'))[:18]}</span>"\n'
+    '                    f"<span style=\'color:#9ca3af;font-size:0.70rem;font-style:italic\'>"
+    '                    f" {str(_df_strong_map.get(t, \'\'))[:18]}</span>"\n'
     '                    for t in _strong_list[:12]\n'
     '                )'
 )
-n1 = src.count(OLD_STRONG); src = src.replace(OLD_STRONG, NEW_STRONG, 1)
-print(f"  P1  STRONG Nome banner:    {'OK' if n1 else 'SKIP'}")
-
 # ═══ P2: Correlazioni — rimuovi blocco duplicato con pass ══════════════
 OLD_CORR2 = (
     '    # v41d: correlazioni disponibili nel tab Settori\n'
