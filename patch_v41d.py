@@ -323,7 +323,7 @@ checks={
     "P&L v41d":             "Alert Engine v41d",
     "tg_token_pnl":         "pnl_tg_token",
     "smtp.gmail.com":       "smtp.gmail.com",
-    "correlazioni off":     "v41d: disabilitato in Home",
+    "correlazioni off":     "v41d: correlazioni disponibili",
     "bar chart off":        "v41d: heatmap gia",
     "Nome in Top PRO":      "_nome_lbl",
     "Suggerimenti v41d":    "Suggerimenti v41d",
