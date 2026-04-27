@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """patch_v41f.py - Dashboard_pro_V_41e.py -> Dashboard_pro_V_41f.py
-Fix: SVG Mappa Calore Globale responsiva (preserveAspectRatio + div wrapper)
+Fix: SVG Mappa Calore Globale responsiva
 """
 import sys, os
 
@@ -17,29 +17,35 @@ print("FILE " + SRC + ": " + str(len(src)) + " chars")
 q  = chr(39)
 dq = chr(34)
 
-# ══ P1: SVG mappa — aggiungi preserveAspectRatio + height auto ══════════════
-OLD1 = (
-    "                _map_svg = (\n"
-    "                    f" + dq + "<svg width=" + q + "100%" + q + " viewBox=" + q + "0 0 {_svg_w} {_svg_h}" + q + " " + dq + "\n"
-    "                    f" + dq + "xmlns=" + q + "http://www.w3.org/2000/svg" + q + " " + dq + "\n"
-    "                    f" + dq + "style=" + q + "background:#131722;border-radius:8px;border:1px solid #2a2e39" + q + ">" + dq + "\n"
-)
-NEW1 = (
-    "                _map_svg = (\n"
-    "                    f" + dq + "<svg width=" + q + "100%" + q + " height=" + q + "auto" + q + " viewBox=" + q + "0 0 {_svg_w} {_svg_h}" + q + " " + dq + "\n"
-    "                    f" + dq + "preserveAspectRatio=" + q + "xMidYMid meet" + q + " " + dq + "\n"
-    "                    f" + dq + "xmlns=" + q + "http://www.w3.org/2000/svg" + q + " " + dq + "\n"
-    "                    f" + dq + "style=" + q + "display:block;width:100%;max-width:100%;background:#131722;border-radius:8px;border:1px solid #2a2e39" + q + ">" + dq + "\n"
-)
-n1 = src.count(OLD1)
-src = src.replace(OLD1, NEW1, 1)
-print("P1 SVG header responsivo: " + ("OK" if n1 else "SKIP"))
+# ══ P1: SVG mappa — index-based, cerca i 3 marker univoci e sostituisce ════
+M_START = "_map_svg = (\n"
+M_SVG1  = "f\"<svg width='100%' viewBox='0 0 {_svg_w} {_svg_h}' \"\n"
+M_SVG2  = "f\"xmlns='http://www.w3.org/2000/svg' \"\n"
+M_SVG3  = "f\"style='background:#131722;border-radius:8px;border:1px solid #2a2e39'>\""
+
+# Trova la sequenza esatta (cerchiamo M_SVG1 dentro il blocco _map_svg)
+ix = src.find(M_SVG1)
+if ix != -1:
+    # trova fine di M_SVG3
+    ix3 = src.find(M_SVG3, ix)
+    ix3_end = ix3 + len(M_SVG3)
+    OLD_SVG_HEADER = src[ix:ix3_end]
+    NEW_SVG_HEADER = (
+        "f\"<svg width='100%' height='auto' viewBox='0 0 {_svg_w} {_svg_h}' \"\n"
+        "                    f\"preserveAspectRatio='xMidYMid meet' \"\n"
+        "                    f\"xmlns='http://www.w3.org/2000/svg' \"\n"
+        "                    f\"style='display:block;width:100%;max-width:100%;background:#131722;border-radius:8px;border:1px solid #2a2e39'>\""
+    )
+    src = src[:ix] + NEW_SVG_HEADER + src[ix3_end:]
+    print("P1 SVG header responsivo: OK")
+else:
+    print("P1 SVG header responsivo: SKIP")
 
 # ══ P2: wrap st.markdown(_map_svg) in div overflow-x:auto ══════════════════
 OLD2 = "                st.markdown(_map_svg, unsafe_allow_html=True)\n"
 NEW2 = (
     "                _map_svg_wrap = (\n"
-    "                    " + dq + "<div style=" + q + "width:100%;overflow-x:auto;overflow-y:hidden;" + q + ">" + dq + "\n"
+    "                    " + dq + "<div style=" + q + "width:100%;overflow-x:auto;overflow-y:hidden" + q + ">" + dq + "\n"
     "                    + _map_svg +\n"
     "                    " + dq + "</div>" + dq + "\n"
     "                )\n"
@@ -72,3 +78,4 @@ if failed:
 with open(DST, "w", encoding="utf-8") as f:
     f.write(src)
 print("\nOK " + DST + " " + str(len(src)) + " chars")
+
