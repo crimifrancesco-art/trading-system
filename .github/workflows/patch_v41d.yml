@@ -1,10 +1,11 @@
-name: Generate Dashboard v41d
+name: Generate Dashboard v41e
 
 on:
   workflow_dispatch:
   push:
     paths:
       - 'patch_v41d.py'
+      - 'patch_v41e.py'
 
 permissions:
   contents: write
@@ -15,23 +16,38 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5          # ← Node.js 24 nativo
+        uses: actions/checkout@v5
 
       - name: Setup Python 3.11
-        uses: actions/setup-python@v6      # ← Node.js 24 nativo
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+
+      - name: Installa dipendenze (se requirements.txt esiste)
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Esegui patch_v41d.py
         run: |
           python -u patch_v41d.py 2>&1
-          echo "Exit code: $?"
+          echo "Exit code patch_v41d: $?"
 
-      - name: Commit e push Dashboard_pro_V_41d.py
+      - name: Esegui patch_v41e.py
+        run: |
+          python -u patch_v41e.py 2>&1
+          echo "Exit code patch_v41e: $?"
+
+      - name: Verifica file generati
+        run: |
+          ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py
+          echo "Righe v41d: $(wc -l < Dashboard_pro_V_41d.py)"
+          echo "Righe v41e: $(wc -l < Dashboard_pro_V_41e.py)"
+
+      - name: Commit e push Dashboard_pro_V_41e.py
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Actions"
-          git add Dashboard_pro_V_41d.py
-          git diff-index --quiet HEAD || git commit -m "🚀 Genera Dashboard_pro_V_41d.py [skip ci]"
+          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py
+          git diff-index --quiet HEAD || git commit -m "🚀 Genera Dashboard_pro_V_41e.py [skip ci]"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
 
