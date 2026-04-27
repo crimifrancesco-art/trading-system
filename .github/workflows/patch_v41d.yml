@@ -1,4 +1,4 @@
-name: Generate Dashboard v41g
+name: Generate Dashboard v41h
 
 on:
   workflow_dispatch:
@@ -41,7 +41,10 @@ jobs:
 
       - name: Esegui patch_v41g.py
         run: python -u patch_v41g.py 2>&1
-      
+
+      - name: Esegui patch_v41h.py
+        run: python -u patch_v41h.py 2>&1
+             
       - name: Verifica file generati
         run: |
           ls -lh Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py Dashboard_pro_V_41g.py
@@ -51,7 +54,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Actions"
-          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py Dashboard_pro_V_41g.py
-          git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_41g.py auto-generato [skip ci]"
+          git add Dashboard_pro_V_41d.py Dashboard_pro_V_41e.py Dashboard_pro_V_41f.py Dashboard_pro_V_41g.py Dashboard_pro_V_41h.py
+          git commit -m "build: Dashboard_pro_V_41h.py auto-generato [skip ci]"
           git pull --rebase https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git main
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
