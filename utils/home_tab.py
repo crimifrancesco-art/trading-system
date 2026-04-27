@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-home_tab.py  --  Market Intelligence Home  v32.0
+home_tab.py  --  Market Intelligence Home  v32.1
 =================================================
 Dashboard pre-trade professionale. Prima cosa da leggere ogni mattina.
 
@@ -247,8 +247,9 @@ def _render_indices():
         f'</div>',
         unsafe_allow_html=True
     )
-    cols = st.columns(len(INDICES))
-    for col, idx in zip(cols, INDICES):
+    # v32.1 responsive: scroll orizzontale invece di 9 colonne fisse
+    _cards_html = "<div style='display:flex;gap:6px;overflow-x:auto;padding-bottom:4px'>"
+    for idx in INDICES:
         q     = _fetch_quote(idx["sym"])
         p     = q["price"]
         chg   = q["chg"]
@@ -257,20 +258,19 @@ def _render_indices():
         prefix = idx.get("prefix", "")
         price_str = f"{prefix}{p:{idx['fmt']}}"
         border_top = _vix_regime(p)[1] if idx["sym"] == "^VIX" else color
-
-        with col:
-            st.markdown(
-                f'<div style="background:{PANEL};border:1px solid {BORDER};'
-                f'border-top:2px solid {border_top};border-radius:6px;'
-                f'padding:8px 8px;text-align:center">'
-                f'<div style="color:{GRAY};font-size:0.62rem">{idx["icon"]} {idx["label"]}</div>'
-                f'<div style="color:{TEXT};font-size:1.0rem;font-weight:700;'
-                f'font-family:Courier New;white-space:nowrap">{price_str}</div>'
-                f'<div style="color:{color};font-size:0.76rem;font-weight:600">'
-                f'{arrow} {chg:+.2f}%</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+        _cards_html += (
+            f'<div style="background:{PANEL};border:1px solid {BORDER};'
+            f'border-top:2px solid {border_top};border-radius:6px;'
+            f'padding:8px 10px;text-align:center;min-width:90px;flex-shrink:0">'
+            f'<div style="color:{GRAY};font-size:0.62rem">{idx["icon"]} {idx["label"]}</div>'
+            f'<div style="color:{TEXT};font-size:1.0rem;font-weight:700;'
+            f'font-family:Courier New;white-space:nowrap">{price_str}</div>'
+            f'<div style="color:{color};font-size:0.76rem;font-weight:600">'
+            f'{arrow} {chg:+.2f}%</div>'
+            f'</div>'
+        )
+    _cards_html += "</div>"
+    st.markdown(_cards_html, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -349,7 +349,7 @@ def _render_sparklines():
     )
     fig.update_xaxes(showgrid=False, showticklabels=False, zeroline=False, linecolor=BORDER)
     fig.update_yaxes(showgrid=True, gridcolor=BORDER, zeroline=False, showticklabels=False)
-    st.plotly_chart(fig, use_container_width=True, key="home_sparklines_v32")
+    st.plotly_chart(fig, use_container_width=True, key="home_sparklines_v321")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -502,7 +502,7 @@ def _render_rsi_distribution(df: Optional[pd.DataFrame]):
         yaxis=dict(gridcolor=BORDER, tickfont=dict(size=9)),
         font=dict(color=TEXT, size=9), bargap=0.06,
     )
-    st.plotly_chart(fig, use_container_width=True, key="rsi_dist_v32")
+    st.plotly_chart(fig, use_container_width=True, key="rsi_dist_v321")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -797,22 +797,24 @@ def _render_sector_heatmap(sectors: list):
         elif chg >= -2: return "#4a1a1a", RED
         else:           return "#6a0000", "#ff5252"
 
-    cols = st.columns(len(sectors))
-    for col, s in zip(cols, sectors):
+    # v32.1 responsive: scroll orizzontale per settori
+    _sec_html = "<div style='display:flex;gap:5px;overflow-x:auto;padding-bottom:4px'>"
+    for s in sectors:
         bg, fg = _bg_fg(s["chg"])
         arr = "▲" if s["chg"] >= 0 else "▼"
         tv_url = f"https://it.tradingview.com/chart/?symbol={s['sym']}"
-        with col:
-            st.markdown(
-                f'<a href="{tv_url}" target="_blank" style="text-decoration:none">'
-                f'<div style="background:{bg};border:1px solid {BORDER};'
-                f'border-radius:5px;padding:8px 3px;text-align:center;cursor:pointer">'
-                f'<div style="color:{fg};font-size:0.62rem;font-weight:600">{s["label"]}</div>'
-                f'<div style="color:{fg};font-size:0.82rem;font-weight:700">'
-                f'{arr}{abs(s["chg"]):.1f}%</div>'
-                f'</div></a>',
-                unsafe_allow_html=True
-            )
+        _sec_html += (
+            f'<a href="{tv_url}" target="_blank" style="text-decoration:none">'
+            f'<div style="background:{bg};border:1px solid {BORDER};'
+            f'border-radius:5px;padding:8px 6px;text-align:center;cursor:pointer;'
+            f'min-width:72px;flex-shrink:0">'
+            f'<div style="color:{fg};font-size:0.62rem;font-weight:600">{s["label"]}</div>'
+            f'<div style="color:{fg};font-size:0.82rem;font-weight:700">'
+            f'{arr}{abs(s["chg"]):.1f}%</div>'
+            f'</div></a>'
+        )
+    _sec_html += "</div>"
+    st.markdown(_sec_html, unsafe_allow_html=True)
 
     # Bar chart espandibile
     with st.expander("📊 Ranking settori — bar chart", expanded=False):
@@ -832,7 +834,7 @@ def _render_sector_heatmap(sectors: list):
                 yaxis=dict(gridcolor=BORDER, tickfont=dict(size=10)),
                 font=dict(color=TEXT, size=9),
             )
-            st.plotly_chart(fig, use_container_width=True, key="sector_bar_v32")
+            st.plotly_chart(fig, use_container_width=True, key="sector_bar_v321")
 
 
 # ══════════════════════════════════════════════════════════════
@@ -891,7 +893,7 @@ def _render_correlations():
             yaxis=dict(tickfont=dict(size=10, color=TEXT)),
             font=dict(color=TEXT, size=9),
         )
-        st.plotly_chart(fig, use_container_width=True, key="corr_matrix_v32")
+        st.plotly_chart(fig, use_container_width=True, key="corr_matrix_v321")
         st.markdown(
             f'<div style="color:{GRAY};font-size:0.7rem">'
             f'<span style="color:{GREEN}">▬ +1 = si muovono assieme (rischio correlato)</span> &nbsp;·&nbsp; '
@@ -906,23 +908,26 @@ def _render_correlations():
 # ══════════════════════════════════════════════════════════════
 
 def render_home(df_ep=None, df_rea=None):
-    """Renderizza il tab Home completo -- v32.0."""
+    """Renderizza il tab Home completo -- v32.1."""
 
     c_title, c_ref = st.columns([9, 1])
     with c_title:
         st.markdown(
             f'<div style="background:{PANEL};border-left:3px solid {BLUE};'
-            f'padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:10px">'
-            f'<span style="color:{BLUE};font-weight:700;font-size:1rem">'
+            f'padding:10px 16px;border-radius:0 6px 6px 0;margin-bottom:10px;'
+            f'width:100%;box-sizing:border-box;overflow:hidden">'
+            f'<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">'
+            f'<span style="color:{BLUE};font-weight:700;font-size:1rem;white-space:nowrap">'
             f'🏠 MARKET INTELLIGENCE PRO</span>'
-            f'<span style="color:{GRAY};font-size:0.8rem;margin-left:12px">'
-            f'Dashboard pre-trade · v32.0 · {datetime.now().strftime("%d/%m/%Y")}</span>'
+            f'<span style="color:{GRAY};font-size:0.8rem;white-space:nowrap">'
+            f'Dashboard pre-trade · v32.1 · {datetime.now().strftime("%d/%m/%Y")}</span>'
+            f'</div>'
             f'</div>',
             unsafe_allow_html=True
         )
     with c_ref:
         st.write("")
-        if st.button("🔄", key="home_refresh_v32", help="Svuota cache e aggiorna tutti i dati"):
+        if st.button("🔄", key="home_refresh_v321", help="Svuota cache e aggiorna tutti i dati"):
             st.cache_data.clear()
             st.rerun()
 
@@ -979,3 +984,4 @@ def render_home(df_ep=None, df_rea=None):
         f'</div>',
         unsafe_allow_html=True
     )
+
