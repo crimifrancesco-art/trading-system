@@ -25,14 +25,7 @@ jobs:
       - name: Esegui patch_v41d.py
         run: |
           python -u patch_v41d.py 2>&1
-      - name: Esegui patch_v41e.py
-        run: 
-          python -u patch_v41e.py 2>&1
-          
           echo "Exit code: $?"
-          
-       - name: Esegui patch_v41e.py
-        run: python -u patch_v41e.py 2>&1   
 
       - name: Commit e push Dashboard_pro_V_41d.py
         run: |
@@ -41,3 +34,4 @@ jobs:
           git add Dashboard_pro_V_41d.py
           git diff-index --quiet HEAD || git commit -m "🚀 Genera Dashboard_pro_V_41d.py [skip ci]"
           git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
+
