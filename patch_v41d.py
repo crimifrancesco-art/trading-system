@@ -579,3 +579,36 @@ checks = {
 print("\n── Verifica patch ──")
 for k, v in checks.items():
     print(f"  {'✅' if v else '❌'} {k}")
+
+# ── Verifica che ogni patch sia stata applicata ─────────────────────────
+checks = {
+    "CSS 2 righe":       "flex-wrap: wrap",
+    "tab_ai2":           "tab_ai2",
+    "with tab_ai2":      "with tab_ai2:",
+    "Mappa HTML card":   "_map_card_v41d",
+    "Heatmap 3m fix":    "_idx3m",
+    "P&L notifiche":     "pnl_tg_token",
+    "Email SMTP":        "smtp.gmail.com",
+    "Auto-notifica":     "_just_fired",
+    "Mom Alerts v41d":   "MOMENTUM ALERTS v41d",
+}
+
+failed = []
+for label, marker in checks.items():
+    if marker not in src:
+        failed.append(f"  ❌ PATCH NON APPLICATA: {label!r} (cerca: {marker!r})")
+    else:
+        print(f"  ✅ {label}")
+
+if failed:
+    for msg in failed:
+        print(msg)
+    print("\n⛔ Alcune patch non sono state trovate nel file sorgente.")
+    print("   Controlla che patch_v41d.py punti al file corretto")
+    print("   e che le stringhe da cercare corrispondano esattamente.")
+    import sys; sys.exit(1)   # ← fa fallire Actions con messaggio chiaro
+
+with open("Dashboard_pro_V_41d.py", "w", encoding="utf-8") as f:
+    f.write(src)
+
+print(f"\n✅ Dashboard_pro_V_41d.py scritto ({len(src):,} caratteri)")
