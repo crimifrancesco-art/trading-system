@@ -70,6 +70,61 @@ src = src.replace(
     1
 )
 
+# ── v41d: Tab 2 righe — JS + CSS injection post-render ─────────────────
+import streamlit.components.v1 as _stc
+_stc.html("""
+<script>
+(function fixTabWrap() {
+    function applyFix() {
+        // Seleziona tutti i possibili contenitori tab di Streamlit/BaseWeb
+        const selectors = [
+            '[data-testid="stTabs"] > div:first-child',
+            '[role="tablist"]',
+            '[data-baseweb="tab-list"]',
+        ];
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                el.style.setProperty('display',    'flex',    'important');
+                el.style.setProperty('flex-wrap',  'wrap',    'important');
+                el.style.setProperty('max-height', 'none',    'important');
+                el.style.setProperty('overflow',   'visible', 'important');
+                el.style.setProperty('height',     'auto',    'important');
+                el.style.setProperty('gap',        '2px 3px', 'important');
+                el.style.setProperty('padding-bottom', '8px', 'important');
+                el.style.setProperty('border-bottom', '1px solid #2a2e39', 'important');
+                // Fix anche i parent che potrebbero bloccare l'altezza
+                let parent = el.parentElement;
+                for (let i = 0; i < 4; i++) {
+                    if (parent) {
+                        parent.style.setProperty('overflow', 'visible', 'important');
+                        parent.style.setProperty('max-height', 'none',  'important');
+                        parent.style.setProperty('height',    'auto',   'important');
+                        parent = parent.parentElement;
+                    }
+                }
+            });
+            // Fix ogni singolo tab button
+            document.querySelectorAll('[data-baseweb="tab"]').forEach(tab => {
+                tab.style.setProperty('white-space', 'nowrap',      'important');
+                tab.style.setProperty('font-size',   '0.74rem',     'important');
+                tab.style.setProperty('padding',     '4px 8px',     'important');
+                tab.style.setProperty('flex-shrink', '0',           'important');
+                tab.style.setProperty('margin-bottom', '2px',       'important');
+                tab.style.setProperty('border-radius', '4px 4px 0 0','important');
+            });
+        });
+    }
+    // Applica subito
+    applyFix();
+    // Riapplica dopo 300ms, 800ms, 1500ms (Streamlit re-renderizza)
+    [300, 800, 1500, 3000].forEach(t => setTimeout(applyFix, t));
+    // MutationObserver: riapplica se Streamlit fa re-render
+    const observer = new MutationObserver(() => applyFix());
+    observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>
+""", height=0)
+
 # ═══════════════════════════════════════════════════════════════════════
 # PATCH 2 — AGGIUNGI TAB "🤖 Modulo 2 AI" nella lista tab
 # ═══════════════════════════════════════════════════════════════════════
