@@ -238,10 +238,10 @@ print(f"  P9  Mom Alerts titolo:     {'OK' if n9 else 'SKIP'}")
 # ═══ P10: Correlazioni Home — disabilita duplicato ════════════════════
 OLD_CORR='    with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):'
 NEW_CORR=(
-    '    # v41d: correlazioni spostate sotto Ranking Settori nel tab Settori\n'
+    '    # v41d: correlazioni disponibili nel tab Settori\n'
     '    with st.expander("🔗 Correlazioni Asset — 30 giorni", expanded=False):\n'
-    '        st.info("ℹ️ v41d: le Correlazioni Asset sono ora disponibili nel tab 🏭 Settori, dopo il Ranking Settori.")\n'
-    '        if False:  # v41d: disabilitato in Home per evitare duplicato'
+    '        st.info("ℹ️ v41d: Correlazioni disponibili nel tab \U0001f3ed Settori → dopo Ranking Settori.")\n'
+    '        pass  # v41d: contenuto originale disabilitato in Home\n'
 )
 n10=src.count(OLD_CORR); src=src.replace(OLD_CORR, NEW_CORR, 1)
 print(f"  P10 correlazioni home:     {'OK' if n10 else 'SKIP'}")
