@@ -6,6 +6,9 @@ on:
     paths:
       - 'patch_v42a.py'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -46,3 +49,4 @@ jobs:
           git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_42a.py auto-generato [skip ci]"
           git pull --rebase origin main
           git push origin HEAD:main
+
