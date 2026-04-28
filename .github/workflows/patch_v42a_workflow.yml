@@ -1,10 +1,10 @@
-name: Generate Dashboard v42a
+name: Generate Dashboard v42b
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'patch_v42a.py'
+      - 'patch_v42b.py'
 
 permissions:
   contents: write
@@ -29,20 +29,20 @@ jobs:
         run: |
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Esegui patch_v42a.py
-        run: python -u patch_v42a.py 2>&1
+      - name: Esegui patch_v42b.py
+        run: python -u patch_v42b.py 2>&1
 
       - name: Verifica file generato
         run: |
           ls -lh Dashboard_pro_V_42a.py
-          echo "Righe v42a: $(wc -l < Dashboard_pro_V_42a.py)"
-          echo "Chars v42a: $(wc -c < Dashboard_pro_V_42a.py)"
+          echo "Righe v42a: $(wc -l < Dashboard_pro_V_42b.py)"
+          echo "Chars v42a: $(wc -c < Dashboard_pro_V_42b.py)"
 
       - name: Commit e push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Actions"
-          git add Dashboard_pro_V_42a.py
-          git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_42a.py auto-generato [skip ci]"
+          git add Dashboard_pro_V_42b.py
+          git diff-index --quiet HEAD || git commit -m "build: Dashboard_pro_V_42b.py auto-generato [skip ci]"
           git pull --rebase origin main
           git push origin HEAD:main
