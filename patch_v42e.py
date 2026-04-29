@@ -1,54 +1,25 @@
-#!/usr/bin/env python3
 from pathlib import Path
 
-SRC = "Dashboard_pro_V_41d.py"
-DST = "Dashboard_pro_V_42e.py"
+SRC_CANDIDATES = [
+    Path("Dashboard_pro_V_41e.py"),
+    Path("Dashboard_pro_V_41c.py"),
+]
+DST = Path("Dashboard_pro_V_42e.py")
 
-original = Path(SRC).read_text(encoding="utf-8")
-src = original
+src_path = next((p for p in SRC_CANDIDATES if p.exists()), None)
+if src_path is None:
+    raise FileNotFoundError("Nessun file sorgente trovato: Dashboard_pro_V_41e.py o Dashboard_pro_V_41c.py")
 
-src = src.replace('<img src="image-2.jpg"', '<img src="image-2.jpg" style="display:block;max-width:70%;height:auto;margin:6px auto 0 auto;"')
-src = src.replace('<img src="image-3.jpg"', '<img src="image-3.jpg" style="display:block;max-width:70%;height:auto;margin:6px auto 0 auto;"')
-src = src.replace('<img src="file:2"', '<img src="file:2" style="display:block;max-width:70%;height:auto;margin:6px auto 0 auto;"')
-src = src.replace('<img src="file:3"', '<img src="file:3" style="display:block;max-width:70%;height:auto;margin:6px auto 0 auto;"')
+src = src_path.read_text(encoding="utf-8")
 
-for old in [
-    "Suggerimenti v42c — Novità e roadmap",
-    "Suggerimenti v42d — Novità e roadmap",
-    "Suggerimenti v41d — Novità e roadmap",
-]:
-    src = src.replace(old, "Suggerimenti v42e — Novità e roadmap")
+old = 'https://it.tradingview.com/chart/?symbol={t.replace(".MI","%3AMI")}'
+new = "https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}"
+src = src.replace(old, new)
 
-for old in [
-    "Trading Scanner PRO 41.0d",
-    "Trading Scanner PRO 41.0c",
-    "Trading Scanner PRO 42.0c",
-    "Trading Scanner PRO 42.0d",
-]:
-    src = src.replace(old, "Trading Scanner PRO 42.0e")
+src = src.replace("Dashboard_pro_V_41c.py", "Dashboard_pro_V_42e.py")
+src = src.replace("Dashboard_pro_V_41e.py", "Dashboard_pro_V_42e.py")
 
-ideas_block = """**🔜 Idee per v42e:**
-- 🔔 Alert push via browser (Web Push Notifications)
-- 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
-- 🗃️ Export segnali CSV/Excel con 1 click dalla Home
-- 🔄 Auto-refresh Home ogni N minuti con st.rerun() schedulato
-- 🧠 AI Analyst: storico analisi per ticker in SQLite
-- 📱 Layout mobile-first con CSS container queries
-- 📅 Earnings tracker compatto con filtro per giorni
-- 🧠 AI history per ticker con ricerca veloce
-- 🌙 Toggle temi persistente per sessione
-"""
+compile(src, str(DST), "exec")
+DST.write_text(src, encoding="utf-8")
 
-for old in [
-    "**🔜 Idee per v42c:**",
-    "**🔜 Idee per v42d:**",
-    "**🔜 Idee per v41d:**",
-]:
-    src = src.replace(old, ideas_block)
-
-if src == original:
-    raise SystemExit("Nessuna modifica applicata: controlla che i testi cercati esistano in 41d.")
-
-Path(DST).write_text(src, encoding="utf-8")
-compile(src, DST, "exec")
-print(f"OK wrote {DST} {len(src)} chars")
+print(f"OK: generated {DST} from {src_path.name}")
