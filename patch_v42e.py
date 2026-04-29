@@ -1,5 +1,5 @@
 from pathlib import Path
-import sys
+import sys, re
 
 SRC_CANDIDATES = [
     Path("Dashboard_pro_V_41e.py"),
@@ -15,7 +15,7 @@ if src_path is None:
 
 src = src_path.read_text(encoding="utf-8")
 
-# Fix link TradingView: doppi apici dentro f-string causano SyntaxError
+# Fix 1: link TradingView doppi apici dentro f-string
 src = src.replace(
     'https://it.tradingview.com/chart/?symbol={t.replace(".MI","%3AMI")}',
     "https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}",
@@ -24,22 +24,27 @@ src = src.replace(
     'https://it.tradingview.com/chart/?symbol={tk.replace(".MI","%3AMI")}',
     "https://it.tradingview.com/chart/?symbol={tk.replace('.MI','%3AMI')}",
 )
-src = src.replace(
-    'https://it.tradingview.com/chart/?symbol={r.get("Ticker","").replace(".MI","%3AMI")}',
-    "https://it.tradingview.com/chart/?symbol={r.get('Ticker','').replace('.MI','%3AMI')}",
-)
 
-# Aggiorna nome file nel sorgente
+# Fix 2: f-string annidata  {"#hex" if var else "#hex"}  ->  {'#hex' if var else '#hex'}
+def fix_nested_color(text):
+    pattern = r'\{"(#[0-9a-fA-F]{6})" if (\w+) else "(#[0-9a-fA-F]{6})"\}'
+    def repl(m):
+        return "{'" + m.group(1) + "' if " + m.group(2) + " else '" + m.group(3) + "'}"
+    return re.sub(pattern, repl, text)
+
+src = fix_nested_color(src)
+
+# Fix 3: aggiorna nome file nel sorgente
 src = src.replace("Dashboard_pro_V_41c.py", "Dashboard_pro_V_42e.py")
 src = src.replace("Dashboard_pro_V_41e.py", "Dashboard_pro_V_42e.py")
 
-# Controlla sintassi e mostra riga esatta in caso di errore
+# Controlla sintassi e mostra contesto in caso di errore
 try:
     compile(src, str(DST), "exec")
 except SyntaxError as e:
     lines = src.splitlines()
     start = max(0, (e.lineno or 1) - 6)
-    end   = min(len(lines), (e.lineno or 1) + 5)
+    end   = min(len(lines), (e.lineno or 1) + 6)
     print(f"\nSyntaxError linea {e.lineno}: {e.msg}", file=sys.stderr)
     for i, line in enumerate(lines[start:end], start=start + 1):
         marker = ">>>" if i == e.lineno else "   "
