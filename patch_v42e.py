@@ -25,7 +25,7 @@ src = src.replace(
     "https://it.tradingview.com/chart/?symbol={tk.replace('.MI','%3AMI')}",
 )
 
-# Fix 2: f-string annidata  {"#hex" if var else "#hex"}  ->  {'#hex' if var else '#hex'}
+# Fix 2: {"#hex" if var else "#hex"} -> {'#hex' if var else '#hex'}
 def fix_nested_color(text):
     pattern = r'\{"(#[0-9a-fA-F]{6})" if (\w+) else "(#[0-9a-fA-F]{6})"\}'
     def repl(m):
@@ -34,11 +34,17 @@ def fix_nested_color(text):
 
 src = fix_nested_color(src)
 
-# Fix 3: aggiorna nome file nel sorgente
+# Fix 3: .split(",") dentro f-string -> .split(',')
+def fix_split_comma(text):
+    return text.replace('.split(",")[', ".split(',')[")
+
+src = fix_split_comma(src)
+
+# Fix 4: aggiorna nome file nel sorgente
 src = src.replace("Dashboard_pro_V_41c.py", "Dashboard_pro_V_42e.py")
 src = src.replace("Dashboard_pro_V_41e.py", "Dashboard_pro_V_42e.py")
 
-# Controlla sintassi e mostra contesto in caso di errore
+# Controlla sintassi e mostra contesto
 try:
     compile(src, str(DST), "exec")
 except SyntaxError as e:
