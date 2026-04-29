@@ -1,12 +1,50 @@
 from pathlib import Path
+import sys
 
-SRC = Path("Dashboard_pro_V_41c.py")
+SRC_CANDIDATES = [
+    Path("Dashboard_pro_V_41e.py"),
+    Path("Dashboard_pro_V_41c.py"),
+]
 DST = Path("Dashboard_pro_V_42e.py")
 
-src = SRC.read_text(encoding="utf-8")
-src = src.replace("https://it.tradingview.com/chart/?symbol={t.replace(\".MI\",\"%3AMI\")}", "https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}")
+src_path = next((p for p in SRC_CANDIDATES if p.exists()), None)
+if src_path is None:
+    raise FileNotFoundError(
+        "Nessun file sorgente trovato: Dashboard_pro_V_41e.py o Dashboard_pro_V_41c.py"
+    )
+
+src = src_path.read_text(encoding="utf-8")
+
+# Fix link TradingView: doppi apici dentro f-string causano SyntaxError
+src = src.replace(
+    'https://it.tradingview.com/chart/?symbol={t.replace(".MI","%3AMI")}',
+    "https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}",
+)
+src = src.replace(
+    'https://it.tradingview.com/chart/?symbol={tk.replace(".MI","%3AMI")}',
+    "https://it.tradingview.com/chart/?symbol={tk.replace('.MI','%3AMI')}",
+)
+src = src.replace(
+    'https://it.tradingview.com/chart/?symbol={r.get("Ticker","").replace(".MI","%3AMI")}',
+    "https://it.tradingview.com/chart/?symbol={r.get('Ticker','').replace('.MI','%3AMI')}",
+)
+
+# Aggiorna nome file nel sorgente
 src = src.replace("Dashboard_pro_V_41c.py", "Dashboard_pro_V_42e.py")
+src = src.replace("Dashboard_pro_V_41e.py", "Dashboard_pro_V_42e.py")
+
+# Controlla sintassi e mostra riga esatta in caso di errore
+try:
+    compile(src, str(DST), "exec")
+except SyntaxError as e:
+    lines = src.splitlines()
+    start = max(0, (e.lineno or 1) - 6)
+    end   = min(len(lines), (e.lineno or 1) + 5)
+    print(f"\nSyntaxError linea {e.lineno}: {e.msg}", file=sys.stderr)
+    for i, line in enumerate(lines[start:end], start=start + 1):
+        marker = ">>>" if i == e.lineno else "   "
+        print(f"{marker} {i:5d}: {line}", file=sys.stderr)
+    sys.exit(1)
+
 DST.write_text(src, encoding="utf-8")
-compile(src, str(DST), "exec")
-print(src[:1000])
-print("OK: generated", DST)
+print(f"OK: generated {DST} from {src_path.name}")
