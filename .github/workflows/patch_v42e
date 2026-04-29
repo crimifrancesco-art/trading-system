@@ -2,9 +2,20 @@ name: Patch v42e Workflow
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'patch_v42e.py'
+      - '.github/workflows/patch-v42e.yml'
+      - 'Dashboard_pro_V_41d.py'
 
 permissions:
   contents: write
+
+concurrency:
+  group: patch-v42e-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -13,27 +24,45 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
-      - name: Verify source files
+      - name: Debug workflow files
         run: |
+          echo "REF=${GITHUB_REF}"
+          echo "SHA=${GITHUB_SHA}"
+          pwd
           ls -lah
-          test -f Dashboard_pro_V_41d.py
+          echo "--- .github/workflows ---"
+          ls -lah .github/workflows || true
+
+      - name: Verify required files
+        run: |
           test -f patch_v42e.py
+          test -f Dashboard_pro_V_41d.py
+          echo "OK: sorgenti trovati"
 
       - name: Run patch_v42e.py
         run: |
           python -u patch_v42e.py 2>&1
           test -f Dashboard_pro_V_42e.py
+          python -m py_compile Dashboard_pro_V_42e.py
+          echo "OK: Dashboard_pro_V_42e.py generato"
+
+      - name: Show git diff
+        run: |
+          git status --short
+          git diff -- Dashboard_pro_V_42e.py | head -n 200 || true
 
       - name: Commit generated file
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add patch_v42e.py Dashboard_pro_V_42e.py .github/workflows/patch_v42e_workflow.yml
-          git diff --cached --quiet && echo "No changes to commit" || git commit -m "Add Dashboard_pro_V_42e via patch workflow"
+          git add patch_v42e.py Dashboard_pro_V_42e.py .github/workflows/patch-v42e.yml
+          git diff --cached --quiet && echo "Nessuna modifica da committare" || git commit -m "Aggiunge Dashboard_pro_V_42e con workflow patch"
           git push
