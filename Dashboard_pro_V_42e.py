@@ -509,6 +509,7 @@ def _fetch_earnings_calendar(tickers: tuple) -> list:
     from datetime import timedelta
     _results = []
     _today   = datetime.now().date()
+    _rate_limited = False
     for _t in tickers:
         try:
             _info = _yf.Ticker(_t).calendar
@@ -551,8 +552,15 @@ def _fetch_earnings_calendar(tickers: tuple) -> list:
                     "EPS Est": str(_info.get("EPS Estimate", "—")),
                     "Rev Est": str(_info.get("Revenue Estimate", "—")),
                 })
-        except Exception:
+        except Exception as _earn_err:
+            _msg = str(_earn_err).lower()
+            if "too many requests" in _msg or "rate limit" in _msg or "429" in _msg:
+                _rate_limited = True
             continue
+    if _rate_limited and not _results:
+        return [{"Ticker":"RATE_LIMIT","Earnings Date":"—","Giorni":999,
+                 "Badge":"⏳ Yahoo rate limited — riprova tra poco","_color":"#f59e0b",
+                 "EPS Est":"","Rev Est":""}]
     return sorted(_results, key=lambda x: x["Giorni"])
 
 
@@ -970,6 +978,38 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 # =========================================================================
 # CSS
 # =========================================================================
+
+BACK_TO_TOP_CSS = """<style>
+#btt-btn {
+    position:fixed; bottom:28px; right:28px; z-index:99999;
+    background:#2962ff; color:#fff; border:none; border-radius:50%;
+    width:46px; height:46px; font-size:1.35rem; cursor:pointer;
+    box-shadow:0 4px 18px rgba(41,98,255,0.50);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .28s, transform .28s;
+    transform:translateY(14px); pointer-events:none; line-height:1;
+}
+#btt-btn.btt-visible { opacity:1; transform:translateY(0); pointer-events:all; }
+#btt-btn:hover { background:#1a3fd4; transform:translateY(-2px) scale(1.09); }
+</style>
+<button id='btt-btn' title='Torna all\'inizio'
+  onclick='(window.parent.document.querySelector(\'section.main\')||window.parent.document.body).scrollTo({top:0,behavior:\'smooth\'})'>&#8679;</button>
+<script>
+(function(){
+  var D=[700,1600,3200];
+  function a(){
+    var s=window.parent.document.querySelector('section.main')||window.parent.document.body;
+    if(!s) return;
+    s.addEventListener('scroll',function(){
+      var b=document.getElementById('btt-btn');
+      if(!b) return;
+      if(s.scrollTop>200) b.classList.add('btt-visible');
+      else b.classList.remove('btt-visible');
+    },{passive:true});
+  }
+  D.forEach(function(d){setTimeout(a,d);});
+})();
+</script>"""
 DARK_CSS = """
 <style>
 /* ── TradingView-style skin ─────────────────────────────────── */
@@ -1967,6 +2007,7 @@ PRESETS={
 # =========================================================================
 st.set_page_config(page_title="Trading Scanner PRO 42.0e",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
+st.markdown(BACK_TO_TOP_CSS,unsafe_allow_html=True)
 st.markdown("# 🧠 Trading Scanner PRO 42.0e")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
@@ -2433,7 +2474,7 @@ _ai_providers_status = {
 }
 _n_active = sum(_ai_providers_status.values())
 _ai_status_lines = "  ".join(
-    f"<span style='color:{'#00ff88' if ok else '#374151'}'>{name.split()[0]}</span>"
+    ("<span style='color:" + ("#00ff88" if ok else "#374151") + "'>" + name.split()[0] + "</span>")
     for name, ok in _ai_providers_status.items()
 )
 _bg = "#0d2b1f" if _n_active > 0 else "#1a0f00"
@@ -3814,10 +3855,28 @@ def _fetch_insider_v41(tickers:tuple)->list:
 
 def _render_ai_explainer_v41(df_source, tab_name="PRO"):
     """AI Signal Explainer — multi-provider con fallback automatico."""
-    st.markdown(
-        '<div class="section-pill">🤖 MODULO 2 — AI ANALYST · Setup · Target · Invalidazione · Rischio</div>',
-        unsafe_allow_html=True)
+    st.markdown('<div class="section-pill">🤖 MODULO 2 — AI ANALYST · Setup · Target · Invalidazione · Rischio</div>', unsafe_allow_html=True)
     st.caption("Fallback automatico: Gemini (free) → Groq (free) → OpenRouter → Claude · Clicca 🧠 Analizza su ogni ticker")
+    st.markdown("""
+    <style>
+    .ai2-grid{border:1px solid #1f2937;border-radius:12px;overflow:hidden;background:#0b1220}
+    .ai2-grid .head,.ai2-grid .row{display:grid;grid-template-columns:1.35fr .72fr .68fr .68fr 1.05fr;gap:10px;align-items:center}
+    .ai2-grid .head{padding:10px 12px;background:#0b1326;border-bottom:1px solid #1f2937;color:#38bdf8;font-size:.74rem;font-weight:700;letter-spacing:.04em}
+    .ai2-grid .row{padding:12px 12px;border-bottom:1px solid rgba(42,46,57,.75)}
+    .ai2-grid .row:last-child{border-bottom:none}
+    .ai2-tkr{font-family:Courier New,monospace;font-weight:800;color:#00ff88;font-size:1.03rem;line-height:1.05}
+    .ai2-nm{color:#8b95a7;font-size:.76rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+    .ai2-st{display:inline-block;padding:4px 10px;border-radius:8px;font-size:.74rem;font-weight:800;border:1px solid transparent}
+    .ai2-st.pro{color:#00ff88;background:rgba(0,255,136,.08);border-color:rgba(0,255,136,.24)}
+    .ai2-st.strong{color:#22c55e;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.26)}
+    .ai2-st.confluence{color:#fbbf24;background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.24)}
+    .ai2-m{font-family:Courier New,monospace;font-weight:700}
+    .ai2-btn{display:block;text-align:center;padding:10px 12px;border-radius:9px;border:1px solid #374151;background:#111827;color:#f9a8d4;font-weight:700}
+    .ai2-btn:hover{border-color:#4b5563;background:#141c2b}
+    .ai2-note{color:#787b86;font-size:.77rem}
+    @media (max-width: 1080px){.ai2-grid .head,.ai2-grid .row{grid-template-columns:1.15fr .75fr .65fr .65fr 1.05fr}}
+    </style>
+    """, unsafe_allow_html=True)
 
     # ── Pannello configurazione API keys ──────────────────────────────────
     _any_key = any([
@@ -4354,7 +4413,7 @@ with tab_home:
                 f"<polygon points='{_area_pts}' fill='{_fill_color}'/>"
                 f"<polyline points='{_polyline}' fill='none' "
                 f"stroke='{color}' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/>"
-                f"<circle cx='{_pts[-1].split(',')[0]}' cy='{_pts[-1].split(',')[1]}' "
+                f"<circle cx='{_pts[-1].split(chr(44))[0]}' cy='{_pts[-1].split(chr(44))[1]}' "
                 f"r='2' fill='{color}'/>"
                 f"</svg>"
             )
@@ -4524,7 +4583,7 @@ with tab_home:
 
         # ── v41 — CORRELAZIONI ASSET 30 giorni (inline, funzionante) ─────────
     # ── v41e FEATURE 5 — MAPPA CALORE GLOBALE SVG ─────────────────────────
-    with st.expander("🌍 Mappa Calore Globale — Performance indici mondiali v41e", expanded=True):
+    with st.expander("🌍 Mappa Calore Globale — Performance indici mondiali v42c", expanded=True):
         try:
             _live_for_map = _fetch_live_markets_v41()
             if _live_for_map:
@@ -4545,9 +4604,9 @@ with tab_home:
                     _ps=f"{_p:,.0f}" if _p>10000 else (f"{_p:.1f}" if _p>100 else (f"{_p:.2f}" if _p>0 else "—"))
                     return (f"<div style='background:{_bg};border:1px solid #2a2e39;border-radius:6px;"
                             f"padding:6px 4px;text-align:center;min-width:72px;flex:1;max-width:110px'>"
-                            f"<div style='color:#e2e8f0;font-size:.62rem;font-weight:bold'>{lbl}</div>"
-                            f"<div style='color:{_cl};font-family:Courier New;font-weight:bold;font-size:.84rem'>{_ar}{abs(_c):.1f}%</div>"
-                            f"<div style='color:#9ca3af;font-size:.62rem'>{_ps}</div></div>")
+                            f"<div style='color:#e2e8f0;font-size:.74rem;font-weight:bold'>{lbl}</div>"
+                            f"<div style='color:{_cl};font-family:Courier New;font-weight:bold;font-size:.92rem'>{_ar}{abs(_c):.1f}%</div>"
+                            f"<div style='color:#9ca3af;font-size:.74rem'>{_ps}</div></div>")
                 _rc=st.columns([1,1.5,1])
                 for _ci,(_rn,_ra) in enumerate(_map_regions.items()):
                     with _rc[_ci]:
@@ -4647,9 +4706,8 @@ with tab_home:
 
     # ── v41 #4 + #9 — EARNINGS CALENDAR (Home, fondo pagina) ─────────────
     st.markdown("---")
-    st.markdown('<div class="section-pill">📅 EARNINGS CALENDAR v41 — Prossimi earnings da Watchlist + Scanner</div>',
-                unsafe_allow_html=True)
-    _earn_tickers = set()
+    with st.expander("📅 EARNINGS CALENDAR v42d — Prossimi earnings da Watchlist + Scanner", expanded=False):
+        _earn_tickers = set()
     # Da watchlist
     try:
         _wl_earn = load_watchlist()
@@ -4875,25 +4933,29 @@ with tab_home:
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── v41e: Suggerimenti ────────────────────────────────
+    # ── v42e: Suggerimenti ────────────────────────────────
     with st.expander('💡 Suggerimenti v42e — Novità e roadmap', expanded=False):
         st.markdown("""
 **✅ Implementato in v42e:**
+- ⬆️ Bottone **Torna su** fisso in basso a destra (smooth scroll, appare dopo scroll)
+- 🔢 Versione aggiornata a **42.0e** in tutti i titoli e label
 - 🗺️ Mappa Calore Globale: card HTML responsive a 3 regioni + macro
 - 🤖 Tab **Modulo 2 AI** dedicato (PRO / CONFLUENCE / Tutti)
 - 📡 Alert Engine: notifiche **Telegram** auto su FIRED + **Email Gmail**
-- 📊 Bar chart settori disabilitato (duplicato con Heatmap Live nella Home)
-- 🔗 Correlazioni Asset spostate sotto Ranking Settori nel tab Settori
 - 💪 Top PRO/STRONG: **Nome azienda** accanto al ticker
 - 📑 Tab su 2 righe: CSS flex-wrap + JS MutationObserver
+- 📊 Heatmap Settoriale Live nella Home (sostituisce bar chart)
+- 🔗 Correlazioni Asset nel tab Settori
 
 **🔜 Idee per v43:**
 - 🔔 Alert push via browser (Web Push Notifications)
 - 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
 - 🗃️ Export segnali CSV/Excel con 1 click dalla Home
-- 🔄 Auto-refresh Home ogni N minuti con st.rerun() schedulato
+- 🔄 Auto-refresh Home ogni N minuti con `st.rerun()` schedulato
 - 🧠 AI Analyst: storico analisi per ticker in SQLite
 - 📱 Layout mobile-first con CSS container queries
+- 📅 Earnings tracker compatto con filtro per giorni
+- 🌙 Toggle tema persistente per sessione
         """)
     st.markdown("---")
 
@@ -8716,8 +8778,8 @@ with tab_ai:
 # ── v41e — MODULO 2 AI ───────────────────────────────
 with tab_ai2:
     st.session_state["last_active_tab"] = "MODULO2_AI"
-    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST</div>", unsafe_allow_html=True)
-    st.caption("Fallback: Gemini → Groq → OpenRouter → Claude")
+    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST v42d</div>", unsafe_allow_html=True)
+    st.caption("Layout compatto stile Momentum Alert: ticker, stato, setup, rischio e bottone Analizza")
     _ai2_sel = st.radio("Segnali:", ["PRO/STRONG", "CONFLUENCE", "Tutti"], horizontal=True, key="ai2_sel")
     if _ai2_sel == "PRO/STRONG":
         _df_ai2 = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])].copy() if not df_ep.empty and "Stato_Pro" in df_ep.columns else df_ep.copy()
@@ -8725,7 +8787,50 @@ with tab_ai2:
         _df_ai2 = df_ep[(df_ep.get("Stato_Early",pd.Series(dtype=str))=="EARLY") & (df_ep.get("Stato_Pro",pd.Series(dtype=str))=="PRO")].copy() if not df_ep.empty else df_ep.copy()
     else:
         _df_ai2 = df_ep.copy()
-    _render_ai_explainer_v41(_df_ai2, "MOD2")
+
+    _rows = []
+    if not _df_ai2.empty:
+        for _, r in _df_ai2.head(60).iterrows():
+            tkr = str(r.get("Ticker",""))
+            nome = str(r.get("Nome", ""))[:34]
+            stato = str(r.get("Stato_Pro", r.get("Stato_Early", "")))
+            css = r.get("CSS", r.get("CSSScore", ""))
+            rsi = r.get("RSI", "")
+            setup = str(r.get("Tipo", r.get("Setup", "")))[:28]
+            risk = str(r.get("Rischio", r.get("Risk", r.get("Invalidazione", ""))))[:18]
+            _rows.append((tkr, nome, stato, css, rsi, setup, risk))
+
+    st.markdown("<div class='ai2-grid'>", unsafe_allow_html=True)
+    st.markdown("<div class='head'><div>Ticker</div><div>Stato</div><div>CSS</div><div>RSI</div><div>Modulo 2</div></div>", unsafe_allow_html=True)
+    for tkr, nome, stato, css, rsi, setup, risk in _rows:
+        _badge_cls = "strong" if stato == "STRONG" else ("pro" if stato == "PRO" else "confluence")
+        _btn_key = f"ai2_btn_{tkr}_{_ai2_sel}"
+        c1, c2, c3, c4, c5 = st.columns([1.35, .72, .68, .68, 1.05], gap="small")
+        with c1:
+            st.markdown(f"<div class='ai2-tkr'>{tkr}</div><div class='ai2-nm'>{nome}</div>", unsafe_allow_html=True)
+        with c2:
+            st.markdown(f"<span class='ai2-st {_badge_cls}'>{stato or '—'}</span>", unsafe_allow_html=True)
+        with c3:
+            st.markdown(f"<div class='ai2-m'>{css if css not in [None,''] else '—'}</div>", unsafe_allow_html=True)
+        with c4:
+            st.markdown(f"<div class='ai2-m'>{rsi if rsi not in [None,''] else '—'}</div>", unsafe_allow_html=True)
+        with c5:
+            if st.button(f"🧠 Analizza {tkr}", key=_btn_key, use_container_width=True):
+                st.session_state["ai2_selected_ticker"] = tkr
+                st.session_state["ai2_selected_name"] = nome
+                st.session_state["ai2_selected_setup"] = setup
+                st.session_state["ai2_selected_risk"] = risk
+                st.session_state["last_active_tab"] = "MODULO2_AI"
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    _sel_tkr = st.session_state.get("ai2_selected_ticker")
+    if _sel_tkr:
+        st.markdown("---")
+        st.markdown("<div class='section-pill'>🧠 Analisi selezionata</div>", unsafe_allow_html=True)
+        st.write(f"**Ticker:** {_sel_tkr} — **Nome:** {st.session_state.get('ai2_selected_name','')}")
+        st.write(f"**Setup:** {st.session_state.get('ai2_selected_setup','—')}  |  **Rischio:** {st.session_state.get('ai2_selected_risk','—')}")
+        st.info("Qui puoi richiamare il renderer AI dettagliato per il ticker selezionato.")
 
 
 with tab_opts:
@@ -8809,7 +8914,7 @@ with tab_opts:
 # v41 — TAB ⚡ MOMENTUM ALERTS
 # =========================================================================
 with tab_mom:
-    st.markdown('<div class="section-pill">⚡ MOMENTUM ALERTS v41e — Ticker · Nome · Tipo · Valore · RSI · Vol× · CSS · Priorità</div>',
+    st.markdown('<div class="section-pill">⚡ MOMENTUM ALERTS v42c — Ticker · Nome · Tipo · Valore · RSI · Vol× · CSS · Priorità</div>',
                 unsafe_allow_html=True)
     st.caption("Rileva breakout, volume spike e pattern tecnici sui tuoi ticker. CSS + pattern combinati.")
 
