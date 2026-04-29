@@ -1965,9 +1965,9 @@ PRESETS={
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO 41.0c",layout="wide",page_icon="🧠")
+st.set_page_config(page_title="Trading Scanner PRO 42.0e",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-st.markdown("# 🧠 Trading Scanner PRO 41.0c")
+st.markdown("# 🧠 Trading Scanner PRO 42.0e")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
@@ -4876,9 +4876,9 @@ with tab_home:
                 st.caption("Avvia lo scanner")
 
     # ── v41e: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v41e — Novità e roadmap', expanded=False):
+    with st.expander('💡 Suggerimenti v42e — Novità e roadmap', expanded=False):
         st.markdown("""
-**✅ Implementato in v41e:**
+**✅ Implementato in v42e:**
 - 🗺️ Mappa Calore Globale: card HTML responsive a 3 regioni + macro
 - 🤖 Tab **Modulo 2 AI** dedicato (PRO / CONFLUENCE / Tutti)
 - 📡 Alert Engine: notifiche **Telegram** auto su FIRED + **Email Gmail**
@@ -4887,7 +4887,7 @@ with tab_home:
 - 💪 Top PRO/STRONG: **Nome azienda** accanto al ticker
 - 📑 Tab su 2 righe: CSS flex-wrap + JS MutationObserver
 
-**🔜 Idee per v41e:**
+**🔜 Idee per v43:**
 - 🔔 Alert push via browser (Web Push Notifications)
 - 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
 - 🗃️ Export segnali CSV/Excel con 1 click dalla Home
