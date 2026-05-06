@@ -42,6 +42,22 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+
+# ── v43d: AI config globale — definite prima di ogni uso ──────────────────
+def _get_global_ai_keys():
+    """Legge le API key AI — una sola fonte per tutti i moduli."""
+    _ss = st.session_state
+    return {
+        "gemini":     st.secrets.get("GEMINI_API_KEY","")     or _ss.get("_gemini_api_key",""),
+        "groq":       st.secrets.get("GROQ_API_KEY","")       or _ss.get("_groq_api_key",""),
+        "openrouter": st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key",""),
+        "anthropic":  st.secrets.get("ANTHROPIC_API_KEY","")  or _ss.get("_anthropic_api_key",""),
+    }
+
+def _has_global_ai_config():
+    """True se almeno un provider AI è configurato."""
+    return any(bool(v) for v in _get_global_ai_keys().values())
+# ────────────────────────────────────────────────────────────────────────────
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # ── Import robusti: fallback gracile se un modulo non è aggiornato ──────────
@@ -4409,16 +4425,6 @@ def _ai_call_claude(api_key: str, prompt: str) -> str:
     _err = _resp.json().get("error",{})
     raise Exception(f"Claude {_resp.status_code}: {_err.get('message','')[:120]}")
 
-
-def _get_global_ai_keys():
-    _ss = st.session_state
-    return {"gemini": st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key",""),
-            "groq": st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key",""),
-            "openrouter": st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key",""),
-            "anthropic": st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")}
-
-def _has_global_ai_config():
-    return any(bool(v) for v in _get_global_ai_keys().values())
 
 def _ai_call_with_fallback(prompt: str) -> tuple:
     """
