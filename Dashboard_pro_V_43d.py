@@ -8113,8 +8113,8 @@ with ec3:
 with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(
-            f"📈 CSV TV {cur_tab}",
-            make_tv_csv(df_cur, cur_tab),
+            f"📥 TXT TradingView {cur_tab}",
+            make_tv_txt(df_cur),
             f"TradingScanner_v41_{cur_tab}_TV_{_ts}.txt",
             "text/plain",
             key="csv_tv_curr"
