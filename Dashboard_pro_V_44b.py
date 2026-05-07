@@ -1008,89 +1008,124 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 
 BACK_TO_TOP_CSS = """<style>
 #btt-btn {
-    position:fixed !important; bottom:30px !important; right:30px !important;
+    position:fixed !important;
+    bottom:24px !important;
+    left:50% !important;
+    transform:translateX(-50%) translateY(20px) !important;
     z-index:2147483647 !important;
-    background:#2962ff; color:#fff; border:none; border-radius:50%;
-    width:48px; height:48px; font-size:1.4rem; cursor:pointer;
-    box-shadow:0 4px 20px rgba(41,98,255,0.6);
-    display:flex !important; align-items:center; justify-content:center;
-    opacity:0; transition:opacity .3s ease, transform .3s ease;
-    transform:translateY(16px); pointer-events:none; line-height:1;
-    font-family:sans-serif;
+    background:#2962ff;
+    color:#fff;
+    border:none;
+    border-radius:24px;
+    width:auto;
+    min-width:120px;
+    height:44px;
+    padding:0 22px;
+    font-size:0.92rem;
+    font-weight:bold;
+    font-family:'Trebuchet MS',sans-serif;
+    cursor:pointer;
+    box-shadow:0 4px 24px rgba(41,98,255,0.55);
+    display:flex !important;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    opacity:0;
+    transition:opacity .3s ease, transform .3s ease;
+    pointer-events:none;
+    white-space:nowrap;
+    letter-spacing:0.3px;
 }
 #btt-btn.btt-visible {
-    opacity:1 !important; transform:translateY(0) !important;
+    opacity:1 !important;
+    transform:translateX(-50%) translateY(0) !important;
     pointer-events:all !important;
 }
-#btt-btn:hover { background:#1a3fd4 !important; transform:translateY(-3px) scale(1.1) !important; }
+#btt-btn:hover {
+    background:#1a3fd4 !important;
+    box-shadow:0 6px 28px rgba(41,98,255,0.75) !important;
+}
+#btt-btn:active { transform:translateX(-50%) scale(0.96) !important; }
 
-/* v43d — responsive tabs & layout */
+/* v44b — responsive tabs & layout */
 [data-testid="stTabs"] button{white-space:nowrap;}
 @media(max-width:1200px){[data-testid="stHorizontalBlock"]{flex-wrap:wrap!important;gap:.4rem;}}
 @media(max-width:768px){div[data-testid="metric-container"]{min-width:140px;}.stDataFrame,[data-testid="stTable"]{font-size:.82rem;}iframe,canvas,.js-plotly-plot{max-width:100%!important;}}
 @media(max-width:640px){[data-testid="stTabs"] button{padding:.35rem .55rem!important;font-size:.78rem!important;}div[data-testid="column"]{width:100%!important;flex:1 1 100%!important;}.element-container .stButton>button{width:100%;}}
 </style>
-<button id='btt-btn' title='Torna su'
-  onclick='(function(){
-    var targets=[
-      window.parent.document.querySelector(".main"),
-      window.parent.document.querySelector("section.main"),
-      window.parent.document.querySelector(".block-container"),
-      window.parent.document.documentElement,
-      window.parent.document.body,
-      document.documentElement,
-      document.body
-    ];
-    for(var i=0;i<targets.length;i++){
-      if(targets[i] && targets[i].scrollTop>0){
-        targets[i].scrollTo({top:0,behavior:"smooth"});return;
-      }
-    }
-    window.parent.scrollTo({top:0,behavior:"smooth"});
-    window.scrollTo({top:0,behavior:"smooth"});
-  })()'>&#8679;</button>
+<button id='btt-btn' title='Torna all\'inizio'>&#8679; Torna su</button>
 <script>
 (function(){
   var _btt_attached=false;
-  function _getScroller(){
+  function _scroll_top(){
     var doc=window.parent.document;
-    var candidates=[
-      doc.querySelector(".main"),
-      doc.querySelector("section.main"),
-      doc.querySelector(".block-container"),
-      doc.documentElement,
-      doc.body
+    var selectors=[
+      '[data-testid="stAppViewContainer"]',
+      '.main','section.main',
+      '[data-testid="block-container"]','.block-container'
     ];
-    for(var i=0;i<candidates.length;i++){
-      if(candidates[i] && candidates[i].scrollHeight>candidates[i].clientHeight+50){
-        return candidates[i];
-      }
+    for(var s=0;s<selectors.length;s++){
+      var el=doc.querySelector(selectors[s]);
+      if(el && el.scrollTop>0){ el.scrollTo({top:0,behavior:'smooth'}); }
     }
-    return doc.documentElement||doc.body;
+    if(window.parent.pageYOffset>0) window.parent.scrollTo({top:0,behavior:'smooth'});
+    doc.documentElement.scrollTo({top:0,behavior:'smooth'});
+    doc.body.scrollTo({top:0,behavior:'smooth'});
+    window.scrollTo({top:0,behavior:'smooth'});
   }
   function _getBtn(){
     return window.parent.document.getElementById('btt-btn')||document.getElementById('btt-btn');
   }
+  function _getScrollTop(){
+    var doc=window.parent.document;
+    var selectors=[
+      '[data-testid="stAppViewContainer"]',
+      '.main','section.main',
+      '[data-testid="block-container"]','.block-container'
+    ];
+    var max=0;
+    for(var s=0;s<selectors.length;s++){
+      var el=doc.querySelector(selectors[s]);
+      if(el && el.scrollTop>max) max=el.scrollTop;
+    }
+    return Math.max(max, window.parent.pageYOffset||0, window.pageYOffset||0);
+  }
   function _btt_check(){
     var b=_getBtn(); if(!b) return;
-    var s=_getScroller();
-    var scrolled=(s&&s.scrollTop>200)||(window.parent.pageYOffset>200)||(window.pageYOffset>200);
-    if(scrolled) b.classList.add('btt-visible');
+    if(_getScrollTop()>200) b.classList.add('btt-visible');
     else b.classList.remove('btt-visible');
   }
   function _btt_attach(){
     if(_btt_attached) return;
-    var s=_getScroller();
-    if(!s) return;
-    s.addEventListener('scroll',_btt_check,{passive:true});
+    var doc=window.parent.document;
+    var selectors=[
+      '[data-testid="stAppViewContainer"]',
+      '.main','section.main',
+      '[data-testid="block-container"]','.block-container'
+    ];
+    var attached=false;
+    for(var s=0;s<selectors.length;s++){
+      var el=doc.querySelector(selectors[s]);
+      if(el){ el.addEventListener('scroll',_btt_check,{passive:true}); attached=true; }
+    }
     window.parent.addEventListener('scroll',_btt_check,{passive:true});
+    window.addEventListener('scroll',_btt_check,{passive:true});
     _btt_check();
-    _btt_attached=true;
+    if(attached) _btt_attached=true;
   }
-  [200,500,1000,2000,4000,8000].forEach(function(d){setTimeout(_btt_attach,d);});
+  function _btt_init(){
+    var b=_getBtn();
+    if(b && !b._btt_ready){
+      b.addEventListener('click',_scroll_top);
+      b._btt_ready=true;
+    }
+  }
+  [100,300,700,1500,3000,6000].forEach(function(d){
+    setTimeout(function(){ _btt_attach(); _btt_init(); },d);
+  });
   try{
-    var _btt_obs=new MutationObserver(function(){_btt_attach();_btt_check();});
-    _btt_obs.observe(window.parent.document.body,{childList:true,subtree:false});
+    var obs=new MutationObserver(function(){ _btt_attach(); _btt_init(); _btt_check(); });
+    obs.observe(window.parent.document.body,{childList:true,subtree:false});
   }catch(e){}
 })();
 </script>"""
@@ -7943,333 +7978,265 @@ with tab_of:
 
 
 with tab_bcd:
-    # ── v44a Blue Chip Dip Screener — Self-contained, Responsive ──────────────
-    st.markdown('''<style>
-.bcd-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
-.bcd-header h2{color:#50c4e0;font-family:Trebuchet MS,sans-serif;font-size:1.15rem;margin:0;}
-.bcd-legend{background:#0d1117;border:1px solid #1f2937;border-radius:8px;padding:10px 16px;font-size:0.80rem;color:#6b7280;margin-bottom:12px;}
-.bcd-legend b{color:#b2b5be;}
-.bcd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:12px;padding:4px 0;}
-.bcd-card{background:#1e222d;border:1px solid #2a2e39;border-radius:10px;padding:14px 16px;transition:box-shadow .2s,border-color .2s;}
-.bcd-card:hover{box-shadow:0 4px 18px rgba(0,0,0,0.4);border-color:#374151;}
-.bcd-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
-.bcd-ticker{font-family:Courier New,monospace;font-size:1.05rem;font-weight:bold;color:#00ff88;letter-spacing:1px;}
-.bcd-name{color:#8b949e;font-size:0.78rem;margin-top:2px;}
-.bcd-score{font-family:Courier New,monospace;font-weight:bold;font-size:1.1rem;}
-.bcd-score.dip-deep{color:#00ff88;}
-.bcd-score.dip-mod{color:#f59e0b;}
-.bcd-score.dip-shallow{color:#6b7280;}
-.bcd-row{display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-size:0.80rem;}
-.bcd-label{color:#6b7280;}
-.bcd-val{font-family:Courier New,monospace;color:#b2b5be;}
-.bcd-val.up{color:#00ff88;}
-.bcd-val.dn{color:#ef4444;}
-.bcd-badge{display:inline-block;border-radius:10px;padding:2px 7px;font-size:0.72rem;font-weight:bold;margin-top:6px;}
-.bcd-badge.grade-a{background:rgba(0,255,136,.15);color:#00ff88;border:1px solid #00ff8844;}
-.bcd-badge.grade-b{background:rgba(38,166,154,.15);color:#26a69a;border:1px solid #26a69a44;}
-.bcd-badge.grade-c{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid #f59e0b44;}
-.bcd-badge.grade-d{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid #ef444444;}
-.bcd-bar-wrap{background:#1a1f2b;border-radius:4px;height:5px;margin-top:6px;overflow:hidden;}
-.bcd-bar{height:5px;border-radius:4px;}
-@media(max-width:640px){.bcd-grid{grid-template-columns:1fr;}.bcd-card{padding:10px 12px;}}
-</style>''', unsafe_allow_html=True)
 
-    st.markdown('<div class="section-pill">💎 BLUE CHIP DIP SCREENER</div>', unsafe_allow_html=True)
+    # ── v43c Blue Chip Dip Responsive ──────────────────────────────────
+    st.markdown("""<style>
+.bcd-grid{display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));
+  gap:12px;padding:8px 0;}
+.bcd-card{background:#1e222d;border:1px solid #2a2e39;border-radius:10px;
+  padding:14px 16px;transition:box-shadow 0.2s;}
+.bcd-card:hover{box-shadow:0 4px 18px rgba(0,0,0,0.35);}
+@media(max-width:600px){
+  .bcd-grid{grid-template-columns:1fr;}
+  .bcd-card{padding:10px 12px;}
+}
+</style>""", unsafe_allow_html=True)
+    try:
+        from utils.bluechip_dip import render_bluechip_dip
+        render_bluechip_dip()
+    except ImportError:
+        st.info("💎 bluechip_dip.py non trovato in utils/")
+    except Exception as _bce:
+        import traceback
+        st.error(f"Blue Chip Dip error: {_bce}")
+        st.code(traceback.format_exc())
 
-    with st.expander("📖 Legenda & Metodologia", expanded=False):
+    st.markdown('<div class="section-pill">📜 STORICO SCANSIONI</div>',unsafe_allow_html=True)
+
+    # ── Legenda Storico ────────────────────────────────────────────────
+    with st.expander("📖 Come leggere lo Storico — Guida completa", expanded=False):
         st.markdown("""
-**Blue Chip Dip Screener** identifica titoli large cap (S&P 500 / FTSE MIB) in fase di correzione
-temporanea su trend rialzista di lungo periodo — opportunità di ingresso su *pullback* di qualità.
+## 📜 Storico Scansioni — Guida Operativa
 
-| Campo | Significato |
-|---|---|
-| **Dip Score** | 0-100 → qualità del dip (RSI basso + prezzo su EMA200 + QS alta) |
-| **Dist. da EMA200** | % distanza dal supporto di lungo periodo |
-| **RSI 14** | sotto 45 = zona dip, sotto 35 = dip profondo |
-| **Vol Ratio** | volume odierno / media 20gg — conferma interesse |
-| **Grado** | A=dip eccellente, B=buono, C=moderato, D=debole |
+Lo **Storico** registra ogni scansione eseguita nel database locale.
+Ogni riga corrisponde a una singola esecuzione dello scanner con timestamp, mercati scansionati
+e numero di segnali trovati.
 
-> **Filtri base**: MarketCap > 5B, prezzo sopra EMA200, RSI < 50, DollarVol > 10M
+---
+
+### 📊 Colonne della tabella
+
+| Colonna | Tipo | Significato |
+|---------|------|-------------|
+| **id** | numero | ID progressivo scansione |
+| **scanned_at** | datetime | Data e ora esecuzione (UTC) |
+| **markets** | testo | Mercati inclusi (US, ETF, Crypto…) |
+| **n_tickers** | intero | Titoli totali analizzati nello scan |
+| **n_early** | intero | Titoli con `Stato_Early = EARLY` trovati |
+| **n_pro** | intero | Titoli con `Stato_Pro = PRO` trovati |
+| **n_rea** | intero | Titoli con `Stato = HOT` (REA) trovati |
+| **elapsed_s** | secondi | Tempo impiegato per la scansione |
+| **params** | JSON | Parametri usati (soglie, top, indicatori) |
+
+---
+
+### 🔍 Confronto Snapshot — Come funziona
+
+Il **confronto** permette di analizzare l'evoluzione del mercato tra due momenti diversi:
+
+- **🆕 Nuovi in B**: ticker apparsi in B ma non in A → **nuovi segnali emergenti**
+- **❌ Usciti da A**: ticker che erano in A ma non in B → **segnali deteriorati o usciti**
+- **✅ Persistenti**: ticker presenti in entrambe le scan → **segnali solidi e confermati**
+
+**Caso d'uso tipico:**
+1. Scan mattina 09:00 → salva come A
+2. Scan pomeriggio 15:30 → salva come B
+3. Confronta → vedi quali nuovi titoli sono entrati in segnale nel corso della giornata
+
+**Interpretazione:**
+- Molti *Nuovi* con pochi *Persistenti* → mercato in rotazione, cautela
+- Pochi *Nuovi* con molti *Persistenti* → trend solido, conferma
+- Tutti *Usciti* → deterioramento rapido, possibile fine trend
+
+---
+
+### 💡 Consigli operativi
+
+- **Frequenza ideale**: 1-3 scan al giorno (apertura, metà seduta, chiusura)
+- **Reset storico**: usa il pulsante 🗑️ solo se vuoi cancellare tutto. I dati del DB watchlist
+  rimangono intatti — viene cancellato solo lo storico delle scansioni.
+- **Backup**: esporta i dati importanti dalla Watchlist prima di fare reset
+- **Limite**: vengono mostrate le ultime **20 scansioni**. Le più vecchie rimangono nel DB
+  ma non vengono visualizzate (modifica `load_scan_history(20)` per aumentare).
 """)
 
-    # ── Filtri ────────────────────────────────────────────────────────────
-    _bc1, _bc2, _bc3, _bc4 = st.columns([1.2, 1, 1, 1])
-    with _bc1:
-        _bcd_rsi_max   = st.slider("RSI max", 25, 55, 48, 1, key="bcd_rsi_max")
-    with _bc2:
-        _bcd_min_mcap  = st.selectbox("Min MarketCap (B$)", [1, 2, 5, 10, 20, 50], index=2, key="bcd_mcap")
-    with _bc3:
-        _bcd_min_score = st.slider("Dip Score min", 0, 80, 30, 5, key="bcd_minscore")
-    with _bc4:
-        _bcd_top_n     = st.selectbox("Top N", [10, 20, 30, 50, 100], index=1, key="bcd_topn")
+    _,col_rst=st.columns([4,1])
+    with col_rst:
+        if st.button("🗑️ Reset",key="rst_hist",type="secondary"):
+            conn=sqlite3.connect(str(DB_PATH)); conn.execute("DELETE FROM scan_history")
+            conn.commit();conn.close(); st.success("Storico cancellato!"); st.rerun()
+    df_hist=load_scan_history(20)
+    if df_hist.empty:
+        st.info("""
+📭 **Nessuna scansione salvata ancora.**
 
-    _bcd_show_only_ema200 = st.checkbox("Solo sopra EMA200 (trend principale rialzista)", value=True, key="bcd_ema200")
+Per popolare lo storico:
+1. Vai nella sidebar
+2. Seleziona i mercati da scansionare
+3. Clicca **▶️ Avvia Scanner**
 
-    # ── Scanner ───────────────────────────────────────────────────────────
-    def _bcd_score_row(row):
-        """Calcola Dip Score 0-100."""
-        try:
-            rsi   = float(row.get("RSI", 50) or 50)
-            qs    = float(row.get("QualityScore", 5) or 5)
-            pr    = float(row.get("Prezzo", 1) or 1)
-            e200  = float(row.get("EMA200", pr) or pr)
-            atrp  = float(row.get("ATRpct", 2) or 2)
-            volr  = float(row.get("VolRatio", 1) or 1)
-            mcap  = float(row.get("MarketCap", 0) or 0)
+Ogni scansione viene automaticamente salvata qui con timestamp, mercati, segnali trovati e tempi.
+""")
+    else:
+        # Formatta colonne
+        disp_hist = df_hist.copy()
+        if "elapsed_s" in disp_hist.columns:
+            disp_hist["elapsed_s"] = disp_hist["elapsed_s"].apply(
+                lambda x: f"{x:.0f}s" if pd.notna(x) else "—")
 
-            if pr <= 0 or e200 <= 0: return 0
+        # Metriche aggregate
+        _m1,_m2,_m3,_m4 = st.columns(4)
+        _m1.metric("📋 Scan totali", len(df_hist))
+        if "n_early" in df_hist.columns:
+            _m2.metric("📡 Max EARLY", int(df_hist["n_early"].max()))
+        if "n_pro" in df_hist.columns:
+            _m3.metric("💪 Max PRO", int(df_hist["n_pro"].max()))
+        if "n_tickers" in df_hist.columns:
+            _m4.metric("🔭 Titoli medi", f"{df_hist['n_tickers'].mean():.0f}")
 
-            # Componente 1: RSI dip (più basso = meglio, sotto 45)
-            rsi_c = max(0, (50 - rsi) / 20 * 40)  # max 40 pt
-
-            # Componente 2: vicinanza a EMA200 (prezzo vicino ma sopra)
-            dist  = (pr - e200) / e200 * 100
-            if dist < 0: e200_c = 0  # sotto EMA200 → penalità
-            elif dist < 5: e200_c = 25
-            elif dist < 15: e200_c = 20
-            elif dist < 30: e200_c = 10
-            else: e200_c = 5
-
-            # Componente 3: QualityScore (0-12) → 0-20 pt
-            qs_c  = min(qs / 12 * 20, 20)
-
-            # Componente 4: volume conferma (VolRatio > 1)
-            vol_c = min(max(0, (volr - 0.8) / 2.2 * 10), 10)
-
-            # Componente 5: cap size bonus (MCap > 20B = +5)
-            mc_c  = 5 if mcap > 20 else 2 if mcap > 5 else 0
-
-            score = rsi_c + e200_c + qs_c + vol_c + mc_c
-            return round(min(score, 100), 1)
-        except Exception:
-            return 0
-
-    @st.cache_data(ttl=300, show_spinner=False)
-    def _bcd_build_candidates(min_mcap_b, rsi_max, show_ema200):
-        """Costruisce candidati Blue Chip Dip da yfinance."""
-        import yfinance as _yf_bcd
-        # Lista blue chip S&P 500 + FTSE MIB consolidata
-        _universe = [
-            "AAPL","MSFT","GOOGL","AMZN","META","NVDA","TSLA","BRK-B","JPM","JNJ",
-            "UNH","V","MA","PG","HD","ABBV","MRK","AVGO","CVX","KO","PEP","BAC",
-            "COST","WMT","TMO","ABT","MCD","CRM","NEE","ACN","NKE","DHR","TXN","PM",
-            "UPS","AMGN","LOW","BMY","IBM","QCOM","RTX","GS","MS","SPGI","CAT","DE",
-            "LIN","SYK","ISRG","BKNG","AXP","HON","MMM","GE","BLK","SCHW","T","VZ",
-            "DIS","NFLX","ORCL","ADBE","AMD","INTC","AMAT","MU","NOW","SNOW",
-            # FTSE MIB principali
-            "ENI.MI","ENEL.MI","ISP.MI","UCG.MI","STM.MI","FCA.MI","RACE.MI",
-            "G.MI","TIT.MI","PRY.MI","MB.MI","FBK.MI","CPR.MI","AMP.MI","TRN.MI",
-        ]
-        _rows = []
-        _prog = st.progress(0.0, text="Scarico dati Blue Chip...")
-        for _i, _tk in enumerate(_universe):
-            _prog.progress((_i+1)/len(_universe), text=f"Analisi {_tk}…")
-            try:
-                _info = _yf_bcd.Ticker(_tk).fast_info
-                _mcap = getattr(_info, "market_cap", 0) or 0
-                if _mcap < min_mcap_b * 1e9:
-                    continue
-                _raw = _yf_bcd.download(_tk, period="14mo", interval="1d",
-                                         auto_adjust=True, progress=False)
-                _raw.columns = [c[0] if isinstance(c, tuple) else c for c in _raw.columns]
-                _cl = _raw["Close"].dropna()
-                if len(_cl) < 50: continue
-                _pr   = float(_cl.iloc[-1])
-                _e200 = float(_cl.rolling(200, min_periods=50).mean().iloc[-1]) if len(_cl) >= 50 else _pr
-                if show_ema200 and _pr < _e200: continue
-                # RSI
-                _d = _cl.diff()
-                _g = _d.clip(lower=0).rolling(14).mean()
-                _l = (-_d.clip(upper=0)).rolling(14).mean()
-                _rsi = (100 - 100/(1+_g/_l.replace(0,1e-9))).iloc[-1]
-                if _rsi > rsi_max: continue
-                # EMA50
-                _e50  = float(_cl.ewm(span=50).mean().iloc[-1])
-                # Vol
-                _vol  = float(_raw["Volume"].iloc[-1]) if "Volume" in _raw.columns else 0
-                _vol20= float(_raw["Volume"].rolling(20).mean().iloc[-1]) if "Volume" in _raw.columns else 1
-                _volr = _vol / _vol20 if _vol20 > 0 else 1
-                _dvol = _pr * _vol / 1e6
-                if _dvol < 5: continue
-                # ATRpct
-                _atr14 = (_raw["High"] - _raw["Low"]).rolling(14).mean().iloc[-1]
-                _atrp  = float(_atr14 / _pr * 100) if _pr > 0 else 2
-                # QualityScore proxy
-                _qs = sum([
-                    _pr > _e50,       # sopra EMA50
-                    _pr > _e200,      # sopra EMA200
-                    _rsi > 30,        # non ipervenduto estremo
-                    _volr > 0.8,      # volume decente
-                    _mcap > 10e9,     # large cap
-                    _dvol > 20,       # liquidità buona
-                    _atrp > 1.0,      # vitalità
-                    _atrp < 7.0,      # non troppo volatile
-                ])
-                # YTD return
-                _y0 = _cl.resample("YE").last().iloc[-2] if len(_cl.resample("YE").last()) > 1 else _cl.iloc[0]
-                _ytd = (_pr / float(_y0) - 1)*100 if float(_y0) > 0 else 0
-                # 52w high/low
-                _hi52 = float(_cl.rolling(252, min_periods=20).max().iloc[-1])
-                _lo52 = float(_cl.rolling(252, min_periods=20).min().iloc[-1])
-                _dist_hi = (_pr / _hi52 - 1)*100 if _hi52 > 0 else 0
-                _dist_e200 = (_pr / _e200 - 1)*100 if _e200 > 0 else 0
-
-                try:
-                    _name = _yf_bcd.Ticker(_tk).info.get("longName", _tk)[:28]
-                except Exception:
-                    _name = _tk
-
-                _rows.append({
-                    "Ticker":     _tk,
-                    "Nome":       _name,
-                    "Prezzo":     round(_pr, 2),
-                    "RSI":        round(float(_rsi), 1),
-                    "EMA200":     round(_e200, 2),
-                    "EMA50":      round(_e50, 2),
-                    "Dist_EMA200_%": round(_dist_e200, 1),
-                    "Dist_52wHigh_%": round(_dist_hi, 1),
-                    "ATRpct":     round(_atrp, 2),
-                    "VolRatio":   round(_volr, 2),
-                    "DollarVol_M": round(_dvol, 1),
-                    "MarketCap":  round(_mcap/1e9, 1),
-                    "QualityScore": _qs,
-                    "YTD_%":      round(_ytd, 1),
-                    "52wHigh":    round(_hi52, 2),
-                    "52wLow":     round(_lo52, 2),
-                })
-            except Exception:
-                continue
-        _prog.empty()
-        return _rows
-
-    # ── Run ───────────────────────────────────────────────────────────────
-    _bcd_btn_c1, _bcd_btn_c2 = st.columns([1, 4])
-    with _bcd_btn_c1:
-        _run_bcd = st.button("🔍 Avvia BCD Scan", key="bcd_run", type="primary", use_container_width=True)
-    with _bcd_btn_c2:
-        _clear_bcd = st.button("🗑️ Svuota cache", key="bcd_clear", use_container_width=False)
-
-    if _clear_bcd:
-        _bcd_build_candidates.clear()
-        st.success("Cache svuotata.")
-
-    _bcd_df = pd.DataFrame(st.session_state.get("bcd_results", []))
-
-    if _run_bcd:
-        with st.spinner("Analisi Blue Chip Dip in corso…"):
-            _bcd_raw = _bcd_build_candidates(_bcd_min_mcap, _bcd_rsi_max, _bcd_show_only_ema200)
-        if _bcd_raw:
-            _bcd_df = pd.DataFrame(_bcd_raw)
-            _bcd_df["DipScore"] = _bcd_df.apply(_bcd_score_row, axis=1)
-            _bcd_df["Grade"] = _bcd_df["DipScore"].apply(
-                lambda v: "A" if v >= 65 else "B" if v >= 45 else "C" if v >= 25 else "D")
-            _bcd_df = _bcd_df.sort_values("DipScore", ascending=False).reset_index(drop=True)
-            st.session_state["bcd_results"] = _bcd_df.to_dict("records")
-        else:
-            st.warning("Nessun titolo Blue Chip trovato con i filtri attuali.")
-            st.session_state["bcd_results"] = []
-
-    if not _bcd_df.empty:
-        # Applica filtro top N e score minimo
-        _bcd_view = _bcd_df[_bcd_df["DipScore"] >= _bcd_min_score].head(_bcd_top_n)
-
-        # ── Metriche sommario ─────────────────────────────────────────
-        _bm1, _bm2, _bm3, _bm4 = st.columns(4)
-        _bm1.metric("💎 Candidati", len(_bcd_view))
-        _bm2.metric("🏆 Grado A", int((_bcd_view["Grade"] == "A").sum()))
-        _bm3.metric("📊 RSI medio", f"{_bcd_view['RSI'].mean():.1f}")
-        _bm4.metric("📐 Dip Score medio", f"{_bcd_view['DipScore'].mean():.1f}")
-
-        # ── Card grid responsive ──────────────────────────────────────
-        st.markdown('<div class="bcd-grid">', unsafe_allow_html=True)
-        for _, _row_bcd in _bcd_view.iterrows():
-            _tk_bcd   = str(_row_bcd.get("Ticker", ""))
-            _nm_bcd   = str(_row_bcd.get("Nome", _tk_bcd))[:30]
-            _pr_bcd   = _row_bcd.get("Prezzo", 0)
-            _rsi_bcd  = _row_bcd.get("RSI", 0)
-            _ds_bcd   = _row_bcd.get("DipScore", 0)
-            _grd_bcd  = _row_bcd.get("Grade", "D")
-            _dist_bcd = _row_bcd.get("Dist_EMA200_%", 0)
-            _volr_bcd = _row_bcd.get("VolRatio", 1)
-            _ytd_bcd  = _row_bcd.get("YTD_%", 0)
-            _dh_bcd   = _row_bcd.get("Dist_52wHigh_%", 0)
-            _mc_bcd   = _row_bcd.get("MarketCap", 0)
-            _dvol_bcd = _row_bcd.get("DollarVol_M", 0)
-
-            _dip_cls  = "dip-deep" if _ds_bcd >= 65 else "dip-mod" if _ds_bcd >= 45 else "dip-shallow"
-            _grd_cls  = f"grade-{_grd_bcd.lower()}"
-            _ytd_cls  = "up" if _ytd_bcd >= 0 else "dn"
-            _volr_cls = "up" if _volr_bcd >= 1.2 else ""
-            _bar_w    = int(min(_ds_bcd, 100))
-            _bar_col  = "#00ff88" if _ds_bcd >= 65 else "#f59e0b" if _ds_bcd >= 45 else "#6b7280"
-            _tv_sym   = _tk_bcd.replace(".MI","3AMI").replace(".L","3AL")
-            _tv_link  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
-
-            st.markdown(f"""
-<div class="bcd-card">
-  <div class="bcd-card-hdr">
-    <div>
-      <a href="{_tv_link}" target="_blank" style="text-decoration:none;">
-        <span class="bcd-ticker">{_tk_bcd}</span></a>
-      <div class="bcd-name">{_nm_bcd}</div>
-    </div>
-    <div style="text-align:right">
-      <span class="bcd-score {_dip_cls}">{_ds_bcd:.0f}</span>
-      <div><span class="bcd-badge {_grd_cls}">{_grd_bcd}</span></div>
-    </div>
-  </div>
-  <div class="bcd-bar-wrap"><div class="bcd-bar" style="width:{_bar_w}%;background:{_bar_col};"></div></div>
-  <div class="bcd-row"><span class="bcd-label">Prezzo</span><span class="bcd-val">{_pr_bcd:.2f}</span></div>
-  <div class="bcd-row"><span class="bcd-label">RSI 14</span>
-    <span class="bcd-val {'up' if _rsi_bcd < 40 else 'dn' if _rsi_bcd > 60 else ''}">{_rsi_bcd:.1f}</span></div>
-  <div class="bcd-row"><span class="bcd-label">Dist. EMA200</span><span class="bcd-val">{_dist_bcd:+.1f}%</span></div>
-  <div class="bcd-row"><span class="bcd-label">Dist. 52w High</span>
-    <span class="bcd-val dn">{_dh_bcd:.1f}%</span></div>
-  <div class="bcd-row"><span class="bcd-label">Vol Ratio</span><span class="bcd-val {_volr_cls}">{_volr_bcd:.2f}x</span></div>
-  <div class="bcd-row"><span class="bcd-label">Dollar Vol</span><span class="bcd-val">{_dvol_bcd:.0f}M</span></div>
-  <div class="bcd-row"><span class="bcd-label">MarketCap</span><span class="bcd-val">{_mc_bcd:.1f}B</span></div>
-  <div class="bcd-row"><span class="bcd-label">YTD</span><span class="bcd-val {_ytd_cls}">{_ytd_bcd:+.1f}%</span></div>
-</div>
-""", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        # ── Export ────────────────────────────────────────────────────
+        st.markdown("**📋 Ultime 20 scansioni:**")
+        st.dataframe(disp_hist,use_container_width=True)
         st.markdown("---")
-        _bcd_ec1, _bcd_ec2 = st.columns(2)
-        with _bcd_ec1:
-            st.download_button(
-                "📥 TXT TradingView — Blue Chip Dip",
-                data=make_tv_txt(_bcd_view),
-                file_name=f"BCD_TV_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                mime="text/plain",
-                key="bcd_tv_export",
-                use_container_width=True,
-            )
-        with _bcd_ec2:
-            _bcd_xl = io.BytesIO()
-            with pd.ExcelWriter(_bcd_xl, engine="xlsxwriter") as _bcd_w:
-                _bcd_view.to_excel(_bcd_w, sheet_name="BluChipDip", index=False)
-            st.download_button(
-                "📊 XLSX Blue Chip Dip",
-                data=_bcd_xl.getvalue(),
-                file_name=f"BCD_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="bcd_xl_export",
-                use_container_width=True,
-            )
+        st.subheader("🔍 Confronto Snapshot")
+        st.caption("Seleziona due scansioni per confrontare quali ticker sono entrati/usciti dai segnali.")
+        hc1,hc2=st.columns(2)
+        def _slbl(row):
+            dt=str(row.get("scanned_at",""))[:16]
+            ep=int(row.get("n_early",0)); pr=int(row.get("n_pro",0))
+            mkt=str(row.get("markets",""))[:20]
+            return f"{dt}  |  E:{ep} P:{pr}  [{mkt}]"
+        _smap={row["id"]:_slbl(row) for _,row in df_hist.iterrows()}
+        _ids=list(_smap.keys())
+        with hc1:
+            id_a=st.selectbox("📅 Scansione A (baseline)",_ids,format_func=lambda i:_smap[i],key="sn_a")
+        with hc2:
+            id_b=st.selectbox("📅 Scansione B (più recente)",_ids,format_func=lambda i:_smap[i],
+                index=min(1,len(_ids)-1),key="sn_b")
+        if st.button("🔍 Confronta le due scansioni", use_container_width=False):
+            ea,_=load_scan_snapshot(id_a); eb,_=load_scan_snapshot(id_b)
+            if ea.empty or eb.empty: st.warning("Dati non disponibili per uno dei due snapshot.")
+            else:
+                ta=set(ea.get("Ticker",pd.Series()).tolist())
+                tb=set(eb.get("Ticker",pd.Series()).tolist())
+                sc1,sc2,sc3,sc4=st.columns(4)
+                sc1.metric("🆕 Nuovi in B",len(tb-ta),help="Ticker apparsi in B ma non in A")
+                sc2.metric("❌ Usciti da A",len(ta-tb),help="Ticker che erano in A ma non in B")
+                sc3.metric("✅ Persistenti",len(ta&tb),help="Presenti in entrambe le scan")
+                sc4.metric("📊 Overlap %",f"{len(ta&tb)/max(len(ta|tb),1)*100:.0f}%")
+                col_r1, col_r2 = st.columns(2)
+                with col_r1:
+                    if tb-ta:
+                        st.markdown("**🆕 Nuovi ticker in B:**")
+                        st.code("  ".join(sorted(tb-ta)))
+                    if ta-tb:
+                        st.markdown("**❌ Ticker usciti da A:**")
+                        st.code("  ".join(sorted(ta-tb)))
+                with col_r2:
+                    if ta&tb:
+                        st.markdown(f"**✅ Ticker persistenti ({len(ta&tb)}):**")
+                        st.code("  ".join(sorted(ta&tb)))
 
-        # ── Tabella dati grezzi ───────────────────────────────────────
-        with st.expander("📋 Tabella dati completa", expanded=False):
-            _bcd_cols = ["Ticker","Nome","DipScore","Grade","Prezzo","RSI",
-                         "Dist_EMA200_%","Dist_52wHigh_%","VolRatio","DollarVol_M",
-                         "MarketCap","ATRpct","YTD_%"]
-            _bcd_show_cols = [c for c in _bcd_cols if c in _bcd_view.columns]
-            st.dataframe(_bcd_view[_bcd_show_cols], use_container_width=True)
 
-    elif not _run_bcd:
-        st.info("▶️ Clicca **Avvia BCD Scan** per cercare i migliori Blue Chip in dip.")
+# =========================================================================
+# EXPORT GLOBALI v35 PRO
+# =========================================================================
+st.markdown("---")
+st.markdown('<div class="section-pill">💾 EXPORT PRO v41 — XLSX Multi-Sheet · CSV TradingView · Timestamp Auto</div>',unsafe_allow_html=True)
 
+df_conf_exp=pd.DataFrame()
+if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
+    df_conf_exp=df_ep[(df_ep["Stato_Early"]=="EARLY")&(df_ep["Stato_Pro"]=="PRO")].copy()
+df_wl_exp=load_watchlist()
+df_wl_exp=df_wl_exp[df_wl_exp["list_name"]==st.session_state.current_list_name]
+all_exp={"EARLY":df_ep,"PRO":df_ep,"REA-HOT":df_rea,"CONFLUENCE":df_conf_exp,"Watchlist":df_wl_exp}
+cur_tab=st.session_state.get("last_active_tab","EARLY")
+df_cur=all_exp.get(cur_tab,pd.DataFrame())
 
+# v35: timestamp automatico per nomi file univoci
+_ts = datetime.now().strftime("%Y%m%d_%H%M")
+
+# v35: to_excel_bytes_pro con Summary sheet
+def _to_excel_pro(d, label="Export"):
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="xlsxwriter") as w:
+        # Summary sheet in prima posizione
+        _summary_rows = []
+        for _nm, _df in d.items():
+            if isinstance(_df, pd.DataFrame):
+                _n  = len(_df)
+                _tks= ",".join(_df["Ticker"].dropna().tolist()[:10]) + ("..." if _n>10 else "") if "Ticker" in _df.columns and _n>0 else ""
+                _summary_rows.append({"Sheet": _nm, "N_Segnali": _n, "Top_Ticker (prime 10)": _tks})
+        if _summary_rows:
+            pd.DataFrame(_summary_rows).to_excel(w, sheet_name="Summary", index=False)
+        # Dati per ogni sheet
+        for _nm, _df in d.items():
+            if isinstance(_df, pd.DataFrame) and not _df.empty:
+                _df.to_excel(w, sheet_name=_nm[:31], index=False)
+    return buf.getvalue()
+
+ec1,ec2,ec3,ec4,ec5=st.columns(5)
+with ec1:
+    st.download_button(
+        "📊 XLSX Pro Tutti",
+        _to_excel_pro(all_exp),
+        f"TradingScanner_v41_Tutti_{_ts}.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="xlsx_all",
+        help="Tutti i tab + sheet Summary con conteggi"
+    )
+with ec2:
+    tv_rows=[]
+    for n,df_t in all_exp.items():
+        if isinstance(df_t,pd.DataFrame) and not df_t.empty and "Ticker" in df_t.columns:
+            tks=df_t["Ticker"].tolist()
+            tv_rows.append(pd.DataFrame({"Tab":[n]*len(tks),"Ticker":tks}))
+    if tv_rows:
+        df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
+        st.download_button(
+            "📈 CSV TV Tutti",
+            df_tv.to_csv(index=False).encode(),
+            f"TradingScanner_v41_TV_{_ts}.txt",
+            "text/plain",
+            key="csv_tv_all",
+            help="CSV pronto per import in TradingView Watchlist"
+        )
+with ec3:
+    st.download_button(
+        f"📊 XLSX {cur_tab}",
+        _to_excel_pro({cur_tab: df_cur}),
+        f"TradingScanner_v41_{cur_tab}_{_ts}.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="xlsx_curr"
+    )
+with ec4:
+    if not df_cur.empty and "Ticker" in df_cur.columns:
+        st.download_button(
+            f"📥 TXT TradingView {cur_tab}",
+            make_tv_txt(df_cur),
+            f"TradingScanner_v41_{cur_tab}_TV_{_ts}.txt",
+            "text/plain",
+            key="csv_tv_curr"
+        )
+with ec5:
+    # v35: export P&L tracker se presente
+    _pnl_data = st.session_state.get("v41_pnl_entries", {})
+    if _pnl_data:
+        _df_pnl_exp = pd.DataFrame([
+            {"Ticker": _t, "Entry $": _pos["entry"], "Size": _pos["size"], "Added": _pos.get("added","")}
+            for _t, _pos in _pnl_data.items()
+        ])
+        st.download_button(
+            "💰 Export P&L",
+            _df_pnl_exp.to_csv(index=False).encode(),
+            f"PnL_Tracker_v41_{_ts}.txt",
+            "text/plain",
+            key="csv_pnl_exp",
+            help="Esporta posizioni P&L tracker"
+        )
+# =========================================================================
+# v41 TAB #5 — MTF MATRIX (Multi-Timeframe Confluence)
+# =========================================================================
 with tab_mtfmatrix:
     st.markdown('<div class="section-pill">🔀 MULTI-TIMEFRAME CONFLUENCE MATRIX v41</div>',
                 unsafe_allow_html=True)
