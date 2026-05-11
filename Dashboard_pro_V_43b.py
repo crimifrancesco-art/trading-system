@@ -6326,14 +6326,14 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
             df_riepilogo[_col_r] = df_riepilogo[_col_r].fillna('—').replace({'nan':'—','None':'—','NaN':'—'})
         go_r = gb_r.build()
         try:
-                    # v43b: NaN/Inf→None per AgGrid JSON
-        import math as _mf
-        _safe=[{k:(None if isinstance(v,float) and (_mf.isnan(v) or _mf.isinf(v)) else v)
-                for k,v in r.items()} for r in df_riepilogo.to_dict(orient="records")]
-        df_riepilogo=pd.DataFrame(_safe)
-        for _sc in df_riepilogo.select_dtypes(include="object").columns:
-            df_riepilogo[_sc]=df_riepilogo[_sc].fillna("").replace({"nan":"","NaN":"","None":""})
-        AgGrid(df_riepilogo, gridOptions=go_r,
+            # v43b: NaN/Inf→None per AgGrid JSON
+            import math as _mf
+            _safe=[{k:(None if isinstance(v,float) and (_mf.isnan(v) or _mf.isinf(v)) else v)
+                    for k,v in r.items()} for r in df_riepilogo.to_dict(orient="records")]
+            df_riepilogo=pd.DataFrame(_safe)
+            for _sc in df_riepilogo.select_dtypes(include="object").columns:
+                df_riepilogo[_sc]=df_riepilogo[_sc].fillna("").replace({"nan":"","NaN":"","None":""})
+            AgGrid(df_riepilogo, gridOptions=go_r,
                    height=min(180 + len(_riepilogo_rows) * 38, 600),
                    update_mode=GridUpdateMode.SELECTION_CHANGED,
                    data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
