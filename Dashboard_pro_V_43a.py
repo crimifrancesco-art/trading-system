@@ -1133,89 +1133,17 @@ hr{border-color:#1f2937 !important;}
 .legend-col-range{color:#f59e0b;}
 .crit-ok{color:#00ff88;font-weight:bold;}
 .crit-no{color:#ef4444;}
-/* ══════════════════════════════════════════════════════════════════════════
-   v43 RESPONSIVE & ADAPTIVE — Mobile-first · Fluid · All Tabs
-   ══════════════════════════════════════════════════════════════════════════ */
-*,*::before,*::after{box-sizing:border-box;}
-[data-testid="block-container"]{
-    max-width:100%!important;
-    padding:clamp(0.5rem,2vw,1.5rem) clamp(0.5rem,2vw,2rem)!important;}
-[data-testid="stTabs"]>div:first-child{
-    overflow-x:auto!important;overflow-y:hidden!important;
-    -webkit-overflow-scrolling:touch!important;
-    scrollbar-width:none!important;
-    flex-wrap:nowrap!important;white-space:nowrap!important;padding-bottom:2px!important;}
-[data-testid="stTabs"]>div:first-child::-webkit-scrollbar{display:none!important;}
-[data-testid="stTabs"] button{
-    font-size:clamp(0.60rem,1.2vw,0.83rem)!important;
-    padding:clamp(3px,0.8vw,7px) clamp(4px,1vw,12px)!important;
-    white-space:nowrap!important;flex-shrink:0!important;}
-@media(max-width:640px){
-    [data-testid="column"]{width:100%!important;flex:0 0 100%!important;min-width:0!important;}}
-@media(min-width:641px) and (max-width:900px){
-    [data-testid="column"]{min-width:min(200px,45%)!important;}}
+/* v41 MOBILE */
 @media(max-width:480px){
-    [data-testid="stMetric"]{padding:8px 10px!important;}
-    [data-testid="stMetricValue"]{font-size:1.15rem!important;}
-    [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
-    [data-testid="stMetricDelta"]{font-size:0.70rem!important;}
-    [data-testid="stButton"]>button{min-height:44px!important;font-size:0.85rem!important;}
-    [data-testid="stTextInput"] input,[data-testid="stSelectbox"] select,
-    [data-testid="stNumberInput"] input{font-size:16px!important;min-height:44px!important;}
-    [data-testid="stSlider"]{padding:6px 0!important;}
-    .section-pill{font-size:0.72rem!important;padding:4px 10px!important;}
-    .hide-mobile{display:none!important;}
-    [data-testid="stExpander"]>div>div{padding:8px 10px!important;}}
+ [data-testid="block-container"]{padding:0.5rem!important}
+ [data-testid="stMetricValue"]{font-size:1.2rem!important}
+ [data-testid="stTabs"]>div:first-child>button{font-size:0.62rem!important;padding:3px 5px!important}
+ [data-testid="stButton"]>button{min-height:44px!important}
+}
 @media(min-width:481px) and (max-width:768px){
-    [data-testid="stMetricValue"]{font-size:1.3rem!important;}
-    [data-testid="stButton"]>button{min-height:40px!important;}}
-[data-testid="stDataFrame"],[data-testid="stTable"],.ag-root-wrapper{
-    overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;max-width:100%!important;}
-@media(max-width:768px){[data-testid="stPlotlyChart"]{width:100%!important;}}
-@media(max-width:768px){
-    [data-testid="stSidebarContent"]{padding:0.5rem!important;}
-    [data-testid="stSidebar"]{min-width:0!important;}}
-.spark-row{display:flex;align-items:center;gap:6px;padding:4px 0;
-    border-bottom:1px solid #1f2937;flex-wrap:wrap;}
-.spark-row:last-child{border-bottom:none;}
-.spark-ticker{font-family:'Courier New',monospace;font-weight:bold;
-    color:#00ff88;font-size:0.88rem;min-width:70px;}
-.spark-badge{display:inline-block;border-radius:3px;padding:1px 6px;
-    font-size:0.68rem;font-weight:bold;margin-left:2px;}
-.spark-css{color:#b2b5be;font-size:0.78rem;min-width:40px;}
-.spark-svg{flex-shrink:0;}
-.refresh-banner{display:flex;align-items:center;gap:8px;
-    background:#0d1117;border:1px solid #1f2937;border-radius:6px;
-    padding:6px 14px;font-size:0.78rem;color:#6b7280;margin-bottom:8px;}
-.refresh-banner strong{color:#50c4e0;}
-.earn-row{display:grid;grid-template-columns:80px 1fr 60px 50px 70px;
-    gap:6px;align-items:center;padding:5px 8px;
-    border-bottom:1px solid #1a2233;font-size:0.80rem;}
-@media(max-width:600px){.earn-row{grid-template-columns:65px 1fr 55px 45px;}}
-.earn-row:hover{background:#131d2e;}
-.earn-ticker{font-family:'Courier New',monospace;color:#00ff88;font-weight:bold;}
-.earn-date{color:#50c4e0;font-size:0.72rem;}
-#theme-toggle-btn{position:fixed;top:14px;right:70px;z-index:9999;
-    background:#1e222d;border:1px solid #363a45;border-radius:20px;
-    padding:4px 12px;font-size:0.75rem;color:#d1d4dc;cursor:pointer;transition:all 0.2s;}
-#theme-toggle-btn:hover{border-color:#50c4e0;color:#50c4e0;}
-body.light-theme [data-testid="stAppViewContainer"],
-body.light-theme [data-testid="stMain"],
-body.light-theme [data-testid="block-container"]{background-color:#f8fafc!important;color:#1e293b!important;}
-body.light-theme [data-testid="stSidebar"]{background-color:#e2e8f0!important;}
-body.light-theme [data-testid="stSidebar"] *{color:#334155!important;}
-body.light-theme [data-testid="stMetric"]{background:#fff!important;border-color:#e2e8f0!important;}
-body.light-theme [data-testid="stMetricValue"]{color:#0f766e!important;}
-body.light-theme [data-testid="stTabs"] button{background:#f1f5f9!important;color:#64748b!important;}
-body.light-theme [data-testid="stTabs"] button[aria-selected="true"]{color:#2962ff!important;background:#fff!important;}
-body.light-theme h1{color:#2962ff!important;text-shadow:none!important;}
-body.light-theme h2,body.light-theme h3{color:#0f766e!important;}
-body.light-theme .section-pill{background:#e0f2fe;border-left-color:#2962ff;color:#0f766e;}
-body.light-theme .ag-root-wrapper{background:#fff!important;}
-body.light-theme .ag-header{background:#f1f5f9!important;}
-body.light-theme .ag-row{background:#fff!important;border-bottom:1px solid #e2e8f0!important;}
-body.light-theme .ag-row:hover{background:#f8fafc!important;}
-body.light-theme .ag-cell{color:#1e293b!important;}
+ [data-testid="stMetricValue"]{font-size:1.35rem!important}
+ [data-testid="stTabs"]>div:first-child>button{font-size:0.68rem!important;padding:4px 6px!important}
+}
 </style>
 """
 
@@ -2076,9 +2004,39 @@ def to_excel_bytes(d):
                 df.to_excel(w,sheet_name=nm[:31],index=False)
     return buf.getvalue()
 
-def make_tv_csv(df,tab):
-    t=df[["Ticker"]].copy(); t.insert(0,"Tab",tab)
-    return t.to_csv(index=False).encode()
+def make_tv_txt(df):
+    """
+    Formato TradingView CORRETTO per import watchlist.
+    Un ticker per riga con prefisso exchange:
+      .MI  → MIL:TICKER   |  .L  → LSE:TICKER
+      .PA/.AS → EURONEXT  |  .DE → XETR:TICKER
+      US senza suffisso   → NASDAQ:TICKER
+    """
+    lines = []
+    for tk in df["Ticker"].dropna().unique():
+        tk = str(tk).strip().upper()
+        if not tk:
+            continue
+        if ":" in tk:
+            sym = tk
+        elif tk.endswith(".MI"):
+            sym = "MIL:" + tk[:-3]
+        elif tk.endswith(".L"):
+            sym = "LSE:" + tk[:-2]
+        elif tk.endswith(".PA") or tk.endswith(".AS"):
+            sym = "EURONEXT:" + tk[:-3]
+        elif tk.endswith(".DE"):
+            sym = "XETR:" + tk[:-3]
+        elif tk.endswith(".F"):
+            sym = "FWB:" + tk[:-2]
+        else:
+            sym = "NASDAQ:" + tk
+        lines.append(sym)
+    return "\n".join(lines).encode("utf-8")
+
+def make_tv_csv(df, tab=""):
+    """Retrocompatibilità — ora produce TXT TradingView."""
+    return make_tv_txt(df)
 
 def csv_btn(df,fname,key):
     st.download_button("📥 CSV",df.to_csv(index=False).encode(),fname,"text/csv",key=key)
@@ -2131,35 +2089,6 @@ PRESETS={
 st.set_page_config(page_title="Trading Scanner PRO 43.0a",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 st.markdown(BACK_TO_TOP_CSS,unsafe_allow_html=True)
-
-# ── v43: TEMA TOGGLE persistente per sessione ────────────────────────────────
-st.markdown("""
-<button id='theme-toggle-btn'
-  onclick='(function(){
-    var b=window.parent.document.body||document.body;
-    if(b.classList.contains("light-theme")){
-        b.classList.remove("light-theme");
-        document.getElementById("theme-toggle-btn").textContent="\u2600 Light";
-    }else{
-        b.classList.add("light-theme");
-        document.getElementById("theme-toggle-btn").textContent="\U0001f319 Dark";
-    }
-  })()'>&#9728; Light</button>
-""", unsafe_allow_html=True)
-
-# ── v43: AUTO-REFRESH schedulato ─────────────────────────────────────────────
-import time as _time_v43
-if "v43_last_refresh" not in st.session_state:
-    st.session_state["v43_last_refresh"] = _time_v43.time()
-if "v43_autorefresh_mins" not in st.session_state:
-    st.session_state["v43_autorefresh_mins"] = 0
-_v43_ar_mins = st.session_state.get("v43_autorefresh_mins", 0)
-if _v43_ar_mins > 0:
-    _v43_elapsed = _time_v43.time() - st.session_state["v43_last_refresh"]
-    if _v43_elapsed >= _v43_ar_mins * 60:
-        st.session_state["v43_last_refresh"] = _time_v43.time()
-        st.rerun()
-
 st.markdown("# 🧠 Trading Scanner PRO 43.0a")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
@@ -4496,171 +4425,7 @@ with tab_home:
     except Exception:
         pass
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — BARRA CONTROLLO: Auto-refresh + Export CSV/Excel 1-click
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        _v43_c1,_v43_c2,_v43_c3,_v43_c4 = st.columns([2.5,0.8,0.9,0.8])
-        with _v43_c1:
-            _v43_ar_label = (f"ogni {st.session_state.get('v43_autorefresh_mins',0)} min"
-                             if st.session_state.get("v43_autorefresh_mins",0)>0 else "disattivato")
-            st.markdown(
-                f"<div class='refresh-banner'>🔄 Auto-refresh: <strong>{_v43_ar_label}</strong>"
-                f"&nbsp;|&nbsp; Aggiornato: <strong>{datetime.now().strftime('%H:%M:%S')}</strong></div>",
-                unsafe_allow_html=True)
-        with _v43_c2:
-            st.session_state["v43_autorefresh_mins"] = st.selectbox(
-                "⏱", [0,5,10,15,30], index=0,
-                format_func=lambda x: "Off" if x==0 else f"{x}m",
-                key="v43_ar_sel", label_visibility="collapsed")
-        with _v43_c3:
-            if not df_ep.empty:
-                _v43_ec = [c for c in ["Ticker","Nome","Stato_Pro","CSS","RSI","Tipo"] if c in df_ep.columns]
-                st.download_button("📥 CSV", df_ep[_v43_ec].to_csv(index=False).encode("utf-8"),
-                                   f"segnali_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                                   "text/csv", key="v43_dl_csv", use_container_width=True)
-        with _v43_c4:
-            if not df_ep.empty:
-                try:
-                    import io as _io43
-                    _v43_xl = _io43.BytesIO()
-                    _v43_xlc = [c for c in ["Ticker","Nome","Stato_Pro","CSS","RSI"] if c in df_ep.columns]
-                    df_ep[_v43_xlc].to_excel(_v43_xl, index=False, engine="openpyxl")
-                    st.download_button("📊 Excel", _v43_xl.getvalue(),
-                                       f"segnali_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                       key="v43_dl_xl", use_container_width=True)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — TOP PRO/STRONG CON SPARKLINE SVG INLINE (ultimi 10 giorni)
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-            _v43_top = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])].copy()
-            if not _v43_top.empty:
-                _v43_srt = (_v43_top.sort_values("CSS", ascending=False)
-                            if "CSS" in _v43_top.columns else _v43_top)
-                with st.expander(f"⭐ Top PRO/STRONG ({len(_v43_top)}) — Sparkline 10d", expanded=True):
-                    for _, _vtr in _v43_srt.head(15).iterrows():
-                        _vtk = str(_vtr.get("Ticker",""))
-                        _vnm = str(_vtr.get("Nome", _vtr.get("Company","")))[:28]
-                        _vcss = _vtr.get("CSS","—")
-                        _vrsi = _vtr.get("RSI","—")
-                        _vst  = str(_vtr.get("Stato_Pro",""))
-                        _vbc  = "#ffd700" if _vst=="STRONG" else "#00ff88"
-                        try:
-                            import yfinance as _yf43
-                            _sp = _yf43.download(_vtk, period="12d", interval="1d",
-                                                 auto_adjust=True, progress=False)
-                            _sp.columns = [c[0] if isinstance(c,tuple) else c for c in _sp.columns]
-                            _spc = _sp["Close"].dropna().tolist() if "Close" in _sp.columns else []
-                        except Exception:
-                            _spc = []
-                        if len(_spc) >= 2:
-                            _smn=min(_spc); _smx=max(_spc); _sr=max(_smx-_smn,0.01)
-                            _W,_H = 80,22
-                            _pts = " ".join(
-                                f"{int(k*(_W/(len(_spc)-1)))},{int(_H-(_v-_smn)/_sr*(_H-4)+2)}"
-                                for k,_v in enumerate(_spc))
-                            _sc = "#00ff88" if _spc[-1]>=_spc[0] else "#ef4444"
-                            _svg = (f"<svg class='spark-svg' width='{_W}' height='{_H}' "
-                                    f"viewBox='0 0 {_W} {_H}'><polyline points='{_pts}' "
-                                    f"fill='none' stroke='{_sc}' stroke-width='1.5' "
-                                    f"stroke-linejoin='round'/></svg>")
-                        else:
-                            _svg = ("<svg class='spark-svg' width='80' height='22' "
-                                    "viewBox='0 0 80 22'><line x1='0' y1='11' x2='80' y2='11' "
-                                    "stroke='#2a2e39' stroke-width='1'/></svg>")
-                        _tv = _vtk.replace(".MI","%3AMI").replace(".L","%3AL")
-                        st.markdown(
-                            f"<div class='spark-row'>"
-                            f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' "
-                            f"target='_blank' style='text-decoration:none'>"
-                            f"<span class='spark-ticker'>{_vtk}</span></a>"
-                            f"<span class='spark-badge' style='background:{_vbc}22;"
-                            f"color:{_vbc};border:1px solid {_vbc}44'>{_vst}</span>"
-                            f"<span class='spark-css'>CSS:{_vcss}</span>"
-                            f"<span class='spark-css'>RSI:{_vrsi}</span>"
-                            f"{_svg}"
-                            f"<span style='color:#6b7280;font-size:0.72rem;margin-left:auto'>"
-                            f"{_vnm}</span></div>", unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — EARNINGS TRACKER COMPATTO con filtro giorni + export CSV
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        with st.expander("📅 Earnings Tracker — prossime uscite", expanded=False):
-            _et_days = st.slider("Prossimi N giorni", 1, 30, 7, key="v43_et_days")
-            import yfinance as _yf_et43
-            from datetime import timedelta as _td43
-            _et_tks = (df_ep["Ticker"].dropna().unique().tolist()[:40]
-                       if not df_ep.empty and "Ticker" in df_ep.columns
-                       else ["AAPL","NVDA","MSFT","AMD","META","GOOGL"])
-            _et_res, _tod43 = [], datetime.now().date()
-            _cut43 = _tod43 + _td43(days=_et_days)
-            _et_prog = st.progress(0.0, text="Recupero date earnings…")
-            for _ei,_etk in enumerate(_et_tks):
-                _et_prog.progress((_ei+1)/max(len(_et_tks),1))
-                try:
-                    _cal = _yf_et43.Ticker(_etk).calendar
-                    _ed  = None
-                    if isinstance(_cal,dict):
-                        _ed = _cal.get("Earnings Date")
-                        if hasattr(_ed,"__iter__") and not isinstance(_ed,str):
-                            _edl=list(_ed); _ed=_edl[0] if _edl else None
-                    elif hasattr(_cal,"columns") and "Earnings Date" in _cal.columns:
-                        _ed = _cal["Earnings Date"].iloc[0]
-                    if _ed is None: continue
-                    _edate = pd.Timestamp(_ed).date()
-                    if _tod43 <= _edate <= _cut43:
-                        _dn = (_edate-_tod43).days
-                        _enm = (df_ep[df_ep["Ticker"]==_etk]["Nome"].iloc[0]
-                                if not df_ep.empty and "Nome" in df_ep.columns
-                                and not df_ep[df_ep["Ticker"]==_etk].empty else "")
-                        _est = (df_ep[df_ep["Ticker"]==_etk]["Stato_Pro"].iloc[0]
-                                if not df_ep.empty and "Stato_Pro" in df_ep.columns
-                                and not df_ep[df_ep["Ticker"]==_etk].empty else "—")
-                        _et_res.append({"Ticker":_etk,"Nome":str(_enm)[:24],
-                                        "Data":_edate.strftime("%d/%m"),
-                                        "Giorni":_dn,"Stato":str(_est)})
-                except Exception:
-                    continue
-            _et_prog.empty()
-            _et_res.sort(key=lambda x: x["Giorni"])
-            if _et_res:
-                st.markdown(
-                    "<div class='earn-row' style='color:#50c4e0;font-weight:bold;"
-                    "border-bottom:2px solid #2a2e39;font-size:0.75rem'>"
-                    "<span>Ticker</span><span>Nome</span><span>Data</span>"
-                    "<span>Gg</span><span>Stato</span></div>", unsafe_allow_html=True)
-                for _er in _et_res:
-                    _ec=("#ffd700" if _er["Giorni"]<=2 else "#f59e0b" if _er["Giorni"]<=5 else "#6b7280")
-                    _sc=("#ffd700" if _er["Stato"]=="STRONG" else "#00ff88" if _er["Stato"]=="PRO" else "#787b86")
-                    st.markdown(
-                        f"<div class='earn-row'>"
-                        f"<span class='earn-ticker'>{_er['Ticker']}</span>"
-                        f"<span style='color:#b2b5be;font-size:0.75rem'>{_er['Nome']}</span>"
-                        f"<span class='earn-date'>{_er['Data']}</span>"
-                        f"<span style='color:{_ec};font-family:Courier New;font-size:0.78rem'>"
-                        f"{_er['Giorni']}g</span>"
-                        f"<span style='color:{_sc};font-size:0.70rem;font-weight:bold'>"
-                        f"{_er['Stato']}</span></div>", unsafe_allow_html=True)
-                st.download_button("📥 CSV Earnings",
-                    pd.DataFrame(_et_res).to_csv(index=False).encode("utf-8"),
-                    f"earnings_{datetime.now().strftime('%Y%m%d')}.csv",
-                    "text/csv", key="v43_et_csv")
-            else:
-                st.info(f"Nessun earnings nei prossimi {_et_days} giorni.")
-    except Exception as _et_ex:
-        st.caption(f"⚠️ Earnings tracker: {_et_ex}")
-
-        # ── v41 #1 — MARKET REGIME BANNER ────────────────────────────────────
+    # ── v41 #1 — MARKET REGIME BANNER ────────────────────────────────────
     try:
         _regime_data = _get_market_regime()
         _rc = _regime_data["color"]; _ri = _regime_data["icon"]
@@ -5020,7 +4785,7 @@ with tab_home:
     except Exception:
         pass
 
-    # ── v43a #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
+    # ── v42i #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
     st.markdown("---")
     with st.expander("📅 EARNINGS CALENDAR v42h — Prossimi earnings da Watchlist + Scanner", expanded=False):
         _earn_tickers = set()
@@ -5087,7 +4852,7 @@ with tab_home:
     with st.expander('📰 NEWS & SENTIMENT v42h — Ultime news con score sentiment · TradingView Italia', expanded=False):
         _render_news_v41(df_ep)
     st.markdown('---')
-    # ── v43a: COT REPORT ─────────────────────────────────────────────────
+    # ── v42i: COT REPORT ─────────────────────────────────────────────────
     with st.expander('📊 COT REPORT v42h — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown(
             '<div style=\'background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px\'><span style=\'color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px\'>COS\'\\u00c8 IL COT REPORT</span><br><span style=\'color:#b2b5be;font-size:0.82rem\'>Il <b style="color:#d1d4dc">COT (Commitment of Traders)</b> \\u00e8 un report settimanale pubblicato ogni <b style="color:#f59e0b">venerd\\u00ec alle 21:30 CET</b> dalla CFTC. Fotografa le posizioni <b style="color:#00ff88">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 gruppi: <b style="color:#00ff88">Commercial</b> (hedger), <b style="color:#60a5fa">Non-Commercial</b> (hedge fund / speculatori), <b style="color:#6b7280">Non-Reportable</b> (retail). Dati riferiti al <b style="color:#f59e0b">martedi precedente</b> — 3 giorni di ritardo.</span></div>',
@@ -5130,7 +4895,7 @@ with tab_home:
 
     st.markdown('---')
 
-    # ── v43a: COT REPORT — Commitment of Traders ─────────────────────────
+    # ── v42i: COT REPORT — Commitment of Traders ─────────────────────────
     with st.expander('📊 COT REPORT — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown("""
 <div style='background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px'>
@@ -5388,17 +5153,10 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── v43a: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v43a — Novità e roadmap — Novità e roadmap', expanded=False):
+    # ── v42i: Suggerimenti ────────────────────────────────
+    with st.expander('💡 Suggerimenti v42i — Novità e roadmap', expanded=False):
         st.markdown("""
-**✅ Implementato in v43a:**
-- 📱 CSS Responsive: tab scrollabili, colonne fluid, touch 44px
-- 🌙 Toggle Light/Dark tema persistente per sessione
-- 🔄 Auto-refresh Home ogni N minuti con st.rerun schedulato
-- 📊 Sparkline SVG 10d accanto a ogni ticker Top PRO/STRONG
-- 🗃️ Export CSV + Excel 1-click dalla barra Home
-- 📅 Earnings Tracker compatto con filtro giorni + export CSV
-- 🧠 AI Analyst: storico analisi in SQLite (data/ai_history.db)
+**✅ Implementato in v42i:**
 - ⬆️ btt-btn: versione definitiva multi-target (`.main`, `.block-container`, `documentElement`, `body`, `window.parent`) + MutationObserver — comparsa garantita
 - 🤖 MODULO 2 AI: aggiunte colonne **Vol×** e **Priorità** (auto-calcolata da Stato+CSS+RSI)
    layout 8 colonne identico a ⚡ Momentum Alerts
@@ -5418,11 +5176,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
 - 📊 Heatmap Settoriale Live nella Home (sostituisce bar chart)
 - 🔗 Correlazioni Asset nel tab Settori
 
-**🔜 Idee per v44:**
-- 📊 COT Report: fetch automatico dati CFTC + grafici posizioni nette
-- 🔔 Alert push via browser (Web Push Notifications)
-- 🤖 AI batch multi-ticker schedulata
-- 📈 Pattern recognition avanzato (candlestick + volume profile)
+**🔜 Idee per v43:**
 - 📊 COT Report: fetch automatico dati CFTC via API (grafici posizione netta)
 - 🔔 Alert push via browser (Web Push Notifications)
 - 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
@@ -5508,6 +5262,268 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
     except Exception:
         pass
 
+
+    # ── v43a MACRO BUBBLE & UNCONVENTIONAL INDICATORS ────────────────────
+    st.markdown('<div class="section-pill">🫧 BUBBLE METER · INFLAZIONE · INDICATORI NON CONVENZIONALI</div>', unsafe_allow_html=True)
+    try:
+        import yfinance as _yf43a
+        import numpy as _np43a
+
+        @st.cache_data(ttl=3600, show_spinner=False)
+        def _fetch_bubble_data():
+            res = {}
+            # VIX
+            try:
+                vix = _yf43a.download("^VIX", period="5d", interval="1d", progress=False, auto_adjust=True)
+                vix.columns = [c[0] if isinstance(c, tuple) else c for c in vix.columns]
+                res["vix"] = float(vix["Close"].dropna().iloc[-1])
+            except Exception:
+                res["vix"] = None
+            # Wilshire 5000 (proxy Buffett Indicator numeratore)
+            try:
+                w5 = _yf43a.download("^W5000", period="5d", interval="1d", progress=False, auto_adjust=True)
+                w5.columns = [c[0] if isinstance(c, tuple) else c for c in w5.columns]
+                res["w5000"] = float(w5["Close"].dropna().iloc[-1])
+            except Exception:
+                res["w5000"] = None
+            # SPY per trend
+            try:
+                spy = _yf43a.download("SPY", period="1y", interval="1wk", progress=False, auto_adjust=True)
+                spy.columns = [c[0] if isinstance(c, tuple) else c for c in spy.columns]
+                cl = spy["Close"].dropna()
+                res["spy_1y_ret"] = float((cl.iloc[-1]/cl.iloc[0] - 1)*100) if len(cl) > 10 else None
+                res["spy_price"] = float(cl.iloc[-1])
+                res["spy_52w_high"] = float(cl.max())
+            except Exception:
+                res["spy_1y_ret"] = None; res["spy_price"] = None; res["spy_52w_high"] = None
+            # Lipstick Index proxy: EL (Estee Lauder) + ULTA vs SPY (6 mesi)
+            try:
+                lip_tks = ["EL", "ULTA", "SPY"]
+                lip_d = _yf43a.download(lip_tks, period="6mo", interval="1wk", progress=False, auto_adjust=True)
+                lip_d.columns = [c[0] if isinstance(c, tuple) else c for c in lip_d.columns]
+                _lip_cl = lip_d["Close"].dropna()
+                _el_ret  = float((_lip_cl["EL"].iloc[-1]/_lip_cl["EL"].iloc[0] - 1)*100) if "EL" in _lip_cl else 0
+                _ul_ret  = float((_lip_cl["ULTA"].iloc[-1]/_lip_cl["ULTA"].iloc[0] - 1)*100) if "ULTA" in _lip_cl else 0
+                _sp_ret  = float((_lip_cl["SPY"].iloc[-1]/_lip_cl["SPY"].iloc[0] - 1)*100) if "SPY" in _lip_cl else 0
+                res["lipstick_rel"] = round((_el_ret + _ul_ret)/2 - _sp_ret, 1)
+            except Exception:
+                res["lipstick_rel"] = None
+            # Used Car Index proxy: CVNA + KMX (3 mesi)
+            try:
+                car_d = _yf43a.download(["CVNA","KMX"], period="3mo", interval="1wk", progress=False, auto_adjust=True)
+                car_d.columns = [c[0] if isinstance(c, tuple) else c for c in car_d.columns]
+                _car_cl = car_d["Close"].dropna()
+                _cv_ret = float((_car_cl["CVNA"].iloc[-1]/_car_cl["CVNA"].iloc[0] - 1)*100) if "CVNA" in _car_cl else None
+                _km_ret = float((_car_cl["KMX"].iloc[-1]/_car_cl["KMX"].iloc[0] - 1)*100) if "KMX" in _car_cl else None
+                vals = [v for v in [_cv_ret, _km_ret] if v is not None]
+                res["usedcar_ret"] = round(sum(vals)/len(vals), 1) if vals else None
+            except Exception:
+                res["usedcar_ret"] = None
+            # Strip Club Index proxy: RRR (Red Rock Resorts) + DKNG (consumer discrezionale)
+            try:
+                str_d = _yf43a.download(["RRR","DKNG"], period="3mo", interval="1wk", progress=False, auto_adjust=True)
+                str_d.columns = [c[0] if isinstance(c, tuple) else c for c in str_d.columns]
+                _s_cl = str_d["Close"].dropna()
+                _rr_ret = float((_s_cl["RRR"].iloc[-1]/_s_cl["RRR"].iloc[0] - 1)*100) if "RRR" in _s_cl else None
+                _dk_ret = float((_s_cl["DKNG"].iloc[-1]/_s_cl["DKNG"].iloc[0] - 1)*100) if "DKNG" in _s_cl else None
+                vals2 = [v for v in [_rr_ret, _dk_ret] if v is not None]
+                res["stripclub_ret"] = round(sum(vals2)/len(vals2), 1) if vals2 else None
+            except Exception:
+                res["stripclub_ret"] = None
+            return res
+
+        _bd = _fetch_bubble_data()
+
+        # ── Valori fissi aggiornabili (FRED/macro) ──
+        # CAPE Shiller: valore indicativo aggiornato maggio 2026
+        _cape_val  = 36.2   # fonte: multpl.com / FRED CAPE
+        _cpi_yoy   = 2.4    # CPI YoY % USA aprile 2026
+        _fed_rate  = 4.50   # Fed Funds Rate target maggio 2026
+        _m2_growth = 3.8    # M2 YoY %
+
+        # ── VIX ──
+        _vix = _bd.get("vix")
+        if _vix is not None:
+            if _vix < 15:   _vix_col, _vix_badge, _vix_icon = "#f59e0b","EUFORIA","⚠️"
+            elif _vix < 20: _vix_col, _vix_badge, _vix_icon = "#00ff88","NORMALE","✅"
+            elif _vix < 30: _vix_col, _vix_badge, _vix_icon = "#f59e0b","ALLERTA","⚡"
+            else:           _vix_col, _vix_badge, _vix_icon = "#ef4444","PAURA","🔴"
+        else:
+            _vix, _vix_col, _vix_badge, _vix_icon = 0, "#6b7280","N/D","—"
+
+        # ── CAPE ──
+        if _cape_val < 20:   _cape_col, _cape_badge = "#00ff88","CHEAP"
+        elif _cape_val < 30: _cape_col, _cape_badge = "#f59e0b","FAIR"
+        elif _cape_val < 38: _cape_col, _cape_badge = "#ef4444","BOLLA"
+        else:                _cape_col, _cape_badge = "#a855f7","ESTREMO"
+
+        # ── Buffett Indicator (proxy: W5000/PILusa stima) ──
+        _w5 = _bd.get("w5000")
+        _pil_usa_T = 28.2   # PIL USA 2025 ~28.2 T$
+        if _w5:
+            _buff_ind = round(_w5 / (_pil_usa_T * 1e9) * 100, 1)
+        else:
+            _buff_ind = None
+        if _buff_ind is None:
+            _buff_col, _buff_badge = "#6b7280","N/D"
+        elif _buff_ind < 100: _buff_col, _buff_badge = "#00ff88","SOTTOVALUTATO"
+        elif _buff_ind < 150: _buff_col, _buff_badge = "#f59e0b","FAIR"
+        else:                 _buff_col, _buff_badge = "#ef4444","BOLLA"
+
+        # ── CPI ──
+        if _cpi_yoy < 2:    _cpi_col, _cpi_badge = "#00ff88","SOTTO TARGET"
+        elif _cpi_yoy < 3:  _cpi_col, _cpi_badge = "#26a69a","OBIETTIVO FED"
+        elif _cpi_yoy < 5:  _cpi_col, _cpi_badge = "#f59e0b","ELEVATA"
+        else:               _cpi_col, _cpi_badge = "#ef4444","CRITICA"
+
+        # ── SPY vs 52w high ──
+        _spy_p = _bd.get("spy_price"); _spy_52 = _bd.get("spy_52w_high")
+        if _spy_p and _spy_52:
+            _spy_dd = round((_spy_p/_spy_52 - 1)*100, 1)
+        else:
+            _spy_dd = None
+
+        # ── Lipstick ──
+        _lip = _bd.get("lipstick_rel")
+        if _lip is None:    _lip_col, _lip_badge = "#6b7280","N/D"
+        elif _lip > 5:      _lip_col, _lip_badge = "#ef4444","RECESSIONE PROXY"
+        elif _lip > 0:      _lip_col, _lip_badge = "#f59e0b","ATTENZIONE"
+        else:               _lip_col, _lip_badge = "#00ff88","NEUTRO"
+
+        # ── Used Car ──
+        _uc = _bd.get("usedcar_ret")
+        if _uc is None:    _uc_col, _uc_badge = "#6b7280","N/D"
+        elif _uc < -10:    _uc_col, _uc_badge = "#26a69a","DISINFLAZIONE"
+        elif _uc < 0:      _uc_col, _uc_badge = "#00ff88","NORMALIZ."
+        elif _uc < 10:     _uc_col, _uc_badge = "#f59e0b","PRESSIONE"
+        else:              _uc_col, _uc_badge = "#ef4444","INFLAZ.USATO"
+
+        # ── Strip Club ──
+        _sc = _bd.get("stripclub_ret")
+        if _sc is None:    _sc_col, _sc_badge = "#6b7280","N/D"
+        elif _sc > 10:     _sc_col, _sc_badge = "#00ff88","CONSUMO OK"
+        elif _sc > 0:      _sc_col, _sc_badge = "#26a69a","STABILE"
+        elif _sc > -10:    _sc_col, _sc_badge = "#f59e0b","CAUTELA"
+        else:              _sc_col, _sc_badge = "#ef4444","STRESS CONSUMO"
+
+        def _bubble_card(icon, title, value_str, badge, color, help_txt, pct=None):
+            bar_html = ""
+            if pct is not None:
+                pct_c = max(0, min(100, pct))
+                bar_html = (
+                    f"<div style='margin-top:6px;background:#1e222d;border-radius:3px;height:5px'>"
+                    f"<div style='width:{pct_c}%;background:{color};height:5px;border-radius:3px'></div></div>"
+                )
+            return (
+                f"<div style='background:#1a1e2e;border:1px solid #2a2e3d;border-top:2px solid {color};"
+                f"border-radius:6px;padding:10px 12px;height:100%'>"
+                f"<div style='font-size:0.72rem;color:#6b7280;margin-bottom:2px'>{icon} {title}</div>"
+                f"<div style='font-size:1.3rem;font-weight:bold;color:{color};font-family:Courier New'>{value_str}</div>"
+                f"<div style='margin-top:4px'><span style='background:{color}22;color:{color};border:1px solid {color}44;"
+                f"border-radius:10px;padding:1px 7px;font-size:0.68rem;font-weight:bold'>{badge}</span></div>"
+                f"{bar_html}"
+                f"<div style='font-size:0.67rem;color:#4b5563;margin-top:6px;line-height:1.3'>{help_txt}</div>"
+                f"</div>"
+            )
+
+        # ── Riga 1: indicatori classici ──
+        st.markdown("**📊 Valutazione mercato & inflazione**")
+        _bc1, _bc2, _bc3, _bc4, _bc5 = st.columns(5)
+        _bc1.markdown(_bubble_card(
+            "🎭","CAPE Shiller", f"{_cape_val:.1f}x", _cape_badge, _cape_col,
+            "P/E ciclicamente aggiustato 10y. Media storica ~16. >30 = bolla.",
+            pct=min(100,_cape_val/50*100)
+        ), unsafe_allow_html=True)
+        _bc2.markdown(_bubble_card(
+            "😱","VIX Fear Index", f"{_vix:.1f}" if _vix else "N/D", _vix_badge, _vix_col,
+            "<15 euforia (pericoloso). >30 paura (opportunità). Ora: " + _vix_badge,
+            pct=min(100,(_vix/80*100) if _vix else 0)
+        ), unsafe_allow_html=True)
+        _bc3.markdown(_bubble_card(
+            "🏦","Buffett Indicator",
+            f"{_buff_ind:.0f}%" if _buff_ind else "N/D", _buff_badge, _buff_col,
+            "Wilshire5000 / PIL USA. >150% = mercato caro. Warren Buffett lo monitora.",
+            pct=min(100,(_buff_ind/250*100) if _buff_ind else 0)
+        ), unsafe_allow_html=True)
+        _bc4.markdown(_bubble_card(
+            "📈","CPI Inflazione USA", f"{_cpi_yoy:.1f}%", _cpi_badge, _cpi_col,
+            f"CPI YoY aprile 2026. Target Fed: 2%. Fed Funds: {_fed_rate:.2f}%",
+            pct=min(100,_cpi_yoy/10*100)
+        ), unsafe_allow_html=True)
+        _bc5.markdown(_bubble_card(
+            "📉","SPY vs 52w High",
+            f"{_spy_dd:.1f}%" if _spy_dd is not None else "N/D",
+            "RECORD" if _spy_dd and _spy_dd > -3 else "PULLBACK" if _spy_dd and _spy_dd > -10 else "CORREZIONE",
+            "#00ff88" if _spy_dd and _spy_dd > -5 else "#f59e0b" if _spy_dd and _spy_dd > -15 else "#ef4444",
+            "Distanza dal massimo 52 settimane. Prossimità al top = attenzione.",
+            pct=min(100,(100+(_spy_dd or 0)))
+        ), unsafe_allow_html=True)
+
+        st.markdown("<div style='margin-top:14px'></div>", unsafe_allow_html=True)
+
+        # ── Riga 2: indicatori non convenzionali ──
+        st.markdown("**🎪 Indicatori non convenzionali** *(segnali alternativi del ciclo economico)*")
+        _bu1, _bu2, _bu3, _bu4 = st.columns(4)
+        _bu1.markdown(_bubble_card(
+            "💄","Lipstick Index",
+            f"{_lip:+.1f}% vs SPY" if _lip is not None else "N/D",
+            _lip_badge, _lip_col,
+            "EL+ULTA vs SPY (6m). Quando i cosmetici battono il mercato → le persone risparmiano sui lussi grandi ma non piccoli. Proxy recessione.",
+            pct=min(100,max(0,50+(_lip or 0)*3))
+        ), unsafe_allow_html=True)
+        _bu2.markdown(_bubble_card(
+            "🚗","Used Car Index",
+            f"{_uc:+.1f}% (3m)" if _uc is not None else "N/D",
+            _uc_badge, _uc_col,
+            "CVNA+KMX (3m). Prezzi auto usate = termometro inflazione beni durevoli. Calo = disinflazione in corso.",
+            pct=min(100,max(0,50+(_uc or 0)*2))
+        ), unsafe_allow_html=True)
+        _bu3.markdown(_bubble_card(
+            "💃","Strip Club Index",
+            f"{_sc:+.1f}% (3m)" if _sc is not None else "N/D",
+            _sc_badge, _sc_col,
+            "RRR+DKNG (3m). Proxy locali entertainment discrezionale. Calo = consumatori sotto pressione → segnale recessivo.",
+            pct=min(100,max(0,50+(_sc or 0)*2))
+        ), unsafe_allow_html=True)
+        _bu4.markdown(_bubble_card(
+            "💵","M2 Money Supply",
+            f"{_m2_growth:+.1f}% YoY", 
+            "ESPANSIVA" if _m2_growth > 5 else "NEUTRALE" if _m2_growth > 0 else "RESTRITTIVA",
+            "#ef4444" if _m2_growth > 8 else "#f59e0b" if _m2_growth > 4 else "#00ff88",
+            f"M2 YoY aprile 2026. Fed Funds rate: {_fed_rate:.2f}%. Espansione M2 → rischio inflattivo.",
+            pct=min(100,max(0,50+_m2_growth*5))
+        ), unsafe_allow_html=True)
+
+        # ── Bubble Score composito ──
+        _bscores = []
+        if _cape_val: _bscores.append(min(100, _cape_val/50*100))
+        if _vix:      _bscores.append(100 - min(100, _vix/80*100))  # VIX basso = euforia = bolla
+        if _buff_ind: _bscores.append(min(100, _buff_ind/250*100))
+        if _cpi_yoy:  _bscores.append(min(100, _cpi_yoy/10*100))
+        _bubble_score = round(sum(_bscores)/len(_bscores)) if _bscores else 50
+        _bs_col  = "#ef4444" if _bubble_score > 70 else "#f59e0b" if _bubble_score > 45 else "#00ff88"
+        _bs_icon = "🔴 BOLLA" if _bubble_score > 70 else "🟡 ATTENZIONE" if _bubble_score > 45 else "🟢 OK"
+
+        st.markdown(
+            f"<div style='background:#12151f;border:1px solid {_bs_col}44;border-radius:8px;"
+            f"padding:10px 16px;margin-top:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap'>"
+            f"<span style='color:{_bs_col};font-weight:bold;font-size:1.05rem'>🫧 Bubble Score: {_bubble_score}/100</span>"
+            f"<div style='flex:1;background:#1e222d;border-radius:4px;height:10px;min-width:120px'>"
+            f"<div style='width:{_bubble_score}%;background:{_bs_col};height:10px;border-radius:4px;"
+            f"transition:width 0.5s'></div></div>"
+            f"<span style='color:{_bs_col};font-weight:bold'>{_bs_icon}</span>"
+            f"<span style='color:#4b5563;font-size:0.72rem;margin-left:auto'>"
+            f"CAPE {_cape_val:.0f}x · VIX {_vix:.1f if _vix else 'N/D'} · "
+            f"Buffett {_buff_ind:.0f if _buff_ind else 'N/D'}% · CPI {_cpi_yoy:.1f}%"
+            f"</span></div>",
+            unsafe_allow_html=True
+        )
+        st.caption("⚠️ I valori fissi (CAPE, CPI, Fed Rate, M2) sono aggiornati a maggio 2026. I dati live (VIX, SPY, proxy indici) sono scaricati in tempo reale da Yahoo Finance.")
+
+    except Exception as _bex:
+        st.caption(f"Bubble meter: {_bex}")
+
+    st.markdown("---")
     st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v42h — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
     _macro_ev41=_fetch_macro_v41()
     _mc39=[e for e in _macro_ev41 if 0<=e['Giorni']<=14]
@@ -6472,7 +6488,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 with tab_rm:
     try:
         from utils.risk_manager import render_risk_manager
-        # ── v43a patch: pandas ≥2.1 applymap→map ─────────────────────────
+        # ── v42i patch: pandas ≥2.1 applymap→map ─────────────────────────
         try:
             import pandas as _pd_patch
             if not hasattr(_pd_patch.io.formats.style.Styler, 'applymap'):
@@ -7669,11 +7685,11 @@ with ec2:
     if tv_rows:
         df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
         st.download_button(
-            "📈 CSV TV Tutti",
-            df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v41_TV_{_ts}.csv",
-            "text/csv",
-            key="csv_tv_all",
+            "📥 TXT TV Tutti",
+            make_tv_txt(df_tv),
+            f"TradingScanner_v43a_TV_{_ts}.txt",
+            "text/plain",
+            key="tv_txt_all",
             help="CSV pronto per import in TradingView Watchlist"
         )
 with ec3:
@@ -7687,11 +7703,11 @@ with ec3:
 with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(
-            f"📈 CSV TV {cur_tab}",
-            make_tv_csv(df_cur, cur_tab),
-            f"TradingScanner_v41_{cur_tab}_TV_{_ts}.csv",
-            "text/csv",
-            key="csv_tv_curr"
+            f"📥 TXT TV {cur_tab}",
+            make_tv_txt(df_cur),
+            f"TradingScanner_v43a_{cur_tab}_TV_{_ts}.txt",
+            "text/plain",
+            key="tv_txt_curr"
         )
 with ec5:
     # v35: export P&L tracker se presente
@@ -9158,49 +9174,7 @@ with tab_ai:
     st.markdown('<div class="section-pill">🤖 AI TRADING ASSISTANT v41 — Chatbot per analisi e strategie</div>', unsafe_allow_html=True)
     st.caption("Chat interattiva con AI. Chiedi analisi ticker, spiegazioni pattern, consigli strategia.")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — STORICO ANALISI AI in SQLite (data/ai_history.db)
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        import sqlite3 as _sq43
-        from pathlib import Path as _P43
-        _AI_DB = "data/ai_history.db"
-        _P43(_AI_DB).parent.mkdir(parents=True, exist_ok=True)
-        _conn43 = _sq43.connect(_AI_DB, check_same_thread=False)
-        _conn43.execute("""CREATE TABLE IF NOT EXISTS ai_history(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT, ticker TEXT, analisi TEXT)""")
-        _conn43.commit()
-        _hist43 = pd.read_sql(
-            "SELECT ts,ticker,analisi FROM ai_history ORDER BY id DESC LIMIT 15",
-            _conn43)
-        if not _hist43.empty:
-            with st.expander(f"📚 Storico Analisi AI — ultimi {len(_hist43)} record",
-                             expanded=False):
-                if st.button("🗑 Svuota storico", key="v43_hist_del"):
-                    _conn43.execute("DELETE FROM ai_history")
-                    _conn43.commit()
-                    st.rerun()
-                for _, _hr in _hist43.iterrows():
-                    st.markdown(
-                        f"<div style='border-left:3px solid #2962ff;padding:6px 12px;"
-                        f"margin-bottom:6px;background:#0d1117;border-radius:0 6px 6px 0'>"
-                        f"<span style='color:#00ff88;font-family:Courier New;font-weight:bold'>"
-                        f"{_hr.get('ticker','—')}</span>"
-                        f"<span style='color:#6b7280;font-size:0.70rem;margin-left:10px'>"
-                        f"{_hr.get('ts','')}</span><br>"
-                        f"<span style='color:#b2b5be;font-size:0.79rem'>"
-                        f"{str(_hr.get('analisi',''))[:220]}…</span></div>",
-                        unsafe_allow_html=True)
-            st.download_button("📥 Export storico CSV",
-                _hist43.to_csv(index=False).encode("utf-8"),
-                f"ai_history_{datetime.now().strftime('%Y%m%d')}.csv",
-                "text/csv", key="v43_hist_csv")
-        _conn43.close()
-    except Exception as _sq_ex:
-        st.caption(f"⚠️ Storico AI SQLite: {_sq_ex}")
-
-        # Session state per chat
+    # Session state per chat
     if "ai_chat_history" not in st.session_state:
         st.session_state.ai_chat_history = []
     if "ai_ticker_context" not in st.session_state:
@@ -9300,10 +9274,10 @@ with tab_ai:
 # =========================================================================
 # v41 — TAB 🎲 OPTIONS SCANNER
 # =========================================================================
-# ── v43a — MODULO 2 AI ──────────────────────────────────────────────────────
+# ── v42i — MODULO 2 AI ──────────────────────────────────────────────────────
 with tab_ai2:
     st.session_state["last_active_tab"] = "MODULO2_AI"
-    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST v43a — Multi-source · Vol× · Priorità · Stile Momentum Alerts</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST v42i — Multi-source · Vol× · Priorità · Stile Momentum Alerts</div>", unsafe_allow_html=True)
     st.caption("Seleziona la sorgente ticker da qualunque tab del scanner, poi premi Analizza per il ticker desiderato.")
 
     # ── Sorgente ticker ───────────────────────────────────────────────────────
@@ -9873,3 +9847,4 @@ with tab_news:
         - [TradingView Italia](https://it.tradingview.com/) — Community analysis
         - [TradingView](https://tradingview.com) — Charts e analisi
         """)
+
