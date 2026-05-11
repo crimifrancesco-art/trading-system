@@ -1008,125 +1008,79 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 
 BACK_TO_TOP_CSS = """<style>
 #btt-btn {
-    position:fixed !important;
-    bottom:24px !important;
-    left:50% !important;
-    transform:translateX(-50%) translateY(20px) !important;
-    z-index:2147483647 !important;
-    background:#2962ff;
-    color:#fff;
-    border:none;
-    border-radius:24px;
-    width:auto;
-    min-width:120px;
-    height:44px;
-    padding:0 22px;
-    font-size:0.92rem;
-    font-weight:bold;
-    font-family:'Trebuchet MS',sans-serif;
-    cursor:pointer;
-    box-shadow:0 4px 24px rgba(41,98,255,0.55);
-    display:flex !important;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    opacity:0;
-    transition:opacity .3s ease, transform .3s ease;
-    pointer-events:none;
-    white-space:nowrap;
-    letter-spacing:0.3px;
+    position: fixed !important;
+    right: 18px !important;
+    bottom: 18px !important;
+    z-index: 2147483647 !important;
+    background: #2962ff !important;
+    color: #fff !important;
+    border: none !important;
+    border-radius: 999px !important;
+    min-width: 46px !important;
+    height: 46px !important;
+    padding: 0 14px !important;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    cursor: pointer !important;
+    box-shadow: 0 6px 24px rgba(41,98,255,.45) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(12px) !important;
+    transition: opacity .22s ease, transform .22s ease, background .22s ease !important;
 }
-#btt-btn.btt-visible {
-    opacity:1 !important;
-    transform:translateX(-50%) translateY(0) !important;
-    pointer-events:all !important;
+#btt-btn.btt-visible { opacity: 1 !important; pointer-events: auto !important; transform: translateY(0) !important; }
+#btt-btn:hover { background:#1f4fe0 !important; }
+#btt-btn:active { transform: translateY(0) scale(.97) !important; }
+@media (max-width: 768px) {
+  #btt-btn { right: 14px !important; bottom: 14px !important; min-width: 44px !important; height: 44px !important; padding: 0 12px !important; }
 }
-#btt-btn:hover {
-    background:#1a3fd4 !important;
-    box-shadow:0 6px 28px rgba(41,98,255,0.75) !important;
-}
-#btt-btn:active { transform:translateX(-50%) scale(0.96) !important; }
-
-/* v44b — responsive tabs & layout */
 [data-testid="stTabs"] button{white-space:nowrap;}
 @media(max-width:1200px){[data-testid="stHorizontalBlock"]{flex-wrap:wrap!important;gap:.4rem;}}
 @media(max-width:768px){div[data-testid="metric-container"]{min-width:140px;}.stDataFrame,[data-testid="stTable"]{font-size:.82rem;}iframe,canvas,.js-plotly-plot{max-width:100%!important;}}
 @media(max-width:640px){[data-testid="stTabs"] button{padding:.35rem .55rem!important;font-size:.78rem!important;}div[data-testid="column"]{width:100%!important;flex:1 1 100%!important;}.element-container .stButton>button{width:100%;}}
 </style>
-<button id='btt-btn' title='Torna all\'inizio'>&#8679; Torna su</button>
+<button id='btt-btn' title='Torna all'inizio'>↑</button>
 <script>
 (function(){
-  var _btt_attached=false;
-  function _scroll_top(){
-    var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
-    ];
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el && el.scrollTop>0){ el.scrollTo({top:0,behavior:'smooth'}); }
+  const W = window.parent || window;
+  const D = W.document;
+  function getBtn(){ return D.getElementById('btt-btn'); }
+  function getTargets(){
+    const sels=['[data-testid="stAppViewContainer"]','section.main','.main','[data-testid="stMain"]','[data-testid="block-container"]','.block-container'];
+    const out=[];
+    sels.forEach(s=>D.querySelectorAll(s).forEach(el=>{ if(el && !out.includes(el)) out.push(el); }));
+    out.push(D.scrollingElement || D.documentElement || D.body);
+    return out;
+  }
+  function topNow(){
+    const vals=[];
+    getTargets().forEach(el=>{ try{ vals.push(el.scrollTop||0); }catch(e){} });
+    try{ vals.push(W.scrollY||0); }catch(e){}
+    try{ vals.push(window.scrollY||0); }catch(e){}
+    return Math.max.apply(null, vals.concat([0]));
+  }
+  function scrollTopNow(){
+    getTargets().forEach(el=>{ try{ el.scrollTo({top:0,behavior:'smooth'}); }catch(e){} try{ el.scrollTop=0; }catch(e){} });
+    try{ W.scrollTo({top:0,behavior:'smooth'}); }catch(e){}
+    try{ window.scrollTo({top:0,behavior:'smooth'}); }catch(e){}
+  }
+  function sync(){
+    const b=getBtn();
+    if(!b) return;
+    if(!b.dataset.bound){
+      b.dataset.bound='1';
+      b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); scrollTopNow(); });
     }
-    if(window.parent.pageYOffset>0) window.parent.scrollTo({top:0,behavior:'smooth'});
-    doc.documentElement.scrollTo({top:0,behavior:'smooth'});
-    doc.body.scrollTo({top:0,behavior:'smooth'});
-    window.scrollTo({top:0,behavior:'smooth'});
-  }
-  function _getBtn(){
-    return window.parent.document.getElementById('btt-btn')||document.getElementById('btt-btn');
-  }
-  function _getScrollTop(){
-    var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
-    ];
-    var max=0;
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el && el.scrollTop>max) max=el.scrollTop;
-    }
-    return Math.max(max, window.parent.pageYOffset||0, window.pageYOffset||0);
-  }
-  function _btt_check(){
-    var b=_getBtn(); if(!b) return;
-    if(_getScrollTop()>200) b.classList.add('btt-visible');
+    if(topNow()>220) b.classList.add('btt-visible');
     else b.classList.remove('btt-visible');
   }
-  function _btt_attach(){
-    if(_btt_attached) return;
-    var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
-    ];
-    var attached=false;
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el){ el.addEventListener('scroll',_btt_check,{passive:true}); attached=true; }
-    }
-    window.parent.addEventListener('scroll',_btt_check,{passive:true});
-    window.addEventListener('scroll',_btt_check,{passive:true});
-    _btt_check();
-    if(attached) _btt_attached=true;
-  }
-  function _btt_init(){
-    var b=_getBtn();
-    if(b && !b._btt_ready){
-      b.addEventListener('click',_scroll_top);
-      b._btt_ready=true;
-    }
-  }
-  [100,300,700,1500,3000,6000].forEach(function(d){
-    setTimeout(function(){ _btt_attach(); _btt_init(); },d);
-  });
-  try{
-    var obs=new MutationObserver(function(){ _btt_attach(); _btt_init(); _btt_check(); });
-    obs.observe(window.parent.document.body,{childList:true,subtree:false});
-  }catch(e){}
+  let ticking=false;
+  function onScroll(){ if(!ticking){ ticking=true; requestAnimationFrame(()=>{ sync(); ticking=false; }); } }
+  getTargets().forEach(el=>{ try{ el.addEventListener('scroll', onScroll, {passive:true}); }catch(e){} });
+  try{ W.addEventListener('scroll', onScroll, {passive:true}); }catch(e){}
+  try{ window.addEventListener('scroll', onScroll, {passive:true}); }catch(e){}
+  [100,300,700,1500,3000].forEach(t=>setTimeout(sync,t));
+  try{ new MutationObserver(sync).observe(D.body,{childList:true,subtree:true}); }catch(e){}
 })();
 </script>"""
 DARK_CSS = """
@@ -7980,7 +7934,7 @@ with tab_of:
 with tab_bcd:
     st.markdown("""<style>
 .bcd-wrap{width:100%;box-sizing:border-box;overflow-x:hidden;}
-.bcd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;width:100%;box-sizing:border-box;}
+.bcd-grid{display:block;width:100%;box-sizing:border-box;overflow:hidden;}
 .bcd-card{background:#1e222d;border:1px solid #2a2e39;border-radius:10px;padding:12px 14px;box-sizing:border-box;width:100%;}
 .bcd-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
 .bcd-ticker{font-family:Courier New,monospace;font-size:1rem;font-weight:bold;color:#00ff88;letter-spacing:1px;}
@@ -8130,16 +8084,18 @@ with tab_bcd:
         gA = int((bcd_view["Grade"] == "A").sum())
         gB = int((bcd_view["Grade"] == "B").sum())
         st.markdown(f"""<div class="bcd-kpi-row"><div class="bcd-kpi"><div class="bcd-kpi-val">{len(bcd_view)}</div><div class="bcd-kpi-lbl">💎 Candidati</div></div><div class="bcd-kpi"><div class="bcd-kpi-val" style="color:#00ff88">{gA}</div><div class="bcd-kpi-lbl">🏆 Grado A</div></div><div class="bcd-kpi"><div class="bcd-kpi-val" style="color:#26a69a">{gB}</div><div class="bcd-kpi-lbl">✅ Grado B</div></div><div class="bcd-kpi"><div class="bcd-kpi-val" style="color:#f59e0b">{bcd_view["RSI"].mean():.1f}</div><div class="bcd-kpi-lbl">📊 RSI medio</div></div></div>""", unsafe_allow_html=True)
-        st.markdown('<div class="bcd-grid">', unsafe_allow_html=True)
-        for _, rb in bcd_view.iterrows():
-            tk = str(rb.get("Ticker", "")); nm = str(rb.get("Nome", tk))[:30]
-            pr = rb.get("Prezzo", 0); rsi = rb.get("RSI", 0); ds = rb.get("DipScore", 0); grd = rb.get("Grade", "D")
-            dist = rb.get("Dist_EMA200_%", 0); dh = rb.get("Dist_52wHigh_%", 0); volr = rb.get("VolRatio", 1); ytd = rb.get("YTD_%", 0); mc = rb.get("MarketCap", 0); dv = rb.get("DollarVol_M", 0)
-            sc_cls = f"sc-{grd.lower()}"; g_cls = f"g-{grd.lower()}"; bc = "#00ff88" if ds >= 65 else "#f59e0b" if ds >= 45 else "#6b7280"
-            tv = tk.replace('.MI', '%3AMI').replace('.L', '%3AL')
-            ytd_cls = "up" if ytd >= 0 else "dn"; rsi_cls = "up" if rsi < 40 else "dn" if rsi > 60 else ""; vol_cls = "hi" if volr >= 1.2 else ""
-            st.markdown(f"""<div class="bcd-card"><div class="bcd-hdr"><div><a href="https://it.tradingview.com/chart/?symbol={tv}" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="bcd-ticker">{tk}</span></a><div class="bcd-name">{nm}</div></div><div style="text-align:right"><span class="bcd-score-num {sc_cls}">{ds:.0f}</span><div><span class="bcd-badge {g_cls}">{grd}</span></div></div></div><div class="bcd-bar-wrap"><div class="bcd-bar" style="width:{min(int(ds),100)}%;background:{bc}"></div></div><div class="bcd-row"><span class="bcd-lbl">Prezzo</span><span class="bcd-val">{pr:.2f}</span></div><div class="bcd-row"><span class="bcd-lbl">RSI 14</span><span class="bcd-val {rsi_cls}">{rsi:.1f}</span></div><div class="bcd-row"><span class="bcd-lbl">Dist. EMA200</span><span class="bcd-val">{dist:+.1f}%</span></div><div class="bcd-row"><span class="bcd-lbl">Dist. 52w High</span><span class="bcd-val dn">{dh:.1f}%</span></div><div class="bcd-row"><span class="bcd-lbl">Vol Ratio</span><span class="bcd-val {vol_cls}">{volr:.2f}x</span></div><div class="bcd-row"><span class="bcd-lbl">DollarVol</span><span class="bcd-val">{dv:.0f}M</span></div><div class="bcd-row"><span class="bcd-lbl">MarketCap</span><span class="bcd-val">{mc:.1f}B</span></div><div class="bcd-row"><span class="bcd-lbl">YTD</span><span class="bcd-val {ytd_cls}">{ytd:+.1f}%</span></div></div>""", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        cards = list(bcd_view.to_dict("records"))
+        for i in range(0, len(cards), 3):
+            cols = st.columns(3)
+            for cidx, rb in enumerate(cards[i:i+3]):
+                with cols[cidx]:
+                    tk = str(rb.get("Ticker", "")); nm = str(rb.get("Nome", tk))[:30]
+                    pr = rb.get("Prezzo", 0); rsi = rb.get("RSI", 0); ds = rb.get("DipScore", 0); grd = rb.get("Grade", "D")
+                    dist = rb.get("Dist_EMA200_%", 0); dh = rb.get("Dist_52wHigh_%", 0); volr = rb.get("VolRatio", 1); ytd = rb.get("YTD_%", 0); mc = rb.get("MarketCap", 0); dv = rb.get("DollarVol_M", 0)
+                    sc_cls = f"sc-{grd.lower()}"; g_cls = f"g-{grd.lower()}"; bc = "#00ff88" if ds >= 65 else "#f59e0b" if ds >= 45 else "#6b7280"
+                    tv = tk.replace('.MI', '%3AMI').replace('.L', '%3AL')
+                    ytd_cls = "up" if ytd >= 0 else "dn"; rsi_cls = "up" if rsi < 40 else "dn" if rsi > 60 else ""; vol_cls = "hi" if volr >= 1.2 else ""
+                    st.markdown(f"""<div class="bcd-card"><div class="bcd-hdr"><div><a href="https://it.tradingview.com/chart/?symbol={tv}" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="bcd-ticker">{tk}</span></a><div class="bcd-name">{nm}</div></div><div style="text-align:right"><span class="bcd-score-num {sc_cls}">{ds:.0f}</span><div><span class="bcd-badge {g_cls}">{grd}</span></div></div></div><div class="bcd-bar-wrap"><div class="bcd-bar" style="width:{min(int(ds),100)}%;background:{bc}"></div></div><div class="bcd-row"><span class="bcd-lbl">Prezzo</span><span class="bcd-val">{pr:.2f}</span></div><div class="bcd-row"><span class="bcd-lbl">RSI 14</span><span class="bcd-val {rsi_cls}">{rsi:.1f}</span></div><div class="bcd-row"><span class="bcd-lbl">Dist. EMA200</span><span class="bcd-val">{dist:+.1f}%</span></div><div class="bcd-row"><span class="bcd-lbl">Dist. 52w High</span><span class="bcd-val dn">{dh:.1f}%</span></div><div class="bcd-row"><span class="bcd-lbl">Vol Ratio</span><span class="bcd-val {vol_cls}">{volr:.2f}x</span></div><div class="bcd-row"><span class="bcd-lbl">DollarVol</span><span class="bcd-val">{dv:.0f}M</span></div><div class="bcd-row"><span class="bcd-lbl">MarketCap</span><span class="bcd-val">{mc:.1f}B</span></div><div class="bcd-row"><span class="bcd-lbl">YTD</span><span class="bcd-val {ytd_cls}">{ytd:+.1f}%</span></div></div>""", unsafe_allow_html=True)
         st.markdown('---')
         ex1, ex2 = st.columns(2)
         with ex1:
@@ -8218,7 +8174,7 @@ Lo **Storico** registra ogni scansione eseguita nel DB locale.
     st.markdown(BACK_TO_TOP_CSS, unsafe_allow_html=True)
 with tab_mom:
     st.markdown("""<style>
-.mom-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;width:100%;box-sizing:border-box;}
+.mom-grid{display:block;width:100%;box-sizing:border-box;overflow:hidden;}
 .mom-card{background:#1e222d;border:1px solid #2a2e39;border-radius:10px;padding:12px 14px;box-sizing:border-box;width:100%;}
 .mom-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;}
 .mom-ticker{font-family:Courier New,monospace;font-size:1rem;font-weight:bold;color:#00ff88;}
@@ -8318,14 +8274,16 @@ with tab_mom:
         med = sum(1 for a in all_alerts if a.get("Priorità", "") == "🟡 MEDIA")
         low = sum(1 for a in all_alerts if a.get("Priorità", "") == "🟢 BASSA")
         st.markdown(f"""<div class="mom-kpis"><div class="mom-kpi"><div class="mom-kpi-val">{len(all_alerts)}</div><div class="mom-kpi-lbl">⚡ Totale Alert</div></div><div class="mom-kpi"><div class="mom-kpi-val">{high}</div><div class="mom-kpi-lbl">🔴 Alta</div></div><div class="mom-kpi"><div class="mom-kpi-val">{med}</div><div class="mom-kpi-lbl">🟡 Media</div></div><div class="mom-kpi"><div class="mom-kpi-val">{low}</div><div class="mom-kpi-lbl">🟢 Bassa</div></div></div>""", unsafe_allow_html=True)
-        st.markdown('<div class="mom-grid">', unsafe_allow_html=True)
-        for al in all_alerts[:50]:
-            pcolor = "#ef4444" if "ALTA" in al.get("Priorità", "") else "#f59e0b" if "MEDIA" in al.get("Priorità", "") else "#26a69a"
-            ttype = al.get("Tipo", "")
-            tcolor = "#ef4444" if "Breakdown" in ttype or "Overbought" in ttype else "#f97316" if "Volume" in ttype or "Squeeze" in ttype else "#60a5fa" if "Oversold" in ttype else "#00ff88"
-            tv_s = al['Ticker'].replace('.MI', '%3AMI').replace('.L', '%3AL')
-            st.markdown(f"""<div class="mom-card"><div class="mom-top"><div><a href="https://it.tradingview.com/chart/?symbol={tv_s}" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="mom-ticker">{al['Ticker']}</span></a><div class="mom-name">{al.get('Nome','')}</div></div><div style="text-align:right"><span class="mom-badge" style="background:{pcolor}22;color:{pcolor};border:1px solid {pcolor}44">{al.get('Priorità','')}</span></div></div><div class="mom-row"><span class="mom-lbl">Tipo</span><span class="mom-val" style="color:{tcolor};font-weight:bold">{ttype}</span></div><div class="mom-row"><span class="mom-lbl">Valore</span><span class="mom-val">{al.get('Valore','')}</span></div><div class="mom-row"><span class="mom-lbl">Prezzo</span><span class="mom-val">{al.get('Prezzo','')}</span></div><div class="mom-row"><span class="mom-lbl">RSI</span><span class="mom-val">{al.get('RSI','')}</span></div><div class="mom-row"><span class="mom-lbl">Vol×</span><span class="mom-val">{al.get('Vol×','')}</span></div><div class="mom-row"><span class="mom-lbl">CSS</span><span class="mom-val">{al.get('CSS','')}</span></div></div>""", unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        shown_alerts = all_alerts[:50]
+        for i in range(0, len(shown_alerts), 2):
+            row_cols = st.columns(2)
+            for cidx, al in enumerate(shown_alerts[i:i+2]):
+                with row_cols[cidx]:
+                    pcolor = "#ef4444" if "ALTA" in al.get("Priorità", "") else "#f59e0b" if "MEDIA" in al.get("Priorità", "") else "#26a69a"
+                    ttype = al.get("Tipo", "")
+                    tcolor = "#ef4444" if "Breakdown" in ttype or "Overbought" in ttype else "#f97316" if "Volume" in ttype or "Squeeze" in ttype else "#60a5fa" if "Oversold" in ttype else "#00ff88"
+                    tv_s = al['Ticker'].replace('.MI', '%3AMI').replace('.L', '%3AL')
+                    st.markdown(f"""<div class="mom-card"><div class="mom-top"><div><a href="https://it.tradingview.com/chart/?symbol={tv_s}" target="_blank" rel="noopener noreferrer" style="text-decoration:none"><span class="mom-ticker">{al['Ticker']}</span></a><div class="mom-name">{al.get('Nome','')}</div></div><div style="text-align:right"><span class="mom-badge" style="background:{pcolor}22;color:{pcolor};border:1px solid {pcolor}44">{al.get('Priorità','')}</span></div></div><div class="mom-row"><span class="mom-lbl">Tipo</span><span class="mom-val" style="color:{tcolor};font-weight:bold">{ttype}</span></div><div class="mom-row"><span class="mom-lbl">Valore</span><span class="mom-val">{al.get('Valore','')}</span></div><div class="mom-row"><span class="mom-lbl">Prezzo</span><span class="mom-val">{al.get('Prezzo','')}</span></div><div class="mom-row"><span class="mom-lbl">RSI</span><span class="mom-val">{al.get('RSI','')}</span></div><div class="mom-row"><span class="mom-lbl">Vol×</span><span class="mom-val">{al.get('Vol×','')}</span></div><div class="mom-row"><span class="mom-lbl">CSS</span><span class="mom-val">{al.get('CSS','')}</span></div></div>""", unsafe_allow_html=True)
         st.markdown('---')
         d1, d2 = st.columns([1,1])
         with d1:
