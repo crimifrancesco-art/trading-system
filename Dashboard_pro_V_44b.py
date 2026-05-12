@@ -1008,124 +1008,89 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 
 BACK_TO_TOP_CSS = """<style>
 #btt-btn {
-    position:fixed !important;
-    bottom:24px !important;
-    left:50% !important;
-    transform:translateX(-50%) translateY(20px) !important;
+    position:fixed !important; bottom:30px !important; right:30px !important;
     z-index:2147483647 !important;
-    background:#2962ff;
-    color:#fff;
-    border:none;
-    border-radius:24px;
-    width:auto;
-    min-width:120px;
-    height:44px;
-    padding:0 22px;
-    font-size:0.92rem;
-    font-weight:bold;
-    font-family:'Trebuchet MS',sans-serif;
-    cursor:pointer;
-    box-shadow:0 4px 24px rgba(41,98,255,0.55);
-    display:flex !important;
-    align-items:center;
-    justify-content:center;
-    gap:6px;
-    opacity:0;
-    transition:opacity .3s ease, transform .3s ease;
-    pointer-events:none;
-    white-space:nowrap;
-    letter-spacing:0.3px;
+    background:#2962ff; color:#fff; border:none; border-radius:50%;
+    width:48px; height:48px; font-size:1.4rem; cursor:pointer;
+    box-shadow:0 4px 20px rgba(41,98,255,0.6);
+    display:flex !important; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .3s ease, transform .3s ease;
+    transform:translateY(16px); pointer-events:none; line-height:1;
+    font-family:sans-serif;
 }
 #btt-btn.btt-visible {
-    opacity:1 !important;
-    transform:translateX(-50%) translateY(0) !important;
+    opacity:1 !important; transform:translateY(0) !important;
     pointer-events:all !important;
 }
-#btt-btn:hover {
-    background:#1a3fd4 !important;
-    box-shadow:0 6px 28px rgba(41,98,255,0.75) !important;
-}
-#btt-btn:active { transform:translateX(-50%) scale(0.96) !important; }
+#btt-btn:hover { background:#1a3fd4 !important; transform:translateY(-3px) scale(1.1) !important; }
 
-/* v44b — responsive tabs & layout */
+/* v43d — responsive tabs & layout */
 [data-testid="stTabs"] button{white-space:nowrap;}
 @media(max-width:1200px){[data-testid="stHorizontalBlock"]{flex-wrap:wrap!important;gap:.4rem;}}
 @media(max-width:768px){div[data-testid="metric-container"]{min-width:140px;}.stDataFrame,[data-testid="stTable"]{font-size:.82rem;}iframe,canvas,.js-plotly-plot{max-width:100%!important;}}
 @media(max-width:640px){[data-testid="stTabs"] button{padding:.35rem .55rem!important;font-size:.78rem!important;}div[data-testid="column"]{width:100%!important;flex:1 1 100%!important;}.element-container .stButton>button{width:100%;}}
 </style>
-<button id='btt-btn' title='Torna all\'inizio'>&#8679; Torna su</button>
+<button id='btt-btn' title='Torna su'
+  onclick='(function(){
+    var targets=[
+      window.parent.document.querySelector(".main"),
+      window.parent.document.querySelector("section.main"),
+      window.parent.document.querySelector(".block-container"),
+      window.parent.document.documentElement,
+      window.parent.document.body,
+      document.documentElement,
+      document.body
+    ];
+    for(var i=0;i<targets.length;i++){
+      if(targets[i] && targets[i].scrollTop>0){
+        targets[i].scrollTo({top:0,behavior:"smooth"});return;
+      }
+    }
+    window.parent.scrollTo({top:0,behavior:"smooth"});
+    window.scrollTo({top:0,behavior:"smooth"});
+  })()'>&#8679;</button>
 <script>
 (function(){
   var _btt_attached=false;
-  function _scroll_top(){
+  function _getScroller(){
     var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
+    var candidates=[
+      doc.querySelector(".main"),
+      doc.querySelector("section.main"),
+      doc.querySelector(".block-container"),
+      doc.documentElement,
+      doc.body
     ];
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el && el.scrollTop>0){ el.scrollTo({top:0,behavior:'smooth'}); }
+    for(var i=0;i<candidates.length;i++){
+      if(candidates[i] && candidates[i].scrollHeight>candidates[i].clientHeight+50){
+        return candidates[i];
+      }
     }
-    if(window.parent.pageYOffset>0) window.parent.scrollTo({top:0,behavior:'smooth'});
-    doc.documentElement.scrollTo({top:0,behavior:'smooth'});
-    doc.body.scrollTo({top:0,behavior:'smooth'});
-    window.scrollTo({top:0,behavior:'smooth'});
+    return doc.documentElement||doc.body;
   }
   function _getBtn(){
     return window.parent.document.getElementById('btt-btn')||document.getElementById('btt-btn');
   }
-  function _getScrollTop(){
-    var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
-    ];
-    var max=0;
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el && el.scrollTop>max) max=el.scrollTop;
-    }
-    return Math.max(max, window.parent.pageYOffset||0, window.pageYOffset||0);
-  }
   function _btt_check(){
     var b=_getBtn(); if(!b) return;
-    if(_getScrollTop()>200) b.classList.add('btt-visible');
+    var s=_getScroller();
+    var scrolled=(s&&s.scrollTop>200)||(window.parent.pageYOffset>200)||(window.pageYOffset>200);
+    if(scrolled) b.classList.add('btt-visible');
     else b.classList.remove('btt-visible');
   }
   function _btt_attach(){
     if(_btt_attached) return;
-    var doc=window.parent.document;
-    var selectors=[
-      '[data-testid="stAppViewContainer"]',
-      '.main','section.main',
-      '[data-testid="block-container"]','.block-container'
-    ];
-    var attached=false;
-    for(var s=0;s<selectors.length;s++){
-      var el=doc.querySelector(selectors[s]);
-      if(el){ el.addEventListener('scroll',_btt_check,{passive:true}); attached=true; }
-    }
+    var s=_getScroller();
+    if(!s) return;
+    s.addEventListener('scroll',_btt_check,{passive:true});
     window.parent.addEventListener('scroll',_btt_check,{passive:true});
-    window.addEventListener('scroll',_btt_check,{passive:true});
     _btt_check();
-    if(attached) _btt_attached=true;
+    _btt_attached=true;
   }
-  function _btt_init(){
-    var b=_getBtn();
-    if(b && !b._btt_ready){
-      b.addEventListener('click',_scroll_top);
-      b._btt_ready=true;
-    }
-  }
-  [100,300,700,1500,3000,6000].forEach(function(d){
-    setTimeout(function(){ _btt_attach(); _btt_init(); },d);
-  });
+  [200,500,1000,2000,4000,8000].forEach(function(d){setTimeout(_btt_attach,d);});
   try{
-    var obs=new MutationObserver(function(){ _btt_attach(); _btt_init(); _btt_check(); });
-    obs.observe(window.parent.document.body,{childList:true,subtree:false});
+    var _btt_obs=new MutationObserver(function(){_btt_attach();_btt_check();});
+    _btt_obs.observe(window.parent.document.body,{childList:true,subtree:false});
   }catch(e){}
 })();
 </script>"""
@@ -2157,7 +2122,7 @@ def make_tv_txt(df, tab=""):
 
 def tv_txt_btn(df, fname, key, label="📥 TXT TradingView"):
     """Download TXT TradingView (un ticker per riga)."""
-    _f = fname[:-4]+".txt" if fname.lower().endswith(".csv") else fname
+    _f = fname[:-4]+".txt" if fname.lower().endswith(".txt") else fname
     st.download_button(label, make_tv_txt(df), _f, "text/plain", key=key)
 
 # =========================================================================
@@ -6946,7 +6911,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
     _cx1, _cx2 = st.columns(2)
     _unique = list(dict.fromkeys(all_crisis_tickers))
     with _cx1:
-        st.download_button("📺 Export TradingView CSV",
+        st.download_button("📺 Export TradingView TXT",
             data=chr(10).join(_unique),
             file_name=f"crisis_{selected_scenario[:25].replace(' ','_')}.txt",
             mime="text/plain", key="crisis_tv_exp",
@@ -7566,7 +7531,7 @@ with tab_w:
         _tc = "ticker" if "ticker" in _tv_cur.columns else "Ticker"
         _tv_lines = _tv_cur[_tc].dropna().unique().tolist()
         st.download_button(
-            label="📺 Export TradingView CSV",
+            label="📺 Export TradingView TXT",
             data=chr(10).join(_tv_lines),
             file_name=f"watchlist_{st.session_state.current_list_name}_tradingview.txt",
             mime="text/plain",
@@ -8194,7 +8159,7 @@ with ec2:
     if tv_rows:
         df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
         st.download_button(
-            "📈 CSV TV Tutti",
+            "📈 TXT TV Tutti",
             df_tv.to_csv(index=False).encode(),
             f"TradingScanner_v41_TV_{_ts}.txt",
             "text/plain",
@@ -10509,3 +10474,18 @@ with tab_news:
         - [TradingView Italia](https://it.tradingview.com/) — Community analysis
         - [TradingView](https://tradingview.com) — Charts e analisi
         """)
+
+/* V44b responsive tabs */
+@media(max-width:1200px){
+  [data-testid="stTabs"] > div:first-child button{font-size:0.68rem!important;padding:4px 7px!important;max-width:120px!important;}
+}
+@media(max-width:900px){
+  [data-testid="stTabs"] > div:first-child{gap:3px!important;overflow-x:auto!important;}
+  [data-testid="stTabs"] > div:first-child button{font-size:0.61rem!important;padding:3px 6px!important;max-width:96px!important;}
+}
+@media(max-width:600px){
+  [data-testid="stTabs"] > div:first-child button{font-size:0.55rem!important;padding:2px 4px!important;max-width:82px!important;}
+  [data-testid="stMetricValue"]{font-size:0.95rem!important;}
+  [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
+}
+
