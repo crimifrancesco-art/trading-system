@@ -3446,7 +3446,7 @@ def show_legend(key):
 # =========================================================================
 # RENDER SCAN TAB
 # =========================================================================
-def render_scan_tab(df,status_filter,sort_cols,ascending,title):
+def render_scan_tab(df,status_filter,sort_cols,ascending,title, _key_suffix=""):
     if df is None or (hasattr(df,"empty") and df.empty):
         c1,c2=st.columns([3,1])
         c1.info(f"📭 Nessun dato in **{title}**. Avvia lo scanner dalla sidebar.")
@@ -3778,7 +3778,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
             "Ordina per",
             list(_sort_avail.keys()),
             index=0,
-            key=f"sort_choice_{title}",
+            key=f"sort_choice_{title}{_key_suffix}",
             label_visibility="collapsed"
         )
     with _sc2:
@@ -6076,7 +6076,7 @@ with tab_p:
             _df_pro["_Momentum"] = _df_pro["Pro_Score"].fillna(0)*10 + _df_pro["RSI"].fillna(0)
         else:
             _df_pro["_Momentum"] = 0
-        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
+        render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum",_key_suffix="_a2")
     else:
         render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
 
@@ -10656,7 +10656,7 @@ with tab_news:
 
     with tab_e:
         st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
-        render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY")
+        render_scan_tab(df_ep,"EARLY",["Early_Score","RSI"],[False,True],"EARLY",_key_suffix="_b2")
 
         st.markdown('---')
         with st.expander('🔔 Alert Multipli v41 — Pattern tecnici', expanded=False):
@@ -10675,7 +10675,7 @@ with tab_news:
                 _df_pro["_Momentum"] = 0
             render_scan_tab(_df_pro,"PRO",["_Momentum","Quality_Score"],[False,False],"PRO — Momentum")
         else:
-            render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO")
+            render_scan_tab(df_ep,"PRO",["Quality_Score","Pro_Score","RSI"],[False,False,True],"PRO",_key_suffix="_b3")
 
         st.markdown('---')
         with st.expander('🔔 Alert Multipli v41 — Pattern su segnali PRO', expanded=False):
