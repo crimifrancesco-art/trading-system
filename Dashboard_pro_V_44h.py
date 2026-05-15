@@ -9401,8 +9401,7 @@ with tab_ai2:
                             _a2_regime = f"VIX={_a2_rg['vix']}, Regime={_a2_rg['regime']}, SPY 20d={_a2_rg['spy_mom_20d']:+.1f}%"
                         except Exception:
                             _a2_regime = "dati regime non disponibili"
-                        _nl = "
-"
+                        _nl = "\n"
                         _a2_prompt = (
                             "Sei un analista tecnico professionista. Produci un brief operativo conciso." + _nl + _nl +
                             f"TICKER: {_tkr} ({_a2_nome}) | PREZZO: {_a2_pr}" + _nl +
@@ -10125,3 +10124,4 @@ with tab_news:
         - [TradingView Italia](https://it.tradingview.com/) — Community analysis
         - [TradingView](https://tradingview.com) — Charts e analisi
         """)
+
