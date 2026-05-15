@@ -388,7 +388,7 @@ def _get_market_regime():
         _fg = round(_fg_vix*.35+_fg_mom*.35+_fg_bread*.20+_fg_bond*.10)
         _fg_lbl = ("Extreme Greed" if _fg>=75 else "Greed" if _fg>=55 else
                    "Neutral" if _fg>=45 else "Fear" if _fg>=25 else "Extreme Fear")
-        _fg_col = ("#22c55e" if _fg>=75 else "#26a69a" if _fg>=55 else
+        _fg_col = ("#00ff88" if _fg>=75 else "#26a69a" if _fg>=55 else
                    "#f59e0b" if _fg>=45 else "#f97316" if _fg>=25 else "#ef4444")
 
         _rs = 0
@@ -986,7 +986,7 @@ BACK_TO_TOP_CSS = """<style>
     left:50%!important;
     transform:translateX(-50%)!important;
     z-index:2147483647!important;
-    background:#0f766e;color:#fff;border:none;
+    background:#2962ff;color:#fff;border:none;
     border-radius:20px;padding:7px 20px;
     font-size:0.85rem;font-weight:bold;cursor:pointer;
     box-shadow:0 4px 18px rgba(41,98,255,0.55);
@@ -1049,132 +1049,56 @@ BACK_TO_TOP_CSS = """<style>
 
 DARK_CSS = """
 <style>
-/* ── TradingView-style skin ─────────────────────────────────── */
-html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid="block-container"]{
-    background-color:#131722 !important; color:#d1d4dc !important;
-    font-family:'Trebuchet MS','Segoe UI',sans-serif !important;}
-[data-testid="stSidebar"]{background-color:#1e222d !important;border-right:1px solid #2a2e39 !important;}
-[data-testid="stSidebar"] *{color:#d1d4dc !important;}
-h1{color:#0f766e !important;font-family:'Trebuchet MS',sans-serif !important;
-   letter-spacing:1px;text-shadow:0 0 16px #0f766e44;}
-h2,h3{color:#38bdf8 !important;font-family:'Trebuchet MS',sans-serif !important;}
-.stCaption,small{color:#6b7280 !important;}
-[data-testid="stTabs"] button{background:#131722 !important;color:#787b86 !important;
-    border-bottom:2px solid transparent !important;
-    font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
-[data-testid="stTabs"] button[aria-selected="true"]{color:#0f766e !important;border-bottom:2px solid #0f766e !important;
-    background:#1e222d !important;}
-[data-testid="stMetric"]{background:#1e222d !important;border:1px solid #2a2e39 !important;
-    border-radius:6px !important;padding:12px 16px !important;}
-[data-testid="stMetricLabel"]{color:#787b86 !important;font-size:0.75rem !important;}
-[data-testid="stMetricValue"]{color:#26a69a !important;font-size:1.6rem !important;
-    font-family:'Trebuchet MS',sans-serif !important;font-weight:700 !important;}
-[data-testid="stButton"]>button{background:#1e222d !important;
-    color:#d1d4dc !important;border:1px solid #363a45 !important;
-    border-radius:4px !important;font-family:'Trebuchet MS',sans-serif !important;transition:all 0.15s;}
-[data-testid="stButton"]>button:hover{background:#2a2e39 !important;border-color:#38bdf8 !important;color:#ffffff !important;}
-[data-testid="stButton"]>button[kind="primary"]{background:#0f766e !important;
-    border-color:#0f766e !important;color:#ffffff !important;font-size:1rem !important;}
-[data-testid="stButton"]>button[kind="secondary"]{background:#1e222d !important;
-    color:#ef5350 !important;border:1px solid #ef535055 !important;}
-[data-testid="stDownloadButton"]>button{background:#0d1117 !important;color:#58a6ff !important;
-    border:1px solid #1f3a5f !important;border-radius:6px !important;}
-[data-testid="stExpander"]{background:#0d1117 !important;border:1px solid #1f2937 !important;border-radius:8px !important;}
-[data-testid="stExpander"] summary{color:#58a6ff !important;}
-hr{border-color:#1f2937 !important;}
-.ag-root-wrapper{background:#1e222d !important;border:1px solid #2a2e39 !important;border-radius:4px !important;}
-.ag-header{background:#131722 !important;border-bottom:1px solid #363a45 !important;}
-.ag-header-cell-label{color:#38bdf8 !important;font-family:'Trebuchet MS',sans-serif !important;
-    font-size:0.79rem !important;letter-spacing:0.5px;text-transform:uppercase;}
-.ag-header-cell-resize{background:#363a45 !important;}
-.ag-row{background:#1e222d !important;border-bottom:1px solid #2a2e39 !important;}
-.ag-row:hover{background:#2a2e39 !important;}
-.ag-row-selected{background:rgba(41,98,255,0.18) !important;border-left:3px solid #0f766e !important;}
-.ag-cell{color:#d1d4dc !important;font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
-.ag-paging-panel{background:#131722 !important;color:#787b86 !important;}
-::-webkit-scrollbar{width:6px;height:6px;}
-::-webkit-scrollbar-track{background:#0a0e1a;}
-::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px;}
-.section-pill{display:inline-block;background:#1e222d;
-    border-left:3px solid #0f766e;border-radius:0 4px 4px 0;padding:5px 16px;
-    font-family:'Trebuchet MS',sans-serif;font-size:0.82rem;color:#38bdf8;
-    letter-spacing:1px;margin-bottom:14px;}
-.wl-card{background:linear-gradient(135deg,#0d1117 0%,#111827 100%);
-    border:1px solid #1f2937;border-radius:12px;padding:14px 18px;margin-bottom:8px;transition:border-color 0.2s;}
-.wl-card:hover{border-color:#374151;}
-.wl-card-ticker{font-family:'Courier New',monospace;font-size:1.05rem;font-weight:bold;color:#22c55e;letter-spacing:1px;}
-.wl-card-name{color:#8b949e;font-size:0.82rem;margin-top:2px;}
-.wl-card-badge{display:inline-block;border-radius:10px;padding:2px 8px;font-size:0.72rem;font-weight:bold;margin-right:4px;}
-.badge-green{background:rgba(0,255,136,0.15);color:#22c55e;border:1px solid #22c55e44;}
-.badge-orange{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid #f59e0b44;}
-.badge-red{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef444444;}
-.badge-blue{background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid #58a6ff44;}
-.badge-gray{background:rgba(107,114,128,0.15);color:#6b7280;border:1px solid #6b728044;}
-.badge-purple{background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid #a78bfa44;}
-.legend-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace;font-size:0.82rem;}
-.legend-table th{color:#58a6ff;border-bottom:1px solid #1f2937;padding:6px 10px;text-align:left;}
-.legend-table td{color:#c9d1d9;border-bottom:1px solid #1a2233;padding:5px 10px;}
-.legend-table tr:hover td{background:#131d2e;}
-.legend-col-name{color:#22c55e;font-weight:bold;}
-.legend-col-range{color:#f59e0b;}
-.crit-ok{color:#22c55e;font-weight:bold;}
-.crit-no{color:#ef4444;}
-/* v41 MOBILE */
-@media(max-width:480px){
- [data-testid="block-container"]{padding:0.5rem!important}
- [data-testid="stMetricValue"]{font-size:1.2rem!important}
- [data-testid="stTabs"]>div:first-child>button{font-size:0.62rem!important;padding:3px 5px!important}
- [data-testid="stButton"]>button{min-height:44px!important}
+:root {
+  --bg-base:#0d1117; --bg-surface:#161b22; --bg-surface-2:#1c2333; --bg-border:#21262d; --bg-hover:#262d3a;
+  --text-primary:#e6edf3; --text-muted:#8b949e; --text-faint:#484f58;
+  --accent-teal:#0d9488; --accent-teal-lt:#14b8a6; --accent-blue:#3b82f6;
+  --signal-bull:#22c55e; --signal-bear:#ef4444; --signal-warn:#f59e0b; --signal-hot:#f97316; --signal-conf:#a78bfa;
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --font-ui:'Inter','Segoe UI',system-ui,sans-serif; --font-mono:'JetBrains Mono','Courier New',monospace;
 }
-@media(min-width:481px) and (max-width:768px){
- [data-testid="stMetricValue"]{font-size:1.35rem!important}
- [data-testid="stTabs"]>div:first-child>button{font-size:0.68rem!important;padding:4px 6px!important}
-}
-
-/* ── v43b RESPONSIVE ──────────────────────────────────────── */
-@media(max-width:900px){
-  [data-testid="stTabs"] > div:first-child button{
-    font-size:0.60rem!important;padding:3px 5px!important;max-width:110px!important;}
-  [data-testid="stMetricValue"]{font-size:1.1rem!important;}
-  .section-pill{font-size:0.75rem!important;}
-}
-@media(max-width:600px){
-  [data-testid="stAppViewContainer"]{padding:0 4px!important;}
-  [data-testid="stTabs"] > div:first-child button{
-    font-size:0.55rem!important;padding:2px 4px!important;max-width:80px!important;}
-  [data-testid="stMetricValue"]{font-size:0.95rem!important;}
-  [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
-  h1{font-size:1.1rem!important;}
-  h2,h3{font-size:0.95rem!important;}
-  .wl-card{padding:8px 10px!important;}
-  [data-testid="stDataFrame"]{overflow-x:auto!important;}
-  .ag-root-wrapper{overflow-x:auto!important;}
-  [data-testid="stDownloadButton"] button{font-size:0.72rem!important;padding:4px 8px!important;}
-}
-@media(max-width:400px){
-  [data-testid="stTabs"] > div:first-child button{
-    font-size:0.50rem!important;padding:2px 3px!important;}
-}
-
-
-/* V44a responsive + tabs */
-@media(max-width:1200px){
-  [data-testid="stTabs"] > div:first-child button{font-size:0.68rem!important;padding:4px 7px!important;max-width:120px!important;}
-}
-@media(max-width:900px){
-  [data-testid="stTabs"] > div:first-child{gap:3px!important;}
-  [data-testid="stTabs"] > div:first-child button{font-size:0.61rem!important;padding:3px 6px!important;max-width:96px!important;}
-}
-@media(max-width:600px){
-  [data-testid="stTabs"] > div:first-child button{font-size:0.55rem!important;padding:2px 4px!important;max-width:82px!important;}
-  [data-testid="stMetricValue"]{font-size:0.95rem!important;}
-  [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
-}
-
-/* ── Scrollbar orizzontale per tabelle su mobile ── */
-.ag-root-wrapper, [data-testid="stDataFrame"] > div{
-  -webkit-overflow-scrolling:touch;
-}
+html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid="block-container"]{background-color:var(--bg-base)!important;color:var(--text-primary)!important;font-family:var(--font-ui)!important;}
+[data-testid="stSidebar"]{background-color:var(--bg-surface)!important;border-right:1px solid var(--bg-border)!important;}
+[data-testid="stSidebar"] *{color:var(--text-primary)!important;}
+h1{color:var(--text-primary)!important;font-family:var(--font-ui)!important;font-weight:700!important;font-size:1.4rem!important;letter-spacing:-.02em;border-bottom:1px solid var(--bg-border);padding-bottom:10px;margin-bottom:16px;}
+h2,h3{color:var(--accent-teal-lt)!important;font-family:var(--font-ui)!important;font-weight:600!important;}
+.stCaption,small{color:var(--text-muted)!important;}
+[data-testid="stTabs"] [role="tablist"]{background:var(--bg-surface)!important;border-bottom:1px solid var(--bg-border)!important;padding:0 4px;gap:2px;}
+[data-testid="stTabs"] button{background:transparent!important;color:var(--text-muted)!important;border:none!important;border-bottom:2px solid transparent!important;font-family:var(--font-ui)!important;font-size:.81rem!important;font-weight:500!important;padding:8px 12px!important;border-radius:0!important;transition:color .15s,border-color .15s!important;}
+[data-testid="stTabs"] button:hover{color:var(--text-primary)!important;background:var(--bg-hover)!important;}
+[data-testid="stTabs"] button[aria-selected="true"]{color:var(--accent-teal-lt)!important;border-bottom:2px solid var(--accent-teal)!important;background:transparent!important;font-weight:600!important;}
+[data-testid="stMetric"]{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;padding:14px 18px!important;transition:box-shadow .2s;}
+[data-testid="stMetric"]:hover{box-shadow:0 0 0 1px var(--accent-teal)!important;}
+[data-testid="stMetricLabel"]{color:var(--text-muted)!important;font-size:.72rem!important;text-transform:uppercase!important;letter-spacing:.06em!important;font-weight:600!important;}
+[data-testid="stMetricValue"]{color:var(--text-primary)!important;font-size:1.55rem!important;font-family:var(--font-ui)!important;font-weight:700!important;}
+[data-testid="stButton"]>button{background:var(--bg-surface-2)!important;color:var(--text-primary)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-sm)!important;font-family:var(--font-ui)!important;font-size:.82rem!important;font-weight:500!important;transition:all .15s!important;}
+[data-testid="stButton"]>button:hover{background:var(--bg-hover)!important;border-color:var(--accent-teal)!important;color:var(--accent-teal-lt)!important;}
+[data-testid="stButton"]>button[kind="primary"]{background:var(--accent-teal)!important;border-color:var(--accent-teal)!important;color:#fff!important;font-weight:600!important;font-size:.9rem!important;}
+[data-testid="stButton"]>button[kind="primary"]:hover{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;}
+[data-testid="stButton"]>button[kind="secondary"]{background:var(--bg-surface)!important;color:var(--signal-bear)!important;border:1px solid rgba(239,68,68,.35)!important;}
+[data-testid="stDownloadButton"]>button{background:var(--bg-surface)!important;color:var(--accent-blue)!important;border:1px solid rgba(59,130,246,.35)!important;border-radius:var(--radius-sm)!important;font-size:.82rem!important;}
+[data-testid="stExpander"]{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;}
+[data-testid="stExpander"] summary{color:var(--text-muted)!important;font-size:.83rem!important;}
+hr{border-color:var(--bg-border)!important;}
+.ag-root-wrapper{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;}
+.ag-header{background:var(--bg-base)!important;border-bottom:1px solid var(--bg-border)!important;}
+.ag-header-cell-label{color:var(--text-muted)!important;font-family:var(--font-ui)!important;font-size:.73rem!important;letter-spacing:.06em;text-transform:uppercase;font-weight:600!important;}
+.ag-row{background:var(--bg-surface)!important;border-bottom:1px solid var(--bg-border)!important;}
+.ag-row:hover{background:var(--bg-hover)!important;}
+.ag-row-selected{background:rgba(13,148,136,.12)!important;border-left:2px solid var(--accent-teal)!important;}
+.ag-cell{color:var(--text-primary)!important;font-family:var(--font-ui)!important;font-size:.83rem!important;}
+.ag-paging-panel{background:var(--bg-base)!important;color:var(--text-muted)!important;border-top:1px solid var(--bg-border)!important;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg-base);}::-webkit-scrollbar-thumb{background:var(--bg-border);border-radius:3px;}
+.section-pill{display:inline-flex;align-items:center;gap:8px;background:var(--bg-surface);border-left:3px solid var(--accent-teal);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:5px 16px;font-family:var(--font-ui);font-size:.78rem;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;}
+.op-header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:10px 18px;margin-bottom:16px;font-size:.82rem;}
+.op-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700;border:1px solid transparent;}
+.op-badge.open{color:var(--signal-bull);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08);} .op-badge.closed{color:var(--text-muted);border-color:var(--bg-border);background:var(--bg-surface-2);} .op-badge.warn{color:var(--signal-warn);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08);} .op-sep{color:var(--text-faint);}
+.kpi-card{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:16px 20px;display:flex;flex-direction:column;gap:4px;transition:box-shadow .2s;}
+.kpi-card:hover{box-shadow:0 0 0 1px var(--accent-teal)!important;}.kpi-label{font-size:.70rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);} .kpi-value{font-size:2rem;font-weight:800;font-family:var(--font-ui);color:var(--text-primary);line-height:1.1;} .kpi-value.bull{color:var(--signal-bull);} .kpi-value.bear{color:var(--signal-bear);} .kpi-value.warn{color:var(--signal-warn);} .kpi-value.teal{color:var(--accent-teal-lt);} .kpi-value.conf{color:var(--signal-conf);} .kpi-value.hot{color:var(--signal-hot);} .kpi-delta{font-size:.73rem;font-weight:600;color:var(--text-faint);} .kpi-delta.pos{color:var(--signal-bull);} .kpi-delta.neg{color:var(--signal-bear);}
+.sig-card{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:12px 16px;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s;}
+.sig-card:hover{border-color:var(--accent-teal);box-shadow:0 4px 16px rgba(13,148,136,.12);} .sig-ticker{font-family:var(--font-mono);font-size:1.05rem;font-weight:800;color:var(--text-primary);letter-spacing:-.01em;} .sig-name{font-size:.73rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;} .sig-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;} .sig-badge{display:inline-block;padding:1px 8px;border-radius:3px;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;} .sig-badge.early{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);} .sig-badge.pro{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.3);} .sig-badge.strong{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.3);} .sig-badge.hot{background:rgba(249,115,22,.12);color:#fb923c;border:1px solid rgba(249,115,22,.3);} .sig-badge.conf{background:rgba(167,139,250,.12);color:#c084fc;border:1px solid rgba(167,139,250,.3);} .sig-meta{display:flex;align-items:center;justify-content:space-between;font-size:.73rem;color:var(--text-muted);border-top:1px solid var(--bg-border);padding-top:6px;margin-top:2px;} .sig-css-val{font-family:var(--font-mono);font-weight:700;color:var(--accent-teal-lt);} .sig-rsi-val{font-family:var(--font-mono);}
+.tab-legend{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-sm);padding:8px 14px;margin-bottom:12px;font-size:.76rem;color:var(--text-muted);display:flex;align-items:center;gap:12px;flex-wrap:wrap;} .tab-legend strong{color:var(--text-primary);} .tab-legend .sep{color:var(--text-faint);} .ov-section-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-faint);margin-bottom:8px;margin-top:4px;}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;} .dot.green{background:var(--signal-bull);box-shadow:0 0 6px var(--signal-bull);} .dot.red{background:var(--signal-bear);box-shadow:0 0 6px var(--signal-bear);} .dot.yellow{background:var(--signal-warn);box-shadow:0 0 6px var(--signal-warn);} 
+@media (max-width:768px){[data-testid="stMetricValue"]{font-size:1.2rem!important}.sig-card{padding:10px 12px}.op-header{gap:8px;padding:8px 12px}}
 </style>
 """
 
@@ -1464,8 +1388,8 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
             if any(v is None for v in [sma9[i],sma21[i],sma9[i-1],sma21[i-1]]): continue
             if sma9[i-1]<=sma21[i-1] and sma9[i]>sma21[i]:
                 fig.add_annotation(x=dates[i],y=lows[i]*0.995,text="▲ ENTRY",
-                    font=dict(color="#22c55e",size=10),showarrow=True,
-                    arrowhead=2,arrowcolor="#22c55e",ay=30,ax=0,row=1,col=1)
+                    font=dict(color="#00ff88",size=10),showarrow=True,
+                    arrowhead=2,arrowcolor="#00ff88",ay=30,ax=0,row=1,col=1)
             elif sma9[i-1]>=sma21[i-1] and sma9[i]<sma21[i]:
                 fig.add_annotation(x=dates[i],y=highs[i]*1.005,text="▼ EXIT",
                     font=dict(color="#ef4444",size=10),showarrow=True,
@@ -1474,7 +1398,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     if show_sar:
         sv,sd=_parabolic_sar(highs,lows)
         fig.add_trace(go.Scatter(x=dates,y=[sv[i] if sd[i]==1 else None for i in range(len(sv))],
-            mode="markers",marker=dict(color="#22c55e",size=4),name="SAR ↑"),row=1,col=1)
+            mode="markers",marker=dict(color="#00ff88",size=4),name="SAR ↑"),row=1,col=1)
         fig.add_trace(go.Scatter(x=dates,y=[sv[i] if sd[i]==-1 else None for i in range(len(sv))],
             mode="markers",marker=dict(color="#ef4444",size=4),name="SAR ↓"),row=1,col=1)
 
@@ -1483,7 +1407,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
         fig.add_hrect(y0=70,y1=100,fillcolor="rgba(239,68,68,0.08)",line_width=0,row=row_rsi,col=1)
         fig.add_hrect(y0=0,y1=30,fillcolor="rgba(0,255,136,0.08)",line_width=0,row=row_rsi,col=1)
         fig.add_trace(go.Scatter(x=dates,y=rv,line=dict(color="#60a5fa",width=1.5),name="RSI"),row=row_rsi,col=1)
-        for lvl,col in [(70,"#ef4444"),(50,"#6b7280"),(30,"#22c55e")]:
+        for lvl,col in [(70,"#ef4444"),(50,"#6b7280"),(30,"#00ff88")]:
             fig.add_hline(y=lvl,line=dict(color=col,width=1,dash="dot"),row=row_rsi,col=1)
         fig.update_yaxes(title_text="RSI",range=[0,100],tickfont=dict(size=9),row=row_rsi,col=1)
 
@@ -1568,12 +1492,12 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
                     annotation_text=" POC",annotation_font_color="#ffd700",
                     annotation_font_size=9,row=1,col=_vp_col)
             if _vah:
-                fig.add_hline(y=_vah,line=dict(color="#0f766e",width=1,dash="dash"),
-                    annotation_text=" VAH",annotation_font_color="#0f766e",
+                fig.add_hline(y=_vah,line=dict(color="#2962ff",width=1,dash="dash"),
+                    annotation_text=" VAH",annotation_font_color="#2962ff",
                     annotation_font_size=8,row=1,col=_vp_col)
             if _val:
-                fig.add_hline(y=_val,line=dict(color="#0f766e",width=1,dash="dash"),
-                    annotation_text=" VAL",annotation_font_color="#0f766e",
+                fig.add_hline(y=_val,line=dict(color="#2962ff",width=1,dash="dash"),
+                    annotation_text=" VAL",annotation_font_color="#2962ff",
                     annotation_font_size=8,row=1,col=_vp_col)
             # Nascondi assi VP
             fig.update_xaxes(showticklabels=False,showgrid=False,zeroline=False,
@@ -1623,7 +1547,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
         fig.add_trace(go.Scatter(x=dates, y=_sd,
             line=dict(color="#fb923c", width=1.5, dash="dot"), name="StochRSI %D"),
             row=row_stochrsi, col=1)
-        for _lvl, _col in [(80, "#ef4444"), (50, "#6b7280"), (20, "#22c55e")]:
+        for _lvl, _col in [(80, "#ef4444"), (50, "#6b7280"), (20, "#00ff88")]:
             fig.add_hline(y=_lvl, line=dict(color=_col, width=1, dash="dot"),
                           row=row_stochrsi, col=1)
         fig.update_yaxes(title_text="StochRSI", range=[0, 100],
@@ -1672,7 +1596,7 @@ def build_full_chart(row: pd.Series, indicators: list) -> go.Figure:
     _atr_label = f"  ATR:{_atr_val:.2f}" if _atr_val > 0 else ""
     fig.update_layout(**PLOTLY_DARK,
         title=dict(text=f"<b>{tkr}</b> — {row.get('Nome','')}  |  {row.get('Prezzo','')}  |  RSI {row.get('RSI','')}{sq}{_atr_label}",
-            font=dict(color="#38bdf8",size=13),x=0.01,xanchor="left"),
+            font=dict(color="#50c4e0",size=13),x=0.01,xanchor="left"),
         height=160+180*n_rows,xaxis_rangeslider_visible=False,
         legend=dict(orientation="h",y=1.01,x=0,bgcolor="rgba(0,0,0,0)",font=dict(size=10)),
         margin=dict(l=0,r=0,t=55,b=0),hovermode="x unified")
@@ -1687,7 +1611,7 @@ def build_radar(row: pd.Series) -> go.Figure:
     keys=list(qc.keys()); vals=list(qc.values())
     fig=go.Figure()
     fig.add_trace(go.Scatterpolar(r=vals+[vals[0]],theta=keys+[keys[0]],fill="toself",
-        fillcolor="rgba(0,255,136,0.15)",line=dict(color="#22c55e",width=2)))
+        fillcolor="rgba(0,255,136,0.15)",line=dict(color="#00ff88",width=2)))
     fig.update_layout(**PLOTLY_DARK,
         polar=dict(bgcolor="#0d1117",
             radialaxis=dict(visible=True,range=[0,1],tickfont=dict(size=9,color="#6b7280"),
@@ -1744,7 +1668,7 @@ const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'-':v.toFixed(1);
 this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';
 if(v<30)this.eGui.style.color='#60a5fa';
 else if(v<40)this.eGui.style.color='#93c5fd';
-else if(v<=65)this.eGui.style.color='#22c55e';
+else if(v<=65)this.eGui.style.color='#00ff88';
 else if(v<=70)this.eGui.style.color='#f59e0b';
 else this.eGui.style.color='#ef4444';}getGui(){return this.eGui;}}""")
 
@@ -1752,7 +1676,7 @@ else this.eGui.style.color='#ef4444';}getGui(){return this.eGui;}}""")
 mcap_str_renderer=JsCode("""class MS{init(p){this.eGui=document.createElement('span');
 const s=String(p.value||'\u2014').trim();
 let color='#6b7280';
-if(s.endsWith('T'))color='#22c55e';
+if(s.endsWith('T'))color='#00ff88';
 else if(s.endsWith('B'))color='#58a6ff';
 else if(s.endsWith('M'))color='#f59e0b';
 this.eGui.innerText=s;this.eGui.style.color=color;
@@ -1763,7 +1687,7 @@ vol_ratio_renderer=JsCode("""class V{init(p){this.eGui=document.createElement('s
 const v=parseFloat(p.value);this.eGui.innerText=isNaN(v)?'-':v.toFixed(2)+'x';
 this.eGui.style.fontFamily='Courier New';this.eGui.style.fontWeight='bold';
 if(v<1)this.eGui.style.color='#6b7280';
-else if(v<2)this.eGui.style.color='#22c55e';
+else if(v<2)this.eGui.style.color='#00ff88';
 else if(v<3)this.eGui.style.color='#f59e0b';
 else{this.eGui.style.color='#ef4444';this.eGui.style.textShadow='0 0 6px #ef4444';}
 }getGui(){return this.eGui;}}""")
@@ -1787,7 +1711,7 @@ mcap_renderer=JsCode("""class MC{init(p){this.eGui=document.createElement('span'
 const v=parseFloat(p.value);
 let txt='—';let color='#6b7280';
 if(!isNaN(v) && v>1000000){
-  if(v>=1e12){txt=(v/1e12).toFixed(2)+'T';color='#22c55e';}
+  if(v>=1e12){txt=(v/1e12).toFixed(2)+'T';color='#00ff88';}
   else if(v>=1e9){txt=(v/1e9).toFixed(1)+'B';color='#58a6ff';}
   else if(v>=1e6){txt=(v/1e6).toFixed(0)+'M';color='#f59e0b';}
   else{txt=(v/1e3).toFixed(0)+'K';color='#6b7280';}
@@ -1799,8 +1723,8 @@ this.eGui.style.fontFamily='Courier New';this.eGui.style.color=color;this.eGui.s
 quality_renderer=JsCode("""class Q{init(p){this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:6px';
 const v=parseInt(p.value||0);const pct=Math.round((v/12)*100);
-const c=v>=9?'#22c55e':v>=6?'#f59e0b':'#6b7280';
-this.eGui.innerHTML=`<span style="font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;color:${c};min-width:20px">${v}</span>
+const c=v>=9?'#00ff88':v>=6?'#f59e0b':'#6b7280';
+this.eGui.innerHTML=`<span style="font-family:Courier New;font-weight:bold;color:${c};min-width:20px">${v}</span>
 <div style="flex:1;background:#1f2937;border-radius:3px;height:6px">
 <div style="width:${pct}%;background:${c};height:6px;border-radius:3px"></div></div>`;}
 getGui(){return this.eGui;}}""")
@@ -1808,8 +1732,8 @@ getGui(){return this.eGui;}}""")
 ser_score_renderer=JsCode("""class S{init(p){this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:6px';
 const v=parseInt(p.value||0);const pct=Math.round((v/6)*100);
-const c=v>=6?'#22c55e':v>=4?'#f59e0b':'#ef4444';
-this.eGui.innerHTML=`<span style="font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;color:${c};min-width:20px">${v}/6</span>
+const c=v>=6?'#00ff88':v>=4?'#f59e0b':'#ef4444';
+this.eGui.innerHTML=`<span style="font-family:Courier New;font-weight:bold;color:${c};min-width:20px">${v}/6</span>
 <div style="flex:1;background:#1f2937;border-radius:3px;height:6px">
 <div style="width:${pct}%;background:${c};height:6px;border-radius:3px"></div></div>`;}
 getGui(){return this.eGui;}}""")
@@ -1817,15 +1741,15 @@ getGui(){return this.eGui;}}""")
 fv_score_renderer=JsCode("""class F{init(p){this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:6px';
 const v=parseInt(p.value||0);const pct=Math.round((v/8)*100);
-const c=v>=7?'#22c55e':v>=5?'#f59e0b':'#6b7280';
-this.eGui.innerHTML=`<span style="font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;color:${c};min-width:20px">${v}/8</span>
+const c=v>=7?'#00ff88':v>=5?'#f59e0b':'#6b7280';
+this.eGui.innerHTML=`<span style="font-family:Courier New;font-weight:bold;color:${c};min-width:20px">${v}/8</span>
 <div style="flex:1;background:#1f2937;border-radius:3px;height:6px">
 <div style="width:${pct}%;background:${c};height:6px;border-radius:3px"></div></div>`;}
 getGui(){return this.eGui;}}""")
 
 bool_renderer=JsCode("""class B{init(p){this.eGui=document.createElement('span');
 const v=p.value;
-if(v===true||v==='True'||v==='true'||v===1){this.eGui.innerText='✅';this.eGui.style.color='#22c55e';}
+if(v===true||v==='True'||v==='true'||v===1){this.eGui.innerText='✅';this.eGui.style.color='#00ff88';}
 else if(v===false||v==='False'||v==='false'||v===0){this.eGui.innerText='❌';this.eGui.style.color='#ef4444';}
 else{this.eGui.innerText='—';this.eGui.style.color='#374151';}
 }getGui(){return this.eGui;}}""")
@@ -1838,7 +1762,7 @@ else{this.eGui.innerText='—';this.eGui.style.color='#374151';}
 
 weekly_renderer=JsCode("""class W{init(p){this.eGui=document.createElement('span');
 const v=p.value;
-if(v===true||v==='True'||v==='true'){this.eGui.innerText='📈 W+';this.eGui.style.color='#22c55e';}
+if(v===true||v==='True'||v==='true'){this.eGui.innerText='📈 W+';this.eGui.style.color='#00ff88';}
 else if(v===false||v==='False'||v==='false'){this.eGui.innerText='📉 W—';this.eGui.style.color='#ef4444';}
 else{this.eGui.innerText='—';this.eGui.style.color='#374151';}
 }getGui(){return this.eGui;}}""")
@@ -1846,7 +1770,7 @@ else{this.eGui.innerText='—';this.eGui.style.color='#374151';}
 rsi_div_renderer=JsCode("""class RD{init(p){this.eGui=document.createElement('span');
 const v=p.value;
 if(v==='BEARISH'){this.eGui.innerText='⚠️ BEAR';this.eGui.style.color='#ef4444';}
-else if(v==='BULLISH'){this.eGui.innerText='✅ BULL';this.eGui.style.color='#22c55e';}
+else if(v==='BULLISH'){this.eGui.innerText='✅ BULL';this.eGui.style.color='#00ff88';}
 else{this.eGui.innerText='—';this.eGui.style.color='#374151';}
 }getGui(){return this.eGui;}}""")
 
@@ -1857,7 +1781,7 @@ getGui(){return this.eGui;}}""")
 
 trend_renderer=JsCode("""class T{init(p){this.eGui=document.createElement('span');
 const v=(p.value||'').toUpperCase();
-const map={LONG:{c:'#22c55e',e:'🟢 LONG'},SHORT:{c:'#ef4444',e:'🔴 SHORT'},WATCH:{c:'#f59e0b',e:'👁 WATCH'}};
+const map={LONG:{c:'#00ff88',e:'🟢 LONG'},SHORT:{c:'#ef4444',e:'🔴 SHORT'},WATCH:{c:'#f59e0b',e:'👁 WATCH'}};
 const m=map[v]||{c:'#6b7280',e:v||'—'};
 this.eGui.innerText=m.e;this.eGui.style.color=m.c;this.eGui.style.fontWeight='bold';}
 getGui(){return this.eGui;}}""")
@@ -1867,12 +1791,12 @@ stato_pro_renderer=JsCode("""class SP{init(p){this.eGui=document.createElement('
 const v=(p.value||'').toUpperCase();
 if(v==='STRONG'){
   this.eGui.innerText='★ STRONG';
-  this.eGui.style.cssText='color:#ffd700;font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;'
+  this.eGui.style.cssText='color:#ffd700;font-weight:bold;font-family:Courier New;'
     +'background:rgba(255,215,0,0.12);padding:2px 6px;border-radius:4px;border:1px solid #ffd70044;';
 }else if(v==='PRO'){
   this.eGui.innerText='✦ PRO';
-  this.eGui.style.cssText='color:#22c55e;font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;'
-    +'background:rgba(0,255,136,0.10);padding:2px 6px;border-radius:4px;border:1px solid #22c55e44;';
+  this.eGui.style.cssText='color:#00ff88;font-weight:bold;font-family:Courier New;'
+    +'background:rgba(0,255,136,0.10);padding:2px 6px;border-radius:4px;border:1px solid #00ff8844;';
 }else{
   this.eGui.innerText='—';this.eGui.style.color='#374151';
 }
@@ -1884,7 +1808,7 @@ const v=parseFloat(p.value);
 let txt='—';let color='#ef4444';
 if(!isNaN(v)&&v>0){
   txt='$'+v.toFixed(1)+'M';
-  if(v>=50)color='#22c55e';
+  if(v>=50)color='#00ff88';
   else if(v>=20)color='#26a69a';
   else if(v>=5)color='#f59e0b';
   else color='#ef4444';
@@ -1899,7 +1823,7 @@ const v=parseFloat(p.value);
 let txt='—';let color='#6b7280';
 if(!isNaN(v)){
   txt=v.toFixed(2)+'%';
-  if(v>=1.5&&v<=6.0)color='#22c55e';
+  if(v>=1.5&&v<=6.0)color='#00ff88';
   else if(v<1.5)color='#6b7280';
   else color='#ef4444';
 }
@@ -1911,7 +1835,7 @@ this.eGui.style.fontFamily='Courier New';
 liq_grade_renderer=JsCode("""class LG{init(p){this.eGui=document.createElement('span');
 const v=(p.value||'');
 const map={
-  'L3-Institutional':{c:'#22c55e',bg:'rgba(0,255,136,0.12)'},
+  'L3-Institutional':{c:'#00ff88',bg:'rgba(0,255,136,0.12)'},
   'L2-Professional': {c:'#26a69a',bg:'rgba(38,166,154,0.12)'},
   'L1-Retail':       {c:'#f59e0b',bg:'rgba(245,158,11,0.12)'},
   'Illiquido':       {c:'#ef4444',bg:'rgba(239,68,68,0.12)'},
@@ -1919,7 +1843,7 @@ const map={
 const m=map[v]||{c:'#6b7280',bg:'transparent'};
 this.eGui.innerText=v||'—';
 this.eGui.style.cssText='color:'+m.c+';background:'+m.bg+';padding:1px 5px;'
-  +'border-radius:3px;font-size:0.78rem;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;';
+  +'border-radius:3px;font-size:0.78rem;font-family:Courier New;';
 }getGui(){return this.eGui;}}""")
 
 # ── v34 RENDERERS ─────────────────────────────────────────────────────────────
@@ -1931,7 +1855,7 @@ this.eGui.style.cssText='display:flex;align-items:center;gap:5px;height:100%;';
 const v=parseFloat(p.value);
 if(isNaN(v)){this.eGui.innerHTML='<span style="color:#6b7280">—</span>';return;}
 const pct=Math.min(100,Math.max(0,v));
-const col=pct>=80?'#22c55e':pct>=60?'#26a69a':pct>=40?'#f59e0b':'#ef4444';
+const col=pct>=80?'#00ff88':pct>=60?'#26a69a':pct>=40?'#f59e0b':'#ef4444';
 const bar=document.createElement('div');
 bar.style.cssText='flex:1;height:6px;background:#1e222d;border-radius:3px;overflow:hidden;';
 const fill=document.createElement('div');
@@ -1939,28 +1863,28 @@ fill.style.cssText='height:100%;width:'+pct+'%;background:'+col+';border-radius:
 bar.appendChild(fill);
 const lbl=document.createElement('span');
 lbl.innerText=v.toFixed(1);
-lbl.style.cssText='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.79rem;font-weight:bold;color:'+col+';min-width:32px;text-align:right;';
+lbl.style.cssText='font-family:Courier New;font-size:0.79rem;font-weight:bold;color:'+col+';min-width:32px;text-align:right;';
 this.eGui.appendChild(lbl);this.eGui.appendChild(bar);
 }getGui(){return this.eGui;}}""")
 
 # CSS Grade (A/B/C/D) badge colorato
 css_grade_renderer=JsCode("""class CG{init(p){this.eGui=document.createElement('span');
 const v=(p.value||'');
-const map={'A':{c:'#22c55e',bg:'rgba(0,255,136,0.15)',b:'1px solid rgba(0,255,136,0.3)'},
+const map={'A':{c:'#00ff88',bg:'rgba(0,255,136,0.15)',b:'1px solid rgba(0,255,136,0.3)'},
            'B':{c:'#26a69a',bg:'rgba(38,166,154,0.15)',b:'1px solid rgba(38,166,154,0.3)'},
            'C':{c:'#f59e0b',bg:'rgba(245,158,11,0.15)',b:'1px solid rgba(245,158,11,0.3)'},
            'D':{c:'#ef4444',bg:'rgba(239,68,68,0.15)', b:'1px solid rgba(239,68,68,0.3)'}};
 const m=map[v]||{c:'#6b7280',bg:'transparent',b:'none'};
 this.eGui.innerText=v||'—';
 this.eGui.style.cssText='color:'+m.c+';background:'+m.bg+';border:'+m.b+';'
-  +'padding:1px 8px;border-radius:10px;font-weight:bold;font-size:0.85rem;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;';
+  +'padding:1px 8px;border-radius:10px;font-weight:bold;font-size:0.85rem;font-family:Courier New;';
 }getGui(){return this.eGui;}}""")
 
 # Trend Strength (STRONG/MODERATE/WEAK/RANGING)
 trend_strength_renderer=JsCode("""class TS{init(p){this.eGui=document.createElement('span');
 const v=(p.value||'');
 const map={
-  'STRONG':  {c:'#22c55e',bg:'rgba(0,255,136,0.12)',icon:'⚡'},
+  'STRONG':  {c:'#00ff88',bg:'rgba(0,255,136,0.12)',icon:'⚡'},
   'MODERATE':{c:'#26a69a',bg:'rgba(38,166,154,0.12)',icon:'↗'},
   'WEAK':    {c:'#f59e0b',bg:'rgba(245,158,11,0.12)',icon:'→'},
   'RANGING': {c:'#6b7280',bg:'rgba(107,114,128,0.10)',icon:'↔'},
@@ -1968,7 +1892,7 @@ const map={
 const m=map[v]||{c:'#6b7280',bg:'transparent',icon:''};
 this.eGui.innerText=(m.icon?m.icon+' ':'')+v;
 this.eGui.style.cssText='color:'+m.c+';background:'+m.bg+';padding:1px 6px;'
-  +'border-radius:3px;font-size:0.78rem;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;';
+  +'border-radius:3px;font-size:0.78rem;font-family:Courier New;';
 }getGui(){return this.eGui;}}""")
 
 # ADX Proxy (0-100) barra compatta
@@ -1977,7 +1901,7 @@ this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:4px;height:100%;';
 const v=parseFloat(p.value);
 if(isNaN(v)){this.eGui.innerHTML='<span style="color:#6b7280">—</span>';return;}
-const col=v>=65?'#22c55e':v>=40?'#26a69a':v>=20?'#f59e0b':'#6b7280';
+const col=v>=65?'#00ff88':v>=40?'#26a69a':v>=20?'#f59e0b':'#6b7280';
 const bar=document.createElement('div');
 bar.style.cssText='flex:1;height:4px;background:#1e222d;border-radius:2px;overflow:hidden;';
 const fill=document.createElement('div');
@@ -1985,7 +1909,7 @@ fill.style.cssText='height:100%;width:'+Math.min(100,v)+'%;background:'+col+';bo
 bar.appendChild(fill);
 const lbl=document.createElement('span');
 lbl.innerText=v.toFixed(0);
-lbl.style.cssText='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.79rem;color:'+col+';min-width:24px;';
+lbl.style.cssText='font-family:Courier New;font-size:0.79rem;color:'+col+';min-width:24px;';
 this.eGui.appendChild(lbl);this.eGui.appendChild(bar);
 }getGui(){return this.eGui;}}""")
 
@@ -1993,7 +1917,7 @@ pct_renderer=JsCode("""class Pct{init(p){this.eGui=document.createElement('span'
 const v=parseFloat(p.value);
 if(isNaN(v)){this.eGui.innerText='—';this.eGui.style.color='#6b7280';}
 else{this.eGui.innerText=(v*100).toFixed(1)+'%';
-this.eGui.style.color=v>0?'#22c55e':v<0?'#ef4444':'#6b7280';
+this.eGui.style.color=v>0?'#00ff88':v<0?'#ef4444':'#6b7280';
 this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Courier New';}
 }getGui(){return this.eGui;}}""")
 
@@ -2003,7 +1927,7 @@ this.eGui=document.createElement('div');
 this.eGui.style.cssText='display:flex;align-items:center;gap:4px;height:100%;';
 const v=parseFloat(p.value);
 if(isNaN(v)){this.eGui.innerHTML='<span style="color:#6b7280">—</span>';return;}
-const col=v>=5?'#22c55e':v>=0?'#26a69a':v>=-5?'#f59e0b':'#ef4444';
+const col=v>=5?'#00ff88':v>=0?'#26a69a':v>=-5?'#f59e0b':'#ef4444';
 const pct=Math.min(100,Math.max(0,(v+20)/40*100));
 const bar=document.createElement('div');
 bar.style.cssText='flex:1;height:4px;background:#1e222d;border-radius:2px;overflow:hidden;';
@@ -2012,16 +1936,16 @@ fill.style.cssText='height:100%;width:'+pct+'%;background:'+col+';border-radius:
 bar.appendChild(fill);
 const lbl=document.createElement('span');
 lbl.innerText=(v>0?'+':'')+v.toFixed(1)+'%';
-lbl.style.cssText='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.78rem;color:'+col+';min-width:44px;';
+lbl.style.cssText='font-family:Courier New;font-size:0.78rem;color:'+col+';min-width:44px;';
 this.eGui.appendChild(lbl);this.eGui.appendChild(bar);
 }getGui(){return this.eGui;}}""")
 
 # v41 — RS Rank renderer (0-100 badge)
 rs_rank_renderer=JsCode("""class RR{init(p){this.eGui=document.createElement('span');
 const v=parseInt(p.value||0);
-const col=v>=80?'#22c55e':v>=60?'#26a69a':v>=40?'#f59e0b':'#ef4444';
+const col=v>=80?'#00ff88':v>=60?'#26a69a':v>=40?'#f59e0b':'#ef4444';
 this.eGui.innerText=v;
-this.eGui.style.cssText='color:'+col+';font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;font-size:0.82rem;';
+this.eGui.style.cssText='color:'+col+';font-family:Courier New;font-weight:bold;font-size:0.82rem;';
 }getGui(){return this.eGui;}}""")
 
 # =========================================================================
@@ -2054,7 +1978,7 @@ def make_tv_csv(df,tab=""):
     return make_tv_txt(df)
 
 def csv_btn(df,fname,key):
-    st.download_button("📥 CSV",df.make_tv_txt(df_tv),fname,"text/csv",key=key)
+    st.download_button("📥 CSV",df.to_csv(index=False).encode(),fname,"text/csv",key=key)
 
 # =========================================================================
 # PRESETS
@@ -2213,47 +2137,147 @@ for k,v in defaults.items():
 # =========================================================================
 # KPI BAR
 # =========================================================================
+
+
+def _safe_num(v, default=0):
+    try:
+        if v is None or v == "":
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+
+def render_operational_header(df_ep, df_rea):
+    try:
+        market_open = is_market_open_nyse() if 'is_market_open_nyse' in globals() else False
+    except Exception:
+        market_open = False
+    last_scan = st.session_state.get("last_scan", "—")
+    active_list = st.session_state.get("current_list_name", st.session_state.get("currentlistname", "DEFAULT"))
+    strong_only = bool(st.session_state.get("show_strong_only", False))
+    css_on = bool(st.session_state.get("css_filter_enabled", False))
+    top_n = int(st.session_state.get("top", 15))
+    badge_cls = "open" if market_open else "closed"
+    badge_txt = "Mercato aperto" if market_open else "Mercato chiuso"
+    filt = []
+    if strong_only: filt.append("STRONG only")
+    if css_on: filt.append(f"CSS≥{int(st.session_state.get('css_min_val',40))}")
+    filt.append(f"Top {top_n}")
+    filt_txt = " · ".join(filt)
+    st.markdown(
+        f"<div class='op-header'>"
+        f"<span class='op-badge {badge_cls}'><span class='dot {'green' if market_open else 'yellow'}'></span>{badge_txt}</span>"
+        f"<span><b>Ultimo aggiornamento:</b> {last_scan}</span>"
+        f"<span class='op-sep'>|</span>"
+        f"<span><b>Watchlist attiva:</b> {active_list}</span>"
+        f"<span class='op-sep'>|</span>"
+        f"<span><b>Filtri:</b> {filt_txt}</span>"
+        f"</div>", unsafe_allow_html=True)
+
+
+def render_overview_signal_cards(df_ep, df_rea, top_n=5):
+    if df_ep is None or getattr(df_ep, 'empty', True):
+        st.info("Nessun segnale disponibile. Avvia una scansione per popolare l'overview.")
+        return
+    df = df_ep.copy()
+    score_col = None
+    for c in ["CSS", "Pro_Score", "Quality_Score", "Early_Score"]:
+        if c in df.columns:
+            score_col = c
+            break
+    if score_col:
+        df[score_col] = pd.to_numeric(df[score_col], errors='coerce').fillna(0)
+        df = df.sort_values(score_col, ascending=False)
+    picks = df.head(top_n)
+    cols = st.columns(top_n) if len(picks) >= top_n else st.columns(max(len(picks),1))
+    for i, (_, row) in enumerate(picks.iterrows()):
+        with cols[i]:
+            ticker = str(row.get('Ticker','—'))
+            nome = str(row.get('Nome',''))[:24]
+            css = row.get('CSS', row.get('Pro_Score', '—'))
+            rsi = row.get('RSI', '—')
+            badges = []
+            if str(row.get('Stato_Early','')) == 'EARLY': badges.append("<span class='sig-badge early'>EARLY</span>")
+            sp = str(row.get('Stato_Pro',''))
+            if sp == 'PRO': badges.append("<span class='sig-badge pro'>PRO</span>")
+            if sp == 'STRONG': badges.append("<span class='sig-badge strong'>STRONG</span>")
+            if str(row.get('Weekly_Bull','')) in ['True','true','1','1.0'] or row.get('Weekly_Bull', False) is True:
+                badges.append("<span class='sig-badge conf'>WEEKLY</span>")
+            st.markdown(
+                f"<div class='sig-card'>"
+                f"<div class='sig-ticker'>{ticker}</div>"
+                f"<div class='sig-name'>{nome}</div>"
+                f"<div class='sig-badges'>{''.join(badges)}</div>"
+                f"<div class='sig-meta'><span>CSS <span class='sig-css-val'>{css}</span></span><span>RSI <span class='sig-rsi-val'>{rsi}</span></span></div>"
+                f"</div>", unsafe_allow_html=True)
+    if df_rea is not None and not getattr(df_rea, 'empty', True):
+        n_hot = min(len(df_rea), 3)
+        st.markdown("<div class='ov-section-title'>Attenzione immediata</div>", unsafe_allow_html=True)
+        cols2 = st.columns(n_hot)
+        hot = df_rea.head(n_hot)
+        for i, (_, row) in enumerate(hot.iterrows()):
+            with cols2[i]:
+                ticker = str(row.get('Ticker','—'))
+                nome = str(row.get('Nome',''))[:24]
+                vol = row.get('Vol_Ratio', row.get('VolRatio','—'))
+                val = row.get('Valore', row.get('Dist_POC_%','—'))
+                st.markdown(
+                    f"<div class='sig-card'>"
+                    f"<div class='sig-ticker'>{ticker}</div>"
+                    f"<div class='sig-name'>{nome}</div>"
+                    f"<div class='sig-badges'><span class='sig-badge hot'>HOT</span></div>"
+                    f"<div class='sig-meta'><span>Vol <span class='sig-rsi-val'>{vol}</span></span><span>POC <span class='sig-rsi-val'>{val}</span></span></div>"
+                    f"</div>", unsafe_allow_html=True)
+
 def render_kpi_bar(df_ep,df_rea):
     hist=load_scan_history(2); p_e=p_p=p_h=p_c=0
     if len(hist)>=2:
-        pr=hist.iloc[1];p_e=int(pr.get("n_early",0));p_p=int(pr.get("n_pro",0))
-        p_h=int(pr.get("n_rea",0));p_c=int(pr.get("n_confluence",0))
+        pr=hist.iloc[1];p_e=int(pr.get("n_early",0));p_p=int(pr.get("n_pro",0)); p_h=int(pr.get("n_rea",0));p_c=int(pr.get("n_confluence",0))
     n_e=int((df_ep.get("Stato_Early",pd.Series())=="EARLY").sum()) if not df_ep.empty else 0
     n_p=int((df_ep.get("Stato_Pro",pd.Series()).isin(["PRO","STRONG"])).sum()) if not df_ep.empty else 0
-    n_str=int((df_ep.get("Stato_Pro",pd.Series())=="STRONG").sum()) if not df_ep.empty else 0
     n_h=len(df_rea) if not df_rea.empty else 0
     n_c=0
     if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-        n_c=int(((df_ep["Stato_Early"]=="EARLY") &
-                  (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))).sum())
-    # Liquidita' media (Dollar_Vol)
-    n_liq = 0
-    if not df_ep.empty and "Liq_OK" in df_ep.columns:
-        n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum())
-
-    # ── v34: CSS Grade A e Trend STRONG ─────────────────────────────────
-    n_css_a    = 0
-    n_strong   = 0
-    css_avg    = None
+        n_c=int(((df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))).sum())
+    n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum()) if (not df_ep.empty and "Liq_OK" in df_ep.columns) else 0
+    n_css_a, n_strong, css_avg = 0, 0, None
     if not df_ep.empty:
-        if "CSS_Grade" in df_ep.columns:
-            n_css_a = int((df_ep["CSS_Grade"] == "A").sum())
+        if "CSS_Grade" in df_ep.columns: n_css_a = int((df_ep["CSS_Grade"] == "A").sum())
         if "CSS" in df_ep.columns:
             _css_vals = pd.to_numeric(df_ep["CSS"], errors="coerce").dropna()
             css_avg = round(float(_css_vals.mean()), 1) if len(_css_vals) > 0 else None
-        if "Trend_Strength" in df_ep.columns:
-            n_strong = int((df_ep["Trend_Strength"] == "STRONG").sum())
+        if "Trend_Strength" in df_ep.columns: n_strong = int((df_ep["Trend_Strength"] == "STRONG").sum())
 
-    k1,k2,k3,k4,k5,k6,k7,k8=st.columns(8)
-    k1.metric("📡 EARLY",     n_e,   delta=n_e-p_e   if p_e  else None)
-    k2.metric("💪 PRO+STR",   n_p,   delta=n_p-p_p   if p_p  else None)
-    k3.metric("⭐ CONFLUENCE", n_c,   delta=n_c-p_c   if p_c  else None)
-    k4.metric("🔥 REA-HOT",   n_h,   delta=n_h-p_h   if p_h  else None)
-    k5.metric("💧 Liq OK",    n_liq)
-    k6.metric("🏆 CSS Grade A", n_css_a, help="Titoli con Composite Signal Score ≥ 80")
-    k7.metric("⚡ Trend STRONG", n_strong, help="Titoli con ADX_Proxy ≥ 65 (trend forte)")
-    k8.metric("📊 CSS medio",  f"{css_avg:.1f}" if css_avg else "—",
-              help="Composite Signal Score medio del batch corrente")
+    def _delta_cls(cur, prev):
+        if prev is None or prev == 0: return ""
+        return "pos" if cur >= prev else "neg"
+    def _delta_txt(cur, prev):
+        if prev is None or prev == 0: return "vs prev —"
+        d = cur - prev
+        sign = "+" if d >= 0 else ""
+        return f"{sign}{d} vs prev"
+
+    row1 = [
+        ("Segnali Early", n_e, "teal", _delta_txt(n_e,p_e), _delta_cls(n_e,p_e)),
+        ("Setup PRO", n_p, "bull", _delta_txt(n_p,p_p), _delta_cls(n_p,p_p)),
+        ("Rea-Hot", n_h, "hot", _delta_txt(n_h,p_h), _delta_cls(n_h,p_h)),
+        ("Confluence", n_c, "conf", _delta_txt(n_c,p_c), _delta_cls(n_c,p_c)),
+    ]
+    row2 = [
+        ("Liq OK", n_liq, "teal", "liquidità valida", ""),
+        ("CSS Grade A", n_css_a, "warn", "setup elite", ""),
+        ("CSS medio", f"{css_avg:.1f}" if css_avg is not None else "—", "teal", f"Trend strong {n_strong}", ""),
+    ]
+
+    c1,c2,c3,c4 = st.columns(4)
+    for col, item in zip([c1,c2,c3,c4], row1):
+        lbl,val,cls,dtxt,dcls = item
+        col.markdown(f"<div class='kpi-card'><div class='kpi-label'>{lbl}</div><div class='kpi-value {cls}'>{val}</div><div class='kpi-delta {dcls}'>{dtxt}</div></div>", unsafe_allow_html=True)
+    c5,c6,c7 = st.columns(3)
+    for col, item in zip([c5,c6,c7], row2):
+        lbl,val,cls,dtxt,dcls = item
+        col.markdown(f"<div class='kpi-card'><div class='kpi-label'>{lbl}</div><div class='kpi-value {cls}'>{val}</div><div class='kpi-delta {dcls}'>{dtxt}</div></div>", unsafe_allow_html=True)
 
 # =========================================================================
 # SIDEBAR
@@ -2297,9 +2321,9 @@ if not _df_ep_live.empty:
     _n_hot_live   = len(_df_rea_live) if not _df_rea_live.empty else 0
     st.sidebar.markdown(
         f"<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:6px;"
-        f"padding:8px 12px;margin:6px 0;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;'>"
+        f"padding:8px 12px;margin:6px 0;font-family:Courier New;font-size:0.82rem;'>"
         f"📡 <b style='color:#26a69a'>{_n_early_live}</b> EARLY &nbsp;|&nbsp; "
-        f"💪 <b style='color:#0f766e'>{_n_pro_live}</b> PRO &nbsp;|&nbsp; "
+        f"💪 <b style='color:#2962ff'>{_n_pro_live}</b> PRO &nbsp;|&nbsp; "
         f"🔥 <b style='color:#ef5350'>{_n_hot_live}</b> HOT</div>",
         unsafe_allow_html=True
     )
@@ -2570,11 +2594,11 @@ _ai_providers_status = {
 }
 _n_active = sum(_ai_providers_status.values())
 _ai_status_lines = "  ".join(
-    ("<span style='color:" + ("#22c55e" if ok else "#374151") + "'>" + name.split()[0] + "</span>")
+    ("<span style='color:" + ("#00ff88" if ok else "#374151") + "'>" + name.split()[0] + "</span>")
     for name, ok in _ai_providers_status.items()
 )
 _bg = "#0d2b1f" if _n_active > 0 else "#1a0f00"
-_bc = "#22c55e" if _n_active > 0 else "#f59e0b"
+_bc = "#00ff88" if _n_active > 0 else "#f59e0b"
 _msg = f"{_n_active}/4 provider attivi" if _n_active > 0 else "nessun provider — vai tab PRO"
 st.sidebar.markdown(
     f"<div style='background:{_bg};border-left:3px solid {_bc};"
@@ -3705,7 +3729,7 @@ st.markdown("""<style>
 /* Tab attivo */
 [data-testid="stTabs"] > div:first-child > button[aria-selected="true"] {
     color: #ffffff !important;
-    border-bottom: 3px solid #0f766e !important;
+    border-bottom: 3px solid #2962ff !important;
     background: rgba(41,98,255,0.15) !important;
     font-weight: 700 !important;
 }
@@ -3713,7 +3737,7 @@ st.markdown("""<style>
 [data-testid="stTabs"] > div:first-child > button:hover {
     background: rgba(41,98,255,0.08) !important;
     color: #e2e8f0 !important;
-    border-bottom: 2px solid #0f766e66 !important;
+    border-bottom: 2px solid #2962ff66 !important;
 }
 /* Watchlist — evidenziata in fondo */
 [data-testid="stTabs"] > div:first-child > button:last-child {
@@ -3801,13 +3825,13 @@ def _render_pattern_alerts_v41(df_src, tab_name="x"):
     st.markdown("---")
     for ar in sorted(_rows,key=lambda x:len(x["Pattern"]),reverse=True)[:30]:
         _ac1,_ac2,_ac3,_ac4 = st.columns([1.5,1.5,3,1])
-        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#22c55e" if ar["_stato"]=="PRO" else "#b2b5be"
-        _ac1.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>",unsafe_allow_html=True)
-        _ac2.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>",unsafe_allow_html=True)
+        _sc = "#ffd700" if ar["_stato"]=="STRONG" else "#00ff88" if ar["_stato"]=="PRO" else "#b2b5be"
+        _ac1.markdown(f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>{ar['Ticker']}</span><br><span style='color:#6b7280;font-size:0.72rem'>{ar['Nome']}</span>",unsafe_allow_html=True)
+        _ac2.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>${ar['Prezzo']}</span><br><span style='color:#787b86;font-size:0.72rem'>RSI {ar['RSI']} · CSS {ar['CSS']}</span>",unsafe_allow_html=True)
         _parts=[]
         for p in ar["Pattern"]:
             _bear=p in("death_cross","rsi_overbought","bb_breakout"); _gold=p=="golden_cross"
-            _bg="#ffd70022" if _gold else "#ef444422" if _bear else "#0f766e22"
+            _bg="#ffd70022" if _gold else "#ef444422" if _bear else "#2962ff22"
             _tx="#ffd700" if _gold else "#ef4444" if _bear else "#58a6ff"
             _parts.append(f"<span style='background:{_bg};color:{_tx};border-radius:3px;padding:1px 6px;font-size:0.72rem;margin-right:3px'>{_PATTERN_ALERTS_V39.get(p,{}).get('icon','🔔')} {_PATTERN_ALERTS_V39.get(p,{}).get('label',p)}</span>")
         _ac3.markdown(" ".join(_parts),unsafe_allow_html=True)
@@ -3817,7 +3841,7 @@ def _render_pattern_alerts_v41(df_src, tab_name="x"):
                 except Exception: pass
     _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
     _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📊 Export Alert",_df_exp.make_tv_txt(df_tv),f"Alert_v41_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
+    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v41_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
 
 # ── v41 #2: News & Sentiment ───────────────────────────────────────────────
 @st.cache_data(ttl=600)
@@ -3868,14 +3892,14 @@ def _render_news_v41(df_ep_news):
     _k1.metric("📰 Totale",len(_news)); _k2.metric("🟢",_nb); _k3.metric("🔴",_nr); _k4.metric("⚪",_nn)
     st.markdown("---")
     for n in _news[:40]:
-        _sc2="#22c55e" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
+        _sc2="#00ff88" if "Bullish" in n["Sentiment"] else "#ef4444" if "Bearish" in n["Sentiment"] else "#6b7280"
         _c1,_c2,_c3=st.columns([1,0.8,4.5])
         _tv_sym_n = str(n['Ticker']).replace('.MI', '%3AMI')
         _nome_n = str(n.get('Nome', '')).strip()[:22]
         _nome_n_html = (f" <span style='color:#6b7280;font-size:0.70rem;font-style:italic'>{_nome_n}</span>" if _nome_n else '')
         _c1.markdown(
             f"<a href='https://it.tradingview.com/chart/?symbol={_tv_sym_n}' target='_blank' style='text-decoration:none'>"
-            f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#22c55e;font-weight:bold'>{n['Ticker']}</span></a>"
+            f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{n['Ticker']}</span></a>"
             f"{_nome_n_html}", unsafe_allow_html=True)
         _c2.markdown(f"<span style='color:{_sc2};font-size:0.78rem'>{n['Sentiment']}</span>",unsafe_allow_html=True)
         _c3.markdown(f"<a href='{n['Link']}' target='_blank' style='color:#b2b5be;font-size:0.82rem;text-decoration:none'>{n['Titolo']}</a> <span style='color:#374151;font-size:0.70rem'>{n['Data']}</span>",unsafe_allow_html=True)
@@ -3960,13 +3984,13 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
     .ai2-grid .head{padding:10px 12px;background:#0b1326;border-bottom:1px solid #1f2937;color:#38bdf8;font-size:.74rem;font-weight:700;letter-spacing:.04em}
     .ai2-grid .row{padding:12px 12px;border-bottom:1px solid rgba(42,46,57,.75)}
     .ai2-grid .row:last-child{border-bottom:none}
-    .ai2-tkr{font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace,monospace;font-weight:800;color:#22c55e;font-size:1.03rem;line-height:1.05}
+    .ai2-tkr{font-family:Courier New,monospace;font-weight:800;color:#00ff88;font-size:1.03rem;line-height:1.05}
     .ai2-nm{color:#8b95a7;font-size:.76rem;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
     .ai2-st{display:inline-block;padding:4px 10px;border-radius:8px;font-size:.74rem;font-weight:800;border:1px solid transparent}
-    .ai2-st.pro{color:#22c55e;background:rgba(0,255,136,.08);border-color:rgba(0,255,136,.24)}
+    .ai2-st.pro{color:#00ff88;background:rgba(0,255,136,.08);border-color:rgba(0,255,136,.24)}
     .ai2-st.strong{color:#22c55e;background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.26)}
     .ai2-st.confluence{color:#fbbf24;background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.24)}
-    .ai2-m{font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace,monospace;font-weight:700}
+    .ai2-m{font-family:Courier New,monospace;font-weight:700}
     .ai2-btn{display:block;text-align:center;padding:10px 12px;border-radius:9px;border:1px solid #374151;background:#111827;color:#f9a8d4;font-weight:700}
     .ai2-btn:hover{border-color:#4b5563;background:#141c2b}
     .ai2-note{color:#787b86;font-size:.77rem}
@@ -3991,13 +4015,13 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
             "padding:10px 14px;margin-bottom:10px;font-size:0.80rem;color:#b2b5be'>"
             "Configura almeno una key. Il sistema usa quella disponibile con fallback automatico.<br><br>"
             "🟢 <b>Gemini Flash</b> — gratis · <a href='https://aistudio.google.com' target='_blank' "
-            "style='color:#0f766e'>aistudio.google.com</a> → Get API Key<br>"
+            "style='color:#2962ff'>aistudio.google.com</a> → Get API Key<br>"
             "🟣 <b>Groq</b> — gratis · <a href='https://console.groq.com' target='_blank' "
-            "style='color:#0f766e'>console.groq.com</a> → API Keys → Create<br>"
+            "style='color:#2962ff'>console.groq.com</a> → API Keys → Create<br>"
             "🔵 <b>OpenRouter</b> — free tier · <a href='https://openrouter.ai' target='_blank' "
-            "style='color:#0f766e'>openrouter.ai</a> → Keys → Create Key<br>"
+            "style='color:#2962ff'>openrouter.ai</a> → Keys → Create Key<br>"
             "🟡 <b>Claude</b> — a pagamento · <a href='https://console.anthropic.com' target='_blank' "
-            "style='color:#0f766e'>console.anthropic.com</a> → API Keys"
+            "style='color:#2962ff'>console.anthropic.com</a> → API Keys"
             "</div>",
             unsafe_allow_html=True
         )
@@ -4095,7 +4119,7 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
     # Header griglia
     _ai_cols = st.columns([2,1,1,1,1])
     for _col, _lbl in zip(_ai_cols, ["Ticker","Stato","CSS","RSI","Modulo 2"]):
-        _col.markdown(f"<span style='color:#38bdf8;font-size:0.78rem;font-weight:bold;"
+        _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
                       f"letter-spacing:1px'>{_lbl}</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
@@ -4120,7 +4144,7 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
         def _css_color(v):
             try:
                 f = float(_strip_html_val(v).replace(",","."))
-                if f >= 75: return "#22c55e"
+                if f >= 75: return "#00ff88"
                 if f >= 55: return "#ffd700"
                 if f >= 35: return "#fb923c"
                 return "#ef4444"
@@ -4129,7 +4153,7 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
             try:
                 f = float(_strip_html_val(v).replace(",","."))
                 if f >= 70: return "#ef4444"
-                if f >= 50: return "#22c55e"
+                if f >= 50: return "#00ff88"
                 if f >= 30: return "#ffd700"
                 return "#ef4444"
             except Exception: return "#b2b5be"
@@ -4142,21 +4166,21 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
         _tv_link = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
 
         _ac1,_ac2,_ac3,_ac4,_ac5 = st.columns([2,1,1,1,1])
-        _sc = "#ffd700" if _stato_ai=="STRONG" else "#22c55e"
+        _sc = "#ffd700" if _stato_ai=="STRONG" else "#00ff88"
         _ac1.markdown(
             f"<a href='{_tv_link}' target='_blank' style='text-decoration:none'>"
-            f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_sc};font-weight:bold'>"
+            f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
             f"{_tkr_ai}</span></a><br>"
             f"<span style='color:#787b86;font-size:0.72rem'>{_nome_ai}</span>",
             unsafe_allow_html=True)
         _ac2.markdown(f"<span style='color:{_sc};font-weight:bold;font-size:0.82rem'>"
                       f"{_stato_ai}</span>", unsafe_allow_html=True)
         _ac3.markdown(
-            f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;"
+            f"<span style='font-family:Courier New;font-size:0.82rem;"
             f"color:{_css_color(_css_ai)};font-weight:bold'>{_css_str}</span>",
             unsafe_allow_html=True)
         _ac4.markdown(
-            f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;"
+            f"<span style='font-family:Courier New;font-size:0.82rem;"
             f"color:{_rsi_color(_rsi_ai)};font-weight:bold'>{_rsi_str}</span>",
             unsafe_allow_html=True)
 
@@ -4198,7 +4222,7 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
                         _txt, _prov_used = _ai_call_with_fallback(_prompt_ai)
                         st.markdown(
                             f"<div style='background:#0d1117;border:1px solid #1f2937;"
-                            f"border-left:3px solid #0f766e;border-radius:0 8px 8px 0;"
+                            f"border-left:3px solid #2962ff;border-radius:0 8px 8px 0;"
                             f"padding:12px 16px;font-size:0.88rem;line-height:1.6'>"
                             f"{_txt.replace(chr(10),'<br>')}</div>",
                             unsafe_allow_html=True)
@@ -4332,7 +4356,7 @@ st.markdown("""
 <style>
 [data-testid="stTabs"] > div:first-child { display:flex !important; flex-wrap:wrap !important; gap:2px 3px !important; max-height:none !important; overflow:visible !important; width:100% !important; border-bottom:1px solid #2a2e39 !important; padding-bottom:6px !important;}
 [data-testid="stTabs"] [data-baseweb="tab"] { white-space:nowrap !important; font-size:0.74rem !important; padding:4px 8px !important; flex-shrink:0 !important; margin-bottom:2px !important; max-width:160px !important; border-radius:4px 4px 0 0 !important; border:1px solid #2a2e3966 !important;}
-[data-testid="stTabs"] [aria-selected="true"] { border-bottom:2px solid #0f766e !important; color:#0f766e !important; background:#131722 !important; font-weight:bold !important;}
+[data-testid="stTabs"] [aria-selected="true"] { border-bottom:2px solid #2962ff !important; color:#2962ff !important; background:#131722 !important; font-weight:bold !important;}
 [data-testid="stTabs"] > div:first-child > div { overflow:visible !important; max-height:none !important;}
 [role='tablist'] { display:flex !important; flex-wrap:wrap !important; overflow:visible !important; max-height:none !important; height:auto !important;}
 [data-baseweb='tab-list'] { display:flex !important; flex-wrap:wrap !important; overflow:visible !important; max-height:none !important; height:auto !important;}
@@ -4402,6 +4426,15 @@ tabs = st.tabs([
  tab_w) = tabs
 
 with tab_home:
+    st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
+    _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
+    _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
+    render_operational_header(_df_ep_home, _df_rea_home)
+    render_kpi_bar(_df_ep_home, _df_rea_home)
+    st.markdown("<div class='ov-section-title'>Top opportunità del batch corrente</div>", unsafe_allow_html=True)
+    render_overview_signal_cards(_df_ep_home, _df_rea_home, top_n=5)
+    st.markdown("<div class='tab-legend'><strong>Cosa mostra</strong> overview esecutiva del batch corrente <span class='sep'>•</span> <strong>Come viene filtrato</strong> usa i filtri attivi in sidebar <span class='sep'>•</span> <strong>Come leggerlo</strong> prima KPI, poi top setup, poi dettaglio nei tab dedicati</div>", unsafe_allow_html=True)
+    # ── v41e — ALERT BANNER: segnali STRONG visibili subito ──────────────
     # ── v41e — ALERT BANNER: segnali STRONG visibili subito ──────────────
     try:
         _df_ep_banner = st.session_state.get("df_ep", pd.DataFrame())
@@ -4412,7 +4445,7 @@ with tab_home:
             if _strong_count > 0:
                 _df_strong_map = _df_ep_banner.set_index("Ticker")["Nome"].to_dict() if "Nome" in _df_ep_banner.columns else {}
                 _banner_tickers_html = "  ".join(
-                    f"<a href='https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}' target='_blank' style='color:#ffd700;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;text-decoration:none;font-size:0.88rem'>{t}</a>"
+                    f"<a href='https://it.tradingview.com/chart/?symbol={t.replace('.MI','%3AMI')}' target='_blank' style='color:#ffd700;font-family:Courier New;font-weight:bold;text-decoration:none;font-size:0.88rem'>{t}</a>"
                     f"<span style='color:#9ca3af;font-size:0.70rem;font-style:italic'>{str(_df_strong_map.get(t,''))[:18]}</span>"
                     for t in _strong_list[:12]
                 )
@@ -4426,15 +4459,15 @@ with tab_home:
                     f"white-space:nowrap'>★ STRONG ({_strong_count})</span>"
                     f"<span style='color:#6b7280;font-size:0.78rem'>{_banner_tickers_html}{_banner_extra}</span>"
                     f"<span style='color:#374151;font-size:0.72rem;margin-left:auto'>"
-                    f"PRO+STRONG totali: <b style='color:#22c55e'>{_pro_count}</b></span>"
+                    f"PRO+STRONG totali: <b style='color:#00ff88'>{_pro_count}</b></span>"
                     f"</div>",
                     unsafe_allow_html=True
                 )
             elif _pro_count > 0:
                 st.markdown(
-                    f"<div style='background:#0d1a0d;border-left:4px solid #22c55e;"
+                    f"<div style='background:#0d1a0d;border-left:4px solid #00ff88;"
                     f"border-radius:0 6px 6px 0;padding:6px 14px;margin-bottom:10px;"
-                    f"font-size:0.80rem;color:#22c55e'>✦ {_pro_count} segnali PRO attivi — nessun STRONG</div>",
+                    f"font-size:0.80rem;color:#00ff88'>✦ {_pro_count} segnali PRO attivi — nessun STRONG</div>",
                     unsafe_allow_html=True
                 )
     except Exception:
@@ -4614,11 +4647,11 @@ with tab_home:
             _yf_url = "https://it.finance.yahoo.com/markets/"
             _live_html = (
                 f"<div style='background:#1a1e2e;border:1px solid #2a2e39;"
-                f"border-left:4px solid #0f766e;"
+                f"border-left:4px solid #2962ff;"
                 f"border-radius:0 10px 10px 0;padding:14px 18px 16px 18px;margin-bottom:16px'>"
                 f"<div style='margin-bottom:12px'>"
                 f"<a href='{_yf_url}' target='_blank' style='text-decoration:none'>"
-                f"<span style='color:#0f766e;font-weight:bold;font-size:0.90rem;"
+                f"<span style='color:#2962ff;font-weight:bold;font-size:0.90rem;"
                 f"letter-spacing:1.5px'>📊 MERCATI LIVE</span></a>"
                 f"<span style='color:#6b7280;font-size:0.73rem;margin-left:12px'>{_now_str}</span>"
                 f"<span style='color:#374151;font-size:0.70rem;margin-left:10px'>· aggiorna ogni 60s · YTD = performance da inizio anno</span>"
@@ -4630,7 +4663,7 @@ with tab_home:
                 if not _avail: continue
                 _live_html += (
                     f"<div style='margin-bottom:12px'>"
-                    f"<div style='color:#38bdf8;font-size:0.68rem;font-weight:bold;"
+                    f"<div style='color:#50c4e0;font-size:0.68rem;font-weight:bold;"
                     f"letter-spacing:2px;margin-bottom:6px;text-transform:uppercase;"
                     f"border-bottom:1px solid #2a2e39;padding-bottom:4px'>"
                     f"{_grp_name}</div>"
@@ -4662,7 +4695,7 @@ with tab_home:
                         f"transition:border-color .2s'>"
                         f"<div style='color:#9ca3af;font-size:0.66rem;white-space:nowrap;"
                         f"margin-bottom:3px;letter-spacing:0.5px'>{_m['icon']} {_m['name']}</div>"
-                        f"<div style='color:#e2e8f0;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.94rem;"
+                        f"<div style='color:#e2e8f0;font-family:Courier New;font-size:0.94rem;"
                         f"font-weight:bold;letter-spacing:0.5px'>{_pr}</div>"
                         f"<div style='color:{_c};font-size:0.73rem;font-weight:bold;margin-top:2px'>"
                         f"{_ar} {abs(_m['chg']):.2f}%</div>"
@@ -4696,17 +4729,17 @@ with tab_home:
                     _d=_map_data.get(sym,{}); _c=float(_d.get("chg",0) or 0); _p=float(_d.get("price",0) or 0)
                     _i=min(1.0,abs(_c)/3.0)
                     _bg=f"rgba(0,{int(80+120*_i)},70,.88)" if _c>=0 else f"rgba({int(120+110*_i)},35,35,.88)"
-                    _ar,_cl=("▲","#22c55e") if _c>=0 else ("▼","#ef4444")
+                    _ar,_cl=("▲","#00ff88") if _c>=0 else ("▼","#ef4444")
                     _ps=f"{_p:,.0f}" if _p>10000 else (f"{_p:.1f}" if _p>100 else (f"{_p:.2f}" if _p>0 else "—"))
                     return (f"<div style='background:{_bg};border:1px solid #2a2e39;border-radius:6px;"
                             f"padding:6px 4px;text-align:center;min-width:72px;flex:1;max-width:110px'>"
                             f"<div style='color:#e2e8f0;font-size:.74rem;font-weight:bold'>{lbl}</div>"
-                            f"<div style='color:{_cl};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;font-size:.92rem'>{_ar}{abs(_c):.1f}%</div>"
+                            f"<div style='color:{_cl};font-family:Courier New;font-weight:bold;font-size:.92rem'>{_ar}{abs(_c):.1f}%</div>"
                             f"<div style='color:#9ca3af;font-size:.74rem'>{_ps}</div></div>")
                 _rc=st.columns([1,1.5,1])
                 for _ci,(_rn,_ra) in enumerate(_map_regions.items()):
                     with _rc[_ci]:
-                        st.markdown(f"<div style='color:#38bdf8;font-size:.70rem;font-weight:bold;text-align:center;"
+                        st.markdown(f"<div style='color:#50c4e0;font-size:.70rem;font-weight:bold;text-align:center;"
                                     f"letter-spacing:2px;border-bottom:1px solid #2a2e39;padding-bottom:4px;"
                                     f"margin-bottom:6px'>{_rn}</div>",unsafe_allow_html=True)
                         st.markdown("<div style='display:flex;flex-wrap:wrap;gap:4px;justify-content:center'>"
@@ -4842,8 +4875,8 @@ with tab_home:
                     _ea.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' target='_blank' "
                         f"style='text-decoration:none'>"
-                        f"<b style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#22c55e;font-size:0.95rem'>{_tkr_ed}</b>"
-                        f"<span style='color:#0f766e;font-size:0.65rem'> ↗</span></a>"
+                        f"<b style='font-family:Courier New;color:#00ff88;font-size:0.95rem'>{_tkr_ed}</b>"
+                        f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
                         f"<br><span style='color:#787b86;font-size:0.72rem'>{_nome_ed}</span>",
                         unsafe_allow_html=True)
                     _eb.markdown(
@@ -4870,11 +4903,11 @@ with tab_home:
     # ── v42i: COT REPORT ─────────────────────────────────────────────────
     with st.expander('📊 COT REPORT v42h — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown(
-            '<div style=\'background:#1e222d;border-left:3px solid #0f766e;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px\'><span style=\'color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px\'>COS\'\\u00c8 IL COT REPORT</span><br><span style=\'color:#b2b5be;font-size:0.82rem\'>Il <b style="color:#d1d4dc">COT (Commitment of Traders)</b> \\u00e8 un report settimanale pubblicato ogni <b style="color:#f59e0b">venerd\\u00ec alle 21:30 CET</b> dalla CFTC. Fotografa le posizioni <b style="color:#22c55e">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 gruppi: <b style="color:#22c55e">Commercial</b> (hedger), <b style="color:#60a5fa">Non-Commercial</b> (hedge fund / speculatori), <b style="color:#6b7280">Non-Reportable</b> (retail). Dati riferiti al <b style="color:#f59e0b">martedi precedente</b> — 3 giorni di ritardo.</span></div>',
+            '<div style=\'background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px\'><span style=\'color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px\'>COS\'\\u00c8 IL COT REPORT</span><br><span style=\'color:#b2b5be;font-size:0.82rem\'>Il <b style="color:#d1d4dc">COT (Commitment of Traders)</b> \\u00e8 un report settimanale pubblicato ogni <b style="color:#f59e0b">venerd\\u00ec alle 21:30 CET</b> dalla CFTC. Fotografa le posizioni <b style="color:#00ff88">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 gruppi: <b style="color:#00ff88">Commercial</b> (hedger), <b style="color:#60a5fa">Non-Commercial</b> (hedge fund / speculatori), <b style="color:#6b7280">Non-Reportable</b> (retail). Dati riferiti al <b style="color:#f59e0b">martedi precedente</b> — 3 giorni di ritardo.</span></div>',
             unsafe_allow_html=True)
 
         st.markdown(
-            '<div style=\'background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px;margin-bottom:10px\'><div style=\'color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:10px\'>\\U0001f4d6 COME LEGGERE IL COT</div><table style=\'width:100%;border-collapse:collapse;font-size:0.81rem;font-family:Trebuchet MS,sans-serif\'><tr style=\'border-bottom:1px solid #2a2e39\'><th style=\'color:#38bdf8;padding:5px 10px;text-align:left\'>Categoria</th><th style=\'color:#38bdf8;padding:5px 10px;text-align:left\'>Chi sono</th><th style=\'color:#38bdf8;padding:5px 10px;text-align:left\'>Interpretazione</th></tr><tr style=\'border-bottom:1px solid #1a2233\'><td style=\'padding:6px 10px;color:#22c55e;font-weight:bold\'>Commercial</td><td style=\'padding:6px 10px;color:#b2b5be\'>Produttori, banche, hedger reali</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#22c55e">Contrarian</b>: molti short = prezzo vicino ai minimi</td></tr><tr style=\'border-bottom:1px solid #1a2233\'><td style=\'padding:6px 10px;color:#60a5fa;font-weight:bold\'>Non-Commercial</td><td style=\'padding:6px 10px;color:#b2b5be\'>Hedge fund, grandi speculatori</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#60a5fa">Trend-following</b>: estremi storici = inversione imminente</td></tr><tr><td style=\'padding:6px 10px;color:#6b7280;font-weight:bold\'>Non-Reportable</td><td style=\'padding:6px 10px;color:#b2b5be\'>Piccoli trader retail</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#ef4444">Contrarian forte</b>: spesso sbagliano top/bottom</td></tr></table></div>',
+            '<div style=\'background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px;margin-bottom:10px\'><div style=\'color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:10px\'>\\U0001f4d6 COME LEGGERE IL COT</div><table style=\'width:100%;border-collapse:collapse;font-size:0.81rem;font-family:Trebuchet MS,sans-serif\'><tr style=\'border-bottom:1px solid #2a2e39\'><th style=\'color:#50c4e0;padding:5px 10px;text-align:left\'>Categoria</th><th style=\'color:#50c4e0;padding:5px 10px;text-align:left\'>Chi sono</th><th style=\'color:#50c4e0;padding:5px 10px;text-align:left\'>Interpretazione</th></tr><tr style=\'border-bottom:1px solid #1a2233\'><td style=\'padding:6px 10px;color:#00ff88;font-weight:bold\'>Commercial</td><td style=\'padding:6px 10px;color:#b2b5be\'>Produttori, banche, hedger reali</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#00ff88">Contrarian</b>: molti short = prezzo vicino ai minimi</td></tr><tr style=\'border-bottom:1px solid #1a2233\'><td style=\'padding:6px 10px;color:#60a5fa;font-weight:bold\'>Non-Commercial</td><td style=\'padding:6px 10px;color:#b2b5be\'>Hedge fund, grandi speculatori</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#60a5fa">Trend-following</b>: estremi storici = inversione imminente</td></tr><tr><td style=\'padding:6px 10px;color:#6b7280;font-weight:bold\'>Non-Reportable</td><td style=\'padding:6px 10px;color:#b2b5be\'>Piccoli trader retail</td><td style=\'padding:6px 10px;color:#b2b5be\'><b style="color:#ef4444">Contrarian forte</b>: spesso sbagliano top/bottom</td></tr></table></div>',
             unsafe_allow_html=True)
 
         _cot_links = [
@@ -4905,7 +4938,7 @@ with tab_home:
         st.markdown(_cot_html, unsafe_allow_html=True)
 
         st.markdown(
-            "<div style='background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px'><div style='color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>\\u26a1 SEGNALI COT DA MONITORARE</div><div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px'><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#22c55e;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u2705 SEGNALE BULLISH</div><div style='color:#b2b5be;font-size:0.79rem'>Commercial molto long + Non-Commercial estremo short \\u2192 inversione rialzo imminente</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#ef4444;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u274c SEGNALE BEARISH</div><div style='color:#b2b5be;font-size:0.79rem'>Non-Commercial molto long (euforia speculativa) \\u2192 spesso anticipa correzioni significative</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#f59e0b;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u26a0\\ufe0f LIMITE DEL COT</div><div style='color:#b2b5be;font-size:0.79rem'>Il COT \\u00e8 indicatore di <b>timing</b>, non di entrata precisa. I mercati possono restare in estremo per settimane. Usarlo con price action.</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#60a5fa;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\U0001f4c5 QUANDO LEGGERLO</div><div style='color:#b2b5be;font-size:0.79rem'>Ogni <b>venerd\\u00ec dopo le 21:30 CET</b>. Confronta con settimana precedente per il delta posizione netta. Dati riferiti al marted\\u00ec precedente.</div></div></div></div>",
+            "<div style='background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px'><div style='color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>\\u26a1 SEGNALI COT DA MONITORARE</div><div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px'><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#00ff88;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u2705 SEGNALE BULLISH</div><div style='color:#b2b5be;font-size:0.79rem'>Commercial molto long + Non-Commercial estremo short \\u2192 inversione rialzo imminente</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#ef4444;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u274c SEGNALE BEARISH</div><div style='color:#b2b5be;font-size:0.79rem'>Non-Commercial molto long (euforia speculativa) \\u2192 spesso anticipa correzioni significative</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#f59e0b;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\u26a0\\ufe0f LIMITE DEL COT</div><div style='color:#b2b5be;font-size:0.79rem'>Il COT \\u00e8 indicatore di <b>timing</b>, non di entrata precisa. I mercati possono restare in estremo per settimane. Usarlo con price action.</div></div><div style='background:#1e222d;border-radius:6px;padding:9px 12px'><div style='color:#60a5fa;font-size:0.75rem;font-weight:bold;margin-bottom:4px'>\\U0001f4c5 QUANDO LEGGERLO</div><div style='color:#b2b5be;font-size:0.79rem'>Ogni <b>venerd\\u00ec dopo le 21:30 CET</b>. Confronta con settimana precedente per il delta posizione netta. Dati riferiti al marted\\u00ec precedente.</div></div></div></div>",
             unsafe_allow_html=True)
 
     st.markdown('---')
@@ -4913,27 +4946,27 @@ with tab_home:
     # ── v42i: COT REPORT — Commitment of Traders ─────────────────────────
     with st.expander('📊 COT REPORT — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown("""
-<div style='background:#1e222d;border-left:3px solid #0f766e;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px'>
-<span style='color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px'>COS'È IL COT REPORT</span><br>
+<div style='background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px'>
+<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px'>COS'È IL COT REPORT</span><br>
 <span style='color:#b2b5be;font-size:0.82rem'>Il <b style="color:#d1d4dc">COT (Commitment of Traders)</b> è un report settimanale pubblicato ogni <b style="color:#f59e0b">venerdì alle 21:30 CET</b> dalla CFTC (Commodity Futures Trading Commission).
-Fotografa le posizioni <b style="color:#22c55e">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 grandi gruppi di operatori su futures: <b style="color:#d1d4dc">Commercial</b> (hedger istituzionali), <b style="color:#60a5fa">Non-Commercial</b> (grandi speculatori/fondi) e <b style="color:#6b7280">Non-Reportable</b> (piccoli trader).
+Fotografa le posizioni <b style="color:#00ff88">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 grandi gruppi di operatori su futures: <b style="color:#d1d4dc">Commercial</b> (hedger istituzionali), <b style="color:#60a5fa">Non-Commercial</b> (grandi speculatori/fondi) e <b style="color:#6b7280">Non-Reportable</b> (piccoli trader).
 I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 giorni di ritardo.</span>
 </div>
 """, unsafe_allow_html=True)
 
         st.markdown("""
 <div style='background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px;margin-bottom:10px'>
-<div style='color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:10px'>📖 COME LEGGERE IL COT</div>
+<div style='color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:10px'>📖 COME LEGGERE IL COT</div>
 <table style='width:100%;border-collapse:collapse;font-size:0.81rem;font-family:Trebuchet MS'>
 <tr style='border-bottom:1px solid #2a2e39'>
-  <th style='color:#38bdf8;padding:5px 10px;text-align:left'>Categoria</th>
-  <th style='color:#38bdf8;padding:5px 10px;text-align:left'>Chi sono</th>
-  <th style='color:#38bdf8;padding:5px 10px;text-align:left'>Come interpretarli</th>
+  <th style='color:#50c4e0;padding:5px 10px;text-align:left'>Categoria</th>
+  <th style='color:#50c4e0;padding:5px 10px;text-align:left'>Chi sono</th>
+  <th style='color:#50c4e0;padding:5px 10px;text-align:left'>Come interpretarli</th>
 </tr>
 <tr style='border-bottom:1px solid #1a2233'>
-  <td style='padding:6px 10px;color:#22c55e;font-weight:bold'>Commercial</td>
+  <td style='padding:6px 10px;color:#00ff88;font-weight:bold'>Commercial</td>
   <td style='padding:6px 10px;color:#b2b5be'>Produttori, banche, hedger</td>
-  <td style='padding:6px 10px;color:#b2b5be'>Segnale <b style="color:#22c55e">contrarian</b>: molti short = prezzo vicino ai minimi</td>
+  <td style='padding:6px 10px;color:#b2b5be'>Segnale <b style="color:#00ff88">contrarian</b>: molti short = prezzo vicino ai minimi</td>
 </tr>
 <tr style='border-bottom:1px solid #1a2233'>
   <td style='padding:6px 10px;color:#60a5fa;font-weight:bold'>Non-Commercial</td>
@@ -4952,7 +4985,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
         # Link rapidi COT per i principali asset del tuo scanner
         st.markdown("""
 <div style='background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px;margin-bottom:10px'>
-<div style='color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>🔗 LINK RAPIDI — COT per asset chiave</div>
+<div style='color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>🔗 LINK RAPIDI — COT per asset chiave</div>
 <div style='display:flex;flex-wrap:wrap;gap:8px'>
 """, unsafe_allow_html=True)
 
@@ -4983,10 +5016,10 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
 
         st.markdown("""
 <div style='background:#131722;border:1px solid #2a2e39;border-radius:8px;padding:12px 16px'>
-<div style='color:#38bdf8;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>⚡ SEGNALI COT DA MONITORARE</div>
+<div style='color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px;margin-bottom:8px'>⚡ SEGNALI COT DA MONITORARE</div>
 <div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px'>
   <div style='background:#1e222d;border-radius:6px;padding:8px 12px'>
-    <div style='color:#22c55e;font-size:0.75rem;font-weight:bold'>✅ SEGNALE BULLISH</div>
+    <div style='color:#00ff88;font-size:0.75rem;font-weight:bold'>✅ SEGNALE BULLISH</div>
     <div style='color:#b2b5be;font-size:0.79rem;margin-top:4px'>Commercial molto long + Non-Commercial estremo short → inversione al rialzo imminente</div>
   </div>
   <div style='background:#1e222d;border-radius:6px;padding:8px 12px'>
@@ -5072,7 +5105,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                     _sc = _ht_color(_sv, _ht_max)
                     _ar = "▲" if _sv >= 0 else "▼"
                     _spark_s = _mini_sparkline_svg(_sec_d.get("spark",[]),
-                                                    "#22c55e" if _sv>=0 else "#ef4444",
+                                                    "#00ff88" if _sv>=0 else "#ef4444",
                                                     70, 22)
                     _ht_html += (
                         f"<div style='background:{_sc};border-radius:6px;"
@@ -5080,7 +5113,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                         f"text-align:center;cursor:default'>"
                         f"<div style='color:#fff;font-size:0.72rem;font-weight:bold;"
                         f"margin-bottom:2px'>{_sec_lbl}</div>"
-                        f"<div style='color:#fff;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;"
+                        f"<div style='color:#fff;font-family:Courier New;font-size:0.82rem;"
                         f"font-weight:bold'>{_ar}{abs(_sv):.1f}%</div>"
                         f"{_spark_s}"
                         f"</div>"
@@ -5108,14 +5141,14 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                                          key=lambda s: pd.to_numeric(s, errors="coerce").fillna(0))
                             .head(5))
                 for _, _r in _top_pro.iterrows():
-                    _sc = "#ffd700" if _r.get("Stato_Pro")=="STRONG" else "#22c55e"
+                    _sc = "#ffd700" if _r.get("Stato_Pro")=="STRONG" else "#00ff88"
                     _tv = str(_r.get("Ticker","")).replace(".MI","%3AMI")
                     _nome_pr=str(_r.get('Nome',_r.get('Company',_r.get('name','')))).strip()[:22]
                     _nome_lbl=f" <span style='color:#9ca3af;font-size:0.70rem;font-style:italic'>{_nome_pr}</span>" if _nome_pr else ''
                     st.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' target='_blank' "
                         f"style='text-decoration:none'>"
-                        f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_sc};font-weight:bold'>"
+                        f"<span style='font-family:Courier New;color:{_sc};font-weight:bold'>"
                         f"{_r.get('Ticker','')}</span></a>"
                         f"{_nome_lbl}"
                         f"<span style='color:#6b7280;font-size:0.72rem'> · CSS {_r.get('CSS','—')} · {_r.get('Stato_Pro','')}</span>",
@@ -5137,7 +5170,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                     st.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' target='_blank' "
                         f"style='text-decoration:none'>"
-                        f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#60a5fa;font-weight:bold'>"
+                        f"<span style='font-family:Courier New;color:#60a5fa;font-weight:bold'>"
                         f"{_r.get('Ticker','')}</span></a>"
                         f"{_nome_ea_lbl}"
                         f"<span style='color:#6b7280;font-size:0.72rem'> · E:{_r.get('Early_Score','—')} · RSI {_r.get('RSI','—')}</span>",
@@ -5160,7 +5193,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                     st.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' target='_blank' "
                         f"style='text-decoration:none'>"
-                        f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#f97316;font-weight:bold'>"
+                        f"<span style='font-family:Courier New;color:#f97316;font-weight:bold'>"
                         f"{_r.get('Ticker','')}</span></a>"
                         f"{_nome_hot_lbl}"
                         f"<span style='color:#6b7280;font-size:0.72rem'> · Vol×{_vr}</span>",
@@ -5169,7 +5202,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                 st.caption("Avvia lo scanner")
 
     # ── v42i: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v42i — Novità e roadmap V44a', expanded=False):
+    with st.expander('💡 Suggerimenti v42i — Novità e roadmap', expanded=False):
         st.markdown("""
 **✅ Implementato in v42i:**
 - ⬆️ btt-btn: versione definitiva multi-target (`.main`, `.block-container`, `documentElement`, `body`, `window.parent`) + MutationObserver — comparsa garantita
@@ -5232,24 +5265,24 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                 _total_cost_h += _cost_h
                 _total_val_h  += _val_h
                 _total_pnl_h  += _pnl_v_h
-                _pc_h = "#22c55e" if _pnl_v_h >= 0 else "#ef4444"
+                _pc_h = "#00ff88" if _pnl_v_h >= 0 else "#ef4444"
                 _tv_h = _pt_h.replace(".MI","%3AMI")
                 _cur_str = f"${_cur_p_h:.2f}" if _cur_p_h > 0 else "—"
                 _pnl_rows_h.append(
                     f"<tr style='border-bottom:1px solid #1e222d'>"
                     f"<td style='padding:5px 8px'>"
                     f"<a href='https://it.tradingview.com/chart/?symbol={_tv_h}' target='_blank' "
-                    f"style='color:#22c55e;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-weight:bold;"
+                    f"style='color:#00ff88;font-family:Courier New;font-weight:bold;"
                     f"text-decoration:none;font-size:0.85rem'>{_pt_h}</a></td>"
-                    f"<td style='padding:5px 8px;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be'>${_entry_h:.2f}</td>"
-                    f"<td style='padding:5px 8px;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#d1d4dc'>{_cur_str}</td>"
+                    f"<td style='padding:5px 8px;font-family:Courier New;color:#b2b5be'>${_entry_h:.2f}</td>"
+                    f"<td style='padding:5px 8px;font-family:Courier New;color:#d1d4dc'>{_cur_str}</td>"
                     f"<td style='padding:5px 8px;color:#6b7280'>{_size_h}</td>"
-                    f"<td style='padding:5px 8px;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_pc_h};font-weight:bold'>"
+                    f"<td style='padding:5px 8px;font-family:Courier New;color:{_pc_h};font-weight:bold'>"
                     f"${_pnl_v_h:+,.0f} ({_pnl_p_h:+.1f}%)</td>"
                     f"</tr>"
                 )
             if _pnl_rows_h:
-                _tc_h = "#22c55e" if _total_pnl_h >= 0 else "#ef4444"
+                _tc_h = "#00ff88" if _total_pnl_h >= 0 else "#ef4444"
                 _ret_pct_h = (_total_val_h/_total_cost_h - 1)*100 if _total_cost_h > 0 else 0
                 _pk1,_pk2,_pk3,_pk4 = st.columns(4)
                 _pk1.metric("📦 Posizioni",  len(_pnl_positions_home))
@@ -5260,11 +5293,11 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
                     "<div style='overflow-x:auto'>"
                     "<table style='width:100%;border-collapse:collapse;font-size:0.82rem;background:#131722'>"
                     "<tr style='border-bottom:2px solid #2a2e39'>"
-                    "<th style='padding:5px 8px;color:#38bdf8;text-align:left'>Ticker</th>"
-                    "<th style='padding:5px 8px;color:#38bdf8'>Entry $</th>"
-                    "<th style='padding:5px 8px;color:#38bdf8'>Prezzo attuale</th>"
-                    "<th style='padding:5px 8px;color:#38bdf8'>Qty</th>"
-                    "<th style='padding:5px 8px;color:#38bdf8'>P&L $</th></tr>"
+                    "<th style='padding:5px 8px;color:#50c4e0;text-align:left'>Ticker</th>"
+                    "<th style='padding:5px 8px;color:#50c4e0'>Entry $</th>"
+                    "<th style='padding:5px 8px;color:#50c4e0'>Prezzo attuale</th>"
+                    "<th style='padding:5px 8px;color:#50c4e0'>Qty</th>"
+                    "<th style='padding:5px 8px;color:#50c4e0'>P&L $</th></tr>"
                     + "".join(_pnl_rows_h) +
                     "</table></div>",
                     unsafe_allow_html=True)
@@ -5333,7 +5366,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
             return (f"<div style='background:#1a1e2e;border:1px solid #2a2e3d;border-top:2px solid {col};"
                     f"border-radius:6px;padding:10px 12px'>"
                     f"<div style='font-size:0.70rem;color:#6b7280'>{icon} {title}</div>"
-                    f"<div style='font-size:1.25rem;font-weight:bold;color:{col};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>{val_s}</div>"
+                    f"<div style='font-size:1.25rem;font-weight:bold;color:{col};font-family:Courier New'>{val_s}</div>"
                     f"<span style='background:{col}22;color:{col};border:1px solid {col}44;border-radius:10px;"
                     f"padding:1px 7px;font-size:0.67rem;font-weight:bold'>{badge}</span>"
                     f"{_bar}"
@@ -5342,18 +5375,18 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
 
         # VIX
         _vix=_bd.get("vix") or 20.0
-        _vc,_vb=("#f59e0b","EUFORIA") if _vix<15 else ("#22c55e","NORMALE") if _vix<20 else ("#f59e0b","ALLERTA") if _vix<30 else ("#ef4444","PAURA")
+        _vc,_vb=("#f59e0b","EUFORIA") if _vix<15 else ("#00ff88","NORMALE") if _vix<20 else ("#f59e0b","ALLERTA") if _vix<30 else ("#ef4444","PAURA")
         # CAPE
-        _cc2,_cb=("#22c55e","CHEAP") if _cape<20 else ("#f59e0b","FAIR") if _cape<30 else ("#ef4444","BOLLA") if _cape<38 else ("#a855f7","ESTREMO")
+        _cc2,_cb=("#00ff88","CHEAP") if _cape<20 else ("#f59e0b","FAIR") if _cape<30 else ("#ef4444","BOLLA") if _cape<38 else ("#a855f7","ESTREMO")
         # Buffett
         _w5=_bd.get("w5000"); _bi=round(_w5/(28.2e9)*100,1) if _w5 else None
-        _bic,_bib=("#6b7280","N/D") if not _bi else ("#22c55e","SOTTOVALUTATO") if _bi<100 else ("#f59e0b","FAIR") if _bi<150 else ("#ef4444","BOLLA")
+        _bic,_bib=("#6b7280","N/D") if not _bi else ("#00ff88","SOTTOVALUTATO") if _bi<100 else ("#f59e0b","FAIR") if _bi<150 else ("#ef4444","BOLLA")
         # CPI
-        _cpic,_cpib=("#22c55e","SOTTO TARGET") if _cpi<2 else ("#26a69a","OK FED") if _cpi<3 else ("#f59e0b","ELEVATA") if _cpi<5 else ("#ef4444","CRITICA")
+        _cpic,_cpib=("#00ff88","SOTTO TARGET") if _cpi<2 else ("#26a69a","OK FED") if _cpi<3 else ("#f59e0b","ELEVATA") if _cpi<5 else ("#ef4444","CRITICA")
         # SPY vs 52w
         _sp_p=_bd.get("spy_p"); _sp_52=_bd.get("spy_52")
         _spdd=round((_sp_p/_sp_52-1)*100,1) if _sp_p and _sp_52 else None
-        _spc="#22c55e" if _spdd and _spdd>-5 else "#f59e0b" if _spdd and _spdd>-15 else "#ef4444"
+        _spc="#00ff88" if _spdd and _spdd>-5 else "#f59e0b" if _spdd and _spdd>-15 else "#ef4444"
         _spb="RECORD" if _spdd and _spdd>-3 else "PULLBACK" if _spdd and _spdd>-10 else "CORREZIONE"
 
         st.markdown("**📊 Valutazione mercato & inflazione**")
@@ -5382,14 +5415,14 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
             return _bcard(icon,title,_vs,badge,col,f"<b>Come funziona:</b> {desc_main}<br><b>Segnale:</b> {desc_logic}",_pct)
 
         _lip=_bd.get("lipstick")
-        _lipc,_lipb=("#6b7280","N/D") if _lip is None else ("#ef4444","RECESSIONE") if _lip>5 else ("#f59e0b","ATTENZIONE") if _lip>0 else ("#22c55e","NEUTRO")
+        _lipc,_lipb=("#6b7280","N/D") if _lip is None else ("#ef4444","RECESSIONE") if _lip>5 else ("#f59e0b","ATTENZIONE") if _lip>0 else ("#00ff88","NEUTRO")
         _uc=_bd.get("usedcar")
-        _ucc,_ucb=("#6b7280","N/D") if _uc is None else ("#26a69a","DISINFLAZ.") if _uc<-10 else ("#22c55e","NORMALIZ.") if _uc<0 else ("#f59e0b","PRESSIONE") if _uc<10 else ("#ef4444","INFLAZ.")
+        _ucc,_ucb=("#6b7280","N/D") if _uc is None else ("#26a69a","DISINFLAZ.") if _uc<-10 else ("#00ff88","NORMALIZ.") if _uc<0 else ("#f59e0b","PRESSIONE") if _uc<10 else ("#ef4444","INFLAZ.")
         _sc2=_bd.get("stripclub")
-        _scc,_scb=("#6b7280","N/D") if _sc2 is None else ("#22c55e","CONSUMI OK") if _sc2>10 else ("#26a69a","STABILE") if _sc2>0 else ("#f59e0b","CAUTELA") if _sc2>-10 else ("#ef4444","STRESS")
+        _scc,_scb=("#6b7280","N/D") if _sc2 is None else ("#00ff88","CONSUMI OK") if _sc2>10 else ("#26a69a","STABILE") if _sc2>0 else ("#f59e0b","CAUTELA") if _sc2>-10 else ("#ef4444","STRESS")
         _cb2=_bd.get("cardboard")
-        _cbc,_cbb=("#6b7280","N/D") if _cb2 is None else ("#22c55e","COMMERCIO OK") if _cb2>5 else ("#26a69a","STABILE") if _cb2>0 else ("#f59e0b","RALLENT.") if _cb2>-10 else ("#ef4444","CONTRAZIONE")
-        _m2c="#ef4444" if _m2>8 else "#f59e0b" if _m2>4 else "#22c55e"
+        _cbc,_cbb=("#6b7280","N/D") if _cb2 is None else ("#00ff88","COMMERCIO OK") if _cb2>5 else ("#26a69a","STABILE") if _cb2>0 else ("#f59e0b","RALLENT.") if _cb2>-10 else ("#ef4444","CONTRAZIONE")
+        _m2c="#ef4444" if _m2>8 else "#f59e0b" if _m2>4 else "#00ff88"
         _m2b="ESPANSIVA" if _m2>5 else "NEUTRALE" if _m2>0 else "RESTRITTIVA"
 
         _uc1,_uc2,_uc3,_uc4,_uc5=st.columns(5)
@@ -5415,7 +5448,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
         if _bi:  _bscores.append(min(100,_bi/250*100))
         _bscores.append(min(100,_cpi/10*100))
         _bs=round(sum(_bscores)/len(_bscores))
-        _bsc="#ef4444" if _bs>70 else "#f59e0b" if _bs>45 else "#22c55e"
+        _bsc="#ef4444" if _bs>70 else "#f59e0b" if _bs>45 else "#00ff88"
         _bsi="🔴 BOLLA" if _bs>70 else "🟡 ATTENZIONE" if _bs>45 else "🟢 OK"
         st.markdown(
             f"<div style='background:#12151f;border:1px solid {_bsc}44;border-radius:8px;"
@@ -5638,7 +5671,7 @@ with tab_mtf:
 
     # ── Badge capitalizzazione — sempre visibili ─────────────────────────
     _CMP_DEFAULTS = [
-        ("AAPL",  "Apple",    "~3.4T", "#0f766e"),
+        ("AAPL",  "Apple",    "~3.4T", "#2962ff"),
         ("MSFT",  "Microsoft","~3.1T", "#00d4aa"),
         ("NVDA",  "NVIDIA",   "~2.9T", "#f97316"),
         ("AMZN",  "Amazon",   "~2.2T", "#ff4081"),
@@ -5649,7 +5682,7 @@ with tab_mtf:
         f'<span style="background:rgba(255,255,255,0.04);border:1px solid {c}44;' 
         f'border-left:3px solid {c};border-radius:0 3px 3px 0;' 
         f'padding:3px 10px;margin:2px 4px 2px 0;display:inline-block;' 
-        f'font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.78rem">' 
+        f'font-family:Courier New;font-size:0.78rem">' 
         f'<b style="color:{c}">{t}</b>' 
         f'<span style="color:#b2b5be;margin-left:5px">{n}</span>' 
         f'<span style="color:#5a6478;margin-left:5px;font-size:0.70rem">{cap}</span>' 
@@ -5745,7 +5778,7 @@ with tab_mtf:
             if not _cmp_data:
                 st.error("Nessun dato disponibile. Verifica i simboli.")
             else:
-                _pal_cmp = ["#0f766e","#00d4aa","#f97316","#f59e0b",
+                _pal_cmp = ["#2962ff","#00d4aa","#f97316","#f59e0b",
                             "#a78bfa","#ef5350","#26c6da","#00e676",
                             "#ff4081","#ffd740","#40c4ff","#69f0ae"]
                 fig_cmp = go.Figure()
@@ -5811,7 +5844,7 @@ with tab_mtf:
                     paper_bgcolor="#131722", plot_bgcolor="#1e222d",
                     title=dict(
                         text=f"Performance normalizzata (base 100) · {_cmp_range}",
-                        font=dict(color="#38bdf8", size=13), x=0.01
+                        font=dict(color="#50c4e0", size=13), x=0.01
                     ),
                     height=430,
                     yaxis=dict(title="Rendimento %", ticksuffix="%",
@@ -5839,7 +5872,7 @@ with tab_mtf:
                     def _cell(v):
                         try:
                             val = float(str(v).replace("%","").replace("+",""))
-                            return f"color: {'#22c55e' if val>0 else '#ef4444' if val<0 else '#6b7280'};font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace"
+                            return f"color: {'#00ff88' if val>0 else '#ef4444' if val<0 else '#6b7280'};font-weight:bold;font-family:Courier New"
                         except Exception:
                             return ""
                     return [_cell(x) for x in s]
@@ -6144,7 +6177,7 @@ with tab_crisis:
         gb_c.configure_column("Ticker", width=100, pinned="left",
             cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('span');
 this.eGui.innerText=p.value||'';const t=p.value;if(!t)return;
-this.eGui.style.cursor='pointer';this.eGui.style.color='#38bdf8';
+this.eGui.style.cursor='pointer';this.eGui.style.color='#50c4e0';
 this.eGui.style.fontWeight='bold';this.eGui.style.fontFamily='Trebuchet MS';
 this.eGui.title='Doppio click → TradingView';
 this.eGui.ondblclick=()=>window.open('https://it.tradingview.com/chart/?symbol='+String(t).split('.')[0],'_blank');}
@@ -6307,7 +6340,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
         gb_r.configure_column("Ticker", width=85, pinned="left",
             cellRenderer=JsCode("""class T{init(p){this.eGui=document.createElement('span');
 this.eGui.innerText=p.value||'';const t=p.value;if(!t)return;
-this.eGui.style.cssText='cursor:pointer;color:#38bdf8;font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace';
+this.eGui.style.cssText='cursor:pointer;color:#50c4e0;font-weight:bold;font-family:Courier New';
 this.eGui.title='Doppio click → TradingView';
 this.eGui.ondblclick=()=>window.open('https://it.tradingview.com/chart/?symbol='+String(t).split('.')[0],'_blank');}
 getGui(){return this.eGui;}refresh(){return false;}}"""))
@@ -6486,7 +6519,7 @@ with tab_w:
                         _pnl_usd = (_cur_price - _entry) * _size
                         _pnl_pct = (_cur_price / _entry - 1) * 100
                         _pnl_str = f"${_pnl_usd:+,.0f} ({_pnl_pct:+.1f}%)"
-                        _color    = "#22c55e" if _pnl_usd >= 0 else "#ef4444"
+                        _color    = "#00ff88" if _pnl_usd >= 0 else "#ef4444"
                     else:
                         _pnl_str = "— (no scanner data)"
                         _color    = "#6b7280"
@@ -6506,7 +6539,7 @@ with tab_w:
                     _c1.markdown(f"**`{_row['Ticker']}`**")
                     _c2.caption(f"Entry: {_row['Entry $']}")
                     _c3.caption(f"Now: {_row['Current $']}")
-                    _c4.markdown(f"<span style='color:{_row['_color']};font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.85rem'>{_row['P&L']}</span>", unsafe_allow_html=True)
+                    _c4.markdown(f"<span style='color:{_row['_color']};font-weight:bold;font-family:Courier New;font-size:0.85rem'>{_row['P&L']}</span>", unsafe_allow_html=True)
                     with _c5:
                         if st.button("🗑", key=f"pnl_del_{_row['Ticker']}"):
                             _pnl.pop(_row["Ticker"], None); st.rerun()
@@ -6518,8 +6551,8 @@ with tab_w:
                         _m = _df_ep_wl[_df_ep_wl["Ticker"] == _t]
                         if not _m.empty:
                             _total_pnl += (float(_m.iloc[0]["Prezzo"]) - _pos["entry"]) * _pos["size"]
-                _tc = "#22c55e" if _total_pnl >= 0 else "#ef4444"
-                st.markdown(f"**Portfolio P&L: <span style='color:{_tc};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>${_total_pnl:+,.0f}</span>**", unsafe_allow_html=True)
+                _tc = "#00ff88" if _total_pnl >= 0 else "#ef4444"
+                st.markdown(f"**Portfolio P&L: <span style='color:{_tc};font-family:Courier New'>${_total_pnl:+,.0f}</span>**", unsafe_allow_html=True)
             else:
                 st.info("Nessuna posizione. Aggiungi ticker sopra.")
 
@@ -6557,8 +6590,8 @@ with tab_w:
                 _bcol  = "#ef4444" if _a["fired"] else "#f59e0b"
                 _r1, _r2 = st.columns([3,1])
                 _r1.markdown(
-                    f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.8rem'>"
-                    f"<b style='color:#22c55e'>{_a['tkr']}</b> {_a['type']} "
+                    f"<span style='font-family:Courier New;font-size:0.8rem'>"
+                    f"<b style='color:#00ff88'>{_a['tkr']}</b> {_a['type']} "
                     f"<b style='color:#58a6ff'>{_a['val']}</b> "
                     f"<b style='color:{_bcol}'>{_badge}</b></span>",
                     unsafe_allow_html=True
@@ -7316,7 +7349,7 @@ with tab_bt:
                                 _fig_bt.add_trace(go.Scatter(
                                     x=_eq_idx, y=_eq.tolist(),
                                     fill="tozeroy", fillcolor="rgba(41,98,255,0.12)",
-                                    line=dict(color="#0f766e", width=2),
+                                    line=dict(color="#2962ff", width=2),
                                     name="Equity Curve"), row=1, col=1)
                                 _fig_bt.add_trace(go.Bar(
                                     x=_eq_idx, y=_dd.tolist(),
@@ -7324,7 +7357,7 @@ with tab_bt:
                                     name="Drawdown %"), row=2, col=1)
                                 _fig_bt.update_layout(**PLOTLY_DARK,
                                     title=dict(text=f"<b>{_bt_tkr}</b> — Equity Curve & Drawdown ({_bt_period})",
-                                        font=dict(color="#38bdf8",size=13)),
+                                        font=dict(color="#50c4e0",size=13)),
                                     height=380, margin=dict(l=0,r=0,t=40,b=0),
                                     showlegend=False)
                                 _fig_bt.update_yaxes(title_text="Equity (×)", row=1, col=1, tickfont=dict(size=9))
@@ -7633,7 +7666,7 @@ with ec5:
         ])
         st.download_button(
             "💰 Export P&L",
-            _df_pnl_exp.make_tv_txt(df_tv),
+            _df_pnl_exp.to_csv(index=False).encode(),
             f"PnL_Tracker_v41_{_ts}.csv",
             "text/csv",
             key="csv_pnl_exp",
@@ -7796,15 +7829,15 @@ with tab_mtfmatrix:
             st.markdown("---")
             _hc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
             for _col, _lbl in zip(_hc, ["Ticker / Nome","Daily","Weekly","Monthly","TF Bull","Score"]):
-                _col.markdown(f"<span style='color:#38bdf8;font-size:0.78rem;font-weight:bold;"
+                _col.markdown(f"<span style='color:#50c4e0;font-size:0.78rem;font-weight:bold;"
                               f"letter-spacing:1px;text-transform:uppercase'>{_lbl}</span>",
                               unsafe_allow_html=True)
             st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
             for _r in _mtf_res:
                 _rc = st.columns([2.0, 0.7, 0.7, 0.7, 0.7, 0.9])
-                _score_c = "#22c55e" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
-                _bull_c  = "#22c55e" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
+                _score_c = "#00ff88" if _r["Score"]>=75 else "#f59e0b" if _r["Score"]>=50 else "#ef4444"
+                _bull_c  = "#00ff88" if _r["TF Bull"]=="3/3" else "#f59e0b" if _r["TF Bull"]=="2/3" else "#ef4444"
                 # v41 fix: usa href <a> invece di ondblclick (JS bloccato da Streamlit sandbox)
                 _tv_sym  = _r["Ticker"].replace(".MI","").replace(".","")
                 _tv_url  = f"https://it.tradingview.com/chart/?symbol={_tv_sym}"
@@ -7812,10 +7845,10 @@ with tab_mtfmatrix:
                               if _r["Nome"] else "")
                 _rc[0].markdown(
                     f"<div style='line-height:1.3'>"
-                    f"<a href='{_tv_url}' target='_blank' style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;"
-                    f"color:#22c55e;font-weight:bold;font-size:0.95rem;"
+                    f"<a href='{_tv_url}' target='_blank' style='font-family:Courier New;"
+                    f"color:#00ff88;font-weight:bold;font-size:0.95rem;"
                     f"text-decoration:none' title='Apri su TradingView IT'>"
-                    f"{_r['Ticker']} <span style='font-size:0.7rem;color:#0f766e'>↗</span></a>"
+                    f"{_r['Ticker']} <span style='font-size:0.7rem;color:#2962ff'>↗</span></a>"
                     f"{_nome_disp}</div>",
                     unsafe_allow_html=True)
                 _rc[1].markdown(f"<span style='font-size:1.2rem'>{_r['Daily']}</span>",   unsafe_allow_html=True)
@@ -7824,7 +7857,7 @@ with tab_mtfmatrix:
                 _rc[4].markdown(f"<b style='color:{_bull_c}'>{_r['TF Bull']}</b>",        unsafe_allow_html=True)
                 _rc[5].markdown(
                     f"<div style='display:flex;align-items:center;gap:4px'>"
-                    f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_score_c};font-weight:bold'>{_r['Score']}</span>"
+                    f"<span style='font-family:Courier New;color:{_score_c};font-weight:bold'>{_r['Score']}</span>"
                     f"<div style='flex:1;height:4px;background:#1e222d;border-radius:2px'>"
                     f"<div style='width:{_r['Score']}%;height:4px;background:{_score_c};border-radius:2px'>"
                     f"</div></div></div>",
@@ -7902,7 +7935,7 @@ with tab_mtfmatrix:
                 _tv_url = f"https://it.tradingview.com/chart/?symbol={_mtf_chart_tkr.replace('.MI','').replace('.','')}"
                 st.markdown(
                     f"<a href='{_tv_url}' target='_blank' style='display:inline-block;"
-                    f"background:#0f766e;color:white;padding:6px 16px;border-radius:4px;"
+                    f"background:#2962ff;color:white;padding:6px 16px;border-radius:4px;"
                     f"font-family:Trebuchet MS;font-size:0.85rem;text-decoration:none;margin-top:8px'>"
                     f"📈 Apri {_mtf_chart_tkr} su TradingView IT</a>",
                     unsafe_allow_html=True)
@@ -7915,7 +7948,7 @@ with tab_mtfmatrix:
                 for r in _mtf_res])
             _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
             st.download_button("📊 Export MTF Matrix",
-                _df_mtf_exp.make_tv_txt(df_tv),
+                _df_mtf_exp.to_csv(index=False).encode(),
                 f"MTF_Matrix_v41_{_mtf_ts}.csv", "text/csv", key="mtf_export")
 
 
@@ -8014,15 +8047,15 @@ with tab_journal:
             # Visual per setup
             for _, _sg in _setup_grp.iterrows():
                 _sc1,_sc2,_sc3,_sc4,_sc5 = st.columns([1.5,1,1,1,1])
-                _win_col = "#22c55e" if _sg["Win%"] >= 50 else "#ef4444"
-                _pnl_col = "#22c55e" if _sg["PnL"] >= 0 else "#ef4444"
+                _win_col = "#00ff88" if _sg["Win%"] >= 50 else "#ef4444"
+                _pnl_col = "#00ff88" if _sg["PnL"] >= 0 else "#ef4444"
                 _sc1.markdown(f"<b style='color:#58a6ff'>{_sg['Setup']}</b>", unsafe_allow_html=True)
-                _sc2.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>{int(_sg['N'])} trade</span>")
-                _sc3.markdown(f"<b style='color:{_win_col};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>{_sg['Win%']}%</b>",
+                _sc2.markdown(f"<span style='font-family:Courier New'>{int(_sg['N'])} trade</span>")
+                _sc3.markdown(f"<b style='color:{_win_col};font-family:Courier New'>{_sg['Win%']}%</b>",
                               unsafe_allow_html=True)
-                _sc4.markdown(f"<span style='color:{_pnl_col};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>"
+                _sc4.markdown(f"<span style='color:{_pnl_col};font-family:Courier New'>"
                               f"${_sg['PnL']:+,.0f}</span>", unsafe_allow_html=True)
-                _sc5.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be'>"
+                _sc5.markdown(f"<span style='font-family:Courier New;color:#b2b5be'>"
                               f"R: {_sg['AvgR']}</span>", unsafe_allow_html=True)
 
         # ── Trade log completo ───────────────────────────────────────────
@@ -8039,24 +8072,24 @@ with tab_journal:
         for _, _row_j in _df_j_disp.iterrows():
             _is_open = _row_j["Exit $"] == "Open"
             _pnl_v   = float(_row_j["P&L $"]) if not _is_open else 0
-            _row_c   = "#22c55e22" if _pnl_v > 0 else "#ef444422" if _pnl_v < 0 else "#58a6ff22"
+            _row_c   = "#00ff8822" if _pnl_v > 0 else "#ef444422" if _pnl_v < 0 else "#58a6ff22"
 
             _rj1,_rj2,_rj3,_rj4,_rj5,_rj6,_rj7 = st.columns([0.4,1.2,1,1,1,1,2])
             _rj1.markdown(f"<span style='color:#6b7280;font-size:0.75rem'>#{int(_row_j['ID'])}</span>",
                           unsafe_allow_html=True)
-            _rj2.markdown(f"<b style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#22c55e'>{_row_j['Ticker']}</b>",
+            _rj2.markdown(f"<b style='font-family:Courier New;color:#00ff88'>{_row_j['Ticker']}</b>",
                           unsafe_allow_html=True)
             _rj3.markdown(f"<span style='font-size:0.78rem;color:#58a6ff'>{_row_j['Setup']}</span>",
                           unsafe_allow_html=True)
-            _rj4.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem'>"
+            _rj4.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>"
                           f"${_row_j['Entry $']:.2f}</span>", unsafe_allow_html=True)
             _exit_display = "Open" if _is_open else f"${float(_row_j['Exit $']):.2f}"
-            _rj5.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem'>"
+            _rj5.markdown(f"<span style='font-family:Courier New;font-size:0.82rem'>"
                           f"{_exit_display}</span>",
                           unsafe_allow_html=True)
-            _pnl_color = "#22c55e" if _pnl_v > 0 else "#ef4444" if _pnl_v < 0 else "#6b7280"
+            _pnl_color = "#00ff88" if _pnl_v > 0 else "#ef4444" if _pnl_v < 0 else "#6b7280"
             _pnl_display = "Open" if _is_open else f"${_pnl_v:+,.0f}"
-            _rj6.markdown(f"<b style='color:{_pnl_color};font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>"
+            _rj6.markdown(f"<b style='color:{_pnl_color};font-family:Courier New'>"
                           f"{_pnl_display}</b>",
                           unsafe_allow_html=True)
             _rj7.markdown(f"<span style='color:#6b7280;font-size:0.78rem'>{_row_j['Note']}</span>",
@@ -8133,7 +8166,7 @@ with tab_regime:
       <stop offset="25%"  stop-color="#f97316"/>
       <stop offset="50%"  stop-color="#f59e0b"/>
       <stop offset="75%"  stop-color="#26a69a"/>
-      <stop offset="100%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#00ff88"/>
     </linearGradient>
   </defs>
   <path d="M 20,100 A 80,80 0 1,1 180,100"
@@ -8146,7 +8179,7 @@ with tab_regime:
   <text x="100" y="85" text-anchor="middle" font-size="24" font-weight="bold" fill="{_fg_col_v}">{_fg}</text>
   <text x="100" y="112" text-anchor="middle" font-size="9" fill="#787b86">FEAR / GREED PROXY</text>
   <text x="18" y="113" font-size="8" fill="#ef4444">FEAR</text>
-  <text x="155" y="113" font-size="8" fill="#22c55e">GREED</text>
+  <text x="155" y="113" font-size="8" fill="#00ff88">GREED</text>
 </svg>"""
             st.markdown(
                 f"<div style='text-align:center'>{_gauge_svg}"
@@ -8158,7 +8191,7 @@ with tab_regime:
             # Regime score bar
             _rs = _rg.get("regime_score",0)
             _rs_pct = min(100, max(0, _rs/9*100))
-            _rs_col = "#22c55e" if _rs>=7 else "#26a69a" if _rs>=5 else "#f59e0b" if _rs>=3 else "#ef4444"
+            _rs_col = "#00ff88" if _rs>=7 else "#26a69a" if _rs>=5 else "#f59e0b" if _rs>=3 else "#ef4444"
             st.markdown(
                 f"<div style='margin-bottom:12px'>"
                 f"<span style='color:#787b86;font-size:0.75rem'>REGIME SCORE: "
@@ -8172,16 +8205,16 @@ with tab_regime:
             for _nm_b,_mom_b in [("SPY",_rg["spy_mom_20d"]),
                                    ("QQQ",_rg.get("qqq_mom_20d",0)),
                                    ("IWM",_rg.get("iwm_mom_20d",0))]:
-                _bc = "#22c55e" if _mom_b>2 else "#26a69a" if _mom_b>0 else "#ef4444"
+                _bc = "#00ff88" if _mom_b>2 else "#26a69a" if _mom_b>0 else "#ef4444"
                 _bar_w = min(100, abs(_mom_b)*8)
                 st.markdown(
                     f"<div style='display:flex;align-items:center;gap:8px;margin-bottom:5px'>"
-                    f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be;font-size:0.8rem;"
+                    f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.8rem;"
                     f"min-width:32px'>{_nm_b}</span>"
                     f"<div style='flex:1;height:10px;background:#1e222d;border-radius:3px;overflow:hidden'>"
                     f"<div style='width:{_bar_w:.0f}%;height:10px;background:{_bc};border-radius:3px'>"
                     f"</div></div>"
-                    f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_bc};font-size:0.8rem;"
+                    f"<span style='font-family:Courier New;color:{_bc};font-size:0.8rem;"
                     f"min-width:50px;text-align:right'>{_mom_b:+.1f}%</span>"
                     f"</div>",
                     unsafe_allow_html=True)
@@ -8252,7 +8285,7 @@ with tab_regime:
                     title="VIX", range=[0,max(45,max(_vh_cl.tolist())*1.1)], tickfont=dict(size=9))
                 _fig_v.update_layout(**_vix_ly,
                     title=dict(text=f"VIX: <b>{_rg['vix']}</b> | Regime: <b>{_rg['regime']}</b>",
-                               font=dict(color="#38bdf8",size=12),x=0.01),
+                               font=dict(color="#50c4e0",size=12),x=0.01),
                     height=240, margin=dict(l=0,r=0,t=38,b=0),
                     showlegend=False, hovermode="x unified")
                 st.plotly_chart(_fig_v, use_container_width=True, key="vix_hist_chart")
@@ -8312,7 +8345,7 @@ with tab_regime:
             colorscale=[
                 [0.0,  "#7f0000"], [0.25, "#ef4444"],
                 [0.45, "#1e222d"], [0.55, "#1e222d"],
-                [0.75, "#26a69a"], [1.0,  "#22c55e"],
+                [0.75, "#26a69a"], [1.0,  "#00ff88"],
             ],
             zmid=0,
             showscale=True,
@@ -8329,7 +8362,7 @@ with tab_regime:
         _fig_sr.update_layout(
             **_sr_layout,
             title=dict(text="Sector Rotation — Return % per periodo",
-                       font=dict(color="#38bdf8",size=13), x=0.01),
+                       font=dict(color="#50c4e0",size=13), x=0.01),
             height=320,
             margin=dict(l=0,r=0,t=45,b=0),
         )
@@ -8383,7 +8416,7 @@ with tab_regime:
                     if not df_ep.empty and "Ticker" in df_ep.columns:
                         _in_sc = _tkr_s in df_ep["Ticker"].values
                     _badge_s = " ⭐" if _in_sc else " 📋" if _in_wl else ""
-                    _color_s = "#22c55e" if _in_sc else "#58a6ff" if _in_wl else "#b2b5be"
+                    _color_s = "#00ff88" if _in_sc else "#58a6ff" if _in_wl else "#b2b5be"
                     _tv_s = _tkr_s.replace(".MI","").replace(".","")
                     _tv_url_s = f"https://it.tradingview.com/chart/?symbol={_tv_s}"
                     with _tkr_cols[_i % 5]:
@@ -8406,11 +8439,11 @@ with tab_regime:
 
         # v43b intestazioni Ranking Settori
         _H=st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
-        _H[0].markdown("<small style='color:#38bdf8'>#</small>",unsafe_allow_html=True)
-        _H[1].markdown("<small style='color:#38bdf8'>SETTORE/ETF</small>",unsafe_allow_html=True)
+        _H[0].markdown("<small style='color:#50c4e0'>#</small>",unsafe_allow_html=True)
+        _H[1].markdown("<small style='color:#50c4e0'>SETTORE/ETF</small>",unsafe_allow_html=True)
         for _hi,_hp in enumerate(_periods_sr):
             _hs="font-weight:bold;text-decoration:underline;" if _hp==_sel_period_dd else ""
-            _H[_hi+2].markdown(f"<small style='color:#38bdf8;{_hs}'>{_period_labels.get(_hp,_hp)}</small>",unsafe_allow_html=True)
+            _H[_hi+2].markdown(f"<small style='color:#50c4e0;{_hs}'>{_period_labels.get(_hp,_hp)}</small>",unsafe_allow_html=True)
         for _i, _rk_row in _sr_rank.iterrows():
             _rk1,_rk2,_rk3,_rk4,_rk5,_rk6,_rk7,_rk8 = st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
             _medal = "🥇" if _i==1 else "🥈" if _i==2 else "🥉" if _i==3 else f"{_i}."
@@ -8419,8 +8452,8 @@ with tab_regime:
                           f"({_rk_row['ETF']})</span>", unsafe_allow_html=True)
             for _col_rk, _p in zip([_rk3,_rk4,_rk5,_rk6,_rk7,_rk8], _periods_sr):
                 _v = float(_rk_row[_p])
-                _c = "#22c55e" if _v>0 else "#ef4444" if _v<0 else "#6b7280"
-                _col_rk.markdown(f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:{_c};"
+                _c = "#00ff88" if _v>0 else "#ef4444" if _v<0 else "#6b7280"
+                _col_rk.markdown(f"<span style='font-family:Courier New;color:{_c};"
                                   f"font-size:0.82rem'>{_v:+.1f}%</span>",
                                   unsafe_allow_html=True)
     else:
@@ -8463,11 +8496,11 @@ with tab_regime:
         _t3 = round(_ps_entry + 3*(_ps_entry - _ps_stop), 2)
         st.markdown(
             f"<div style='background:#1e222d;border-radius:8px;padding:10px 16px;"
-            f"margin-top:8px;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.84rem'>"
+            f"margin-top:8px;font-family:Courier New;font-size:0.84rem'>"
             f"🔴 SL: <b style='color:#ef4444'>${_ps_stop:.2f}</b> &nbsp;|&nbsp; "
             f"🟠 T1 (R:1): <b style='color:#f59e0b'>${_t1:.2f}</b> &nbsp;|&nbsp; "
             f"🟢 T2 (R:2): <b style='color:#26a69a'>${_t2:.2f}</b> &nbsp;|&nbsp; "
-            f"✅ T3 (R:3): <b style='color:#22c55e'>${_t3:.2f}</b>"
+            f"✅ T3 (R:3): <b style='color:#00ff88'>${_t3:.2f}</b>"
             f"</div>",
             unsafe_allow_html=True
         )
@@ -8685,7 +8718,7 @@ def _render_risk_dashboard_v41(df_ep_risk):
                     texttemplate="%{text}",
                     textfont=dict(size=10, family="Courier New"),
                     colorscale=[
-                        [0.0,"#ef4444"],[0.5,"#1e222d"],[1.0,"#22c55e"]
+                        [0.0,"#ef4444"],[0.5,"#1e222d"],[1.0,"#00ff88"]
                     ],
                     zmid=0, zmin=-1, zmax=1,
                     showscale=True,
@@ -8699,7 +8732,7 @@ def _render_risk_dashboard_v41(df_ep_risk):
                 _corr_layout["yaxis"] = dict(_corr_layout.get("yaxis",{}),
                     tickfont=dict(size=9,color="#b2b5be"))
                 _fig_corr.update_layout(**_corr_layout,
-                    title=dict(text="Correlation Matrix", font=dict(color="#38bdf8",size=12),x=0.01),
+                    title=dict(text="Correlation Matrix", font=dict(color="#50c4e0",size=12),x=0.01),
                     height=max(250, len(_rk_sel)*40+80),
                     margin=dict(l=0,r=0,t=40,b=0))
                 st.plotly_chart(_fig_corr, use_container_width=True, key="risk_corr_chart")
@@ -8727,7 +8760,7 @@ def _render_risk_dashboard_v41(df_ep_risk):
                 _cvar_usd= abs(_cvar95) * _rk_capital
                 st.markdown(
                     f"<div style='background:#1e222d;border-radius:6px;padding:8px 14px;"
-                    f"margin-top:6px;font-size:0.83rem;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace'>"
+                    f"margin-top:6px;font-size:0.83rem;font-family:Courier New'>"
                     f"Su capitale <b style='color:#d1d4dc'>${_rk_capital:,.0f}</b> &nbsp;·&nbsp; "
                     f"VaR giornaliero 95%: <b style='color:#ef4444'>${_var_usd:,.0f}</b> &nbsp;·&nbsp; "
                     f"CVaR: <b style='color:#ef5350'>${_cvar_usd:,.0f}</b>"
@@ -8751,12 +8784,12 @@ def _render_risk_dashboard_v41(df_ep_risk):
                     _c_sec   = "#ef4444" if _pct_sec>40 else "#f59e0b" if _pct_sec>25 else "#26a69a"
                     st.markdown(
                         f"<div style='display:flex;align-items:center;gap:8px;margin:4px 0'>"
-                        f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;min-width:160px;"
+                        f"<span style='font-family:Courier New;font-size:0.82rem;min-width:160px;"
                         f"color:#b2b5be'>{_sec_nm}</span>"
                         f"<div style='flex:1;height:6px;background:#1e222d;border-radius:3px'>"
                         f"<div style='width:{_pct_sec:.0f}%;height:6px;background:{_c_sec};"
                         f"border-radius:3px'></div></div>"
-                        f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;font-size:0.82rem;color:{_c_sec};"
+                        f"<span style='font-family:Courier New;font-size:0.82rem;color:{_c_sec};"
                         f"min-width:50px;text-align:right'>{_pct_sec:.0f}% ({_cnt})</span>"
                         f"</div>", unsafe_allow_html=True)
                 if any(p>40 for _,p in [(s,c/_total_sec*100) for s,c in _sector_exposure.items()]):
@@ -8884,7 +8917,7 @@ def _render_advanced_scanner_v41():
                 def _color_gap(v):
                     try:
                         val = float(str(v).replace("%",""))
-                        return f"color:{'#22c55e' if val>0 else '#ef4444'};font-weight:bold;font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace"
+                        return f"color:{'#00ff88' if val>0 else '#ef4444'};font-weight:bold;font-family:Courier New"
                     except: return ""
 
                 st.dataframe(
@@ -8895,7 +8928,7 @@ def _render_advanced_scanner_v41():
                 # Export
                 _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
                 st.download_button("📊 Export Gap Scanner",
-                    _df_gaps.make_tv_txt(df_tv),
+                    _df_gaps.to_csv(index=False).encode(),
                     f"GapScanner_v41_{_gap_ts}.csv", "text/csv", key="gap_export")
 
     with _adv_t2:
@@ -9078,7 +9111,7 @@ with tab_analisi:
     else:
         st.markdown(
             "<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:16px 20px'>"
-            "<b style='color:#38bdf8'>Come funziona:</b><br><br>"
+            "<b style='color:#50c4e0'>Come funziona:</b><br><br>"
             "<span style='color:#b2b5be'>"
             "1. Inserisci ticker (es. AAPL, ENI.MI, RACE.MI)<br>"
             "2. Seleziona tipo di analisi<br>"
@@ -9269,7 +9302,7 @@ with tab_ai2:
         for _hc, _hl in zip(_ai2_hcols,
                             ["Ticker","Nome","Stato","CSS","RSI","Vol×","Priorità","Modulo 2"]):
             _hc.markdown(
-                f"<span style='color:#38bdf8;font-size:0.72rem;font-weight:bold;"
+                f"<span style='color:#50c4e0;font-size:0.72rem;font-weight:bold;"
                 f"letter-spacing:1px'>{_hl}</span>", unsafe_allow_html=True)
         st.markdown("<hr style='border-color:#2a2e39;margin:4px 0'>", unsafe_allow_html=True)
 
@@ -9302,7 +9335,7 @@ with tab_ai2:
                 _prio, _pcolor = "🟡 MEDIA",  "#f59e0b"
             else:
                 _prio, _pcolor = "🟢 BASSA",  "#22c55e"
-            _badge_color = "#22c55e" if _stato=="STRONG" else ("#0f766e" if _stato=="PRO" else "#f59e0b")
+            _badge_color = "#00ff88" if _stato=="STRONG" else ("#2962ff" if _stato=="PRO" else "#f59e0b")
             _tv_s   = _tkr.replace(".MI","%3AMI").replace(".L","%3AL")
             _btn_key = f"ai2h_{_tkr}_{_ai2_source[:4]}"
 
@@ -9310,8 +9343,8 @@ with tab_ai2:
             _c1.markdown(
                 f"<a href='https://it.tradingview.com/chart/?symbol={_tv_s}' target='_blank' "
                 f"style='text-decoration:none'>"
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#22c55e;font-weight:bold'>{_tkr}</span>"
-                f"<span style='color:#0f766e;font-size:0.65rem'> ↗</span></a>",
+                f"<span style='font-family:Courier New;color:#00ff88;font-weight:bold'>{_tkr}</span>"
+                f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>",
                 unsafe_allow_html=True)
             _c2.markdown(
                 f"<span style='color:#787b86;font-size:0.78rem'>{_nome}</span>",
@@ -9322,15 +9355,15 @@ with tab_ai2:
                 f"padding:2px 6px;font-size:0.72rem;font-weight:bold'>{_stato or '—'}</span>",
                 unsafe_allow_html=True)
             _c4.markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#d1d4dc;font-size:0.82rem'>"
+                f"<span style='font-family:Courier New;color:#d1d4dc;font-size:0.82rem'>"
                 f"{_css if _css not in [None,''] else '—'}</span>",
                 unsafe_allow_html=True)
             _c5.markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#d1d4dc;font-size:0.82rem'>"
+                f"<span style='font-family:Courier New;color:#d1d4dc;font-size:0.82rem'>"
                 f"{_rsi if _rsi not in [None,''] else '—'}</span>",
                 unsafe_allow_html=True)
             _c6.markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be;font-size:0.78rem'>"
+                f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.78rem'>"
                 f"{_volx_str}</span>",
                 unsafe_allow_html=True)
             _c7.markdown(
@@ -9610,20 +9643,20 @@ with tab_mom:
         st.markdown("<hr style='border-color:#2a2e39;margin:8px 0'>", unsafe_allow_html=True)
         _mh = st.columns([1.2, 1.5, 1.5, 1, 0.8, 0.7, 0.7, 1])
         for _hcol, _hlbl in zip(_mh, ["Ticker","Nome","Tipo","Valore","RSI","Vol×","CSS","Priorità"]):
-            _hcol.markdown(f"<span style='color:#38bdf8;font-size:0.72rem;font-weight:bold;"
+            _hcol.markdown(f"<span style='color:#50c4e0;font-size:0.72rem;font-weight:bold;"
                            f"letter-spacing:1px'>{_hlbl}</span>", unsafe_allow_html=True)
 
         for _al in _ma_all[:50]:
             _pcolor = "#ef4444" if "ALTA" in _al.get("Priorità","") else                       "#f59e0b" if "MEDIA" in _al.get("Priorità","") else "#26a69a"
             _ttype  = _al.get("Tipo","")
-            _tcolor = "#ef4444" if "Breakdown" in _ttype or "Overbought" in _ttype else                       "#f97316" if "Volume" in _ttype or "Squeeze" in _ttype else                       "#60a5fa" if "Oversold" in _ttype else "#22c55e"
+            _tcolor = "#ef4444" if "Breakdown" in _ttype or "Overbought" in _ttype else                       "#f97316" if "Volume" in _ttype or "Squeeze" in _ttype else                       "#60a5fa" if "Oversold" in _ttype else "#00ff88"
             _tv_s = _al['Ticker'].replace(".MI","%3AMI").replace(".L","%3AL")
             _row_cols = st.columns([1.2, 1.5, 1.5, 1, 0.8, 0.7, 0.7, 1])
             _row_cols[0].markdown(
                 f"<a href='https://it.tradingview.com/chart/?symbol={_tv_s}' target='_blank' "
-                f"style='text-decoration:none'><span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;"
-                f"color:#22c55e;font-weight:bold'>{_al['Ticker']}</span> "
-                f"<span style='color:#0f766e;font-size:0.65rem'>↗</span></a>",
+                f"style='text-decoration:none'><span style='font-family:Courier New;"
+                f"color:#00ff88;font-weight:bold'>{_al['Ticker']}</span> "
+                f"<span style='color:#2962ff;font-size:0.65rem'>↗</span></a>",
                 unsafe_allow_html=True)
             _row_cols[1].markdown(
                 f"<span style='color:#787b86;font-size:0.78rem'>{_al.get('Nome','')}</span>",
@@ -9632,16 +9665,16 @@ with tab_mom:
                 f"<span style='color:{_tcolor};font-size:0.80rem;font-weight:bold'>{_ttype}</span>",
                 unsafe_allow_html=True)
             _row_cols[3].markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#d1d4dc;font-size:0.82rem'>"
+                f"<span style='font-family:Courier New;color:#d1d4dc;font-size:0.82rem'>"
                 f"{_al.get('Valore','')}</span>", unsafe_allow_html=True)
             _row_cols[4].markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be;font-size:0.78rem'>"
+                f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.78rem'>"
                 f"{_al.get('RSI','')}</span>", unsafe_allow_html=True)
             _row_cols[5].markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be;font-size:0.78rem'>"
+                f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.78rem'>"
                 f"{_al.get('Vol×','')}</span>", unsafe_allow_html=True)
             _row_cols[6].markdown(
-                f"<span style='font-family:SFMono-Regular, ui-monospace, Menlo, Monaco, Consolas, monospace;color:#b2b5be;font-size:0.78rem'>"
+                f"<span style='font-family:Courier New;color:#b2b5be;font-size:0.78rem'>"
                 f"{_al.get('CSS','')}</span>", unsafe_allow_html=True)
             _row_cols[7].markdown(
                 f"<span style='background:{_pcolor}22;color:{_pcolor};"
@@ -9738,7 +9771,7 @@ with tab_news:
 
             # Lista news
             for _n in _news_data[:50]:
-                _sc = "#22c55e" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
+                _sc = "#00ff88" if "Bullish" in _n["Sentiment"] else "#ef4444" if "Bearish" in _n["Sentiment"] else "#6b7280"
                 _nc1, _nc2, _nc3 = st.columns([1, 0.8, 4])
                 _nc1.markdown(f"**{_n['Ticker']}**", unsafe_allow_html=True)
                 _nc2.markdown(f"<span style='color:{_sc};font-weight:bold'>{_n['Sentiment']}</span>", unsafe_allow_html=True)
