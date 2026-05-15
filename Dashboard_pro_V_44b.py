@@ -26,38 +26,11 @@ import time
 import sqlite3
 from datetime import datetime
 
-# ── v43c helper link TradingView ────────────────────────────────────────
-def _tv_link43c(ticker, label=None):
-    sym = (ticker.replace('.MI','%3AMI').replace('.L','%3AL')
-                 .replace('.PA','%3APA').replace('.AS','%3AAS'))
-    lbl = label or ticker
-    return (f"<a style='color:#00ff88;font-family:Courier New;font-weight:bold;"
-            f"text-decoration:none;font-size:0.88rem' "
-            f"href='https://it.tradingview.com/chart/?symbol={sym}' "
-            f"target='_blank'>{lbl} "
-            f"<span style='color:#2962ff;font-size:0.65rem'>&#8599;</span></a>")
-
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
-
-# ── v43d: AI config globale — definite prima di ogni uso ──────────────────
-def _get_global_ai_keys():
-    """Legge le API key AI — una sola fonte per tutti i moduli."""
-    _ss = st.session_state
-    return {
-        "gemini":     st.secrets.get("GEMINI_API_KEY","")     or _ss.get("_gemini_api_key",""),
-        "groq":       st.secrets.get("GROQ_API_KEY","")       or _ss.get("_groq_api_key",""),
-        "openrouter": st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key",""),
-        "anthropic":  st.secrets.get("ANTHROPIC_API_KEY","")  or _ss.get("_anthropic_api_key",""),
-    }
-
-def _has_global_ai_config():
-    """True se almeno un provider AI è configurato."""
-    return any(bool(v) for v in _get_global_ai_keys().values())
-# ────────────────────────────────────────────────────────────────────────────
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode, JsCode
 
 # ── Import robusti: fallback gracile se un modulo non è aggiornato ──────────
@@ -1007,251 +980,132 @@ def _enrich_df(df: pd.DataFrame) -> pd.DataFrame:
 # =========================================================================
 
 BACK_TO_TOP_CSS = """<style>
-#btt-btn {
-    position:fixed !important; bottom:30px !important; right:30px !important;
-    z-index:2147483647 !important;
-    background:#2962ff; color:#fff; border:none; border-radius:50%;
-    width:48px; height:48px; font-size:1.4rem; cursor:pointer;
-    box-shadow:0 4px 20px rgba(41,98,255,0.6);
-    display:flex !important; align-items:center; justify-content:center;
-    opacity:0; transition:opacity .3s ease, transform .3s ease;
-    transform:translateY(16px); pointer-events:none; line-height:1;
-    font-family:sans-serif;
+#btt-btn{
+    position:fixed!important;
+    bottom:22px!important;
+    left:50%!important;
+    transform:translateX(-50%)!important;
+    z-index:2147483647!important;
+    background:var(--accent-teal,#0d9488);color:#fff;border:none;
+    border-radius:20px;padding:8px 22px;
+    font-size:0.84rem;font-weight:700;cursor:pointer;
+    box-shadow:0 4px 18px rgba(13,148,136,0.55);
+    opacity:1!important;
+    pointer-events:all!important;
+    white-space:nowrap;font-family:var(--font-ui,'Inter',sans-serif);
+    letter-spacing:0.03em;
+    transition:background .2s,transform .2s,box-shadow .2s;
 }
-#btt-btn.btt-visible {
-    opacity:1 !important; transform:translateY(0) !important;
-    pointer-events:all !important;
+#btt-btn:hover{
+    background:#0f766e!important;
+    transform:translateX(-50%) translateY(-2px)!important;
+    box-shadow:0 6px 24px rgba(13,148,136,0.7)!important;
 }
-#btt-btn:hover { background:#1a3fd4 !important; transform:translateY(-3px) scale(1.1) !important; }
-
-/* v43d — responsive tabs & layout */
-[data-testid="stTabs"] button{white-space:nowrap;}
-@media(max-width:1200px){[data-testid="stHorizontalBlock"]{flex-wrap:wrap!important;gap:.4rem;}}
-@media(max-width:768px){div[data-testid="metric-container"]{min-width:140px;}.stDataFrame,[data-testid="stTable"]{font-size:.82rem;}iframe,canvas,.js-plotly-plot{max-width:100%!important;}}
-@media(max-width:640px){[data-testid="stTabs"] button{padding:.35rem .55rem!important;font-size:.78rem!important;}div[data-testid="column"]{width:100%!important;flex:1 1 100%!important;}.element-container .stButton>button{width:100%;}}
+#btt-btn:active{transform:translateX(-50%) translateY(0)!important;}
+@media(max-width:768px){
+  #btt-btn{left:auto!important;right:14px!important;transform:none!important;bottom:14px!important;}
+  #btt-btn:hover{transform:translateY(-2px)!important;}
+}
 </style>
-<button id='btt-btn' title='Torna su'
-  onclick='(function(){
-    var targets=[
-      window.parent.document.querySelector(".main"),
-      window.parent.document.querySelector("section.main"),
-      window.parent.document.querySelector(".block-container"),
-      window.parent.document.documentElement,
-      window.parent.document.body,
-      document.documentElement,
-      document.body
-    ];
-    for(var i=0;i<targets.length;i++){
-      if(targets[i] && targets[i].scrollTop>0){
-        targets[i].scrollTo({top:0,behavior:"smooth"});return;
-      }
-    }
-    window.parent.scrollTo({top:0,behavior:"smooth"});
-    window.scrollTo({top:0,behavior:"smooth"});
-  })()'>&#8679;</button>
+<button id="btt-btn" title="Torna in cima">⬆ Torna su</button>
 <script>
 (function(){
-  var _btt_attached=false;
-  function _getScroller(){
-    var doc=window.parent.document;
-    var candidates=[
-      doc.querySelector(".main"),
-      doc.querySelector("section.main"),
-      doc.querySelector(".block-container"),
-      doc.documentElement,
-      doc.body
-    ];
-    for(var i=0;i<candidates.length;i++){
-      if(candidates[i] && candidates[i].scrollHeight>candidates[i].clientHeight+50){
-        return candidates[i];
-      }
-    }
-    return doc.documentElement||doc.body;
+  var _a=false;
+  function _up(){
+    var ts=[
+      window.parent.document.querySelector('[data-testid="stAppViewContainer"]'),
+      window.parent.document.querySelector('[data-testid="stMain"]'),
+      window.parent.document.querySelector('section.main'),
+      window.parent.document.querySelector('.main'),
+      window.parent.document.querySelector('.block-container'),
+      window.parent.document.documentElement,
+      window.parent.document.body,
+      document.documentElement,document.body];
+    ts.forEach(function(t){if(t){t.scrollTop=0;try{t.scrollTo({top:0,behavior:'smooth'});}catch(e){}}});
+    try{window.parent.scrollTo({top:0,behavior:'smooth'});}catch(e){}
+    try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){}
   }
-  function _getBtn(){
-    return window.parent.document.getElementById('btt-btn')||document.getElementById('btt-btn');
+  function _btn(){return window.parent.document.getElementById('btt-btn')||document.getElementById('btt-btn');}
+  function _sc(){
+    var d=window.parent.document,cs=[
+      d.querySelector('[data-testid="stAppViewContainer"]'),
+      d.querySelector('section.main'),d.querySelector('.main'),
+      d.querySelector('.block-container'),d.documentElement,d.body];
+    for(var i=0;i<cs.length;i++){if(cs[i]&&cs[i].scrollHeight-cs[i].clientHeight>80)return cs[i];}
+    return d.documentElement||d.body;
   }
-  function _btt_check(){
-    var b=_getBtn(); if(!b) return;
-    var s=_getScroller();
-    var scrolled=(s&&s.scrollTop>200)||(window.parent.pageYOffset>200)||(window.pageYOffset>200);
-    if(scrolled) b.classList.add('btt-visible');
-    else b.classList.remove('btt-visible');
+  function _chk(){
+    var b=_btn();if(!b)return;
+    var s=_sc();
+    var sd=(s?s.scrollTop:0)>180||window.parent.pageYOffset>180||window.pageYOffset>180;
+    sd?b.classList.add('btt-v'):b.classList.remove('btt-v');
   }
-  function _btt_attach(){
-    if(_btt_attached) return;
-    var s=_getScroller();
-    if(!s) return;
-    s.addEventListener('scroll',_btt_check,{passive:true});
-    window.parent.addEventListener('scroll',_btt_check,{passive:true});
-    _btt_check();
-    _btt_attached=true;
+  function _att(){
+    if(_a)return;var b=_btn();if(!b)return;
+    b.onclick=_up;
+    var s=_sc();
+    if(s)s.addEventListener('scroll',_chk,{passive:true});
+    window.parent.addEventListener('scroll',_chk,{passive:true});
+    _chk();_a=true;
   }
-  [200,500,1000,2000,4000,8000].forEach(function(d){setTimeout(_btt_attach,d);});
-  try{
-    var _btt_obs=new MutationObserver(function(){_btt_attach();_btt_check();});
-    _btt_obs.observe(window.parent.document.body,{childList:true,subtree:false});
-  }catch(e){}
+  [100,300,700,1500,3000,6000,12000].forEach(function(d){setTimeout(_att,d);});
+  try{new MutationObserver(function(){_att();_chk();})
+      .observe(window.parent.document.body,{childList:true,subtree:false});}catch(e){}
 })();
 </script>"""
+
 DARK_CSS = """
 <style>
-/* ── TradingView-style skin ─────────────────────────────────── */
-html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid="block-container"]{
-    background-color:#131722 !important; color:#d1d4dc !important;
-    font-family:'Trebuchet MS','Segoe UI',sans-serif !important;}
-[data-testid="stSidebar"]{background-color:#1e222d !important;border-right:1px solid #2a2e39 !important;}
-[data-testid="stSidebar"] *{color:#d1d4dc !important;}
-h1{color:#2962ff !important;font-family:'Trebuchet MS',sans-serif !important;
-   letter-spacing:1px;text-shadow:0 0 16px #2962ff44;}
-h2,h3{color:#50c4e0 !important;font-family:'Trebuchet MS',sans-serif !important;}
-.stCaption,small{color:#6b7280 !important;}
-[data-testid="stTabs"] button{background:#131722 !important;color:#787b86 !important;
-    border-bottom:2px solid transparent !important;
-    font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
-[data-testid="stTabs"] button[aria-selected="true"]{color:#2962ff !important;border-bottom:2px solid #2962ff !important;
-    background:#1e222d !important;}
-[data-testid="stMetric"]{background:#1e222d !important;border:1px solid #2a2e39 !important;
-    border-radius:6px !important;padding:12px 16px !important;}
-[data-testid="stMetricLabel"]{color:#787b86 !important;font-size:0.75rem !important;}
-[data-testid="stMetricValue"]{color:#26a69a !important;font-size:1.6rem !important;
-    font-family:'Trebuchet MS',sans-serif !important;font-weight:700 !important;}
-[data-testid="stButton"]>button{background:#1e222d !important;
-    color:#d1d4dc !important;border:1px solid #363a45 !important;
-    border-radius:4px !important;font-family:'Trebuchet MS',sans-serif !important;transition:all 0.15s;}
-[data-testid="stButton"]>button:hover{background:#2a2e39 !important;border-color:#50c4e0 !important;color:#ffffff !important;}
-[data-testid="stButton"]>button[kind="primary"]{background:#2962ff !important;
-    border-color:#2962ff !important;color:#ffffff !important;font-size:1rem !important;}
-[data-testid="stButton"]>button[kind="secondary"]{background:#1e222d !important;
-    color:#ef5350 !important;border:1px solid #ef535055 !important;}
-[data-testid="stDownloadButton"]>button{background:#0d1117 !important;color:#58a6ff !important;
-    border:1px solid #1f3a5f !important;border-radius:6px !important;}
-[data-testid="stExpander"]{background:#0d1117 !important;border:1px solid #1f2937 !important;border-radius:8px !important;}
-[data-testid="stExpander"] summary{color:#58a6ff !important;}
-hr{border-color:#1f2937 !important;}
-.ag-root-wrapper{background:#1e222d !important;border:1px solid #2a2e39 !important;border-radius:4px !important;}
-.ag-header{background:#131722 !important;border-bottom:1px solid #363a45 !important;}
-.ag-header-cell-label{color:#50c4e0 !important;font-family:'Trebuchet MS',sans-serif !important;
-    font-size:0.79rem !important;letter-spacing:0.5px;text-transform:uppercase;}
-.ag-header-cell-resize{background:#363a45 !important;}
-.ag-row{background:#1e222d !important;border-bottom:1px solid #2a2e39 !important;}
-.ag-row:hover{background:#2a2e39 !important;}
-.ag-row-selected{background:rgba(41,98,255,0.18) !important;border-left:3px solid #2962ff !important;}
-.ag-cell{color:#d1d4dc !important;font-family:'Trebuchet MS',sans-serif !important;font-size:0.83rem !important;}
-.ag-paging-panel{background:#131722 !important;color:#787b86 !important;}
-::-webkit-scrollbar{width:6px;height:6px;}
-::-webkit-scrollbar-track{background:#0a0e1a;}
-::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px;}
-.section-pill{display:inline-block;background:#1e222d;
-    border-left:3px solid #2962ff;border-radius:0 4px 4px 0;padding:5px 16px;
-    font-family:'Trebuchet MS',sans-serif;font-size:0.82rem;color:#50c4e0;
-    letter-spacing:1px;margin-bottom:14px;}
-.wl-card{background:linear-gradient(135deg,#0d1117 0%,#111827 100%);
-    border:1px solid #1f2937;border-radius:12px;padding:14px 18px;margin-bottom:8px;transition:border-color 0.2s;}
-.wl-card:hover{border-color:#374151;}
-.wl-card-ticker{font-family:'Courier New',monospace;font-size:1.05rem;font-weight:bold;color:#00ff88;letter-spacing:1px;}
-.wl-card-name{color:#8b949e;font-size:0.82rem;margin-top:2px;}
-.wl-card-badge{display:inline-block;border-radius:10px;padding:2px 8px;font-size:0.72rem;font-weight:bold;margin-right:4px;}
-.badge-green{background:rgba(0,255,136,0.15);color:#00ff88;border:1px solid #00ff8844;}
-.badge-orange{background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid #f59e0b44;}
-.badge-red{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef444444;}
-.badge-blue{background:rgba(88,166,255,0.15);color:#58a6ff;border:1px solid #58a6ff44;}
-.badge-gray{background:rgba(107,114,128,0.15);color:#6b7280;border:1px solid #6b728044;}
-.badge-purple{background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid #a78bfa44;}
-.legend-table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace;font-size:0.82rem;}
-.legend-table th{color:#58a6ff;border-bottom:1px solid #1f2937;padding:6px 10px;text-align:left;}
-.legend-table td{color:#c9d1d9;border-bottom:1px solid #1a2233;padding:5px 10px;}
-.legend-table tr:hover td{background:#131d2e;}
-.legend-col-name{color:#00ff88;font-weight:bold;}
-.legend-col-range{color:#f59e0b;}
-.crit-ok{color:#00ff88;font-weight:bold;}
-.crit-no{color:#ef4444;}
-/* ══════════════════════════════════════════════════════════════════════════
-   v43 RESPONSIVE & ADAPTIVE — Mobile-first · Fluid · All Tabs
-   ══════════════════════════════════════════════════════════════════════════ */
-*,*::before,*::after{box-sizing:border-box;}
-[data-testid="block-container"]{
-    max-width:100%!important;
-    padding:clamp(0.5rem,2vw,1.5rem) clamp(0.5rem,2vw,2rem)!important;}
-[data-testid="stTabs"]>div:first-child{
-    overflow-x:auto!important;overflow-y:hidden!important;
-    -webkit-overflow-scrolling:touch!important;
-    scrollbar-width:none!important;
-    flex-wrap:nowrap!important;white-space:nowrap!important;padding-bottom:2px!important;}
-[data-testid="stTabs"]>div:first-child::-webkit-scrollbar{display:none!important;}
-[data-testid="stTabs"] button{
-    font-size:clamp(0.60rem,1.2vw,0.83rem)!important;
-    padding:clamp(3px,0.8vw,7px) clamp(4px,1vw,12px)!important;
-    white-space:nowrap!important;flex-shrink:0!important;}
-@media(max-width:640px){
-    [data-testid="column"]{width:100%!important;flex:0 0 100%!important;min-width:0!important;}}
-@media(min-width:641px) and (max-width:900px){
-    [data-testid="column"]{min-width:min(200px,45%)!important;}}
-@media(max-width:480px){
-    [data-testid="stMetric"]{padding:8px 10px!important;}
-    [data-testid="stMetricValue"]{font-size:1.15rem!important;}
-    [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
-    [data-testid="stMetricDelta"]{font-size:0.70rem!important;}
-    [data-testid="stButton"]>button{min-height:44px!important;font-size:0.85rem!important;}
-    [data-testid="stTextInput"] input,[data-testid="stSelectbox"] select,
-    [data-testid="stNumberInput"] input{font-size:16px!important;min-height:44px!important;}
-    [data-testid="stSlider"]{padding:6px 0!important;}
-    .section-pill{font-size:0.72rem!important;padding:4px 10px!important;}
-    .hide-mobile{display:none!important;}
-    [data-testid="stExpander"]>div>div{padding:8px 10px!important;}}
-@media(min-width:481px) and (max-width:768px){
-    [data-testid="stMetricValue"]{font-size:1.3rem!important;}
-    [data-testid="stButton"]>button{min-height:40px!important;}}
-[data-testid="stDataFrame"],[data-testid="stTable"],.ag-root-wrapper{
-    overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;max-width:100%!important;}
-@media(max-width:768px){[data-testid="stPlotlyChart"]{width:100%!important;}}
-@media(max-width:768px){
-    [data-testid="stSidebarContent"]{padding:0.5rem!important;}
-    [data-testid="stSidebar"]{min-width:0!important;}}
-.spark-row{display:flex;align-items:center;gap:6px;padding:4px 0;
-    border-bottom:1px solid #1f2937;flex-wrap:wrap;}
-.spark-row:last-child{border-bottom:none;}
-.spark-ticker{font-family:'Courier New',monospace;font-weight:bold;
-    color:#00ff88;font-size:0.88rem;min-width:70px;}
-.spark-badge{display:inline-block;border-radius:3px;padding:1px 6px;
-    font-size:0.68rem;font-weight:bold;margin-left:2px;}
-.spark-css{color:#b2b5be;font-size:0.78rem;min-width:40px;}
-.spark-svg{flex-shrink:0;}
-.refresh-banner{display:flex;align-items:center;gap:8px;
-    background:#0d1117;border:1px solid #1f2937;border-radius:6px;
-    padding:6px 14px;font-size:0.78rem;color:#6b7280;margin-bottom:8px;}
-.refresh-banner strong{color:#50c4e0;}
-.earn-row{display:grid;grid-template-columns:90px 1fr 60px 46px 72px;
-    gap:8px;align-items:center;padding:7px 10px;
-    border-bottom:1px solid #1a2233;font-size:0.86rem;}
-@media(max-width:768px){.earn-row{grid-template-columns:78px 1fr 56px 40px 64px;font-size:0.80rem;}}
-@media(max-width:480px){.earn-row{grid-template-columns:70px 1fr 50px 36px;font-size:0.75rem;}}
-.earn-row:hover{background:#131d2e;}
-.earn-ticker{font-family:'Courier New',monospace;color:#00ff88;font-weight:bold;font-size:0.90rem;}
-.earn-ticker a{color:#00ff88;text-decoration:none;}
-.earn-ticker a:hover{color:#26c6da;text-decoration:underline;}
-.earn-date{color:#50c4e0;font-size:0.80rem;}
-#theme-toggle-btn{position:fixed;top:14px;right:70px;z-index:9999;
-    background:#1e222d;border:1px solid #363a45;border-radius:20px;
-    padding:4px 12px;font-size:0.75rem;color:#d1d4dc;cursor:pointer;transition:all 0.2s;}
-#theme-toggle-btn:hover{border-color:#50c4e0;color:#50c4e0;}
-body.light-theme [data-testid="stAppViewContainer"],
-body.light-theme [data-testid="stMain"],
-body.light-theme [data-testid="block-container"]{background-color:#f8fafc!important;color:#1e293b!important;}
-body.light-theme [data-testid="stSidebar"]{background-color:#e2e8f0!important;}
-body.light-theme [data-testid="stSidebar"] *{color:#334155!important;}
-body.light-theme [data-testid="stMetric"]{background:#fff!important;border-color:#e2e8f0!important;}
-body.light-theme [data-testid="stMetricValue"]{color:#0f766e!important;}
-body.light-theme [data-testid="stTabs"] button{background:#f1f5f9!important;color:#64748b!important;}
-body.light-theme [data-testid="stTabs"] button[aria-selected="true"]{color:#2962ff!important;background:#fff!important;}
-body.light-theme h1{color:#2962ff!important;text-shadow:none!important;}
-body.light-theme h2,body.light-theme h3{color:#0f766e!important;}
-body.light-theme .section-pill{background:#e0f2fe;border-left-color:#2962ff;color:#0f766e;}
-body.light-theme .ag-root-wrapper{background:#fff!important;}
-body.light-theme .ag-header{background:#f1f5f9!important;}
-body.light-theme .ag-row{background:#fff!important;border-bottom:1px solid #e2e8f0!important;}
-body.light-theme .ag-row:hover{background:#f8fafc!important;}
-body.light-theme .ag-cell{color:#1e293b!important;}
+:root {
+  --bg-base:#0d1117; --bg-surface:#161b22; --bg-surface-2:#1c2333; --bg-border:#21262d; --bg-hover:#262d3a;
+  --text-primary:#e6edf3; --text-muted:#8b949e; --text-faint:#484f58;
+  --accent-teal:#0d9488; --accent-teal-lt:#14b8a6; --accent-blue:#3b82f6;
+  --signal-bull:#22c55e; --signal-bear:#ef4444; --signal-warn:#f59e0b; --signal-hot:#f97316; --signal-conf:#a78bfa;
+  --radius-sm:4px; --radius-md:8px; --radius-lg:12px; --font-ui:'Inter','Segoe UI',system-ui,sans-serif; --font-mono:'JetBrains Mono','Courier New',monospace;
+}
+html,body,[data-testid="stAppViewContainer"],[data-testid="stMain"],[data-testid="block-container"]{background-color:var(--bg-base)!important;color:var(--text-primary)!important;font-family:var(--font-ui)!important;}
+[data-testid="stSidebar"]{background-color:var(--bg-surface)!important;border-right:1px solid var(--bg-border)!important;}
+[data-testid="stSidebar"] *{color:var(--text-primary)!important;}
+h1{color:var(--text-primary)!important;font-family:var(--font-ui)!important;font-weight:700!important;font-size:1.4rem!important;letter-spacing:-.02em;border-bottom:1px solid var(--bg-border);padding-bottom:10px;margin-bottom:16px;}
+h2,h3{color:var(--accent-teal-lt)!important;font-family:var(--font-ui)!important;font-weight:600!important;}
+.stCaption,small{color:var(--text-muted)!important;}
+[data-testid="stTabs"] [role="tablist"]{background:var(--bg-surface)!important;border-bottom:1px solid var(--bg-border)!important;padding:0 4px;gap:2px;}
+[data-testid="stTabs"] button{background:transparent!important;color:var(--text-muted)!important;border:none!important;border-bottom:2px solid transparent!important;font-family:var(--font-ui)!important;font-size:.81rem!important;font-weight:500!important;padding:8px 12px!important;border-radius:0!important;transition:color .15s,border-color .15s!important;}
+[data-testid="stTabs"] button:hover{color:var(--text-primary)!important;background:var(--bg-hover)!important;}
+[data-testid="stTabs"] button[aria-selected="true"]{color:var(--accent-teal-lt)!important;border-bottom:2px solid var(--accent-teal)!important;background:transparent!important;font-weight:600!important;}
+[data-testid="stMetric"]{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;padding:14px 18px!important;transition:box-shadow .2s;}
+[data-testid="stMetric"]:hover{box-shadow:0 0 0 1px var(--accent-teal)!important;}
+[data-testid="stMetricLabel"]{color:var(--text-muted)!important;font-size:.72rem!important;text-transform:uppercase!important;letter-spacing:.06em!important;font-weight:600!important;}
+[data-testid="stMetricValue"]{color:var(--text-primary)!important;font-size:1.55rem!important;font-family:var(--font-ui)!important;font-weight:700!important;}
+[data-testid="stButton"]>button{background:var(--bg-surface-2)!important;color:var(--text-primary)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-sm)!important;font-family:var(--font-ui)!important;font-size:.82rem!important;font-weight:500!important;transition:all .15s!important;}
+[data-testid="stButton"]>button:hover{background:var(--bg-hover)!important;border-color:var(--accent-teal)!important;color:var(--accent-teal-lt)!important;}
+[data-testid="stButton"]>button[kind="primary"]{background:var(--accent-teal)!important;border-color:var(--accent-teal)!important;color:#fff!important;font-weight:600!important;font-size:.9rem!important;}
+[data-testid="stButton"]>button[kind="primary"]:hover{background:#0f766e!important;border-color:#0f766e!important;color:#fff!important;}
+[data-testid="stButton"]>button[kind="secondary"]{background:var(--bg-surface)!important;color:var(--signal-bear)!important;border:1px solid rgba(239,68,68,.35)!important;}
+[data-testid="stDownloadButton"]>button{background:var(--bg-surface)!important;color:var(--accent-blue)!important;border:1px solid rgba(59,130,246,.35)!important;border-radius:var(--radius-sm)!important;font-size:.82rem!important;}
+[data-testid="stExpander"]{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;}
+[data-testid="stExpander"] summary{color:var(--text-muted)!important;font-size:.83rem!important;}
+hr{border-color:var(--bg-border)!important;}
+.ag-root-wrapper{background:var(--bg-surface)!important;border:1px solid var(--bg-border)!important;border-radius:var(--radius-md)!important;}
+.ag-header{background:var(--bg-base)!important;border-bottom:1px solid var(--bg-border)!important;}
+.ag-header-cell-label{color:var(--text-muted)!important;font-family:var(--font-ui)!important;font-size:.73rem!important;letter-spacing:.06em;text-transform:uppercase;font-weight:600!important;}
+.ag-row{background:var(--bg-surface)!important;border-bottom:1px solid var(--bg-border)!important;}
+.ag-row:hover{background:var(--bg-hover)!important;}
+.ag-row-selected{background:rgba(13,148,136,.12)!important;border-left:2px solid var(--accent-teal)!important;}
+.ag-cell{color:var(--text-primary)!important;font-family:var(--font-ui)!important;font-size:.83rem!important;}
+.ag-paging-panel{background:var(--bg-base)!important;color:var(--text-muted)!important;border-top:1px solid var(--bg-border)!important;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg-base);}::-webkit-scrollbar-thumb{background:var(--bg-border);border-radius:3px;}
+.section-pill{display:inline-flex;align-items:center;gap:8px;background:var(--bg-surface);border-left:3px solid var(--accent-teal);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:5px 16px;font-family:var(--font-ui);font-size:.78rem;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px;}
+.op-header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:10px 18px;margin-bottom:16px;font-size:.82rem;}
+.op-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700;border:1px solid transparent;}
+.op-badge.open{color:var(--signal-bull);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08);} .op-badge.closed{color:var(--text-muted);border-color:var(--bg-border);background:var(--bg-surface-2);} .op-badge.warn{color:var(--signal-warn);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08);} .op-sep{color:var(--text-faint);}
+.kpi-card{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:16px 20px;display:flex;flex-direction:column;gap:4px;transition:box-shadow .2s;}
+.kpi-card:hover{box-shadow:0 0 0 1px var(--accent-teal)!important;}.kpi-label{font-size:.70rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);} .kpi-value{font-size:2rem;font-weight:800;font-family:var(--font-ui);color:var(--text-primary);line-height:1.1;} .kpi-value.bull{color:var(--signal-bull);} .kpi-value.bear{color:var(--signal-bear);} .kpi-value.warn{color:var(--signal-warn);} .kpi-value.teal{color:var(--accent-teal-lt);} .kpi-value.conf{color:var(--signal-conf);} .kpi-value.hot{color:var(--signal-hot);} .kpi-delta{font-size:.73rem;font-weight:600;color:var(--text-faint);} .kpi-delta.pos{color:var(--signal-bull);} .kpi-delta.neg{color:var(--signal-bear);}
+.sig-card{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-md);padding:12px 16px;display:flex;flex-direction:column;gap:6px;transition:border-color .15s,box-shadow .15s;}
+.sig-card:hover{border-color:var(--accent-teal);box-shadow:0 4px 16px rgba(13,148,136,.12);} .sig-ticker{font-family:var(--font-mono);font-size:1.05rem;font-weight:800;color:var(--text-primary);letter-spacing:-.01em;} .sig-name{font-size:.73rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px;} .sig-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;} .sig-badge{display:inline-block;padding:1px 8px;border-radius:3px;font-size:.68rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;} .sig-badge.early{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);} .sig-badge.pro{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.3);} .sig-badge.strong{background:rgba(167,139,250,.12);color:#c4b5fd;border:1px solid rgba(167,139,250,.3);} .sig-badge.hot{background:rgba(249,115,22,.12);color:#fb923c;border:1px solid rgba(249,115,22,.3);} .sig-badge.conf{background:rgba(167,139,250,.12);color:#c084fc;border:1px solid rgba(167,139,250,.3);} .sig-meta{display:flex;align-items:center;justify-content:space-between;font-size:.73rem;color:var(--text-muted);border-top:1px solid var(--bg-border);padding-top:6px;margin-top:2px;} .sig-css-val{font-family:var(--font-mono);font-weight:700;color:var(--accent-teal-lt);} .sig-rsi-val{font-family:var(--font-mono);}
+.tab-legend{background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:var(--radius-sm);padding:8px 14px;margin-bottom:12px;font-size:.76rem;color:var(--text-muted);display:flex;align-items:center;gap:12px;flex-wrap:wrap;} .tab-legend strong{color:var(--text-primary);} .tab-legend .sep{color:var(--text-faint);} .ov-section-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-faint);margin-bottom:8px;margin-top:4px;}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;} .dot.green{background:var(--signal-bull);box-shadow:0 0 6px var(--signal-bull);} .dot.red{background:var(--signal-bear);box-shadow:0 0 6px var(--signal-bear);} .dot.yellow{background:var(--signal-warn);box-shadow:0 0 6px var(--signal-warn);} 
+@media (max-width:768px){[data-testid="stMetricValue"]{font-size:1.2rem!important}.sig-card{padding:10px 12px}.op-header{gap:8px;padding:8px 12px}}
 </style>
 """
 
@@ -2112,18 +1966,26 @@ def to_excel_bytes(d):
                 df.to_excel(w,sheet_name=nm[:31],index=False)
     return buf.getvalue()
 
-def make_tv_txt(df, tab=""):
-    """Un ticker per riga — formato import TradingView."""
-    if df is None or (hasattr(df, 'empty') and df.empty): return b""
-    _col = next((c for c in ["Ticker","ticker","Symbol","symbol"] if hasattr(df,'columns') and c in df.columns), None)
-    if _col is None: return b""
-    _v = list(dict.fromkeys([str(x).strip().upper() for x in df[_col].dropna() if str(x).strip()]))
-    return ("\n".join(_v)).encode("utf-8")
+def make_tv_txt(df):
+    """Un simbolo per riga con prefisso exchange per import TradingView watchlist."""
+    lines=[]
+    for tk in df["Ticker"].dropna().unique():
+        tk=str(tk).strip().upper()
+        if not tk: continue
+        if ":" in tk:            sym=tk
+        elif tk.endswith(".MI"): sym="MIL:"+tk[:-3]
+        elif tk.endswith(".L"):  sym="LSE:"+tk[:-2]
+        elif tk.endswith(".PA") or tk.endswith(".AS"): sym="EURONEXT:"+tk[:-3]
+        elif tk.endswith(".DE"): sym="XETR:"+tk[:-3]
+        elif tk.endswith(".F"):  sym="FWB:"+tk[:-2]
+        else:                    sym="NASDAQ:"+tk
+        lines.append(sym)
+    return "\n".join(lines).encode("utf-8")
+def make_tv_csv(df,tab=""):
+    return make_tv_txt(df)
 
-def tv_txt_btn(df, fname, key, label="📥 TXT TradingView"):
-    """Download TXT TradingView (un ticker per riga)."""
-    _f = fname[:-4]+".txt" if fname.lower().endswith(".txt") else fname
-    st.download_button(label, make_tv_txt(df), _f, "text/plain", key=key)
+def csv_btn(df,fname,key):
+    st.download_button("📥 CSV",df.to_csv(index=False).encode(),fname,"text/csv",key=key)
 
 # =========================================================================
 # PRESETS
@@ -2172,152 +2034,7 @@ PRESETS={
 # =========================================================================
 st.set_page_config(page_title="Trading Scanner PRO 44.0b",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
-# ── v44a scroll-to-top ──────────────────────────────────────────────────
-st.markdown("""
-<style>
-#v43c-top{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:999999;
-  background:#1e222d;border:1px solid #363a45;border-radius:999px;
-  width:46px;height:46px;display:flex;align-items:center;justify-content:center;
-  color:#50c4e0;font-size:20px;text-decoration:none;cursor:pointer;opacity:0;pointer-events:none;
-  box-shadow:0 4px 16px rgba(0,0,0,0.45);transition:opacity .18s ease, background .18s ease, color .18s ease, transform .18s ease;
-  line-height:1;}
-#v43c-top.v43c-top-visible{opacity:1;pointer-events:auto;}
-#v43c-top:hover{background:#2962ff;color:#fff;transform:translateY(-50%) scale(1.04);}
-@media (max-width: 768px){
-  #v43c-top{right:12px;width:44px;height:44px;top:auto;bottom:88px;transform:none;}
-  #v43c-top:hover{transform:scale(1.03);}
-}
-</style>
-<a id='v43c-top' href='javascript:void(0)' title='Torna in cima' aria-label='Torna in cima'>&#9650;</a>
-<script>
-(function(){
-  function getBtn(){
-    return document.getElementById('v43c-top') || (window.parent && window.parent.document ? window.parent.document.getElementById('v43c-top') : null);
-  }
-  function getScrollTargets(){
-    var out=[];
-    try{
-      var pdoc=window.parent && window.parent.document ? window.parent.document : document;
-      [
-        pdoc.querySelector('.main'),
-        pdoc.querySelector('section.main'),
-        pdoc.querySelector('[data-testid="stAppViewContainer"]'),
-        pdoc.querySelector('[data-testid="stAppViewBlockContainer"]'),
-        pdoc.querySelector('.block-container'),
-        pdoc.scrollingElement,
-        pdoc.documentElement,
-        pdoc.body,
-        document.scrollingElement,
-        document.documentElement,
-        document.body
-      ].forEach(function(el){ if(el && out.indexOf(el)===-1) out.push(el); });
-    }catch(e){}
-    return out;
-  }
-  function scrollTopNow(){
-    getScrollTargets().forEach(function(el){ try{ el.scrollTo({top:0, behavior:'smooth'}); }catch(e){} try{ el.scrollTop=0; }catch(e){} });
-    try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){}
-    try{ window.parent.scrollTo({top:0, behavior:'smooth'}); }catch(e){}
-  }
-  function currentScroll(){
-    var mx=0;
-    getScrollTargets().forEach(function(el){ try{ mx=Math.max(mx, el.scrollTop||0); }catch(e){} });
-    try{ mx=Math.max(mx, window.pageYOffset||0); }catch(e){}
-    try{ mx=Math.max(mx, window.parent.pageYOffset||0); }catch(e){}
-    return mx;
-  }
-  function refreshBtn(){
-    var b=getBtn(); if(!b) return;
-    if(currentScroll()>220) b.classList.add('v43c-top-visible');
-    else b.classList.remove('v43c-top-visible');
-  }
-  function attach(){
-    var b=getBtn();
-    if(!b || b.dataset.bound==='1') return;
-    b.dataset.bound='1';
-    b.addEventListener('click', function(ev){ ev.preventDefault(); scrollTopNow(); });
-    getScrollTargets().forEach(function(el){ try{ el.addEventListener('scroll', refreshBtn, {passive:true}); }catch(e){} });
-    try{ window.addEventListener('scroll', refreshBtn, {passive:true}); }catch(e){}
-    try{ window.parent.addEventListener('scroll', refreshBtn, {passive:true}); }catch(e){}
-    refreshBtn();
-  }
-  [100,300,800,1500,3000].forEach(function(t){ setTimeout(function(){ attach(); refreshBtn(); }, t); });
-  try{
-    var mo=new MutationObserver(function(){ attach(); refreshBtn(); });
-    mo.observe(document.body,{childList:true,subtree:true});
-  }catch(e){}
-})();
-</script>
-""", unsafe_allow_html=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-# v43c — WEB PUSH NOTIFICATIONS helper (JS browser)
-# ══════════════════════════════════════════════════════════════════════════════
-_PUSH_JS = """
-<script>
-(function(){
-    const PUSH_KEY = 'v43c_push_enabled';
-    window._v43cPushEnabled = sessionStorage.getItem(PUSH_KEY)==='1';
-    window._v43cRequestPush = function(){
-        if(!('Notification' in window)){return;}
-        Notification.requestPermission().then(p=>{
-            if(p==='granted'){
-                sessionStorage.setItem(PUSH_KEY,'1');
-                window._v43cPushEnabled=true;
-                new Notification('Trading Scanner PRO 43b',{
-                    body:'✅ Alert push attivati — segnali PRO/STRONG in tempo reale.',
-                    icon:'https://cdn.simpleicons.org/bitcoin'
-                });
-            }
-        });
-    };
-    window._v43cSendPush = function(title,body){
-        if(window._v43cPushEnabled && Notification.permission==='granted'){
-            new Notification(title,{body:body});
-        }
-    };
-    document.addEventListener('DOMContentLoaded',function(){
-        var btn=document.getElementById('v43c-push-btn');
-        if(btn){
-            btn.onclick=window._v43cRequestPush;
-            if(window._v43cPushEnabled){btn.innerText='🔔 Push ON';}
-        }
-    });
-})();
-</script>
-"""
-st.markdown(_PUSH_JS, unsafe_allow_html=True)
-
 st.markdown(BACK_TO_TOP_CSS,unsafe_allow_html=True)
-
-# ── v43: TEMA TOGGLE persistente per sessione ────────────────────────────────
-st.markdown("""
-<button id='theme-toggle-btn'
-  onclick='(function(){
-    var b=window.parent.document.body||document.body;
-    if(b.classList.contains("light-theme")){
-        b.classList.remove("light-theme");
-        document.getElementById("theme-toggle-btn").textContent="\u2600 Light";
-    }else{
-        b.classList.add("light-theme");
-        document.getElementById("theme-toggle-btn").textContent="\U0001f319 Dark";
-    }
-  })()'>&#9728; Light</button>
-""", unsafe_allow_html=True)
-
-# ── v43: AUTO-REFRESH schedulato ─────────────────────────────────────────────
-import time as _time_v43
-if "v43_last_refresh" not in st.session_state:
-    st.session_state["v43_last_refresh"] = _time_v43.time()
-if "v43_autorefresh_mins" not in st.session_state:
-    st.session_state["v43_autorefresh_mins"] = 0
-_v43_ar_mins = st.session_state.get("v43_autorefresh_mins", 0)
-if _v43_ar_mins > 0:
-    _v43_elapsed = _time_v43.time() - st.session_state["v43_last_refresh"]
-    if _v43_elapsed >= _v43_ar_mins * 60:
-        st.session_state["v43_last_refresh"] = _time_v43.time()
-        st.rerun()
-
 st.markdown("# 🧠 Trading Scanner PRO 44.0b")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
@@ -2427,47 +2144,147 @@ for k,v in defaults.items():
 # =========================================================================
 # KPI BAR
 # =========================================================================
+
+
+def _safe_num(v, default=0):
+    try:
+        if v is None or v == "":
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+
+def render_operational_header(df_ep, df_rea):
+    try:
+        market_open = is_market_open_nyse() if 'is_market_open_nyse' in globals() else False
+    except Exception:
+        market_open = False
+    last_scan = st.session_state.get("last_scan", "—")
+    active_list = st.session_state.get("current_list_name", st.session_state.get("currentlistname", "DEFAULT"))
+    strong_only = bool(st.session_state.get("show_strong_only", False))
+    css_on = bool(st.session_state.get("css_filter_enabled", False))
+    top_n = int(st.session_state.get("top", 15))
+    badge_cls = "open" if market_open else "closed"
+    badge_txt = "Mercato aperto" if market_open else "Mercato chiuso"
+    filt = []
+    if strong_only: filt.append("STRONG only")
+    if css_on: filt.append(f"CSS≥{int(st.session_state.get('css_min_val',40))}")
+    filt.append(f"Top {top_n}")
+    filt_txt = " · ".join(filt)
+    st.markdown(
+        f"<div class='op-header'>"
+        f"<span class='op-badge {badge_cls}'><span class='dot {'green' if market_open else 'yellow'}'></span>{badge_txt}</span>"
+        f"<span><b>Ultimo aggiornamento:</b> {last_scan}</span>"
+        f"<span class='op-sep'>|</span>"
+        f"<span><b>Watchlist attiva:</b> {active_list}</span>"
+        f"<span class='op-sep'>|</span>"
+        f"<span><b>Filtri:</b> {filt_txt}</span>"
+        f"</div>", unsafe_allow_html=True)
+
+
+def render_overview_signal_cards(df_ep, df_rea, top_n=5):
+    if df_ep is None or getattr(df_ep, 'empty', True):
+        st.info("Nessun segnale disponibile. Avvia una scansione per popolare l'overview.")
+        return
+    df = df_ep.copy()
+    score_col = None
+    for c in ["CSS", "Pro_Score", "Quality_Score", "Early_Score"]:
+        if c in df.columns:
+            score_col = c
+            break
+    if score_col:
+        df[score_col] = pd.to_numeric(df[score_col], errors='coerce').fillna(0)
+        df = df.sort_values(score_col, ascending=False)
+    picks = df.head(top_n)
+    cols = st.columns(top_n) if len(picks) >= top_n else st.columns(max(len(picks),1))
+    for i, (_, row) in enumerate(picks.iterrows()):
+        with cols[i]:
+            ticker = str(row.get('Ticker','—'))
+            nome = str(row.get('Nome',''))[:24]
+            css = row.get('CSS', row.get('Pro_Score', '—'))
+            rsi = row.get('RSI', '—')
+            badges = []
+            if str(row.get('Stato_Early','')) == 'EARLY': badges.append("<span class='sig-badge early'>EARLY</span>")
+            sp = str(row.get('Stato_Pro',''))
+            if sp == 'PRO': badges.append("<span class='sig-badge pro'>PRO</span>")
+            if sp == 'STRONG': badges.append("<span class='sig-badge strong'>STRONG</span>")
+            if str(row.get('Weekly_Bull','')) in ['True','true','1','1.0'] or row.get('Weekly_Bull', False) is True:
+                badges.append("<span class='sig-badge conf'>WEEKLY</span>")
+            st.markdown(
+                f"<div class='sig-card'>"
+                f"<div class='sig-ticker'>{ticker}</div>"
+                f"<div class='sig-name'>{nome}</div>"
+                f"<div class='sig-badges'>{''.join(badges)}</div>"
+                f"<div class='sig-meta'><span>CSS <span class='sig-css-val'>{css}</span></span><span>RSI <span class='sig-rsi-val'>{rsi}</span></span></div>"
+                f"</div>", unsafe_allow_html=True)
+    if df_rea is not None and not getattr(df_rea, 'empty', True):
+        n_hot = min(len(df_rea), 3)
+        st.markdown("<div class='ov-section-title'>Attenzione immediata</div>", unsafe_allow_html=True)
+        cols2 = st.columns(n_hot)
+        hot = df_rea.head(n_hot)
+        for i, (_, row) in enumerate(hot.iterrows()):
+            with cols2[i]:
+                ticker = str(row.get('Ticker','—'))
+                nome = str(row.get('Nome',''))[:24]
+                vol = row.get('Vol_Ratio', row.get('VolRatio','—'))
+                val = row.get('Valore', row.get('Dist_POC_%','—'))
+                st.markdown(
+                    f"<div class='sig-card'>"
+                    f"<div class='sig-ticker'>{ticker}</div>"
+                    f"<div class='sig-name'>{nome}</div>"
+                    f"<div class='sig-badges'><span class='sig-badge hot'>HOT</span></div>"
+                    f"<div class='sig-meta'><span>Vol <span class='sig-rsi-val'>{vol}</span></span><span>POC <span class='sig-rsi-val'>{val}</span></span></div>"
+                    f"</div>", unsafe_allow_html=True)
+
 def render_kpi_bar(df_ep,df_rea):
     hist=load_scan_history(2); p_e=p_p=p_h=p_c=0
     if len(hist)>=2:
-        pr=hist.iloc[1];p_e=int(pr.get("n_early",0));p_p=int(pr.get("n_pro",0))
-        p_h=int(pr.get("n_rea",0));p_c=int(pr.get("n_confluence",0))
+        pr=hist.iloc[1];p_e=int(pr.get("n_early",0));p_p=int(pr.get("n_pro",0)); p_h=int(pr.get("n_rea",0));p_c=int(pr.get("n_confluence",0))
     n_e=int((df_ep.get("Stato_Early",pd.Series())=="EARLY").sum()) if not df_ep.empty else 0
     n_p=int((df_ep.get("Stato_Pro",pd.Series()).isin(["PRO","STRONG"])).sum()) if not df_ep.empty else 0
-    n_str=int((df_ep.get("Stato_Pro",pd.Series())=="STRONG").sum()) if not df_ep.empty else 0
     n_h=len(df_rea) if not df_rea.empty else 0
     n_c=0
     if not df_ep.empty and "Stato_Early" in df_ep.columns and "Stato_Pro" in df_ep.columns:
-        n_c=int(((df_ep["Stato_Early"]=="EARLY") &
-                  (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))).sum())
-    # Liquidita' media (Dollar_Vol)
-    n_liq = 0
-    if not df_ep.empty and "Liq_OK" in df_ep.columns:
-        n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum())
-
-    # ── v34: CSS Grade A e Trend STRONG ─────────────────────────────────
-    n_css_a    = 0
-    n_strong   = 0
-    css_avg    = None
+        n_c=int(((df_ep["Stato_Early"]=="EARLY") & (df_ep["Stato_Pro"].isin(["PRO","STRONG"]))).sum())
+    n_liq = int(df_ep["Liq_OK"].isin([True,"True","true",1]).sum()) if (not df_ep.empty and "Liq_OK" in df_ep.columns) else 0
+    n_css_a, n_strong, css_avg = 0, 0, None
     if not df_ep.empty:
-        if "CSS_Grade" in df_ep.columns:
-            n_css_a = int((df_ep["CSS_Grade"] == "A").sum())
+        if "CSS_Grade" in df_ep.columns: n_css_a = int((df_ep["CSS_Grade"] == "A").sum())
         if "CSS" in df_ep.columns:
             _css_vals = pd.to_numeric(df_ep["CSS"], errors="coerce").dropna()
             css_avg = round(float(_css_vals.mean()), 1) if len(_css_vals) > 0 else None
-        if "Trend_Strength" in df_ep.columns:
-            n_strong = int((df_ep["Trend_Strength"] == "STRONG").sum())
+        if "Trend_Strength" in df_ep.columns: n_strong = int((df_ep["Trend_Strength"] == "STRONG").sum())
 
-    k1,k2,k3,k4,k5,k6,k7,k8=st.columns(8)
-    k1.metric("📡 EARLY",     n_e,   delta=n_e-p_e   if p_e  else None)
-    k2.metric("💪 PRO+STR",   n_p,   delta=n_p-p_p   if p_p  else None)
-    k3.metric("⭐ CONFLUENCE", n_c,   delta=n_c-p_c   if p_c  else None)
-    k4.metric("🔥 REA-HOT",   n_h,   delta=n_h-p_h   if p_h  else None)
-    k5.metric("💧 Liq OK",    n_liq)
-    k6.metric("🏆 CSS Grade A", n_css_a, help="Titoli con Composite Signal Score ≥ 80")
-    k7.metric("⚡ Trend STRONG", n_strong, help="Titoli con ADX_Proxy ≥ 65 (trend forte)")
-    k8.metric("📊 CSS medio",  f"{css_avg:.1f}" if css_avg else "—",
-              help="Composite Signal Score medio del batch corrente")
+    def _delta_cls(cur, prev):
+        if prev is None or prev == 0: return ""
+        return "pos" if cur >= prev else "neg"
+    def _delta_txt(cur, prev):
+        if prev is None or prev == 0: return "vs prev —"
+        d = cur - prev
+        sign = "+" if d >= 0 else ""
+        return f"{sign}{d} vs prev"
+
+    row1 = [
+        ("Segnali Early", n_e, "teal", _delta_txt(n_e,p_e), _delta_cls(n_e,p_e)),
+        ("Setup PRO", n_p, "bull", _delta_txt(n_p,p_p), _delta_cls(n_p,p_p)),
+        ("Rea-Hot", n_h, "hot", _delta_txt(n_h,p_h), _delta_cls(n_h,p_h)),
+        ("Confluence", n_c, "conf", _delta_txt(n_c,p_c), _delta_cls(n_c,p_c)),
+    ]
+    row2 = [
+        ("Liq OK", n_liq, "teal", "liquidità valida", ""),
+        ("CSS Grade A", n_css_a, "warn", "setup elite", ""),
+        ("CSS medio", f"{css_avg:.1f}" if css_avg is not None else "—", "teal", f"Trend strong {n_strong}", ""),
+    ]
+
+    c1,c2,c3,c4 = st.columns(4)
+    for col, item in zip([c1,c2,c3,c4], row1):
+        lbl,val,cls,dtxt,dcls = item
+        col.markdown(f"<div class='kpi-card'><div class='kpi-label'>{lbl}</div><div class='kpi-value {cls}'>{val}</div><div class='kpi-delta {dcls}'>{dtxt}</div></div>", unsafe_allow_html=True)
+    c5,c6,c7 = st.columns(3)
+    for col, item in zip([c5,c6,c7], row2):
+        lbl,val,cls,dtxt,dcls = item
+        col.markdown(f"<div class='kpi-card'><div class='kpi-label'>{lbl}</div><div class='kpi-value {cls}'>{val}</div><div class='kpi-delta {dcls}'>{dtxt}</div></div>", unsafe_allow_html=True)
 
 # =========================================================================
 # SIDEBAR
@@ -2776,9 +2593,12 @@ if st.sidebar.button("🗑️ Reset Storico",key="reset_hist_sidebar"):
     except Exception as e: st.sidebar.error(f"Errore: {e}")
 
 # ── v41: AI multi-provider status in sidebar ────────────────────────────
-_ai_providers_status = {k: bool(v) for k,v in zip(
-    ["🟢 Gemini","🟣 Groq","🔵 OpenRouter","🟡 Claude"],
-    _get_global_ai_keys().values())}
+_ai_providers_status = {
+    "🟢 Gemini":     bool(st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key","")),
+    "🟣 Groq":       bool(st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key","")),
+    "🔵 OpenRouter": bool(st.secrets.get("OPENROUTER_API_KEY","") or st.session_state.get("_openrouter_api_key","")),
+    "🟡 Claude":     bool(st.secrets.get("ANTHROPIC_API_KEY","")  or st.session_state.get("_anthropic_api_key","")),
+}
 _n_active = sum(_ai_providers_status.values())
 _ai_status_lines = "  ".join(
     ("<span style='color:" + ("#00ff88" if ok else "#374151") + "'>" + name.split()[0] + "</span>")
@@ -2786,7 +2606,7 @@ _ai_status_lines = "  ".join(
 )
 _bg = "#0d2b1f" if _n_active > 0 else "#1a0f00"
 _bc = "#00ff88" if _n_active > 0 else "#f59e0b"
-_msg = f"{_n_active}/4 provider attivi" if _n_active > 0 else "nessun provider — configura AI nel tab PRO"
+_msg = f"{_n_active}/4 provider attivi" if _n_active > 0 else "nessun provider — vai tab PRO"
 st.sidebar.markdown(
     f"<div style='background:{_bg};border-left:3px solid {_bc};"
     f"border-radius:0 4px 4px 0;padding:5px 10px;font-size:0.72rem;margin:4px 0'>"
@@ -3794,7 +3614,7 @@ def render_scan_tab(df,status_filter,sort_cols,ascending,title):
     df_disp=df_disp[base+rest].reset_index(drop=True)
 
     ce1,ce2=st.columns([1,3])
-    with ce1: tv_txt_btn(df_f,f"{title.lower().replace(' ','_')}.txt",f"exp_{title}")
+    with ce1: csv_btn(df_f,f"{title.lower().replace(' ','_')}.csv",f"exp_{title}")
     with ce2: st.caption(f"Seleziona → **➕** per aggiungere a `{st.session_state.current_list_name}`. Doppio click Nome → TradingView.")
 
     grid_resp  =build_aggrid(df_disp,f"grid_{title}")
@@ -4028,7 +3848,7 @@ def _render_pattern_alerts_v41(df_src, tab_name="x"):
                 except Exception: pass
     _at_ts=datetime.now().strftime("%Y%m%d_%H%M")
     _df_exp=pd.DataFrame([{"Ticker":a["Ticker"],"Pattern":", ".join(a["Pattern"]),"CSS":a["CSS"]} for a in _rows])
-    st.download_button("📥 TXT TradingView",make_tv_txt(_df_exp),f"Alert_v41_{_at_ts}.txt","text/plain",key=f"alert_exp_{tab_name}")
+    st.download_button("📊 Export Alert",_df_exp.to_csv(index=False).encode(),f"Alert_v41_{_at_ts}.csv","text/csv",key=f"alert_exp_{tab_name}")
 
 # ── v41 #2: News & Sentiment ───────────────────────────────────────────────
 @st.cache_data(ttl=600)
@@ -4186,10 +4006,15 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
     """, unsafe_allow_html=True)
 
     # ── Pannello configurazione API keys ──────────────────────────────────
-    _any_key = _has_global_ai_config()
+    _any_key = any([
+        st.secrets.get("GEMINI_API_KEY","")      or st.session_state.get("_gemini_api_key",""),
+        st.secrets.get("GROQ_API_KEY","")        or st.session_state.get("_groq_api_key",""),
+        st.secrets.get("OPENROUTER_API_KEY","")  or st.session_state.get("_openrouter_api_key",""),
+        st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
+    ])
 
     with st.expander(
-        "🔑 AI Config globale" + (" ✅ attiva" if _any_key else " ⚠️ nessuna key — configura qui"),
+        "🔑 Configura API Keys" + (" ✅" if _any_key else " ⚠️ Nessuna key — configura qui"),
         expanded=not _any_key
     ):
         st.markdown(
@@ -4244,7 +4069,7 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
                 if _groq_inp.strip(): st.session_state["_groq_api_key"]       = _groq_inp.strip()
                 if _or_inp.strip():   st.session_state["_openrouter_api_key"] = _or_inp.strip()
                 if _ant_inp.strip():  st.session_state["_anthropic_api_key"]  = _ant_inp.strip()
-                st.success("✅ Configurazione AI globale salvata per questa sessione!")
+                st.success("✅ Keys salvate per questa sessione!")
                 st.rerun()
         with _reset_col:
             if st.button("🗑️ Reset tutte", key=f"ai_keys_reset_{tab_name}",
@@ -4495,17 +4320,26 @@ def _ai_call_with_fallback(prompt: str) -> tuple:
     Prova i provider in ordine: Gemini → Groq → OpenRouter → Claude.
     Restituisce (testo_risposta, provider_usato) o lancia Exception.
     """
-    _k = _get_global_ai_keys()
-    _gem_key  = _k["gemini"]
-    _groq_key = _k["groq"]
-    _or_key   = _k["openrouter"]
-    _ant_key  = _k["anthropic"]
+    _ss = st.session_state
 
+    # Costruisce lista provider configurati nell'ordine preferito
     _providers = []
-    if _gem_key:  _providers.append(("🟢 Gemini Flash",  _ai_call_gemini,     _gem_key))
-    if _groq_key: _providers.append(("🟣 Groq Llama",    _ai_call_groq,       _groq_key))
-    if _or_key:   _providers.append(("🔵 OpenRouter",    _ai_call_openrouter, _or_key))
-    if _ant_key:  _providers.append(("🟡 Claude Haiku",  _ai_call_claude,     _ant_key))
+
+    _gem_key = st.secrets.get("GEMINI_API_KEY","") or _ss.get("_gemini_api_key","")
+    if _gem_key:
+        _providers.append(("🟢 Gemini Flash", _ai_call_gemini, _gem_key))
+
+    _groq_key = st.secrets.get("GROQ_API_KEY","") or _ss.get("_groq_api_key","")
+    if _groq_key:
+        _providers.append(("🟣 Groq Llama", _ai_call_groq, _groq_key))
+
+    _or_key = st.secrets.get("OPENROUTER_API_KEY","") or _ss.get("_openrouter_api_key","")
+    if _or_key:
+        _providers.append(("🔵 OpenRouter", _ai_call_openrouter, _or_key))
+
+    _ant_key = st.secrets.get("ANTHROPIC_API_KEY","") or _ss.get("_anthropic_api_key","")
+    if _ant_key:
+        _providers.append(("🟡 Claude Haiku", _ai_call_claude, _ant_key))
 
     if not _providers:
         raise Exception("NO_KEYS")
@@ -4599,6 +4433,15 @@ tabs = st.tabs([
  tab_w) = tabs
 
 with tab_home:
+    st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
+    _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
+    _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
+    render_operational_header(_df_ep_home, _df_rea_home)
+    render_kpi_bar(_df_ep_home, _df_rea_home)
+    st.markdown("<div class='ov-section-title'>Top opportunità del batch corrente</div>", unsafe_allow_html=True)
+    render_overview_signal_cards(_df_ep_home, _df_rea_home, top_n=5)
+    st.markdown("<div class='tab-legend'><strong>Cosa mostra</strong> overview esecutiva del batch corrente <span class='sep'>•</span> <strong>Come viene filtrato</strong> usa i filtri attivi in sidebar <span class='sep'>•</span> <strong>Come leggerlo</strong> prima KPI, poi top setup, poi dettaglio nei tab dedicati</div>", unsafe_allow_html=True)
+    # ── v41e — ALERT BANNER: segnali STRONG visibili subito ──────────────
     # ── v41e — ALERT BANNER: segnali STRONG visibili subito ──────────────
     try:
         _df_ep_banner = st.session_state.get("df_ep", pd.DataFrame())
@@ -4637,489 +4480,7 @@ with tab_home:
     except Exception:
         pass
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — BARRA CONTROLLO: Auto-refresh + Export CSV/Excel 1-click
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        _v43_c1,_v43_c2,_v43_c3,_v43_c4 = st.columns([2.5,0.8,0.9,0.8])
-        with _v43_c1:
-            _v43_ar_label = (f"ogni {st.session_state.get('v43_autorefresh_mins',0)} min"
-                             if st.session_state.get("v43_autorefresh_mins",0)>0 else "disattivato")
-            st.markdown(
-                f"<div class='refresh-banner'>🔄 Auto-refresh: <strong>{_v43_ar_label}</strong>"
-                f"&nbsp;|&nbsp; Aggiornato: <strong>{datetime.now().strftime('%H:%M:%S')}</strong></div>",
-                unsafe_allow_html=True)
-        with _v43_c2:
-            st.session_state["v43_autorefresh_mins"] = st.selectbox(
-                "⏱", [0,5,10,15,30], index=0,
-                format_func=lambda x: "Off" if x==0 else f"{x}m",
-                key="v43_ar_sel", label_visibility="collapsed")
-        with _v43_c3:
-            if not df_ep.empty:
-                _v43_ec = [c for c in ["Ticker","Nome","Stato_Pro","CSS","RSI","Tipo"] if c in df_ep.columns]
-                st.download_button("📥 TXT TradingView", make_tv_txt(df_ep[_v43_ec]),
-                                   f"segnali_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                                   "text/plain", key="v43d_dl_txt", use_container_width=True)
-        with _v43_c4:
-            if not df_ep.empty:
-                try:
-                    import io as _io43
-                    _v43_xl = _io43.BytesIO()
-                    _v43_xlc = [c for c in ["Ticker","Nome","Stato_Pro","CSS","RSI"] if c in df_ep.columns]
-                    df_ep[_v43_xlc].to_excel(_v43_xl, index=False, engine="openpyxl")
-                    st.download_button("📊 Excel", _v43_xl.getvalue(),
-                                       f"segnali_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                       key="v43_dl_xl", use_container_width=True)
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — TOP PRO/STRONG CON SPARKLINE SVG INLINE (ultimi 10 giorni)
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        if not df_ep.empty and "Stato_Pro" in df_ep.columns:
-            _v43_top = df_ep[df_ep["Stato_Pro"].isin(["PRO","STRONG"])].copy()
-            if not _v43_top.empty:
-                _v43_srt = (_v43_top.sort_values("CSS", ascending=False)
-                            if "CSS" in _v43_top.columns else _v43_top)
-                with st.expander(f"⭐ Top PRO/STRONG ({len(_v43_top)}) — Sparkline 10d", expanded=True):
-                    for _, _vtr in _v43_srt.head(15).iterrows():
-                        _vtk = str(_vtr.get("Ticker",""))
-                        _vnm = str(_vtr.get("Nome", _vtr.get("Company","")))[:28]
-                        _vcss = _vtr.get("CSS","—")
-                        _vrsi = _vtr.get("RSI","—")
-                        _vst  = str(_vtr.get("Stato_Pro",""))
-                        _vbc  = "#ffd700" if _vst=="STRONG" else "#00ff88"
-                        try:
-                            import yfinance as _yf43
-                            _sp = _yf43.download(_vtk, period="12d", interval="1d",
-                                                 auto_adjust=True, progress=False)
-                            _sp.columns = [c[0] if isinstance(c,tuple) else c for c in _sp.columns]
-                            _spc = _sp["Close"].dropna().tolist() if "Close" in _sp.columns else []
-                        except Exception:
-                            _spc = []
-                        if len(_spc) >= 2:
-                            _smn=min(_spc); _smx=max(_spc); _sr=max(_smx-_smn,0.01)
-                            _W,_H = 80,22
-                            _pts = " ".join(
-                                f"{int(k*(_W/(len(_spc)-1)))},{int(_H-(_v-_smn)/_sr*(_H-4)+2)}"
-                                for k,_v in enumerate(_spc))
-                            _sc = "#00ff88" if _spc[-1]>=_spc[0] else "#ef4444"
-                            _svg = (f"<svg class='spark-svg' width='{_W}' height='{_H}' "
-                                    f"viewBox='0 0 {_W} {_H}'><polyline points='{_pts}' "
-                                    f"fill='none' stroke='{_sc}' stroke-width='1.5' "
-                                    f"stroke-linejoin='round'/></svg>")
-                        else:
-                            _svg = ("<svg class='spark-svg' width='80' height='22' "
-                                    "viewBox='0 0 80 22'><line x1='0' y1='11' x2='80' y2='11' "
-                                    "stroke='#2a2e39' stroke-width='1'/></svg>")
-                        _tv = _vtk.replace(".MI","%3AMI").replace(".L","%3AL")
-                        st.markdown(
-                            f"<div class='spark-row'>"
-                            f"<a href='https://it.tradingview.com/chart/?symbol={_tv}' "
-                            f"target='_blank' style='text-decoration:none'>"
-                            f"<span class='spark-ticker'>{_vtk}</span></a>"
-                            f"<span class='spark-badge' style='background:{_vbc}22;"
-                            f"color:{_vbc};border:1px solid {_vbc}44'>{_vst}</span>"
-                            f"<span class='spark-css'>CSS:{_vcss}</span>"
-                            f"<span class='spark-css'>RSI:{_vrsi}</span>"
-                            f"{_svg}"
-                            f"<span style='color:#6b7280;font-size:0.72rem;margin-left:auto'>"
-                            f"{_vnm}</span></div>", unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — EARNINGS TRACKER COMPATTO con filtro giorni + export CSV
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        with st.expander("📅 Earnings Tracker — prossime uscite", expanded=False):
-            _et_days = st.slider("Prossimi N giorni", 1, 30, 7, key="v43_et_days")
-            import yfinance as _yf_et43
-            from datetime import timedelta as _td43
-            _et_tks = (df_ep["Ticker"].dropna().unique().tolist()[:40]
-                       if not df_ep.empty and "Ticker" in df_ep.columns
-                       else ["AAPL","NVDA","MSFT","AMD","META","GOOGL"])
-            _et_res, _tod43 = [], datetime.now().date()
-            _cut43 = _tod43 + _td43(days=_et_days)
-            _et_prog = st.progress(0.0, text="Recupero date earnings…")
-            for _ei,_etk in enumerate(_et_tks):
-                _et_prog.progress((_ei+1)/max(len(_et_tks),1))
-                try:
-                    _cal = _yf_et43.Ticker(_etk).calendar
-                    _ed  = None
-                    if isinstance(_cal,dict):
-                        _ed = _cal.get("Earnings Date")
-                        if hasattr(_ed,"__iter__") and not isinstance(_ed,str):
-                            _edl=list(_ed); _ed=_edl[0] if _edl else None
-                    elif hasattr(_cal,"columns") and "Earnings Date" in _cal.columns:
-                        _ed = _cal["Earnings Date"].iloc[0]
-                    if _ed is None: continue
-                    _edate = pd.Timestamp(_ed).date()
-                    if _tod43 <= _edate <= _cut43:
-                        _dn = (_edate-_tod43).days
-                        _enm = (df_ep[df_ep["Ticker"]==_etk]["Nome"].iloc[0]
-                                if not df_ep.empty and "Nome" in df_ep.columns
-                                and not df_ep[df_ep["Ticker"]==_etk].empty else "")
-                        _est = (df_ep[df_ep["Ticker"]==_etk]["Stato_Pro"].iloc[0]
-                                if not df_ep.empty and "Stato_Pro" in df_ep.columns
-                                and not df_ep[df_ep["Ticker"]==_etk].empty else "—")
-                        _et_res.append({"Ticker":_etk,"Nome":str(_enm)[:24],
-                                        "Data":_edate.strftime("%d/%m"),
-                                        "Giorni":_dn,"Stato":str(_est)})
-                except Exception:
-                    continue
-            _et_prog.empty()
-            _et_res.sort(key=lambda x: x["Giorni"])
-            if _et_res:
-                st.markdown(
-                    "<div class='earn-row' style='color:#50c4e0;font-weight:bold;"
-                    "border-bottom:2px solid #2a2e39;font-size:0.83rem;"
-                    "background:#0d1117;border-radius:6px 6px 0 0'>"
-                    "<span>Ticker</span><span>Nome</span>"
-                    "<span>Data</span><span>Gg</span><span>Stato</span></div>",
-                    unsafe_allow_html=True)
-                for _er in _et_res:
-                    _ec=("#ffd700" if _er["Giorni"]<=2 else "#f59e0b" if _er["Giorni"]<=5 else "#6b7280")
-                    _sc=("#ffd700" if _er["Stato"]=="STRONG" else "#00ff88" if _er["Stato"]=="PRO" else "#787b86")
-                    _tv_s43c = _er["Ticker"].replace(".MI","%3AMI").replace(".L","%3AL").replace(".PA","%3APA")
-                    _tv_u43c = f"https://it.tradingview.com/chart/?symbol={_tv_s43c}"
-                    st.markdown(
-                        f"<div class='earn-row'>"
-                        f"<span class='earn-ticker'><a href='{_tv_u43c}' target='_blank'>{_er['Ticker']} ↗</a></span>"
-                        f"<span style='color:#b2b5be;font-size:0.83rem'>{_er['Nome']}</span>"
-                        f"<span class='earn-date'>{_er['Data']}</span>"
-                        f"<span style='color:{_ec};font-family:Courier New;font-size:0.83rem'>{_er['Giorni']}g</span>"
-                        f"<span style='color:{_sc};font-size:0.80rem;font-weight:bold'>{_er['Stato']}</span>"
-                        f"</div>", unsafe_allow_html=True)
-                st.download_button("📥 TXT TradingView",
-                    make_tv_txt(pd.DataFrame(_et_res)),
-                    f"earnings_{datetime.now().strftime('%Y%m%d')}.txt",
-                    "text/plain", key="v43d_et_txt")
-            else:
-                st.info(f"Nessun earnings nei prossimi {_et_days} giorni.")
-    except Exception as _et_ex:
-        st.caption(f"⚠️ Earnings tracker: {_et_ex}")
-
-        # ══════════════════════════════════════════════════════════════════════════
-    # v43c — COT REPORT: fetch automatico CFTC + grafici posizione netta
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        with st.expander("📊 COT Report — Commitment of Traders (CFTC, aggiornato venerdì)", expanded=False):
-            _cot_assets = {
-                "S&P 500 (E-Mini)":   "13874+",
-                "NASDAQ 100":         "20974+",
-                "Gold":               "088691",
-                "Crude Oil (WTI)":    "067651",
-                "EUR/USD":            "099741",
-                "USD/JPY (JPY)":      "097741",
-                "Bitcoin":            "133741",
-                "Argento":            "084691",
-                "Rame":               "085692",
-                "T-Bond 10Y":         "043602",
-            }
-            _cot_sel = st.multiselect(
-                "Seleziona asset COT", list(_cot_assets.keys()),
-                default=["S&P 500 (E-Mini)","Gold","EUR/USD","Bitcoin"],
-                key="v43c_cot_sel")
-
-            @st.cache_data(ttl=3600, show_spinner=False)
-            def _fetch_cot_v43c(code, asset_name):
-                import urllib.request, csv, io as _io
-                url = (f"https://www.cftc.gov/dea/newcot/f_year.txt")
-                # Usa Quandl/CFTC via pandas-datareader o fallback CSV diretto
-                try:
-                    import pandas_datareader.data as _pdr
-                    from datetime import datetime as _dt
-                    df_cot = _pdr.get_data_quandl(
-                        f"CFTC/{code}_FO_L_ALL", start="2020-01-01")
-                    return df_cot
-                except Exception:
-                    pass
-                # Fallback: CFTC disaggregated CSV annuale
-                try:
-                    _yr = datetime.now().year
-                    _url = f"https://www.cftc.gov/files/dea/history/fut_fin_txt_{_yr}.zip"
-                    import urllib.request, zipfile, io as _zio
-                    with urllib.request.urlopen(_url, timeout=10) as r:
-                        z = zipfile.ZipFile(_zio.BytesIO(r.read()))
-                        fname = [f for f in z.namelist() if f.endswith('.txt')][0]
-                        raw = z.read(fname).decode('utf-8', errors='ignore')
-                    lines_cot = raw.splitlines()
-                    rows = [l.split(',') for l in lines_cot if asset_name.split()[0].upper() in l.upper()]
-                    if rows:
-                        cols = lines_cot[0].split(',')
-                        df_raw = pd.DataFrame(rows, columns=cols[:len(rows[0])])
-                        return df_raw
-                except Exception:
-                    return None
-
-            import plotly.graph_objects as go
-            for _ca in _cot_sel:
-                _ccode = _cot_assets[_ca]
-                st.markdown(f"<div style='color:#50c4e0;font-weight:bold;font-size:0.85rem;"
-                            f"margin:8px 0 4px'>📈 {_ca}</div>", unsafe_allow_html=True)
-                _cdf = _fetch_cot_v43c(_ccode, _ca)
-                if _cdf is not None and not _cdf.empty:
-                    try:
-                        # Cerca colonne Net position (Commercial, Non-Commercial)
-                        _nc_cols = [c for c in _cdf.columns if 'NonComm' in c or 'Non_Comm' in c
-                                    or 'NoncommercialLong' in c or 'Noncommercial_Long' in c]
-                        _co_cols = [c for c in _cdf.columns if 'CommercialLong' in c
-                                    or 'Commercial_Long' in c]
-                        _nc_long = next((c for c in _cdf.columns if 'noncomm' in c.lower()
-                                        and 'long' in c.lower()), None)
-                        _nc_short= next((c for c in _cdf.columns if 'noncomm' in c.lower()
-                                        and 'short' in c.lower()), None)
-                        _co_long = next((c for c in _cdf.columns if 'commercial' in c.lower()
-                                        and 'long' in c.lower()
-                                        and 'noncomm' not in c.lower()), None)
-                        _co_short= next((c for c in _cdf.columns if 'commercial' in c.lower()
-                                        and 'short' in c.lower()
-                                        and 'noncomm' not in c.lower()), None)
-                        if _nc_long and _nc_short and _co_long and _co_short:
-                            _cdf2 = _cdf.copy()
-                            _cdf2["Net_NonComm"]    = pd.to_numeric(_cdf2[_nc_long],errors='coerce')                                                      - pd.to_numeric(_cdf2[_nc_short],errors='coerce')
-                            _cdf2["Net_Commercial"] = pd.to_numeric(_cdf2[_co_long],errors='coerce')                                                      - pd.to_numeric(_cdf2[_co_short],errors='coerce')
-                            _cdf2 = _cdf2.dropna(subset=["Net_NonComm","Net_Commercial"]).tail(52)
-                            fig_cot = go.Figure()
-                            fig_cot.add_trace(go.Scatter(
-                                x=_cdf2.index, y=_cdf2["Net_NonComm"],
-                                name="Non-Commercial (Speculatori)",
-                                line=dict(color="#00ff88", width=1.5)))
-                            fig_cot.add_trace(go.Scatter(
-                                x=_cdf2.index, y=_cdf2["Net_Commercial"],
-                                name="Commercial (Hedger)",
-                                line=dict(color="#ef4444", width=1.5)))
-                            fig_cot.add_hline(y=0, line_dash="dot",
-                                              line_color="#363a45", line_width=1)
-                            fig_cot.update_layout(
-                                paper_bgcolor="#131722", plot_bgcolor="#1e222d",
-                                font=dict(color="#b2b5be", family="Trebuchet MS", size=11),
-                                height=200, margin=dict(l=0,r=0,t=24,b=0),
-                                showlegend=True,
-                                legend=dict(orientation="h", y=1.1, x=0,
-                                            font=dict(size=10, color="#b2b5be")),
-                                xaxis=dict(gridcolor="#2a2e39", tickfont=dict(size=9)),
-                                yaxis=dict(gridcolor="#2a2e39", tickfont=dict(size=9)),
-                                title=dict(text=f"Net Positions — {_ca}",
-                                           font=dict(color="#50c4e0", size=11), x=0.01))
-                            st.plotly_chart(fig_cot, use_container_width=True,
-                                            key=f"v43c_cot_{_ccode}")
-                        else:
-                            st.caption(f"Colonne Net non trovate per {_ca} — "
-                                       f"dati grezzi: {list(_cdf.columns)[:6]}")
-                    except Exception as _ce:
-                        st.caption(f"Errore grafico COT {_ca}: {_ce}")
-                else:
-                    # Mostra link diretto CFTC quando fetch fallisce
-                    st.markdown(
-                        f"<div style='background:#0d1117;border:1px solid #1f2937;border-radius:6px;"
-                        f"padding:8px 14px;font-size:0.79rem;color:#6b7280'>"
-                        f"⚠️ Fetch CFTC non disponibile per <strong style='color:#b2b5be'>{_ca}</strong>. "
-                        f"<a href='https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm' "
-                        f"target='_blank' style='color:#50c4e0'>Apri CFTC ↗</a> &nbsp;|&nbsp; "
-                        f"<a href='https://www.barchart.com/futures/commitment-of-traders/chart/{_ccode}' "
-                        f"target='_blank' style='color:#50c4e0'>Barchart COT ↗</a></div>",
-                        unsafe_allow_html=True)
-
-            # Tabella interpretazione COT
-            st.markdown("""
-<div style='margin-top:12px;font-size:0.78rem;color:#6b7280'>
-<b style='color:#50c4e0'>Guida rapida COT:</b><br>
-<span style='color:#00ff88'>▲ Non-Commercial NET long</span> = Speculatori rialzisti (trend-following) &nbsp;|&nbsp;
-<span style='color:#ef4444'>▲ Commercial NET short</span> = Hedger coperti = segnale contrarian bearish<br>
-Dati CFTC pubblicati ogni <b>venerdì 21:30 CET</b>, riferiti al martedì precedente.
-</div>""", unsafe_allow_html=True)
-    except Exception as _cot_ex:
-        st.caption(f"⚠️ COT Report: {_cot_ex}")
-
-        # ══════════════════════════════════════════════════════════════════════════
-    # v43c — PATTERN RECOGNITION: candlestick + volume profile
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        with st.expander("📈 Pattern Recognition — Candlestick + Volume Profile", expanded=False):
-            _pr_c1, _pr_c2 = st.columns([3,1])
-            with _pr_c1:
-                _pr_tk = st.text_input("Ticker", "AAPL", key="v43c_pr_tk",
-                                        placeholder="es: UCG.MI, NVDA, RACE.MI")
-            with _pr_c2:
-                _pr_period = st.selectbox("Periodo", ["1mo","3mo","6mo","1y"],
-                                          index=1, key="v43c_pr_period")
-            _pr_go = st.button("🔍 Analizza Pattern", key="v43c_pr_go",
-                               use_container_width=False)
-            if _pr_go and _pr_tk:
-                import yfinance as _ypr
-                import plotly.graph_objects as go
-                from plotly.subplots import make_subplots
-                with st.spinner(f"Scarico dati {_pr_tk}…"):
-                    _pr_df = _ypr.download(_pr_tk.strip().upper(),
-                                           period=_pr_period, interval="1d",
-                                           auto_adjust=True, progress=False)
-                    _pr_df.columns = [c[0] if isinstance(c,tuple) else c for c in _pr_df.columns]
-                    _pr_df = _pr_df.dropna()
-
-                if _pr_df.empty:
-                    st.warning(f"Nessun dato per {_pr_tk}")
-                else:
-                    # ── Rilevamento pattern candlestick ──────────────────────
-                    O = _pr_df["Open"]; H = _pr_df["High"]
-                    L = _pr_df["Low"];  C = _pr_df["Close"]; V = _pr_df["Volume"]
-                    body   = (C - O).abs()
-                    rng    = H - L
-                    upper_wick = H - C.combine(O, max)
-                    lower_wick = C.combine(O, min) - L
-
-                    def _is_doji(i):
-                        return body.iloc[i] < rng.iloc[i]*0.1
-                    def _is_hammer(i):
-                        return (lower_wick.iloc[i] > body.iloc[i]*2 and
-                                upper_wick.iloc[i] < body.iloc[i]*0.5)
-                    def _is_shooting_star(i):
-                        return (upper_wick.iloc[i] > body.iloc[i]*2 and
-                                lower_wick.iloc[i] < body.iloc[i]*0.5)
-                    def _is_engulfing_bull(i):
-                        return (i>0 and C.iloc[i-1]<O.iloc[i-1] and
-                                C.iloc[i]>O.iloc[i] and
-                                C.iloc[i]>O.iloc[i-1] and O.iloc[i]<C.iloc[i-1])
-                    def _is_engulfing_bear(i):
-                        return (i>0 and C.iloc[i-1]>O.iloc[i-1] and
-                                C.iloc[i]<O.iloc[i] and
-                                O.iloc[i]>C.iloc[i-1] and C.iloc[i]<O.iloc[i-1])
-                    def _is_morning_star(i):
-                        return (i>=2 and
-                                C.iloc[i-2]<O.iloc[i-2] and
-                                body.iloc[i-1]<rng.iloc[i-1]*0.3 and
-                                C.iloc[i]>O.iloc[i] and
-                                C.iloc[i]>((O.iloc[i-2]+C.iloc[i-2])/2))
-                    def _is_evening_star(i):
-                        return (i>=2 and
-                                C.iloc[i-2]>O.iloc[i-2] and
-                                body.iloc[i-1]<rng.iloc[i-1]*0.3 and
-                                C.iloc[i]<O.iloc[i] and
-                                C.iloc[i]<((O.iloc[i-2]+C.iloc[i-2])/2))
-
-                    n = len(_pr_df)
-                    patterns_found = []
-                    annot_texts, annot_x, annot_y, annot_colors = [],[],[],[]
-                    for idx in range(2, n):
-                        pname, pcolor, psymbol = None, None, None
-                        if _is_doji(idx):
-                            pname,pcolor,psymbol = "Doji","#f0b90b","●"
-                        elif _is_hammer(idx):
-                            pname,pcolor,psymbol = "Hammer","#00ff88","▲"
-                        elif _is_shooting_star(idx):
-                            pname,pcolor,psymbol = "Shooting Star","#ef4444","▼"
-                        elif _is_engulfing_bull(idx):
-                            pname,pcolor,psymbol = "Engulfing Bull","#00c087","▲"
-                        elif _is_engulfing_bear(idx):
-                            pname,pcolor,psymbol = "Engulfing Bear","#f23645","▼"
-                        elif _is_morning_star(idx):
-                            pname,pcolor,psymbol = "Morning Star","#26a69a","✦"
-                        elif _is_evening_star(idx):
-                            pname,pcolor,psymbol = "Evening Star","#ef5350","✦"
-                        if pname:
-                            patterns_found.append({"Data":str(_pr_df.index[idx])[:10],
-                                                   "Pattern":pname,"Prezzo":f"{C.iloc[idx]:.2f}"})
-                            annot_texts.append(psymbol)
-                            annot_x.append(_pr_df.index[idx])
-                            annot_y.append(H.iloc[idx]*1.005)
-                            annot_colors.append(pcolor)
-
-                    # ── Volume Profile (POC) ─────────────────────────────────
-                    _vp_bins = 20
-                    _pr_min, _pr_max = float(L.min()), float(H.max())
-                    _vp_edges = [_pr_min + i*(_pr_max-_pr_min)/_vp_bins
-                                 for i in range(_vp_bins+1)]
-                    _vp_vol   = [0.0]*_vp_bins
-                    for j in range(len(_pr_df)):
-                        for b in range(_vp_bins):
-                            if _vp_edges[b] <= float(C.iloc[j]) < _vp_edges[b+1]:
-                                _vp_vol[b] += float(V.iloc[j])
-                                break
-                    _poc_idx = _vp_vol.index(max(_vp_vol))
-                    _poc_price = (_vp_edges[_poc_idx]+_vp_edges[_poc_idx+1])/2
-
-                    # ── Chart: Candlestick + Volume + VP ────────────────────
-                    fig_pr = make_subplots(
-                        rows=3, cols=2,
-                        shared_xaxes=False,
-                        column_widths=[0.82,0.18],
-                        row_heights=[0.58,0.22,0.20],
-                        specs=[[{"rowspan":2},{"rowspan":2,"type":"bar"}],
-                               [None,None],
-                               [{"colspan":2},None]],
-                        vertical_spacing=0.04, horizontal_spacing=0.015)
-
-                    fig_pr.add_trace(go.Candlestick(
-                        x=_pr_df.index, open=O, high=H, low=L, close=C,
-                        name=_pr_tk.upper(),
-                        increasing_line_color="#26a69a",
-                        decreasing_line_color="#ef5350"), row=1,col=1)
-
-                    # POC line
-                    fig_pr.add_hline(y=_poc_price, line_dash="dash",
-                                     line_color="#f0b90b", line_width=1,
-                                     annotation_text=f"POC {_poc_price:.2f}",
-                                     annotation_font_color="#f0b90b",
-                                     annotation_font_size=9, row=1, col=1)
-
-                    # Annotazioni pattern
-                    for ax,ay,at,ac in zip(annot_x,annot_y,annot_texts,annot_colors):
-                        fig_pr.add_annotation(x=ax,y=ay,text=at,showarrow=False,
-                                              font=dict(size=11,color=ac),row=1,col=1)
-
-                    # Volume Profile bar (orizzontale) → verticale sul pannello dx
-                    _vp_mids = [(_vp_edges[b]+_vp_edges[b+1])/2 for b in range(_vp_bins)]
-                    fig_pr.add_trace(go.Bar(
-                        x=_vp_vol, y=_vp_mids, orientation='h',
-                        marker_color=["#f0b90b" if b==_poc_idx else "#363a45"
-                                      for b in range(_vp_bins)],
-                        name="Volume Profile", showlegend=False), row=1,col=2)
-
-                    # Volume bars sotto
-                    _vcol = ["#26a69a" if C.iloc[j]>=O.iloc[j] else "#ef5350"
-                             for j in range(len(_pr_df))]
-                    fig_pr.add_trace(go.Bar(
-                        x=_pr_df.index, y=V,
-                        marker_color=_vcol, name="Volume",
-                        showlegend=False), row=3,col=1)
-
-                    fig_pr.update_layout(
-                        paper_bgcolor="#131722", plot_bgcolor="#1e222d",
-                        font=dict(color="#b2b5be",family="Trebuchet MS",size=10),
-                        height=440, margin=dict(l=0,r=0,t=28,b=0),
-                        xaxis_rangeslider_visible=False,
-                        showlegend=False,
-                        title=dict(text=f"{_pr_tk.upper()} — Candlestick + Volume Profile | POC: {_poc_price:.2f}",
-                                   font=dict(color="#50c4e0",size=12),x=0.01))
-                    for ax_name in ["xaxis","xaxis2","xaxis3","yaxis","yaxis2","yaxis3"]:
-                        fig_pr.update_layout(**{ax_name:dict(gridcolor="#2a2e39",
-                                                             tickfont=dict(size=9))})
-                    st.plotly_chart(fig_pr, use_container_width=True, key="v43c_pr_chart")
-
-                    # Tabella pattern
-                    if patterns_found:
-                        st.markdown(f"**Pattern rilevati ({len(patterns_found)}):**")
-                        _pdf_patt = pd.DataFrame(patterns_found)
-                        st.dataframe(_pdf_patt, use_container_width=True, hide_index=True,
-                                     column_config={
-                                         "Data":st.column_config.TextColumn("Data",width=90),
-                                         "Pattern":st.column_config.TextColumn("Pattern",width=130),
-                                         "Prezzo":st.column_config.TextColumn("Prezzo",width=80)})
-                        st.download_button("📥 TXT TradingView",
-                            make_tv_txt(_pdf_patt),
-                            f"pattern_{_pr_tk}_{datetime.now().strftime('%Y%m%d')}.txt",
-                            "text/plain", key="v43c_pr_txt")
-                    else:
-                        st.info("Nessun pattern significativo nel periodo selezionato.")
-    except Exception as _pr_ex:
-        st.caption(f"⚠️ Pattern Recognition: {_pr_ex}")
-
-        # ── v41 #1 — MARKET REGIME BANNER ────────────────────────────────────
+    # ── v41 #1 — MARKET REGIME BANNER ────────────────────────────────────
     try:
         _regime_data = _get_market_regime()
         _rc = _regime_data["color"]; _ri = _regime_data["icon"]
@@ -5479,10 +4840,9 @@ Dati CFTC pubblicati ogni <b>venerdì 21:30 CET</b>, riferiti al martedì preced
     except Exception:
         pass
 
-    # ── v43c #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
+    # ── v42i #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
     st.markdown("---")
-    with st.expander("📅 EARNINGS CALENDAR v43c — Prossimi earnings da Watchlist + Scanner", expanded=False):
-        st.markdown("<h4 style='color:#50c4e0;font-size:1.08rem;font-weight:bold;margin-bottom:10px'>📅 Prossimi Earnings — Watchlist &amp; Scanner</h4>", unsafe_allow_html=True)
+    with st.expander("📅 EARNINGS CALENDAR v42h — Prossimi earnings da Watchlist + Scanner", expanded=False):
         _earn_tickers = set()
         # Da watchlist
         try:
@@ -5522,7 +4882,7 @@ Dati CFTC pubblicati ogni <b>venerdì 21:30 CET</b>, riferiti al martedì preced
                     _ea.markdown(
                         f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' target='_blank' "
                         f"style='text-decoration:none'>"
-                        f"<b style='font-family:Courier New;color:#00ff88;font-size:1.05rem'>{_tkr_ed}</b>"
+                        f"<b style='font-family:Courier New;color:#00ff88;font-size:0.95rem'>{_tkr_ed}</b>"
                         f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
                         f"<br><span style='color:#787b86;font-size:0.72rem'>{_nome_ed}</span>",
                         unsafe_allow_html=True)
@@ -5547,7 +4907,7 @@ Dati CFTC pubblicati ogni <b>venerdì 21:30 CET</b>, riferiti al martedì preced
     with st.expander('📰 NEWS & SENTIMENT v42h — Ultime news con score sentiment · TradingView Italia', expanded=False):
         _render_news_v41(df_ep)
     st.markdown('---')
-    # ── v43c: COT REPORT ─────────────────────────────────────────────────
+    # ── v42i: COT REPORT ─────────────────────────────────────────────────
     with st.expander('📊 COT REPORT v42h — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown(
             '<div style=\'background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px\'><span style=\'color:#50c4e0;font-size:0.78rem;font-weight:bold;letter-spacing:1px\'>COS\'\\u00c8 IL COT REPORT</span><br><span style=\'color:#b2b5be;font-size:0.82rem\'>Il <b style="color:#d1d4dc">COT (Commitment of Traders)</b> \\u00e8 un report settimanale pubblicato ogni <b style="color:#f59e0b">venerd\\u00ec alle 21:30 CET</b> dalla CFTC. Fotografa le posizioni <b style="color:#00ff88">LONG</b> e <b style="color:#ef4444">SHORT</b> dei 3 gruppi: <b style="color:#00ff88">Commercial</b> (hedger), <b style="color:#60a5fa">Non-Commercial</b> (hedge fund / speculatori), <b style="color:#6b7280">Non-Reportable</b> (retail). Dati riferiti al <b style="color:#f59e0b">martedi precedente</b> — 3 giorni di ritardo.</span></div>',
@@ -5590,7 +4950,7 @@ Dati CFTC pubblicati ogni <b>venerdì 21:30 CET</b>, riferiti al martedì preced
 
     st.markdown('---')
 
-    # ── v43c: COT REPORT — Commitment of Traders ─────────────────────────
+    # ── v42i: COT REPORT — Commitment of Traders ─────────────────────────
     with st.expander('📊 COT REPORT — Commitment of Traders (CFTC) · Posizionamento istituzionale', expanded=False):
         st.markdown("""
 <div style='background:#1e222d;border-left:3px solid #2962ff;border-radius:0 6px 6px 0;padding:10px 16px;margin-bottom:12px'>
@@ -5848,28 +5208,10 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── v43c: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v43c — Novità e roadmap — Novità e roadmap', expanded=False):
+    # ── v42i: Suggerimenti ────────────────────────────────
+    with st.expander('💡 Suggerimenti v42i — Novità e roadmap', expanded=False):
         st.markdown("""
-**✅ Implementato in v43c:**
-- 📱 CSS Responsive: tab scrollabili, colonne fluid, touch 44px
-- 🌙 Toggle Light/Dark tema persistente per sessione
-- 🔄 Auto-refresh Home ogni N minuti con st.rerun schedulato
-- 📊 Sparkline SVG 10d accanto a ogni ticker Top PRO/STRONG
-- 🗃️ Export CSV + Excel 1-click dalla barra Home
-- 📅 Earnings Tracker compatto con filtro giorni + export CSV
-- 🧠 AI Analyst: storico analisi in SQLite (data/ai_history.db)
-- 📊 COT Report: fetch automatico CFTC + grafici posizioni nette (Non-Comm vs Commercial)
-- 🔔 Web Push Notifications browser (Notification API)
-- 🤖 AI Batch multi-ticker: analisi Gemini/Groq + export CSV + salvataggio SQLite
-- 📈 Pattern Recognition avanzato: 7 pattern candlestick + Volume Profile + POC
-- 📱 CSS Responsive: tab scrollabili, colonne fluid, touch 44px
-- 🌙 Toggle Light/Dark tema persistente per sessione
-- 🔄 Auto-refresh Home ogni N minuti con st.rerun schedulato
-- 📊 Sparkline SVG 10d accanto a ogni ticker Top PRO/STRONG
-- 🗃️ Export CSV + Excel 1-click dalla barra Home
-- 📅 Earnings Tracker compatto con filtro giorni + export CSV
-- 🧠 AI Analyst: storico analisi in SQLite (data/ai_history.db)
+**✅ Implementato in v42i:**
 - ⬆️ btt-btn: versione definitiva multi-target (`.main`, `.block-container`, `documentElement`, `body`, `window.parent`) + MutationObserver — comparsa garantita
 - 🤖 MODULO 2 AI: aggiunte colonne **Vol×** e **Priorità** (auto-calcolata da Stato+CSS+RSI)
    layout 8 colonne identico a ⚡ Momentum Alerts
@@ -5889,16 +5231,7 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
 - 📊 Heatmap Settoriale Live nella Home (sostituisce bar chart)
 - 🔗 Correlazioni Asset nel tab Settori
 
-**🔜 Idee per v44:**
-- 📡 WebSocket feed prezzi in tempo reale (Alpaca, Binance)
-- 🔔 Alert push via Telegram bot
-- 🤖 AI Analyst: analisi automatica schedulata via APScheduler
-- 🧩 Modulo Risk Management: Kelly Criterion, position sizing
-- 📊 Sector Rotation avanzata con ETF settoriali
-- 📊 COT Report: fetch automatico dati CFTC + grafici posizioni nette
-- 🔔 Alert push via browser (Web Push Notifications)
-- 🤖 AI batch multi-ticker schedulata
-- 📈 Pattern recognition avanzato (candlestick + volume profile)
+**🔜 Idee per v43:**
 - 📊 COT Report: fetch automatico dati CFTC via API (grafici posizione netta)
 - 🔔 Alert push via browser (Web Push Notifications)
 - 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
@@ -5984,6 +5317,160 @@ I dati si riferiscono al <b style="color:#f59e0b">martedì precedente</b> — 3 
     except Exception:
         pass
 
+
+    # ── v43b BUBBLE METER & INDICATORI NON CONVENZIONALI ─────────────
+    st.markdown('<div class="section-pill">🫧 BUBBLE METER · INFLAZIONE · INDICATORI NON CONVENZIONALI</div>', unsafe_allow_html=True)
+    try:
+        import yfinance as _yf43b
+        import numpy as _np43b
+
+        @st.cache_data(ttl=3600, show_spinner=False)
+        def _fetch_bubble_v43b():
+            r={}
+            for _sym,_k in [("^VIX","vix"),("^W5000","w5000")]:
+                try:
+                    _d=_yf43b.download(_sym,period="5d",interval="1d",progress=False,auto_adjust=True)
+                    _d.columns=[c[0] if isinstance(c,tuple) else c for c in _d.columns]
+                    r[_k]=float(_d["Close"].dropna().iloc[-1])
+                except Exception: r[_k]=None
+            # SPY
+            try:
+                _sp=_yf43b.download("SPY",period="1y",interval="1wk",progress=False,auto_adjust=True)
+                _sp.columns=[c[0] if isinstance(c,tuple) else c for c in _sp.columns]
+                _cl=_sp["Close"].dropna()
+                r["spy_p"]=float(_cl.iloc[-1]); r["spy_52"]=float(_cl.max())
+            except Exception: r["spy_p"]=None; r["spy_52"]=None
+            # Proxy indici non convenzionali
+            _proxies=[("EL","ULTA","SPY","lipstick","6mo"),
+                      ("CVNA","KMX",None,"usedcar","3mo"),
+                      ("RRR","DKNG",None,"stripclub","3mo"),
+                      ("AMZN","FDX","UPS","cardboard","3mo")]
+            for _t1,_t2,_t3,_key,_per in _proxies:
+                try:
+                    _tks=[t for t in [_t1,_t2,_t3] if t]
+                    _dd=_yf43b.download(_tks,period=_per,interval="1wk",progress=False,auto_adjust=True)
+                    _dd.columns=[c[0] if isinstance(c,tuple) else c for c in _dd.columns]
+                    _cc=_dd["Close"].dropna() if len(_tks)>1 else _dd[["Close"]].rename(columns={"Close":_t1}).dropna()
+                    _rets=[]
+                    for _t in _tks:
+                        if _t in _cc.columns and len(_cc[_t].dropna())>2:
+                            _s=_cc[_t].dropna(); _rets.append(float((_s.iloc[-1]/_s.iloc[0]-1)*100))
+                    _base=_rets[-1] if _key=="lipstick" and len(_rets)==3 else 0
+                    _vals=_rets[:-1] if _key=="lipstick" and len(_rets)==3 else _rets
+                    r[_key]=round(sum(_vals)/len(_vals)-_base,1) if _vals else None
+                except Exception: r[_key]=None
+            return r
+
+        _bd=_fetch_bubble_v43b()
+        _cape=36.2; _cpi=2.4; _fed=4.50; _m2=3.8
+
+        def _bcard(icon,title,val_s,badge,col,desc,pct=None):
+            _bar=""
+            if pct is not None:
+                _p=max(0,min(100,pct))
+                _bar=(f"<div style='margin-top:5px;background:#1e222d;border-radius:3px;height:5px'>"
+                      f"<div style='width:{_p}%;background:{col};height:5px;border-radius:3px'></div></div>")
+            return (f"<div style='background:#1a1e2e;border:1px solid #2a2e3d;border-top:2px solid {col};"
+                    f"border-radius:6px;padding:10px 12px'>"
+                    f"<div style='font-size:0.70rem;color:#6b7280'>{icon} {title}</div>"
+                    f"<div style='font-size:1.25rem;font-weight:bold;color:{col};font-family:Courier New'>{val_s}</div>"
+                    f"<span style='background:{col}22;color:{col};border:1px solid {col}44;border-radius:10px;"
+                    f"padding:1px 7px;font-size:0.67rem;font-weight:bold'>{badge}</span>"
+                    f"{_bar}"
+                    f"<div style='font-size:0.66rem;color:#4b5563;margin-top:5px;line-height:1.3'>{desc}</div>"
+                    f"</div>")
+
+        # VIX
+        _vix=_bd.get("vix") or 20.0
+        _vc,_vb=("#f59e0b","EUFORIA") if _vix<15 else ("#00ff88","NORMALE") if _vix<20 else ("#f59e0b","ALLERTA") if _vix<30 else ("#ef4444","PAURA")
+        # CAPE
+        _cc2,_cb=("#00ff88","CHEAP") if _cape<20 else ("#f59e0b","FAIR") if _cape<30 else ("#ef4444","BOLLA") if _cape<38 else ("#a855f7","ESTREMO")
+        # Buffett
+        _w5=_bd.get("w5000"); _bi=round(_w5/(28.2e9)*100,1) if _w5 else None
+        _bic,_bib=("#6b7280","N/D") if not _bi else ("#00ff88","SOTTOVALUTATO") if _bi<100 else ("#f59e0b","FAIR") if _bi<150 else ("#ef4444","BOLLA")
+        # CPI
+        _cpic,_cpib=("#00ff88","SOTTO TARGET") if _cpi<2 else ("#26a69a","OK FED") if _cpi<3 else ("#f59e0b","ELEVATA") if _cpi<5 else ("#ef4444","CRITICA")
+        # SPY vs 52w
+        _sp_p=_bd.get("spy_p"); _sp_52=_bd.get("spy_52")
+        _spdd=round((_sp_p/_sp_52-1)*100,1) if _sp_p and _sp_52 else None
+        _spc="#00ff88" if _spdd and _spdd>-5 else "#f59e0b" if _spdd and _spdd>-15 else "#ef4444"
+        _spb="RECORD" if _spdd and _spdd>-3 else "PULLBACK" if _spdd and _spdd>-10 else "CORREZIONE"
+
+        st.markdown("**📊 Valutazione mercato & inflazione**")
+        _rc1,_rc2,_rc3,_rc4,_rc5=st.columns(5)
+        _rc1.markdown(_bcard("🎭","CAPE Shiller",f"{_cape:.1f}x",_cb,_cc2,
+            "P/E a 10 anni corretto per il ciclo economico. Media storica ~16x. Sopra 30 = mercato caro.",
+            min(100,_cape/50*100)),unsafe_allow_html=True)
+        _rc2.markdown(_bcard("😱","VIX Fear",f"{_vix:.1f}",_vb,_vc,
+            "Indice di paura del mercato. Sotto 15 = euforia pericolosa. Sopra 30 = paura = possibile opportunità.",
+            min(100,_vix/80*100)),unsafe_allow_html=True)
+        _rc3.markdown(_bcard("🏦","Buffett Indicator",f"{_bi:.0f}%" if _bi else "N/D",_bib,_bic,
+            "Capitaliz. mercato USA / PIL. Inventato da Buffett. Sopra 150% = mercato storicamente sopravvalutato.",
+            min(100,(_bi/250*100) if _bi else 0)),unsafe_allow_html=True)
+        _rc4.markdown(_bcard("📈","CPI USA",f"{_cpi:.1f}%",_cpib,_cpic,
+            f"Inflazione al consumo YoY aprile 2026. Target Fed = 2%. Tassi Fed: {_fed:.2f}%. Più alto = più restrittivo.",
+            min(100,_cpi/10*100)),unsafe_allow_html=True)
+        _rc5.markdown(_bcard("📉","SPY vs 52w",f"{_spdd:.1f}%" if _spdd else "N/D",_spb,_spc,
+            "Distanza di SPY dal massimo annuale. Vicino al record = prudenza. Lontano = possibile rimbalzo.",
+            min(100,(100+(_spdd or 0)))),unsafe_allow_html=True)
+
+        st.markdown("<div style='margin:12px 0 4px'><b>🎪 Indicatori non convenzionali</b></div>",unsafe_allow_html=True)
+
+        def _proxy_card(icon,title,val,col,badge,desc_main,desc_logic):
+            _vs=f"{val:+.1f}%" if val is not None else "N/D"
+            _pct=min(100,max(0,50+(val or 0)*2))
+            return _bcard(icon,title,_vs,badge,col,f"<b>Come funziona:</b> {desc_main}<br><b>Segnale:</b> {desc_logic}",_pct)
+
+        _lip=_bd.get("lipstick")
+        _lipc,_lipb=("#6b7280","N/D") if _lip is None else ("#ef4444","RECESSIONE") if _lip>5 else ("#f59e0b","ATTENZIONE") if _lip>0 else ("#00ff88","NEUTRO")
+        _uc=_bd.get("usedcar")
+        _ucc,_ucb=("#6b7280","N/D") if _uc is None else ("#26a69a","DISINFLAZ.") if _uc<-10 else ("#00ff88","NORMALIZ.") if _uc<0 else ("#f59e0b","PRESSIONE") if _uc<10 else ("#ef4444","INFLAZ.")
+        _sc2=_bd.get("stripclub")
+        _scc,_scb=("#6b7280","N/D") if _sc2 is None else ("#00ff88","CONSUMI OK") if _sc2>10 else ("#26a69a","STABILE") if _sc2>0 else ("#f59e0b","CAUTELA") if _sc2>-10 else ("#ef4444","STRESS")
+        _cb2=_bd.get("cardboard")
+        _cbc,_cbb=("#6b7280","N/D") if _cb2 is None else ("#00ff88","COMMERCIO OK") if _cb2>5 else ("#26a69a","STABILE") if _cb2>0 else ("#f59e0b","RALLENT.") if _cb2>-10 else ("#ef4444","CONTRAZIONE")
+        _m2c="#ef4444" if _m2>8 else "#f59e0b" if _m2>4 else "#00ff88"
+        _m2b="ESPANSIVA" if _m2>5 else "NEUTRALE" if _m2>0 else "RESTRITTIVA"
+
+        _uc1,_uc2,_uc3,_uc4,_uc5=st.columns(5)
+        _uc1.markdown(_proxy_card("💄","Lipstick Index",_lip,_lipc,_lipb,
+            "EL+ULTA vs SPY (6m). Nei periodi di difficoltà economica le persone rinunciano ai lussi grandi ma comprano più cosmetici a basso costo.",
+            "Se i titoli cosmetici battono l'indice → segnale di recessione imminente."),unsafe_allow_html=True)
+        _uc2.markdown(_proxy_card("🚗","Used Car Index",_uc,_ucc,_ucb,
+            "CVNA+KMX (3m). I prezzi delle auto usate reagiscono velocemente all'inflazione e alla domanda dei consumatori.",
+            "Calo = disinflazione beni durevoli in corso. Rialzo = pressione inflattiva residua."),unsafe_allow_html=True)
+        _uc3.markdown(_proxy_card("💃","Strip Club Index",_sc2,_scc,_scb,
+            "RRR+DKNG (3m). I locali di intrattenimento discrezionale sono i primi a soffrire quando i consumatori tagliano le spese superflue.",
+            "Calo forte = consumatori sotto pressione finanziaria → segnale recessivo."),unsafe_allow_html=True)
+        _uc4.markdown(_proxy_card("📦","Cardboard Box Index",_cb2,_cbc,_cbb,
+            "AMZN+FDX+UPS (3m). Le scatole di cartone misurano i volumi di spedizione. Più ordini e-commerce = più scatole = economia in crescita.",
+            "Calo = meno spedizioni → rallentamento commercio e produzione industriale."),unsafe_allow_html=True)
+        _uc5.markdown(_bcard("💵","M2 Money Supply",f"{_m2:+.1f}% YoY",_m2b,_m2c,
+            f"Crescita della massa monetaria M2 (aprile 2026). Tassi Fed: {_fed:.2f}%. Espansione rapida di M2 alimenta l'inflazione.",
+            min(100,max(0,50+_m2*5))),unsafe_allow_html=True)
+
+        # Bubble Score composito
+        _bscores=[min(100,_cape/50*100)]
+        if _vix: _bscores.append(100-min(100,_vix/80*100))
+        if _bi:  _bscores.append(min(100,_bi/250*100))
+        _bscores.append(min(100,_cpi/10*100))
+        _bs=round(sum(_bscores)/len(_bscores))
+        _bsc="#ef4444" if _bs>70 else "#f59e0b" if _bs>45 else "#00ff88"
+        _bsi="🔴 BOLLA" if _bs>70 else "🟡 ATTENZIONE" if _bs>45 else "🟢 OK"
+        st.markdown(
+            f"<div style='background:#12151f;border:1px solid {_bsc}44;border-radius:8px;"
+            f"padding:10px 16px;margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap'>"
+            f"<span style='color:{_bsc};font-weight:bold;font-size:1.0rem'>🫧 Bubble Score: {_bs}/100</span>"
+            f"<div style='flex:1;background:#1e222d;border-radius:4px;height:10px;min-width:100px'>"
+            f"<div style='width:{_bs}%;background:{_bsc};height:10px;border-radius:4px'></div></div>"
+            f"<span style='color:{_bsc};font-weight:bold'>{_bsi}</span>"
+            f"<span style='color:#4b5563;font-size:0.70rem;margin-left:auto'>"
+            f"CAPE {_cape:.0f}x · VIX {_vix:.1f} · Buffett {f'{_bi:.0f}' if _bi else 'N/D'}% · CPI {_cpi:.1f}%"
+            f"</span></div>",unsafe_allow_html=True)
+        st.caption("⚠️ CAPE, CPI, Fed Rate, M2 = valori fissi aggiornati a maggio 2026. VIX, SPY, proxy indici = live da Yahoo Finance.")
+    except Exception as _bex:
+        st.caption(f"Bubble meter non disponibile: {_bex}")
+    st.markdown("---")
     st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v42h — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
     _macro_ev41=_fetch_macro_v41()
     _mc39=[e for e in _macro_ev41 if 0<=e['Giorni']<=14]
@@ -6895,6 +6382,13 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
             df_riepilogo[_col_r] = df_riepilogo[_col_r].fillna('—').replace({'nan':'—','None':'—','NaN':'—'})
         go_r = gb_r.build()
         try:
+            # v43b: NaN/Inf→None per AgGrid JSON
+            import math as _mf
+            _safe=[{k:(None if isinstance(v,float) and (_mf.isnan(v) or _mf.isinf(v)) else v)
+                    for k,v in r.items()} for r in df_riepilogo.to_dict(orient="records")]
+            df_riepilogo=pd.DataFrame(_safe)
+            for _sc in df_riepilogo.select_dtypes(include="object").columns:
+                df_riepilogo[_sc]=df_riepilogo[_sc].fillna("").replace({"nan":"","NaN":"","None":""})
             AgGrid(df_riepilogo, gridOptions=go_r,
                    height=min(180 + len(_riepilogo_rows) * 38, 600),
                    update_mode=GridUpdateMode.SELECTION_CHANGED,
@@ -6911,9 +6405,9 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
     _cx1, _cx2 = st.columns(2)
     _unique = list(dict.fromkeys(all_crisis_tickers))
     with _cx1:
-        st.download_button("📺 Export TradingView TXT",
+        st.download_button("📺 Export TradingView CSV",
             data=chr(10).join(_unique),
-            file_name=f"crisis_{selected_scenario[:25].replace(' ','_')}.txt",
+            file_name=f"crisis_{selected_scenario[:25].replace(' ','_')}.csv",
             mime="text/plain", key="crisis_tv_exp",
             help="Un ticker per riga — importabile in TradingView Watchlist")
     with _cx2:
@@ -6948,7 +6442,7 @@ getGui(){return this.eGui;}refresh(){return false;}}"""))
 with tab_rm:
     try:
         from utils.risk_manager import render_risk_manager
-        # ── v43c patch: pandas ≥2.1 applymap→map ─────────────────────────
+        # ── v42i patch: pandas ≥2.1 applymap→map ─────────────────────────
         try:
             import pandas as _pd_patch
             if not hasattr(_pd_patch.io.formats.style.Styler, 'applymap'):
@@ -7302,7 +6796,7 @@ with tab_w:
         # ── Azioni massa ──────────────────────────────────────────────────
         wa1,wa2,wa3=st.columns(3)
         with wa1:
-            tv_txt_btn(df_wl_disp,f"watchlist_{st.session_state.current_list_name}.txt","exp_wl_dl")
+            csv_btn(df_wl_disp,f"watchlist_{st.session_state.current_list_name}.csv","exp_wl_dl")
         other_lists=[l for l in all_lists if l!=st.session_state.current_list_name] or ["DEFAULT"]
         with wa2:
             move_dest=st.selectbox("Sposta selezione →",other_lists,key="mass_mv")
@@ -7531,9 +7025,9 @@ with tab_w:
         _tc = "ticker" if "ticker" in _tv_cur.columns else "Ticker"
         _tv_lines = _tv_cur[_tc].dropna().unique().tolist()
         st.download_button(
-            label="📺 Export TradingView TXT",
+            label="📺 Export TradingView CSV",
             data=chr(10).join(_tv_lines),
-            file_name=f"watchlist_{st.session_state.current_list_name}_tradingview.txt",
+            file_name=f"watchlist_{st.session_state.current_list_name}_tradingview.csv",
             mime="text/plain",
             key="wl_tv_export",
             help="Un ticker per riga — importabile direttamente in TradingView Watchlist"
@@ -7943,20 +7437,6 @@ with tab_of:
 
 
 with tab_bcd:
-
-    # ── v43c Blue Chip Dip Responsive ──────────────────────────────────
-    st.markdown("""<style>
-.bcd-grid{display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));
-  gap:12px;padding:8px 0;}
-.bcd-card{background:#1e222d;border:1px solid #2a2e39;border-radius:10px;
-  padding:14px 16px;transition:box-shadow 0.2s;}
-.bcd-card:hover{box-shadow:0 4px 18px rgba(0,0,0,0.35);}
-@media(max-width:600px){
-  .bcd-grid{grid-template-columns:1fr;}
-  .bcd-card{padding:10px 12px;}
-}
-</style>""", unsafe_allow_html=True)
     try:
         from utils.bluechip_dip import render_bluechip_dip
         render_bluechip_dip()
@@ -8159,11 +7639,11 @@ with ec2:
     if tv_rows:
         df_tv=pd.concat(tv_rows,ignore_index=True).drop_duplicates("Ticker")
         st.download_button(
-            "📈 TXT TV Tutti",
-            df_tv.to_csv(index=False).encode(),
-            f"TradingScanner_v41_TV_{_ts}.txt",
+            "📥 TXT TV Tutti",
+            make_tv_txt(df_tv),
+            f"TradingScanner_v43b_TV_{_ts}.txt",
             "text/plain",
-            key="csv_tv_all",
+            key="tv_txt_all",
             help="CSV pronto per import in TradingView Watchlist"
         )
 with ec3:
@@ -8177,11 +7657,11 @@ with ec3:
 with ec4:
     if not df_cur.empty and "Ticker" in df_cur.columns:
         st.download_button(
-            f"📥 TXT TradingView {cur_tab}",
+            f"📥 TXT TV {cur_tab}",
             make_tv_txt(df_cur),
-            f"TradingScanner_v41_{cur_tab}_TV_{_ts}.txt",
+            f"TradingScanner_v43b_{cur_tab}_TV_{_ts}.txt",
             "text/plain",
-            key="csv_tv_curr"
+            key="tv_txt_curr"
         )
 with ec5:
     # v35: export P&L tracker se presente
@@ -8194,8 +7674,8 @@ with ec5:
         st.download_button(
             "💰 Export P&L",
             _df_pnl_exp.to_csv(index=False).encode(),
-            f"PnL_Tracker_v41_{_ts}.txt",
-            "text/plain",
+            f"PnL_Tracker_v41_{_ts}.csv",
+            "text/csv",
             key="csv_pnl_exp",
             help="Esporta posizioni P&L tracker"
         )
@@ -8476,7 +7956,7 @@ with tab_mtfmatrix:
             _mtf_ts = datetime.now().strftime("%Y%m%d_%H%M")
             st.download_button("📊 Export MTF Matrix",
                 _df_mtf_exp.to_csv(index=False).encode(),
-                f"MTF_Matrix_v41_{_mtf_ts}.txt", "text/plain", key="mtf_export")
+                f"MTF_Matrix_v41_{_mtf_ts}.csv", "text/csv", key="mtf_export")
 
 
 
@@ -8964,13 +8444,13 @@ with tab_regime:
             _sel_period_dd, ascending=False).reset_index(drop=True)
         _sr_rank.index += 1
 
-        _rk_hdr43c = st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
-        for _col43c, _lbl43c in zip(_rk_hdr43c,["#","Settore / ETF","1S","1M","3M","6M","YTD","1A"]):
-            _col43c.markdown(
-                f"<div style='color:#50c4e0;font-weight:bold;font-size:0.80rem;"
-                f"border-bottom:2px solid #2a2e39;padding-bottom:5px;margin-bottom:4px'>{_lbl43c}</div>",
-                unsafe_allow_html=True)
-
+        # v43b intestazioni Ranking Settori
+        _H=st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
+        _H[0].markdown("<small style='color:#50c4e0'>#</small>",unsafe_allow_html=True)
+        _H[1].markdown("<small style='color:#50c4e0'>SETTORE/ETF</small>",unsafe_allow_html=True)
+        for _hi,_hp in enumerate(_periods_sr):
+            _hs="font-weight:bold;text-decoration:underline;" if _hp==_sel_period_dd else ""
+            _H[_hi+2].markdown(f"<small style='color:#50c4e0;{_hs}'>{_period_labels.get(_hp,_hp)}</small>",unsafe_allow_html=True)
         for _i, _rk_row in _sr_rank.iterrows():
             _rk1,_rk2,_rk3,_rk4,_rk5,_rk6,_rk7,_rk8 = st.columns([0.4,1.8,0.65,0.65,0.65,0.65,0.65,0.65])
             _medal = "🥇" if _i==1 else "🥈" if _i==2 else "🥉" if _i==3 else f"{_i}."
@@ -9456,7 +8936,7 @@ def _render_advanced_scanner_v41():
                 _gap_ts = datetime.now().strftime("%Y%m%d_%H%M")
                 st.download_button("📊 Export Gap Scanner",
                     _df_gaps.to_csv(index=False).encode(),
-                    f"GapScanner_v41_{_gap_ts}.txt", "text/plain", key="gap_export")
+                    f"GapScanner_v41_{_gap_ts}.csv", "text/csv", key="gap_export")
 
     with _adv_t2:
         st.caption("Setup pre-earnings: titoli con earnings nei prossimi 7 giorni e CSS elevato.")
@@ -9536,9 +9016,14 @@ with tab_analisi:
         _ap_trend  = st.checkbox("📊 Trend Following", True,  key="ap_trend")
         _ap_risk   = st.checkbox("⚠️ Risk Assessment", True,  key="ap_risk")
         _ap_entry  = st.checkbox("🎯 Entry ottimale",  True,  key="ap_entry")
-        _ap_has_key = _has_global_ai_config()
+        _ap_has_key = any([
+            st.secrets.get("GEMINI_API_KEY","")     or st.session_state.get("_gemini_api_key",""),
+            st.secrets.get("GROQ_API_KEY","")       or st.session_state.get("_groq_api_key",""),
+            st.secrets.get("OPENROUTER_API_KEY","") or st.session_state.get("_openrouter_api_key",""),
+            st.secrets.get("ANTHROPIC_API_KEY","")  or st.session_state.get("_anthropic_api_key",""),
+        ])
         if not _ap_has_key:
-            st.warning("⚠️ Configura l'AI nel tab PRO → AI Config globale")
+            st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
 
     _run_ap = st.button("🔍 Analizza", key="ap_run", type="primary",
                         use_container_width=True, disabled=not _ap_has_key)
@@ -9626,10 +9111,10 @@ with tab_analisi:
                         st.caption(f"Provider: {_ap_prov} · Yahoo Finance · {_ap_period}")
                     except Exception as _ap_err:
                         _em = str(_ap_err)
-                        if "NO_KEYS" in _em: st.warning("⚠️ Configura l'AI nel tab PRO → AI Config globale")
+                        if "NO_KEYS" in _em: st.warning("⚠️ Configura API key nel tab PRO → AI Explainer")
                         else: st.error(f"Errore AI: {_em[:200]}")
     elif not _ap_has_key:
-        st.info("👆 Configura l'AI nel tab PRO → AI Config globale (vale per tutti i moduli).")
+        st.info("👆 Configura una API key gratuita (Gemini o Groq) nel tab PRO → AI Explainer.")
     else:
         st.markdown(
             "<div style='background:#1e222d;border:1px solid #2a2e39;border-radius:8px;padding:16px 20px'>"
@@ -9650,158 +9135,7 @@ with tab_ai:
     st.markdown('<div class="section-pill">🤖 AI TRADING ASSISTANT v41 — Chatbot per analisi e strategie</div>', unsafe_allow_html=True)
     st.caption("Chat interattiva con AI. Chiedi analisi ticker, spiegazioni pattern, consigli strategia.")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # v43 — STORICO ANALISI AI in SQLite (data/ai_history.db)
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        import sqlite3 as _sq43
-        from pathlib import Path as _P43
-        _AI_DB = "data/ai_history.db"
-        _P43(_AI_DB).parent.mkdir(parents=True, exist_ok=True)
-        _conn43 = _sq43.connect(_AI_DB, check_same_thread=False)
-        _conn43.execute("""CREATE TABLE IF NOT EXISTS ai_history(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT, ticker TEXT, analisi TEXT)""")
-        _conn43.commit()
-        _hist43 = pd.read_sql(
-            "SELECT ts,ticker,analisi FROM ai_history ORDER BY id DESC LIMIT 15",
-            _conn43)
-        if not _hist43.empty:
-            with st.expander(f"📚 Storico Analisi AI — ultimi {len(_hist43)} record",
-                             expanded=False):
-                if st.button("🗑 Svuota storico", key="v43_hist_del"):
-                    _conn43.execute("DELETE FROM ai_history")
-                    _conn43.commit()
-                    st.rerun()
-                for _, _hr in _hist43.iterrows():
-                    st.markdown(
-                        f"<div style='border-left:3px solid #2962ff;padding:6px 12px;"
-                        f"margin-bottom:6px;background:#0d1117;border-radius:0 6px 6px 0'>"
-                        f"<span style='color:#00ff88;font-family:Courier New;font-weight:bold'>"
-                        f"{_hr.get('ticker','—')}</span>"
-                        f"<span style='color:#6b7280;font-size:0.70rem;margin-left:10px'>"
-                        f"{_hr.get('ts','')}</span><br>"
-                        f"<span style='color:#b2b5be;font-size:0.79rem'>"
-                        f"{str(_hr.get('analisi',''))[:220]}…</span></div>",
-                        unsafe_allow_html=True)
-            st.download_button("📥 Export storico CSV",
-                make_tv_txt(_hist43),
-                f"ai_history_{datetime.now().strftime('%Y%m%d')}.txt",
-                "text/plain", key="v43d_hist_txt")
-        _conn43.close()
-    except Exception as _sq_ex:
-        st.caption(f"⚠️ Storico AI SQLite: {_sq_ex}")
-
-        # ══════════════════════════════════════════════════════════════════════════
-    # v43c — AI BATCH MULTI-TICKER SCHEDULATA
-    # ══════════════════════════════════════════════════════════════════════════
-    try:
-        with st.expander("🤖 AI Batch — Analisi multi-ticker schedulata", expanded=False):
-            _batch_info = st.empty()
-            _batchc1,_batchc2,_batchc3 = st.columns([3,1.2,1])
-            with _batchc1:
-                _batch_tks_raw = st.text_input(
-                    "Ticker (separati da virgola)", "AAPL,NVDA,AMD,MSFT,META",
-                    key="v43c_batch_tks", placeholder="es: UCG.MI,ISP.MI,RACE.MI")
-            with _batchc2:
-                _batch_mode = st.selectbox(
-                    "Modello", ["Gemini (free)","Groq (free)","OpenRouter"],
-                    key="v43c_batch_model")
-            with _batchc3:
-                _batch_go = st.button("🚀 Avvia Batch", key="v43c_batch_go",
-                                      use_container_width=True)
-            if _batch_go:
-                _btks = [t.strip().upper() for t in _batch_tks_raw.split(",") if t.strip()][:10]
-                if not _btks:
-                    st.warning("Inserisci almeno 1 ticker.")
-                else:
-                    _bprog = st.progress(0.0, text="Analisi batch in corso…")
-                    _bresults = []
-                    for _bi, _btk in enumerate(_btks):
-                        _bprog.progress((_bi+1)/len(_btks), text=f"Analisi {_btk}…")
-                        try:
-                            import yfinance as _ybatch
-                            _bhist = _ybatch.download(_btk, period="3mo", interval="1d",
-                                                      auto_adjust=True, progress=False)
-                            _bhist.columns = [c[0] if isinstance(c,tuple) else c
-                                              for c in _bhist.columns]
-                            _bclose = _bhist["Close"].dropna()
-                            _bret   = float(_bclose.pct_change().iloc[-1]*100) if len(_bclose)>1 else 0
-                            _bma20  = float(_bclose.rolling(20).mean().iloc[-1]) if len(_bclose)>=20 else float(_bclose.iloc[-1])
-                            _bprice = float(_bclose.iloc[-1])
-                            _btrend = "▲ sopra MA20" if _bprice > _bma20 else "▼ sotto MA20"
-                            # Costruisci prompt conciso
-                            _bprompt = (f"Analizza brevemente {_btk} come trader: "
-                                        f"prezzo={_bprice:.2f}, ret1d={_bret:+.1f}%, {_btrend}. "
-                                        f"Setup entry, target, stop loss in 3 righe max.")
-                            _banswer = "—"
-                            # Prova Gemini
-                            _bgem_key = st.session_state.get("gemini_api_key","")
-                            if _bgem_key and "Gemini" in _batch_mode:
-                                try:
-                                    import google.generativeai as _gem_b
-                                    _gem_b.configure(api_key=_bgem_key)
-                                    _bm = _gem_b.GenerativeModel("gemini-2.0-flash")
-                                    _banswer = _bm.generate_content(_bprompt).text[:300]
-                                except Exception as _ge: _banswer = f"Gemini err: {_ge}"
-                            # Prova Groq
-                            elif st.session_state.get("groq_api_key","") and "Groq" in _batch_mode:
-                                try:
-                                    import groq as _groq_b
-                                    _gcl = _groq_b.Groq(api_key=st.session_state["groq_api_key"])
-                                    _gr = _gcl.chat.completions.create(
-                                        model="llama3-8b-8192",
-                                        messages=[{"role":"user","content":_bprompt}],
-                                        max_tokens=200)
-                                    _banswer = _gr.choices[0].message.content[:300]
-                                except Exception as _gre: _banswer = f"Groq err: {_gre}"
-                            else:
-                                _banswer = f"Dati: prezzo={_bprice:.2f} | ret1d={_bret:+.1f}% | {_btrend}"
-                            _bresults.append({"Ticker":_btk,"Prezzo":f"{_bprice:.2f}",
-                                              "Ret1d":f"{_bret:+.1f}%","Trend":_btrend,
-                                              "Analisi":_banswer})
-                        except Exception as _bex:
-                            _bresults.append({"Ticker":_btk,"Prezzo":"—","Ret1d":"—",
-                                              "Trend":"—","Analisi":str(_bex)[:80]})
-                    _bprog.empty()
-                    for _br in _bresults:
-                        _bcolor = "#00ff88" if "▲" in _br["Trend"] else "#ef4444"
-                        st.markdown(
-                            f"<div style='border-left:3px solid {_bcolor};padding:8px 14px;"
-                            f"margin-bottom:8px;background:#0d1117;border-radius:0 8px 8px 0'>"
-                            f"<span style='color:{_bcolor};font-family:Courier New;font-weight:bold;"
-                            f"font-size:0.9rem'>{_br['Ticker']}</span>"
-                            f"<span style='color:#6b7280;font-size:0.75rem;margin-left:12px'>"
-                            f"${_br['Prezzo']} &nbsp;{_br['Ret1d']} &nbsp;"
-                            f"<span style='color:{_bcolor}'>{_br['Trend']}</span></span><br>"
-                            f"<span style='color:#b2b5be;font-size:0.79rem'>"
-                            f"{_br['Analisi']}</span></div>",
-                            unsafe_allow_html=True)
-                    # Salva in SQLite
-                    try:
-                        import sqlite3 as _sq_b
-                        from pathlib import Path as _Pb
-                        _Pb("data").mkdir(exist_ok=True)
-                        _cb = _sq_b.connect("data/ai_history.db", check_same_thread=False)
-                        _cb.execute("""CREATE TABLE IF NOT EXISTS ai_history(
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            ts TEXT, ticker TEXT, analisi TEXT)""")
-                        for _br in _bresults:
-                            _cb.execute("INSERT INTO ai_history(ts,ticker,analisi) VALUES(?,?,?)",
-                                        (datetime.now().strftime("%Y-%m-%d %H:%M"),
-                                         _br["Ticker"], _br["Analisi"]))
-                        _cb.commit(); _cb.close()
-                    except Exception: pass
-                    # Export CSV batch
-                    if _bresults:
-                        st.download_button("📥 TXT TradingView",
-                            make_tv_txt(pd.DataFrame(_bresults)),
-                            f"ai_batch_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                            "text/plain", key="v43c_batch_txt")
-    except Exception as _bex2:
-        st.caption(f"⚠️ AI Batch: {_bex2}")
-
-        # Session state per chat
+    # Session state per chat
     if "ai_chat_history" not in st.session_state:
         st.session_state.ai_chat_history = []
     if "ai_ticker_context" not in st.session_state:
@@ -9901,10 +9235,10 @@ with tab_ai:
 # =========================================================================
 # v41 — TAB 🎲 OPTIONS SCANNER
 # =========================================================================
-# ── v43c — MODULO 2 AI ──────────────────────────────────────────────────────
+# ── v42i — MODULO 2 AI ──────────────────────────────────────────────────────
 with tab_ai2:
     st.session_state["last_active_tab"] = "MODULO2_AI"
-    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST v43c — Multi-source · Vol× · Priorità · Stile Momentum Alerts</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-pill'>🤖 MODULO 2 AI ANALYST v42i — Multi-source · Vol× · Priorità · Stile Momentum Alerts</div>", unsafe_allow_html=True)
     st.caption("Seleziona la sorgente ticker da qualunque tab del scanner, poi premi Analizza per il ticker desiderato.")
 
     # ── Sorgente ticker ───────────────────────────────────────────────────────
@@ -10057,21 +9391,36 @@ with tab_ai2:
         st.markdown("---")
         _ex1, _ex2 = st.columns([1,1])
         with _ex1:
-            _ai2_csv = make_tv_txt(_df_ai2[["Ticker"]] if "Ticker" in _df_ai2.columns else _df_ai2)
-            st.download_button("📥 TXT TradingView", _ai2_csv,
-                f"modulo2_ai_{_ai2_source[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                "text/plain", key="ai2h_export_txt")
+            _ai2_csv = _df_ai2[["Ticker","Nome","Stato_Pro","CSS","RSI"] if all(c in _df_ai2.columns for c in ["Stato_Pro","CSS","RSI"]) else _df_ai2.columns.tolist()[:6]].to_csv(index=False).encode("utf-8")
+            st.download_button("📥 Export CSV", _ai2_csv,
+                f"modulo2_ai_{_ai2_source[:8]}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                "text/csv", key="ai2h_export_csv")
 
         # ── Analisi dettagliata ───────────────────────────────────────────────
         _sel_tkr = st.session_state.get("ai2_selected_ticker")
         if _sel_tkr:
-            st.markdown("<div class='section-pill'>🧠 Analisi selezionata</div>", unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown(f"<div class='section-pill'>🧠 Analisi AI — {_sel_tkr}</div>", unsafe_allow_html=True)
             _ia1, _ia2, _ia3 = st.columns(3)
             _ia1.markdown(f"**Ticker:** `{_sel_tkr}`")
             _ia2.markdown(f"**Nome:** {st.session_state.get('ai2_selected_name','')}")
             _ia3.markdown(f"**Setup:** {st.session_state.get('ai2_selected_setup','—')}")
-            st.markdown(f"**Rischio/Invalidazione:** {st.session_state.get('ai2_selected_risk','—')}")
-            st.info("Premi il bottone AI nel tab 🤖 AI Assistant per l'analisi completa di questo ticker.")
+            # Recupera la riga dal df sorgente per passarla all'analisi
+            _row_match = _df_ai2[_df_ai2["Ticker"] == _sel_tkr] if not _df_ai2.empty and "Ticker" in _df_ai2.columns else pd.DataFrame()
+            if _row_match.empty and not df_ep.empty and "Ticker" in df_ep.columns:
+                _row_match = df_ep[df_ep["Ticker"] == _sel_tkr]
+            # Chiama render_ai_explainer_v41 se disponibile
+            try:
+                _ai2_src_df = _row_match if not _row_match.empty else _df_ai2
+                render_ai_explainer_v41(_ai2_src_df, tabname=f"ai2_{_sel_tkr}")
+            except NameError:
+                # Fallback: analisi inline se la funzione non è ancora definita nel contesto
+                st.warning("⚠️ La funzione di analisi AI non è disponibile in questo contesto. Usa il tab 🤖 AI Assistant.")
+            if st.button("✖ Chiudi analisi", key="ai2_close_analysis"):
+                st.session_state.pop("ai2_selected_ticker", None)
+                st.session_state.pop("ai2_selected_name", None)
+                st.session_state.pop("ai2_selected_setup", None)
+                st.rerun()
 
 
 with tab_opts:
@@ -10359,10 +9708,10 @@ with tab_mom:
         _mex1, _mex2 = st.columns([1,1])
         with _mex1:
             _ma_df_exp = pd.DataFrame(_ma_all)
-            _ma_csv = make_tv_txt(_ma_df_exp)
-            st.download_button("📥 TXT TradingView", _ma_csv,
-                               f"momentum_alerts_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
-                               "text/plain", key="ma_export_txt")
+            _ma_csv = _ma_df_exp.to_csv(index=False).encode("utf-8")
+            st.download_button("📥 Export CSV Alert", _ma_csv,
+                               f"momentum_alerts_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                               "text/csv", key="ma_export_csv")
         with _mex2:
             if st.button("🗑️ Pulisci Alert", key="ma_clear_alerts"):
                 st.session_state.mom_alerts = []
@@ -10453,8 +9802,8 @@ with tab_news:
 
             # Export
             _ns_df = pd.DataFrame(_news_data)
-            _ns_csv = make_tv_txt(_ns_df)
-            st.download_button("📥 Export CSV", _ns_csv, "news_sentiment.txt", "text/plain")
+            _ns_csv = _ns_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Export CSV", _ns_csv, "news_sentiment.csv", "text/csv")
         else:
             st.info("Nessuna news trovata.")
 
@@ -10474,18 +9823,4 @@ with tab_news:
         - [TradingView Italia](https://it.tradingview.com/) — Community analysis
         - [TradingView](https://tradingview.com) — Charts e analisi
         """)
-
-/* V44b responsive tabs */
-@media(max-width:1200px){
-  [data-testid="stTabs"] > div:first-child button{font-size:0.68rem!important;padding:4px 7px!important;max-width:120px!important;}
-}
-@media(max-width:900px){
-  [data-testid="stTabs"] > div:first-child{gap:3px!important;overflow-x:auto!important;}
-  [data-testid="stTabs"] > div:first-child button{font-size:0.61rem!important;padding:3px 6px!important;max-width:96px!important;}
-}
-@media(max-width:600px){
-  [data-testid="stTabs"] > div:first-child button{font-size:0.55rem!important;padding:2px 4px!important;max-width:82px!important;}
-  [data-testid="stMetricValue"]{font-size:0.95rem!important;}
-  [data-testid="stMetricLabel"]{font-size:0.65rem!important;}
-}
 
