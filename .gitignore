@@ -1,0 +1,37 @@
+# Streamlit secrets - NEVER commit real API keys
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.venv-1/
+env/
+venv/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database
+*.db
+*.sqlite3
+
+# Jupyter
+.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+
+# Logs
+*.log
+
+# Cache
+.cache/
+.pytest_cache/
