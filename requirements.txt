@@ -7,3 +7,5 @@ yfinance
 yahooquery
 xlsxwriter
 streamlit-aggrid-v2
+streamlit==1.32.0
+streamlit-aggrid==1.0.5
