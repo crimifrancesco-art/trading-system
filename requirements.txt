@@ -1,9 +1,9 @@
-streamlit
+streamlit==1.49.0
+streamlit-aggrid
 pandas
 numpy
 plotly
-requests
 yfinance
-yahooquery
-xlsxwriter
-streamlit-aggrid-v2
+requests
+python-dateutil
+pytz
