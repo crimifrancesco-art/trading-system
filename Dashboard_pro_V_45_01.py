@@ -1962,42 +1962,6 @@ PRESETS={
 st.set_page_config(page_title="Trading Scanner PRO v45.01",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 # ── Back-to-top via st.components (accesso diretto al DOM parent) ────
-import streamlit.components.v1 as _stc
-_stc.html("""<a id="top-page"></a>
-<style>
-#_btt{
-  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
-  z-index:99999;background:#0d9488;color:#fff;border:none;
-  border-radius:20px;padding:8px 22px;font-size:0.84rem;font-weight:700;
-  cursor:pointer;box-shadow:0 4px 18px rgba(13,148,136,.55);
-  white-space:nowrap;font-family:'Inter',sans-serif;letter-spacing:.03em;
-  transition:background .2s,transform .2s;
-}
-#_btt:hover{background:#0f766e;transform:translateX(-50%) translateY(-2px);}
-#_btt:active{transform:translateX(-50%) translateY(0);}
-</style>
-<button id="_btt" type="button">⬆ Torna su</button>
-<script>
-document.getElementById('_btt').addEventListener('click', function(){
-  try{
-    var pdoc = window.parent.document;
-    var target = pdoc.scrollingElement || pdoc.documentElement || pdoc.body;
-    if (target && typeof target.scrollTo === 'function') {
-      target.scrollTo({top:0, left:0, behavior:'smooth'});
-    } else if (target) {
-      target.scrollTop = 0;
-    }
-    if (pdoc.documentElement) pdoc.documentElement.scrollTop = 0;
-    if (pdoc.body) pdoc.body.scrollTop = 0;
-    if (window.parent && typeof window.parent.scrollTo === 'function') {
-      window.parent.scrollTo({top:0, left:0, behavior:'smooth'});
-    }
-  } catch(e) {
-    try { window.parent.location.hash = 'top-page'; } catch(e2) {}
-  }
-});
-</script>
-""", height=60)
 st.markdown("# 🧠 Trading Scanner PRO v45.01")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
