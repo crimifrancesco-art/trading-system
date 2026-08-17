@@ -5077,283 +5077,34 @@ with tab_home:
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── v42i: Suggerimenti ────────────────────────────────
-    
-    # ── v41e FEATURE 4 — Portfolio P&L dalla Watchlist ──────────────────────
-    try:
-        _pnl_positions_home = st.session_state.get("v41_pnl_entries", {})
-        if _pnl_positions_home:
-            st.markdown('<div class="section-pill">💰 PORTFOLIO P&L — Posizioni attive con prezzi scanner</div>',
-                        unsafe_allow_html=True)
-            _pnl_price_map = {}
-            if not df_ep.empty and "Ticker" in df_ep.columns and "Prezzo" in df_ep.columns:
-                for _, _pr_row in df_ep[["Ticker","Prezzo"]].dropna(subset=["Ticker"]).iterrows():
-                    try:
-                        _pnl_price_map[str(_pr_row["Ticker"])] = float(
-                            pd.to_numeric(_pr_row["Prezzo"], errors="coerce") or 0)
-                    except Exception:
-                        pass
+    # ── V45.03: Suggerimenti e roadmap ─────────────────────────────────
+    with st.expander("💡 Suggerimenti v45.03 — Stato e roadmap", expanded=False):
+        st.markdown("""
+**✅ Implementato fino a V45.03:**
 
-            _total_cost_h = 0.0; _total_val_h = 0.0; _total_pnl_h = 0.0
-            _pnl_rows_h = []
-            for _pt_h, _pp_h in _pnl_positions_home.items():
-                _entry_h = float(_pp_h.get("entry",0))
-                _size_h  = int(_pp_h.get("size",1))
-                _cur_p_h = _pnl_price_map.get(_pt_h, 0)
-                _cost_h  = _entry_h * _size_h
-                _val_h   = _cur_p_h * _size_h if _cur_p_h > 0 else _cost_h
-                _pnl_v_h = _val_h - _cost_h
-                _pnl_p_h = (_cur_p_h/_entry_h - 1)*100 if _entry_h > 0 and _cur_p_h > 0 else 0
-                _total_cost_h += _cost_h
-                _total_val_h  += _val_h
-                _total_pnl_h  += _pnl_v_h
-                _pc_h = "#00ff88" if _pnl_v_h >= 0 else "#ef4444"
-                _tv_h = _pt_h.replace(".MI","%3AMI")
-                _cur_str = f"${_cur_p_h:.2f}" if _cur_p_h > 0 else "—"
-                _pnl_rows_h.append(
-                    f"<tr style='border-bottom:1px solid #1e222d'>"
-                    f"<td style='padding:5px 8px'>"
-                    f"<a href='https://it.tradingview.com/chart/?symbol={_tv_h}' target='_blank' "
-                    f"style='color:#00ff88;font-family:Courier New;font-weight:bold;"
-                    f"text-decoration:none;font-size:0.85rem'>{_pt_h}</a></td>"
-                    f"<td style='padding:5px 8px;font-family:Courier New;color:#b2b5be'>${_entry_h:.2f}</td>"
-                    f"<td style='padding:5px 8px;font-family:Courier New;color:#d1d4dc'>{_cur_str}</td>"
-                    f"<td style='padding:5px 8px;color:#6b7280'>{_size_h}</td>"
-                    f"<td style='padding:5px 8px;font-family:Courier New;color:{_pc_h};font-weight:bold'>"
-                    f"${_pnl_v_h:+,.0f} ({_pnl_p_h:+.1f}%)</td>"
-                    f"</tr>"
-                )
-            if _pnl_rows_h:
-                _tc_h = "#00ff88" if _total_pnl_h >= 0 else "#ef4444"
-                _ret_pct_h = (_total_val_h/_total_cost_h - 1)*100 if _total_cost_h > 0 else 0
-                _pk1,_pk2,_pk3,_pk4 = st.columns(4)
-                _pk1.metric("📦 Posizioni",  len(_pnl_positions_home))
-                _pk2.metric("💰 Investito",  f"${_total_cost_h:,.0f}")
-                _pk3.metric("💎 Valore",     f"${_total_val_h:,.0f}")
-                _pk4.metric("📈 P&L",        f"${_total_pnl_h:+,.0f}  ({_ret_pct_h:+.1f}%)")
-                st.markdown(
-                    "<div style='overflow-x:auto'>"
-                    "<table style='width:100%;border-collapse:collapse;font-size:0.82rem;background:#131722'>"
-                    "<tr style='border-bottom:2px solid #2a2e39'>"
-                    "<th style='padding:5px 8px;color:#50c4e0;text-align:left'>Ticker</th>"
-                    "<th style='padding:5px 8px;color:#50c4e0'>Entry $</th>"
-                    "<th style='padding:5px 8px;color:#50c4e0'>Prezzo attuale</th>"
-                    "<th style='padding:5px 8px;color:#50c4e0'>Qty</th>"
-                    "<th style='padding:5px 8px;color:#50c4e0'>P&L $</th></tr>"
-                    + "".join(_pnl_rows_h) +
-                    "</table></div>",
-                    unsafe_allow_html=True)
-                st.caption(
-                    f"P&L totale: **${_total_pnl_h:+,.0f}** · "
-                    "Prezzi dal tuo ultimo scanner · "
-                    "Aggiungi posizioni nel tab **⚖️ Risk Manager → P&L Tracker**"
-                )
-            st.markdown("---")
-    except Exception:
-        pass
+- **V45.01** — Fix `xlsxwriter`, versione uniforme, rimozione del COT duplicato, aggiornamento del modello Groq e rimozione del pulsante “Torna su”.
+- **V45.02** — COT Report Evoluto con posizioni nette, delta settimanale, percentile storico, score, segnale e grafico.
+- **V45.03** — Macro Regime Engine con Fed Funds, US 2Y, US 10Y, curva 10Y–2Y, CPI, Core CPI, disoccupazione e classificazione Risk-On/Caution/Risk-Off/Crisis.
+- Moduli separati in `utils/` per COT, Macro Regime e Commodity Scanner.
+- README e `.gitignore` aggiornati.
 
+**🔜 Prossima feature V45.04: Commodity Scanner**
 
-    # ── v43b BUBBLE METER & INDICATORI NON CONVENZIONALI ─────────────
-    st.markdown('<div class="section-pill">🫧 BUBBLE METER · INFLAZIONE · INDICATORI NON CONVENZIONALI</div>', unsafe_allow_html=True)
-    try:
-        import yfinance as _yf43b
-        import numpy as _np43b
-
-        @st.cache_data(ttl=3600, show_spinner=False)
-        def _fetch_bubble_v43b():
-            r={}
-            for _sym,_k in [("^VIX","vix"),("^W5000","w5000")]:
-                try:
-                    _d=_yf43b.download(_sym,period="5d",interval="1d",progress=False,auto_adjust=True)
-                    _d.columns=[c[0] if isinstance(c,tuple) else c for c in _d.columns]
-                    r[_k]=float(_d["Close"].dropna().iloc[-1])
-                except Exception: r[_k]=None
-            # SPY
-            try:
-                _sp=_yf43b.download("SPY",period="1y",interval="1wk",progress=False,auto_adjust=True)
-                _sp.columns=[c[0] if isinstance(c,tuple) else c for c in _sp.columns]
-                _cl=_sp["Close"].dropna()
-                r["spy_p"]=float(_cl.iloc[-1]); r["spy_52"]=float(_cl.max())
-            except Exception: r["spy_p"]=None; r["spy_52"]=None
-            # Proxy indici non convenzionali
-            _proxies=[("EL","ULTA","SPY","lipstick","6mo"),
-                      ("CVNA","KMX",None,"usedcar","3mo"),
-                      ("RRR","DKNG",None,"stripclub","3mo"),
-                      ("AMZN","FDX","UPS","cardboard","3mo")]
-            for _t1,_t2,_t3,_key,_per in _proxies:
-                try:
-                    _tks=[t for t in [_t1,_t2,_t3] if t]
-                    _dd=_yf43b.download(_tks,period=_per,interval="1wk",progress=False,auto_adjust=True)
-                    _dd.columns=[c[0] if isinstance(c,tuple) else c for c in _dd.columns]
-                    _cc=_dd["Close"].dropna() if len(_tks)>1 else _dd[["Close"]].rename(columns={"Close":_t1}).dropna()
-                    _rets=[]
-                    for _t in _tks:
-                        if _t in _cc.columns and len(_cc[_t].dropna())>2:
-                            _s=_cc[_t].dropna(); _rets.append(float((_s.iloc[-1]/_s.iloc[0]-1)*100))
-                    _base=_rets[-1] if _key=="lipstick" and len(_rets)==3 else 0
-                    _vals=_rets[:-1] if _key=="lipstick" and len(_rets)==3 else _rets
-                    r[_key]=round(sum(_vals)/len(_vals)-_base,1) if _vals else None
-                except Exception: r[_key]=None
-            return r
-
-        _bd=_fetch_bubble_v43b()
-        _cape=36.2; _cpi=2.4; _fed=4.50; _m2=3.8
-
-        def _bcard(icon,title,val_s,badge,col,desc,pct=None):
-            _bar=""
-            if pct is not None:
-                _p=max(0,min(100,pct))
-                _bar=(f"<div style='margin-top:5px;background:#1e222d;border-radius:3px;height:5px'>"
-                      f"<div style='width:{_p}%;background:{col};height:5px;border-radius:3px'></div></div>")
-            return (f"<div style='background:#1a1e2e;border:1px solid #2a2e3d;border-top:2px solid {col};"
-                    f"border-radius:6px;padding:10px 12px'>"
-                    f"<div style='font-size:0.70rem;color:#6b7280'>{icon} {title}</div>"
-                    f"<div style='font-size:1.25rem;font-weight:bold;color:{col};font-family:Courier New'>{val_s}</div>"
-                    f"<span style='background:{col}22;color:{col};border:1px solid {col}44;border-radius:10px;"
-                    f"padding:1px 7px;font-size:0.67rem;font-weight:bold'>{badge}</span>"
-                    f"{_bar}"
-                    f"<div style='font-size:0.66rem;color:#4b5563;margin-top:5px;line-height:1.3'>{desc}</div>"
-                    f"</div>")
-
-        # VIX
-        _vix=_bd.get("vix") or 20.0
-        _vc,_vb=("#f59e0b","EUFORIA") if _vix<15 else ("#00ff88","NORMALE") if _vix<20 else ("#f59e0b","ALLERTA") if _vix<30 else ("#ef4444","PAURA")
-        # CAPE
-        _cc2,_cb=("#00ff88","CHEAP") if _cape<20 else ("#f59e0b","FAIR") if _cape<30 else ("#ef4444","BOLLA") if _cape<38 else ("#a855f7","ESTREMO")
-        # Buffett
-        _w5=_bd.get("w5000"); _bi=round(_w5/(28.2e9)*100,1) if _w5 else None
-        _bic,_bib=("#6b7280","N/D") if not _bi else ("#00ff88","SOTTOVALUTATO") if _bi<100 else ("#f59e0b","FAIR") if _bi<150 else ("#ef4444","BOLLA")
-        # CPI
-        _cpic,_cpib=("#00ff88","SOTTO TARGET") if _cpi<2 else ("#26a69a","OK FED") if _cpi<3 else ("#f59e0b","ELEVATA") if _cpi<5 else ("#ef4444","CRITICA")
-        # SPY vs 52w
-        _sp_p=_bd.get("spy_p"); _sp_52=_bd.get("spy_52")
-        _spdd=round((_sp_p/_sp_52-1)*100,1) if _sp_p and _sp_52 else None
-        _spc="#00ff88" if _spdd and _spdd>-5 else "#f59e0b" if _spdd and _spdd>-15 else "#ef4444"
-        _spb="RECORD" if _spdd and _spdd>-3 else "PULLBACK" if _spdd and _spdd>-10 else "CORREZIONE"
-
-        st.markdown("**📊 Valutazione mercato & inflazione**")
-        _rc1,_rc2,_rc3,_rc4,_rc5=st.columns(5)
-        _rc1.markdown(_bcard("🎭","CAPE Shiller",f"{_cape:.1f}x",_cb,_cc2,
-            "P/E a 10 anni corretto per il ciclo economico. Media storica ~16x. Sopra 30 = mercato caro.",
-            min(100,_cape/50*100)),unsafe_allow_html=True)
-        _rc2.markdown(_bcard("😱","VIX Fear",f"{_vix:.1f}",_vb,_vc,
-            "Indice di paura del mercato. Sotto 15 = euforia pericolosa. Sopra 30 = paura = possibile opportunità.",
-            min(100,_vix/80*100)),unsafe_allow_html=True)
-        _rc3.markdown(_bcard("🏦","Buffett Indicator",f"{_bi:.0f}%" if _bi else "N/D",_bib,_bic,
-            "Capitaliz. mercato USA / PIL. Inventato da Buffett. Sopra 150% = mercato storicamente sopravvalutato.",
-            min(100,(_bi/250*100) if _bi else 0)),unsafe_allow_html=True)
-        _rc4.markdown(_bcard("📈","CPI USA",f"{_cpi:.1f}%",_cpib,_cpic,
-            f"Inflazione al consumo YoY aprile 2026. Target Fed = 2%. Tassi Fed: {_fed:.2f}%. Più alto = più restrittivo.",
-            min(100,_cpi/10*100)),unsafe_allow_html=True)
-        _rc5.markdown(_bcard("📉","SPY vs 52w",f"{_spdd:.1f}%" if _spdd else "N/D",_spb,_spc,
-            "Distanza di SPY dal massimo annuale. Vicino al record = prudenza. Lontano = possibile rimbalzo.",
-            min(100,(100+(_spdd or 0)))),unsafe_allow_html=True)
-
-        st.markdown("<div style='margin:12px 0 4px'><b>🎪 Indicatori non convenzionali</b></div>",unsafe_allow_html=True)
-
-        def _proxy_card(icon,title,val,col,badge,desc_main,desc_logic):
-            _vs=f"{val:+.1f}%" if val is not None else "N/D"
-            _pct=min(100,max(0,50+(val or 0)*2))
-            return _bcard(icon,title,_vs,badge,col,f"<b>Come funziona:</b> {desc_main}<br><b>Segnale:</b> {desc_logic}",_pct)
-
-        _lip=_bd.get("lipstick")
-        _lipc,_lipb=("#6b7280","N/D") if _lip is None else ("#ef4444","RECESSIONE") if _lip>5 else ("#f59e0b","ATTENZIONE") if _lip>0 else ("#00ff88","NEUTRO")
-        _uc=_bd.get("usedcar")
-        _ucc,_ucb=("#6b7280","N/D") if _uc is None else ("#26a69a","DISINFLAZ.") if _uc<-10 else ("#00ff88","NORMALIZ.") if _uc<0 else ("#f59e0b","PRESSIONE") if _uc<10 else ("#ef4444","INFLAZ.")
-        _sc2=_bd.get("stripclub")
-        _scc,_scb=("#6b7280","N/D") if _sc2 is None else ("#00ff88","CONSUMI OK") if _sc2>10 else ("#26a69a","STABILE") if _sc2>0 else ("#f59e0b","CAUTELA") if _sc2>-10 else ("#ef4444","STRESS")
-        _cb2=_bd.get("cardboard")
-        _cbc,_cbb=("#6b7280","N/D") if _cb2 is None else ("#00ff88","COMMERCIO OK") if _cb2>5 else ("#26a69a","STABILE") if _cb2>0 else ("#f59e0b","RALLENT.") if _cb2>-10 else ("#ef4444","CONTRAZIONE")
-        _m2c="#ef4444" if _m2>8 else "#f59e0b" if _m2>4 else "#00ff88"
-        _m2b="ESPANSIVA" if _m2>5 else "NEUTRALE" if _m2>0 else "RESTRITTIVA"
-
-        _uc1,_uc2,_uc3,_uc4,_uc5=st.columns(5)
-        _uc1.markdown(_proxy_card("💄","Lipstick Index",_lip,_lipc,_lipb,
-            "EL+ULTA vs SPY (6m). Nei periodi di difficoltà economica le persone rinunciano ai lussi grandi ma comprano più cosmetici a basso costo.",
-            "Se i titoli cosmetici battono l'indice → segnale di recessione imminente."),unsafe_allow_html=True)
-        _uc2.markdown(_proxy_card("🚗","Used Car Index",_uc,_ucc,_ucb,
-            "CVNA+KMX (3m). I prezzi delle auto usate reagiscono velocemente all'inflazione e alla domanda dei consumatori.",
-            "Calo = disinflazione beni durevoli in corso. Rialzo = pressione inflattiva residua."),unsafe_allow_html=True)
-        _uc3.markdown(_proxy_card("💃","Strip Club Index",_sc2,_scc,_scb,
-            "RRR+DKNG (3m). I locali di intrattenimento discrezionale sono i primi a soffrire quando i consumatori tagliano le spese superflue.",
-            "Calo forte = consumatori sotto pressione finanziaria → segnale recessivo."),unsafe_allow_html=True)
-        _uc4.markdown(_proxy_card("📦","Cardboard Box Index",_cb2,_cbc,_cbb,
-            "AMZN+FDX+UPS (3m). Le scatole di cartone misurano i volumi di spedizione. Più ordini e-commerce = più scatole = economia in crescita.",
-            "Calo = meno spedizioni → rallentamento commercio e produzione industriale."),unsafe_allow_html=True)
-        _uc5.markdown(_bcard("💵","M2 Money Supply",f"{_m2:+.1f}% YoY",_m2b,_m2c,
-            f"Crescita della massa monetaria M2 (aprile 2026). Tassi Fed: {_fed:.2f}%. Espansione rapida di M2 alimenta l'inflazione.",
-            min(100,max(0,50+_m2*5))),unsafe_allow_html=True)
-
-        # Bubble Score composito
-        _bscores=[min(100,_cape/50*100)]
-        if _vix: _bscores.append(100-min(100,_vix/80*100))
-        if _bi:  _bscores.append(min(100,_bi/250*100))
-        _bscores.append(min(100,_cpi/10*100))
-        _bs=round(sum(_bscores)/len(_bscores))
-        _bsc="#ef4444" if _bs>70 else "#f59e0b" if _bs>45 else "#00ff88"
-        _bsi="🔴 BOLLA" if _bs>70 else "🟡 ATTENZIONE" if _bs>45 else "🟢 OK"
-        st.markdown(
-            f"<div style='background:#12151f;border:1px solid {_bsc}44;border-radius:8px;"
-            f"padding:10px 16px;margin-top:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap'>"
-            f"<span style='color:{_bsc};font-weight:bold;font-size:1.0rem'>🫧 Bubble Score: {_bs}/100</span>"
-            f"<div style='flex:1;background:#1e222d;border-radius:4px;height:10px;min-width:100px'>"
-            f"<div style='width:{_bs}%;background:{_bsc};height:10px;border-radius:4px'></div></div>"
-            f"<span style='color:{_bsc};font-weight:bold'>{_bsi}</span>"
-            f"<span style='color:#4b5563;font-size:0.70rem;margin-left:auto'>"
-            f"CAPE {_cape:.0f}x · VIX {_vix:.1f} · Buffett {f'{_bi:.0f}' if _bi else 'N/D'}% · CPI {_cpi:.1f}%"
-            f"</span></div>",unsafe_allow_html=True)
-        st.caption("⚠️ CAPE, CPI, Fed Rate, M2 = valori fissi aggiornati a maggio 2026. VIX, SPY, proxy indici = live da Yahoo Finance.")
-    except Exception as _bex:
-        st.caption(f"Bubble meter non disponibile: {_bex}")
-    st.markdown("---")
-    st.markdown('<div class="section-pill">🗓️ MACRO CALENDAR v42h — Fed · CPI · NFP · PCE</div>', unsafe_allow_html=True)
-    _macro_ev41=_fetch_macro_v41()
-    _mc39=[e for e in _macro_ev41 if 0<=e['Giorni']<=14]
-    if _mc39:
-        _mc39c=st.columns(min(len(_mc39),4))
-        for _i39,_ev41 in enumerate(_mc39[:4]):
-            _ic39='#ef4444' if 'High' in _ev41['Impatto'] else '#f59e0b'
-            _mc39c[_i39].markdown(f"<div style='background:#1e222d;border-top:2px solid {_ic39};border-radius:0 0 6px 6px;padding:8px 10px'><div style='color:{_ic39};font-size:0.70rem'>{_ev41['Impatto']} · {_ev41['Giorni']}gg</div><div style='color:#d1d4dc;font-size:0.82rem;font-weight:bold'>{_ev41['Evento']}</div><div style='color:#6b7280;font-size:0.70rem'>{_ev41['Data']}</div></div>",unsafe_allow_html=True)
-    with st.expander('📅 Calendario completo 90 giorni',expanded=False):
-        for _ev41 in _macro_ev41[:20]:
-            _ic392='#ef4444' if 'High' in _ev41['Impatto'] else '#f59e0b' if 'Med' in _ev41['Impatto'] else '#6b7280'
-            _dot39='🔴' if _ev41['Giorni']<=3 else '🟡' if _ev41['Giorni']<=7 else '🟢'
-            st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev41['Data']}</span> <b style='color:#d1d4dc'>{_ev41['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev41['Giorni']}gg</span></div>",unsafe_allow_html=True)
-
-
-with st.expander(f"💡 Suggerimenti v{APP_VERSION} — Stato e roadmap", expanded=False):
-        st.markdown(f"""
-**✅ Implementato fino a V{APP_VERSION}:**
-- **V45.01** — Dipendenza `xlsxwriter` aggiunta e risoluzione degli export Excel in Rea-Hot, Serafini, Regime, MTF Matrix e sezioni collegate.
-- **V45.01** — Versione applicativa uniformata, COT Report duplicato rimosso, modello Groq deprecato sostituito e pulsante “Torna su” eliminato perché non affidabile su Streamlit Cloud.
-- **V45.02** — COT Report Evoluto: download dati CFTC, posizioni nette Commercial / Non-Commercial / Non-Reportable, delta settimanale, percentile storico, score, grafico ed export CSV.
-- **V45.03** — Macro Regime Engine: tassi, inflazione, Fed Funds, curva US 10Y–2Y, disoccupazione e classificazione Risk-On / Caution / Risk-Off / Crisis.
-- Repository ripulito: mantenute solo le versioni dashboard 44a, 44i, 45.0, 45.01, 45.02 e 45.03, oltre a moduli, dati e configurazioni necessari.
-- Nuovi moduli separati in `utils/` per COT e Macro Regime, così il file principale rimane più gestibile e testabile.
-- README e `.gitignore` aggiornati per changelog, deploy, secrets, cache, virtual environment e backup locali.
-
-**🔜 Prossime feature V45.04 — Commodity Scanner:**
 - Oro, argento, petrolio WTI/Brent, gas naturale e rame.
-- Setup intraday e multiday separati.
-- ATR percentile, trend EMA, RSI, breakout/pullback e volume.
-- Conferme con DXY, tassi, COT e Macro Regime.
-- Position sizing specifico per volatilità e alert per rischio gap.
-- Avvisi su rollover, contango/backwardation e volatilità estrema, con particolare cautela sul gas naturale.
+- Setup intraday e multiday.
+- ATR percentile e sizing specifico per volatilità.
+- Conferme tramite DXY, tassi, COT e Macro Regime.
+- Avvisi rollover, contango/backwardation, volatilità estrema e rischio gap.
 
 **⚠️ Checklist operativa:**
-- Dopo ogni modifica: `python -m py_compile Dashboard_pro_V_45_03.py`.
-- Dopo modifiche a dipendenze: test con ambiente pulito e controllo Streamlit Cloud.
-- I segnali COT e macro sono filtri di contesto: verificare sempre prezzo, liquidità, volatilità, stop e size prima di operare.
+
+- Eseguire `python -m py_compile Dashboard_pro_V_45_03.py` dopo ogni modifica.
+- Testare in ambiente pulito dopo ogni aggiornamento delle dipendenze.
+- Usare COT e macro come filtri di contesto, insieme a prezzo, liquidità, volatilità, stop e position sizing.
         """)
-    st.markdown("---")
 
-    # ── V45.03: APP VERSION FOOTER ──────────────────────────────────────────
     st.markdown("---")
-    st.caption(
-        f"Trading Scanner PRO · Versione {APP_VERSION} · "
-        "Home aggiornata con stato release e roadmap"
-    )
-
+    st.caption("Trading Scanner PRO · Versione V45.03 · Home aggiornata con stato release e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
