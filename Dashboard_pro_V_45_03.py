@@ -26,6 +26,9 @@ import time
 import sqlite3
 from datetime import datetime
 
+# Versione globale applicazione — aggiornare qui a ogni release
+APP_VERSION = "45.03"
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -1977,10 +1980,10 @@ except Exception as _macro_import_error:
 # =========================================================================
 # PAGE CONFIG
 # =========================================================================
-st.set_page_config(page_title="Trading Scanner PRO v45.03",layout="wide",page_icon="🧠")
+st.set_page_config(page_title=f"Trading Scanner PRO v{APP_VERSION}",layout="wide",page_icon="🧠")
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 # ── Back-to-top via st.components (accesso diretto al DOM parent) ────
-st.markdown("# 🧠 Trading Scanner PRO v45.03")
+st.markdown(f"# 🧠 Trading Scanner PRO v{APP_VERSION}")
 st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
@@ -5075,31 +5078,29 @@ with tab_home:
                 st.caption("Avvia lo scanner")
 
     # ── v42i: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v45.03 — Stato e roadmap', expanded=False):
-        st.markdown("""
-**✅ Implementato in V45.032:**
-- 🧾 Versione uniforme **45.01** nei titoli principali e nel pulsante di avvio scanner.
-- 📊 Fix export Excel: aggiunta di `xlsxwriter` in `requirements.txt` per Rea-Hot, Serafini, Regime, MTF Matrix e altri export.
-- 🤖 Modulo 2 AI: possibilità di reinserire le API key durante la sessione, con fallback tra i provider configurati.
-- 🟣 Groq: sostituito il modello deprecato `llama-3.3-70b-versatile` con `openai/gpt-oss-120b`.
-- 📊 COT Report: rimosso il blocco duplicato presente nella Home.
-- 🧹 Pulsante **Torna su** rimosso perché non affidabile nell'ambiente Streamlit Cloud.
-- 📝 README aggiornato con changelog, struttura del repository e note di deploy.
-- 🔒 `.gitignore` aggiornato per escludere secrets, virtual environment, cache e backup locali.
+    with st.expander(f"💡 Suggerimenti v{APP_VERSION} — Stato e roadmap", expanded=False):
+        st.markdown(f"""
+**✅ Implementato fino a V{APP_VERSION}:**
+- **V45.01** — Dipendenza `xlsxwriter` aggiunta e risoluzione degli export Excel in Rea-Hot, Serafini, Regime, MTF Matrix e sezioni collegate.
+- **V45.01** — Versione applicativa uniformata, COT Report duplicato rimosso, modello Groq deprecato sostituito e pulsante “Torna su” eliminato perché non affidabile su Streamlit Cloud.
+- **V45.02** — COT Report Evoluto: download dati CFTC, posizioni nette Commercial / Non-Commercial / Non-Reportable, delta settimanale, percentile storico, score, grafico ed export CSV.
+- **V45.03** — Macro Regime Engine: tassi, inflazione, Fed Funds, curva US 10Y–2Y, disoccupazione e classificazione Risk-On / Caution / Risk-Off / Crisis.
+- Repository ripulito: mantenute solo le versioni dashboard 44a, 44i, 45.0, 45.01, 45.02 e 45.03, oltre a moduli, dati e configurazioni necessari.
+- Nuovi moduli separati in `utils/` per COT e Macro Regime, così il file principale rimane più gestibile e testabile.
+- README e `.gitignore` aggiornati per changelog, deploy, secrets, cache, virtual environment e backup locali.
 
-**🔜 Roadmap proposta per V45.042:**
-- 🧪 Aggiungere test automatici di sintassi/import tramite GitHub Actions.
-- 🧩 Estrarre ulteriori sezioni dal file principale verso moduli in `utils/`.
-- 🧠 Salvare lo storico delle analisi AI per ticker nel database.
-- 📊 Migliorare il COT Report con dati automatici CFTC e grafici del posizionamento netto.
-- 🔔 Rendere configurabili e persistenti gli alert per prezzo, CSS e volume.
-- 📱 Verificare layout responsive su mobile e tablet.
-- 📦 Valutare il passaggio da versioni duplicate nella root a tag Git (`v45.03`, `v45.03`).
+**🔜 Prossime feature V45.04 — Commodity Scanner:**
+- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
+- Setup intraday e multiday separati.
+- ATR percentile, trend EMA, RSI, breakout/pullback e volume.
+- Conferme con DXY, tassi, COT e Macro Regime.
+- Position sizing specifico per volatilità e alert per rischio gap.
+- Avvisi su rollover, contango/backwardation e volatilità estrema, con particolare cautela sul gas naturale.
 
-**⚠️ Verifica operativa:**
-- Dopo ogni modifica eseguire `python -m py_compile Dashboard_pro_V_45_01.py`.
-- Dopo modifiche a `requirements.txt`, eseguire il deploy in un ambiente pulito.
-- Prima di usare segnali o analisi AI, verificare dati, modello, liquidità e gestione del rischio.
+**⚠️ Checklist operativa:**
+- Dopo ogni modifica: `python -m py_compile Dashboard_pro_V_45_03.py`.
+- Dopo modifiche a dipendenze: test con ambiente pulito e controllo Streamlit Cloud.
+- I segnali COT e macro sono filtri di contesto: verificare sempre prezzo, liquidità, volatilità, stop e size prima di operare.
         """)
     st.markdown("---")
 
@@ -5343,6 +5344,10 @@ with tab_home:
             _ic392='#ef4444' if 'High' in _ev41['Impatto'] else '#f59e0b' if 'Med' in _ev41['Impatto'] else '#6b7280'
             _dot39='🔴' if _ev41['Giorni']<=3 else '🟡' if _ev41['Giorni']<=7 else '🟢'
             st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev41['Data']}</span> <b style='color:#d1d4dc'>{_ev41['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev41['Giorni']}gg</span></div>",unsafe_allow_html=True)
+
+    # ── V45.03: APP VERSION FOOTER ──────────────────────────────────────────
+    st.markdown("---")
+    st.caption(f"Trading Scanner PRO · Versione {APP_VERSION} · Home aggiornata con stato release e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
