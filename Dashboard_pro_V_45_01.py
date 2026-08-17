@@ -5047,38 +5047,31 @@ with tab_home:
                 st.caption("Avvia lo scanner")
 
     # ── v42i: Suggerimenti ────────────────────────────────
-    with st.expander('💡 Suggerimenti v42i — Novità e roadmap', expanded=False):
+    with st.expander('💡 Suggerimenti v45.01 — Stato e roadmap', expanded=False):
         st.markdown("""
-**✅ Implementato in v42i:**
-- ⬆️ btt-btn: versione definitiva multi-target (`.main`, `.block-container`, `documentElement`, `body`, `window.parent`) + MutationObserver — comparsa garantita
-- 🤖 MODULO 2 AI: aggiunte colonne **Vol×** e **Priorità** (auto-calcolata da Stato+CSS+RSI)
-   layout 8 colonne identico a ⚡ Momentum Alerts
-- 🐛 Fix `applymap→map`: patch compatibilità pandas ≥2.1 per Risk Manager
-- 🤖 MODULO 2 AI: nuovo layout stile Momentum Alerts con sorgente multi-tab
-   (EARLY / PRO / REA-HOT / CONFLUENCE / Serafini / Finviz / Watchlist / Manuale)
-- ⬆️ btt-btn: MutationObserver + retry multiplo per comparsa affidabile
-- 📅 Earnings Calendar: contenuto correttamente dentro il menu a tendina
-- ⬆️ Bottone Torna su: visibile in basso a destra dopo 200px di scroll
-- ⬆️ Bottone **Torna su** fisso in basso a destra (smooth scroll, appare dopo scroll)
-- 🔢 Versione aggiornata a **42.0h** in tutti i titoli e label
-- 🗺️ Mappa Calore Globale: card HTML responsive a 3 regioni + macro
-- 🤖 Tab **Modulo 2 AI** dedicato (PRO / CONFLUENCE / Tutti)
-- 📡 Alert Engine: notifiche **Telegram** auto su FIRED + **Email Gmail**
-- 💪 Top PRO/STRONG: **Nome azienda** accanto al ticker
-- 📑 Tab su 2 righe: CSS flex-wrap + JS MutationObserver
-- 📊 Heatmap Settoriale Live nella Home (sostituisce bar chart)
-- 🔗 Correlazioni Asset nel tab Settori
+**✅ Implementato in V45.01:**
+- 🧾 Versione uniforme **45.01** nei titoli principali e nel pulsante di avvio scanner.
+- 📊 Fix export Excel: aggiunta di `xlsxwriter` in `requirements.txt` per Rea-Hot, Serafini, Regime, MTF Matrix e altri export.
+- 🤖 Modulo 2 AI: possibilità di reinserire le API key durante la sessione, con fallback tra i provider configurati.
+- 🟣 Groq: sostituito il modello deprecato `llama-3.3-70b-versatile` con `openai/gpt-oss-120b`.
+- 📊 COT Report: rimosso il blocco duplicato presente nella Home.
+- 🧹 Pulsante **Torna su** rimosso perché non affidabile nell'ambiente Streamlit Cloud.
+- 📝 README aggiornato con changelog, struttura del repository e note di deploy.
+- 🔒 `.gitignore` aggiornato per escludere secrets, virtual environment, cache e backup locali.
 
-**🔜 Idee per v43:**
-- 📊 COT Report: fetch automatico dati CFTC via API (grafici posizione netta)
-- 🔔 Alert push via browser (Web Push Notifications)
-- 📊 Sparkline miniatura accanto al ticker nella Top PRO/STRONG
-- 🗃️ Export segnali CSV/Excel con 1 click dalla Home
-- 🔄 Auto-refresh Home ogni N minuti con `st.rerun()` schedulato
-- 🧠 AI Analyst: storico analisi per ticker in SQLite
-- 📱 Layout mobile-first con CSS container queries
-- 📅 Earnings tracker compatto con filtro per giorni
-- 🌙 Toggle tema persistente per sessione
+**🔜 Roadmap proposta per V45.02:**
+- 🧪 Aggiungere test automatici di sintassi/import tramite GitHub Actions.
+- 🧩 Estrarre ulteriori sezioni dal file principale verso moduli in `utils/`.
+- 🧠 Salvare lo storico delle analisi AI per ticker nel database.
+- 📊 Migliorare il COT Report con dati automatici CFTC e grafici del posizionamento netto.
+- 🔔 Rendere configurabili e persistenti gli alert per prezzo, CSS e volume.
+- 📱 Verificare layout responsive su mobile e tablet.
+- 📦 Valutare il passaggio da versioni duplicate nella root a tag Git (`v45.01`, `v45.02`).
+
+**⚠️ Verifica operativa:**
+- Dopo ogni modifica eseguire `python -m py_compile Dashboard_pro_V_45_01.py`.
+- Dopo modifiche a `requirements.txt`, eseguire il deploy in un ambiente pulito.
+- Prima di usare segnali o analisi AI, verificare dati, modello, liquidità e gestione del rischio.
         """)
     st.markdown("---")
 
