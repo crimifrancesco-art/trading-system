@@ -1,0 +1,17 @@
+# Ambiente Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+utils/__pycache__/
+
+# Secrets e configurazioni sensibili
+.streamlit/secrets.toml
+
+# File di backup e script di utilita' temporanei
+*.bak
+fix_v45_01.py
+
+# OS / editor
+.DS_Store
+.vscode/
