@@ -5078,32 +5078,7 @@ with tab_home:
                 st.caption("Avvia lo scanner")
 
     # ── v42i: Suggerimenti ────────────────────────────────
-    with st.expander(f"💡 Suggerimenti v{APP_VERSION} — Stato e roadmap", expanded=False):
-        st.markdown(f"""
-**✅ Implementato fino a V{APP_VERSION}:**
-- **V45.01** — Dipendenza `xlsxwriter` aggiunta e risoluzione degli export Excel in Rea-Hot, Serafini, Regime, MTF Matrix e sezioni collegate.
-- **V45.01** — Versione applicativa uniformata, COT Report duplicato rimosso, modello Groq deprecato sostituito e pulsante “Torna su” eliminato perché non affidabile su Streamlit Cloud.
-- **V45.02** — COT Report Evoluto: download dati CFTC, posizioni nette Commercial / Non-Commercial / Non-Reportable, delta settimanale, percentile storico, score, grafico ed export CSV.
-- **V45.03** — Macro Regime Engine: tassi, inflazione, Fed Funds, curva US 10Y–2Y, disoccupazione e classificazione Risk-On / Caution / Risk-Off / Crisis.
-- Repository ripulito: mantenute solo le versioni dashboard 44a, 44i, 45.0, 45.01, 45.02 e 45.03, oltre a moduli, dati e configurazioni necessari.
-- Nuovi moduli separati in `utils/` per COT e Macro Regime, così il file principale rimane più gestibile e testabile.
-- README e `.gitignore` aggiornati per changelog, deploy, secrets, cache, virtual environment e backup locali.
-
-**🔜 Prossime feature V45.04 — Commodity Scanner:**
-- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
-- Setup intraday e multiday separati.
-- ATR percentile, trend EMA, RSI, breakout/pullback e volume.
-- Conferme con DXY, tassi, COT e Macro Regime.
-- Position sizing specifico per volatilità e alert per rischio gap.
-- Avvisi su rollover, contango/backwardation e volatilità estrema, con particolare cautela sul gas naturale.
-
-**⚠️ Checklist operativa:**
-- Dopo ogni modifica: `python -m py_compile Dashboard_pro_V_45_03.py`.
-- Dopo modifiche a dipendenze: test con ambiente pulito e controllo Streamlit Cloud.
-- I segnali COT e macro sono filtri di contesto: verificare sempre prezzo, liquidità, volatilità, stop e size prima di operare.
-        """)
-    st.markdown("---")
-
+    
     # ── v41e FEATURE 4 — Portfolio P&L dalla Watchlist ──────────────────────
     try:
         _pnl_positions_home = st.session_state.get("v41_pnl_entries", {})
@@ -5345,9 +5320,40 @@ with tab_home:
             _dot39='🔴' if _ev41['Giorni']<=3 else '🟡' if _ev41['Giorni']<=7 else '🟢'
             st.markdown(f"<div style='border-left:3px solid {_ic392};padding:4px 10px;margin:2px 0'><span style='color:{_ic392};font-size:0.75rem'>{_ev41['Data']}</span> <b style='color:#d1d4dc'>{_ev41['Evento']}</b> <span style='color:{_ic392};float:right'>{_dot39} {_ev41['Giorni']}gg</span></div>",unsafe_allow_html=True)
 
+
+with st.expander(f"💡 Suggerimenti v{APP_VERSION} — Stato e roadmap", expanded=False):
+        st.markdown(f"""
+**✅ Implementato fino a V{APP_VERSION}:**
+- **V45.01** — Dipendenza `xlsxwriter` aggiunta e risoluzione degli export Excel in Rea-Hot, Serafini, Regime, MTF Matrix e sezioni collegate.
+- **V45.01** — Versione applicativa uniformata, COT Report duplicato rimosso, modello Groq deprecato sostituito e pulsante “Torna su” eliminato perché non affidabile su Streamlit Cloud.
+- **V45.02** — COT Report Evoluto: download dati CFTC, posizioni nette Commercial / Non-Commercial / Non-Reportable, delta settimanale, percentile storico, score, grafico ed export CSV.
+- **V45.03** — Macro Regime Engine: tassi, inflazione, Fed Funds, curva US 10Y–2Y, disoccupazione e classificazione Risk-On / Caution / Risk-Off / Crisis.
+- Repository ripulito: mantenute solo le versioni dashboard 44a, 44i, 45.0, 45.01, 45.02 e 45.03, oltre a moduli, dati e configurazioni necessari.
+- Nuovi moduli separati in `utils/` per COT e Macro Regime, così il file principale rimane più gestibile e testabile.
+- README e `.gitignore` aggiornati per changelog, deploy, secrets, cache, virtual environment e backup locali.
+
+**🔜 Prossime feature V45.04 — Commodity Scanner:**
+- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
+- Setup intraday e multiday separati.
+- ATR percentile, trend EMA, RSI, breakout/pullback e volume.
+- Conferme con DXY, tassi, COT e Macro Regime.
+- Position sizing specifico per volatilità e alert per rischio gap.
+- Avvisi su rollover, contango/backwardation e volatilità estrema, con particolare cautela sul gas naturale.
+
+**⚠️ Checklist operativa:**
+- Dopo ogni modifica: `python -m py_compile Dashboard_pro_V_45_03.py`.
+- Dopo modifiche a dipendenze: test con ambiente pulito e controllo Streamlit Cloud.
+- I segnali COT e macro sono filtri di contesto: verificare sempre prezzo, liquidità, volatilità, stop e size prima di operare.
+        """)
+    st.markdown("---")
+
     # ── V45.03: APP VERSION FOOTER ──────────────────────────────────────────
     st.markdown("---")
-    st.caption(f"Trading Scanner PRO · Versione {APP_VERSION} · Home aggiornata con stato release e roadmap")
+    st.caption(
+        f"Trading Scanner PRO · Versione {APP_VERSION} · "
+        "Home aggiornata con stato release e roadmap"
+    )
+
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
