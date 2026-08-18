@@ -2596,7 +2596,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 45.01",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 45.04",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
