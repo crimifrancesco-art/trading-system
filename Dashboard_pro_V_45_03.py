@@ -4392,6 +4392,20 @@ tabs = st.tabs([
 
 with tab_home:
     st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
+
+    # ── v45.04 REFRESH HOME ──────────────────────────────────────────────
+    _v4504_last_update = st.session_state.get("last_scan", "—")
+    _v4504_refresh_col, _v4504_badge_col = st.columns([1, 3])
+    with _v4504_refresh_col:
+        if st.button("🔄 Refresh Home", key="v4504_refresh_home_button", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    with _v4504_badge_col:
+        st.markdown(
+            f"<span style='color:#9ca3af;font-size:0.78rem'>"
+            f"🕒 Last update: <b>{_v4504_last_update}</b></span>",
+            unsafe_allow_html=True,
+        )
     _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
     _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
 
