@@ -1969,7 +1969,7 @@ except Exception as _cot_import_error:
     render_cot_report = None
 
 
-# ── V45.03: Macro Regime Engine ────────────────────────────────────────────
+# ── V45.04: Macro Regime Engine ────────────────────────────────────────────
 try:
     from utils.macro_regime import render_macro_regime
     _HAS_MACRO_REGIME = True
@@ -2159,11 +2159,20 @@ def render_overview_signal_cards(df_ep, df_rea, top_n=5):
             if sp == 'STRONG': badges.append("<span class='sig-badge strong'>STRONG</span>")
             if str(row.get('Weekly_Bull','')) in ['True','true','1','1.0'] or row.get('Weekly_Bull', False) is True:
                 badges.append("<span class='sig-badge conf'>WEEKLY</span>")
+            # ── v45.04 SPARKLINE ───────────────────────────────────────
+            _spark = row.get("Sparkline", row.get("Price_History", []))
+            _spark_html = ""
+            if isinstance(_spark, (list, tuple)) and len(_spark) >= 2:
+                try:
+                    _spark_html = v4504_sparkline_svg(_spark, "#00ff88" if float(css or 0) >= 60 else "#f59e0b")
+                except Exception:
+                    _spark_html = ""
             st.markdown(
                 f"<div class='sig-card'>"
                 f"<div class='sig-ticker'>{ticker}</div>"
                 f"<div class='sig-name'>{nome}</div>"
                 f"<div class='sig-badges'>{''.join(badges)}</div>"
+                f"{_spark_html}"
                 f"<div class='sig-meta'><span>CSS <span class='sig-css-val'>{css}</span></span><span>RSI <span class='sig-rsi-val'>{rsi}</span></span></div>"
                 f"</div>", unsafe_allow_html=True)
     if df_rea is not None and not getattr(df_rea, 'empty', True):
@@ -4352,7 +4361,7 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# ── V45.03: tab Macro Regime aggiuntivo ─────────────────────────────────
+# ── V45.04: tab Macro Regime aggiuntivo ─────────────────────────────────
 tabs = st.tabs([
     # ── Riga 1: Panoramica e Segnali ───────────────────────
     "🏠 Home",
@@ -4392,8 +4401,63 @@ tabs = st.tabs([
 
 with tab_home:
     st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
+
+    # ── v45.04 REFRESH HOME ──────────────────────────────────────────────
+    _v4504_last_update = st.session_state.get("last_scan", "—")
+    _v4504_refresh_col, _v4504_badge_col = st.columns([1, 3])
+    with _v4504_refresh_col:
+        if st.button("🔄 Refresh Home", key="v4504_refresh_home_button", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+    with _v4504_badge_col:
+        st.markdown(
+            f"<span style='color:#9ca3af;font-size:0.78rem'>"
+            f"🕒 Last update: <b>{_v4504_last_update}</b></span>",
+            unsafe_allow_html=True,
+        )
     _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
     _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
+
+    # ── v45.04 EXPORT HOME ───────────────────────────────────────────────
+    _v4504_home_frames = []
+    if _df_ep_home is not None and not _df_ep_home.empty:
+        _v4504_home_frames.append(_df_ep_home.assign(_Fonte="EP"))
+    if _df_rea_home is not None and not _df_rea_home.empty:
+        _v4504_home_frames.append(_df_rea_home.assign(_Fonte="REA-HOT"))
+    _v4504_home_export = (
+        pd.concat(_v4504_home_frames, ignore_index=True, sort=False)
+        if _v4504_home_frames else pd.DataFrame()
+    )
+    _v4504_home_csv = _v4504_home_export.to_csv(index=False).encode("utf-8")
+    _v4504_home_xlsx = io.BytesIO()
+    with pd.ExcelWriter(_v4504_home_xlsx, engine="xlsxwriter") as _v4504_writer:
+        if not _v4504_home_export.empty:
+            _v4504_home_export.to_excel(
+                _v4504_writer, sheet_name="Home Signals", index=False
+            )
+        else:
+            pd.DataFrame({"Info": ["Nessun segnale disponibile"]}).to_excel(
+                _v4504_writer, sheet_name="Home Signals", index=False
+            )
+    _v4504_export_col1, _v4504_export_col2 = st.columns(2)
+    with _v4504_export_col1:
+        st.download_button(
+            "⬇️ Export Home CSV",
+            data=_v4504_home_csv,
+            file_name="trading_scanner_v45_04_home.csv",
+            mime="text/csv",
+            key="v4504_home_csv",
+            use_container_width=True,
+        )
+    with _v4504_export_col2:
+        st.download_button(
+            "⬇️ Export Home Excel",
+            data=_v4504_home_xlsx.getvalue(),
+            file_name="trading_scanner_v45_04_home.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="v4504_home_excel",
+            use_container_width=True,
+        )
     render_operational_header(_df_ep_home, _df_rea_home)
     render_kpi_bar(_df_ep_home, _df_rea_home)
     st.markdown("<div class='ov-section-title'>Top opportunità del batch corrente</div>", unsafe_allow_html=True)
@@ -4800,7 +4864,7 @@ with tab_home:
 
     # ── v42i #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
     st.markdown("---")
-    with st.expander("📅 EARNINGS CALENDAR v42h — Prossimi earnings da Watchlist + Scanner", expanded=False):
+    with st.expander("📅 EARNINGS CALENDAR v45.04 — Prossimi earnings da Watchlist + Scanner", expanded=False):
         _earn_tickers = set()
         # Da watchlist
         try:
@@ -4820,42 +4884,87 @@ with tab_home:
                 _earn_data = _fetch_earnings_calendar(_earn_tickers_sorted)
 
             if _earn_data:
-                # Summary metrics
-                _ec1, _ec2, _ec3, _ec4 = st.columns(4)
-                _ec1.metric("📅 Con earnings", len(_earn_data))
-                _ec2.metric("⚠️ Oggi/Domani",  sum(1 for x in _earn_data if x["Giorni"] <= 1))
-                _ec3.metric("🔔 Questa sett.", sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7))
-                _ec4.metric("📅 Entro 2 sett.",sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14))
+                # ── v45.04 EARNINGS FILTER ───────────────────────────────
+                _earn_days_filter = st.select_slider(
+                    "Mostra earnings entro",
+                    options=[1, 3, 7, 14, 21],
+                    value=21,
+                    format_func=lambda _n: f"{_n} giorni",
+                    key="v4504_earnings_days_filter",
+                )
+                _earn_data = [
+                    _row for _row in _earn_data
+                    if _row.get("Giorni", 999) <= _earn_days_filter
+                ]
+                if not _earn_data:
+                    st.info(
+                        f"Nessun earnings entro {_earn_days_filter} giorni."
+                    )
+                else:
+                    # Summary metrics
+                    _ec1, _ec2, _ec3, _ec4 = st.columns(4)
+                    _ec1.metric("📅 Con earnings", len(_earn_data))
+                    _ec2.metric(
+                        "⚠️ Oggi/Domani",
+                        sum(1 for x in _earn_data if x["Giorni"] <= 1),
+                    )
+                    _ec3.metric(
+                        "🔔 Questa sett.",
+                        sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7),
+                    )
+                    _ec4.metric(
+                        "📅 Entro 2 sett.",
+                        sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14),
+                    )
 
-                # Tabella earnings con nome + link TradingView IT
-                for _ed in _earn_data[:25]:
-                    _ea, _eb, _ec_col, _edd = st.columns([2.5, 1.5, 1.2, 2])
-                    _tkr_ed  = _ed['Ticker']
-                    _tv_ed   = _tkr_ed.replace(".MI","").replace(".","")
-                    _nome_ed = ""
-                    if not df_ep.empty and "Ticker" in df_ep.columns and "Nome" in df_ep.columns:
-                        _nm_row = df_ep[df_ep["Ticker"]==_tkr_ed]
-                        if not _nm_row.empty:
-                            _nome_ed = str(_nm_row.iloc[0].get("Nome",""))[:28]
-                    _ea.markdown(
-                        f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' target='_blank' "
-                        f"style='text-decoration:none'>"
-                        f"<b style='font-family:Courier New;color:#00ff88;font-size:0.95rem'>{_tkr_ed}</b>"
-                        f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
-                        f"<br><span style='color:#787b86;font-size:0.72rem'>{_nome_ed}</span>",
-                        unsafe_allow_html=True)
-                    _eb.markdown(
-                        f"<span style='color:#d1d4dc;font-size:0.85rem'>{_ed['Earnings Date']}</span>",
-                        unsafe_allow_html=True)
-                    _ec_col.markdown(
-                        f"<b style='font-size:0.78rem;color:{_ed['_color']}'>{_ed['Giorni']:+d}gg</b>",
-                        unsafe_allow_html=True)
-                    _edd.markdown(
-                        f"<span style='background:{_ed['_color']}22;color:{_ed['_color']};"
-                        f"border:1px solid {_ed['_color']}44;border-radius:4px;"
-                        f"padding:1px 8px;font-size:0.75rem;font-weight:bold'>"
-                        f"{_ed['Badge']}</span>",
-                        unsafe_allow_html=True)
+                    # Tabella earnings con nome + link TradingView IT
+                    for _ed in _earn_data[:25]:
+                        _ea, _eb, _ec_col, _edd = st.columns(
+                            [2.5, 1.5, 1.2, 2]
+                        )
+                        _tkr_ed = _ed["Ticker"]
+                        _tv_ed = _tkr_ed.replace(".MI", "").replace(".", "")
+                        _nome_ed = ""
+                        if (
+                            not df_ep.empty
+                            and "Ticker" in df_ep.columns
+                            and "Nome" in df_ep.columns
+                        ):
+                            _nm_row = df_ep[df_ep["Ticker"] == _tkr_ed]
+                            if not _nm_row.empty:
+                                _nome_ed = str(
+                                    _nm_row.iloc[0].get("Nome", "")
+                                )[:28]
+
+                        _ea.markdown(
+                            f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' "
+                            f"target='_blank' style='text-decoration:none'>"
+                            f"<b style='font-family:Courier New;color:#00ff88;"
+                            f"font-size:0.95rem'>{_tkr_ed}</b>"
+                            f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
+                            f"<br><span style='color:#787b86;font-size:0.72rem'>"
+                            f"{_nome_ed}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        _eb.markdown(
+                            f"<span style='color:#d1d4dc;font-size:0.85rem'>"
+                            f"{_ed['Earnings Date']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        _ec_col.markdown(
+                            f"<b style='font-size:0.78rem;color:{_ed['_color']}'>"
+                            f"{_ed['Giorni']:+d}gg</b>",
+                            unsafe_allow_html=True,
+                        )
+                        _edd.markdown(
+                            f"<span style='background:{_ed['_color']}22;"
+                            f"color:{_ed['_color']};border:1px solid "
+                            f"{_ed['_color']}44;border-radius:4px;padding:1px 8px;"
+                            f"font-size:0.75rem;font-weight:bold'>"
+                            f"{_ed['Badge']}</span>",
+                            unsafe_allow_html=True,
+                        )
+
             else:
                 st.info("📭 Nessun earnings trovato nei prossimi 21 giorni per i ticker in watchlist/scanner.")
         else:
@@ -5077,34 +5186,35 @@ with tab_home:
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── V45.03: Suggerimenti e roadmap ─────────────────────────────────
-    with st.expander("💡 Suggerimenti v45.03 — Stato e roadmap", expanded=False):
+    # ── V45.04: Suggerimenti e roadmap ─────────────────────────────────
+    with st.expander("💡 Suggerimenti v45.04 — Stato e roadmap", expanded=False):
         st.markdown("""
-**✅ Implementato fino a V45.03:**
+**✅ Implementato fino a V45.04:**
 
 - **V45.01** — Fix `xlsxwriter`, versione uniforme, rimozione del COT duplicato, aggiornamento del modello Groq e rimozione del pulsante “Torna su”.
 - **V45.02** — COT Report Evoluto con posizioni nette, delta settimanale, percentile storico, score, segnale e grafico.
 - **V45.03** — Macro Regime Engine con Fed Funds, US 2Y, US 10Y, curva 10Y–2Y, CPI, Core CPI, disoccupazione e classificazione Risk-On/Caution/Risk-Off/Crisis.
+- **V45.04** — Quick Wins Home: Export CSV/Excel, Earnings Tracker con filtro temporale, Last update, Refresh Home e mini-sparkline helper.
 - Moduli separati in `utils/` per COT, Macro Regime e Commodity Scanner.
 - README e `.gitignore` aggiornati.
 
-**🔜 Prossima feature V45.04: Commodity Scanner**
+**🔜 Roadmap successiva:**
 
-- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
-- Setup intraday e multiday.
-- ATR percentile e sizing specifico per volatilità.
-- Conferme tramite DXY, tassi, COT e Macro Regime.
-- Avvisi rollover, contango/backwardation, volatilità estrema e rischio gap.
+- COT Report automatico CFTC.
+- Storico analisi AI per ticker.
+- Alert Web Push.
+- Auto-refresh configurabile.
+- Dashboard Macro Regime + COT + Trend Strength.
 
 **⚠️ Checklist operativa:**
 
-- Eseguire `python -m py_compile Dashboard_pro_V_45_03.py` dopo ogni modifica.
+- Eseguire `python -m py_compile Dashboard_pro_V_45_04.py` dopo ogni modifica.
 - Testare in ambiente pulito dopo ogni aggiornamento delle dipendenze.
 - Usare COT e macro come filtri di contesto, insieme a prezzo, liquidità, volatilità, stop e position sizing.
         """)
 
     st.markdown("---")
-    st.caption("Trading Scanner PRO · Versione V45.03 · Home aggiornata con stato release e roadmap")
+    st.caption("Trading Scanner PRO · Versione V45.04 · Home aggiornata con stato release e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -5584,7 +5694,7 @@ with tab_fvpro:
     render_scan_tab(df_ep,"FINVIZ_PRO",["FV_Score","Quality_Score","EPS_NY_Gr"],[False,False,False],"🔎 Finviz Pro")
 
 # =========================================================================
-# MACRO REGIME TAB — V45.03
+# MACRO REGIME TAB — V45.04
 # =========================================================================
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
