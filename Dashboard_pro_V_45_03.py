@@ -4394,6 +4394,47 @@ with tab_home:
     st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
     _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
     _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
+
+    # ── v45.04 EXPORT HOME ───────────────────────────────────────────────
+    _v4504_home_frames = []
+    if _df_ep_home is not None and not _df_ep_home.empty:
+        _v4504_home_frames.append(_df_ep_home.assign(_Fonte="EP"))
+    if _df_rea_home is not None and not _df_rea_home.empty:
+        _v4504_home_frames.append(_df_rea_home.assign(_Fonte="REA-HOT"))
+    _v4504_home_export = (
+        pd.concat(_v4504_home_frames, ignore_index=True, sort=False)
+        if _v4504_home_frames else pd.DataFrame()
+    )
+    _v4504_home_csv = _v4504_home_export.to_csv(index=False).encode("utf-8")
+    _v4504_home_xlsx = io.BytesIO()
+    with pd.ExcelWriter(_v4504_home_xlsx, engine="xlsxwriter") as _v4504_writer:
+        if not _v4504_home_export.empty:
+            _v4504_home_export.to_excel(
+                _v4504_writer, sheet_name="Home Signals", index=False
+            )
+        else:
+            pd.DataFrame({"Info": ["Nessun segnale disponibile"]}).to_excel(
+                _v4504_writer, sheet_name="Home Signals", index=False
+            )
+    _v4504_export_col1, _v4504_export_col2 = st.columns(2)
+    with _v4504_export_col1:
+        st.download_button(
+            "⬇️ Export Home CSV",
+            data=_v4504_home_csv,
+            file_name="trading_scanner_v45_04_home.csv",
+            mime="text/csv",
+            key="v4504_home_csv",
+            use_container_width=True,
+        )
+    with _v4504_export_col2:
+        st.download_button(
+            "⬇️ Export Home Excel",
+            data=_v4504_home_xlsx.getvalue(),
+            file_name="trading_scanner_v45_04_home.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="v4504_home_excel",
+            use_container_width=True,
+        )
     render_operational_header(_df_ep_home, _df_rea_home)
     render_kpi_bar(_df_ep_home, _df_rea_home)
     st.markdown("<div class='ov-section-title'>Top opportunità del batch corrente</div>", unsafe_allow_html=True)
