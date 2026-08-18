@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║         TRADING SCANNER PRO  —  v41.0c                                  ║
+# ║         TRADING SCANNER PRO  —  v45.04                                  ║
 # ║         Versione professionale completa con tutte le funzionalita       ║
 # ║         Scanner avanzato, AI Assistant, Options, Alerts e Sentiment    ║
 # ╠══════════════════════════════════════════════════════════════════════════╣
@@ -27,7 +27,7 @@ import sqlite3
 from datetime import datetime
 
 # Versione globale applicazione — aggiornare qui a ogni release
-APP_VERSION = "45.03"
+APP_VERSION = "45.04"
 
 import numpy as np
 import pandas as pd
@@ -2596,7 +2596,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 45.01",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 45.04",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
