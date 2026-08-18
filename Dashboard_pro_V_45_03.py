@@ -1960,7 +1960,7 @@ PRESETS={
 }
 
 
-# ── V45.032: COT Report Evoluto ─────────────────────────────────────────────
+# ── V45.042: COT Report Evoluto ─────────────────────────────────────────────
 try:
     from utils.cot_report import render_cot_report
     _HAS_COT_EVOLVED = True
@@ -1969,7 +1969,7 @@ except Exception as _cot_import_error:
     render_cot_report = None
 
 
-# ── V45.03: Macro Regime Engine ────────────────────────────────────────────
+# ── V45.04: Macro Regime Engine ────────────────────────────────────────────
 try:
     from utils.macro_regime import render_macro_regime
     _HAS_MACRO_REGIME = True
@@ -4352,7 +4352,132 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# ── V45.03: tab Macro Regime aggiuntivo ─────────────────────────────────
+# ── V45.04: tab Macro Regime aggiuntivo ─────────────────────────────────
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v45.04 QUICK WINS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _v4504_export_frame(df):
+    if df is None or getattr(df, "empty", True):
+        return pd.DataFrame()
+    out = df.copy()
+    preferred = [
+        "Ticker", "Nome", "Prezzo", "StatoEarly", "StatoPro",
+        "CSS", "CSSGrade", "RSI", "VolRatio", "RS20d",
+        "RSRank", "TrendStrength", "ATRpct", "LiqGrade",
+    ]
+    cols = [c for c in preferred if c in out.columns]
+    return out[cols] if cols else out
+
+
+def _v4504_excel_bytes(frames):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        for name, frame in frames.items():
+            if frame is not None and not frame.empty:
+                frame.to_excel(writer, sheet_name=name[:31], index=False)
+    return buffer.getvalue()
+
+
+def render_v4504_home_tools(dfep, dfrea):
+    last_update = (
+        st.session_state.get("lastscan")
+        or st.session_state.get("last_scan")
+        or "non disponibile"
+    )
+
+    c1, c2, c3 = st.columns([1.2, 1.2, 2.4])
+    with c1:
+        if st.button("Refresh Home", key="v4504_refresh_home", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
+    ep = _v4504_export_frame(dfep)
+    hot = _v4504_export_frame(dfrea)
+    combined = pd.concat([ep, hot], ignore_index=True) if (not ep.empty or not hot.empty) else pd.DataFrame()
+
+    with c2:
+        st.download_button(
+            "Export CSV",
+            data=combined.to_csv(index=False).encode("utf-8"),
+            file_name="trading_scanner_v45_04_signals.csv",
+            mime="text/csv",
+            key="v4504_export_csv",
+            use_container_width=True,
+        )
+    with c3:
+        st.markdown(
+            "<span style=\"color:#6b7280;font-size:.78rem\">Last update: <b>" + str(last_update) + "</b></span>",
+            unsafe_allow_html=True,
+        )
+
+    if not ep.empty or not hot.empty:
+        st.download_button(
+            "Export Excel",
+            data=_v4504_excel_bytes({"Signals": combined}),
+            file_name="trading_scanner_v45_04_signals.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="v4504_export_excel",
+        )
+
+    with st.expander("Earnings Tracker v45.04", expanded=False):
+        days = st.select_slider(
+            "Mostra earnings entro",
+            options=[1, 3, 7, 14, 21],
+            value=7,
+            format_func=lambda x: str(x) + " giorni",
+            key="v4504_earnings_days",
+        )
+        source = []
+        if dfep is not None and not dfep.empty and "Ticker" in dfep.columns:
+            source.extend(dfep["Ticker"].dropna().astype(str).tolist())
+        if dfrea is not None and not dfrea.empty and "Ticker" in dfrea.columns:
+            source.extend(dfrea["Ticker"].dropna().astype(str).tolist())
+
+        tickers = list(dict.fromkeys(source))[:80]
+        if tickers and "fetchearningscalendartickers" in globals():
+            try:
+                earnings = fetchearningscalendartickers(tuple(tickers))
+                earnings = [row for row in earnings if row.get("Giorni", 999) <= days]
+                if earnings:
+                    st.dataframe(pd.DataFrame(earnings), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nessun earnings entro " + str(days) + " giorni.")
+            except Exception as exc:
+                st.warning("Earnings non disponibili: " + str(exc))
+        else:
+            st.info("Avvia lo scanner per popolare l Earnings Tracker.")
+
+
+def v4504_sparkline_svg(values, color="#26a69a", width=82, height=24):
+    if values is None or len(values) < 2:
+        return ""
+    try:
+        vals = [float(v) for v in values if v is not None]
+        if len(vals) < 2:
+            return ""
+        lo, hi = min(vals), max(vals)
+        span = hi - lo or 1.0
+        pts = []
+        n = len(vals)
+        for i, v in enumerate(vals):
+            x = i * (width - 4) / (n - 1) + 2
+            y = height - 3 - (v - lo) / span * (height - 6)
+            pts.append(str(round(x, 1)) + "," + str(round(y, 1)))
+        points = " ".join(pts)
+        svg = (
+            "<svg width=\"" + str(width) + "\" height=\"" + str(height) + "\" "
+            "viewBox=\"0 0 " + str(width) + " " + str(height) + "\" "
+            "style=\"display:block;margin:3px auto\">"
+            "<polyline points=\"" + points + "\" fill=\"none\" stroke=\"" + color + "\" "
+            "stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+        )
+        return svg
+    except Exception:
+        return ""
+
+
 tabs = st.tabs([
     # ── Riga 1: Panoramica e Segnali ───────────────────────
     "🏠 Home",
@@ -4391,6 +4516,11 @@ tabs = st.tabs([
  tab_w) = tabs
 
 with tab_home:
+    render_v4504_home_tools(
+        st.session_state.get("df_ep", pd.DataFrame()),
+        st.session_state.get("df_rea", pd.DataFrame()),
+    )
+
     st.markdown("<div class='section-pill'>Overview · Stato operativo · Migliori opportunità</div>", unsafe_allow_html=True)
     _df_ep_home = st.session_state.get("df_ep", pd.DataFrame())
     _df_rea_home = st.session_state.get("df_rea", pd.DataFrame())
@@ -4865,8 +4995,8 @@ with tab_home:
     with st.expander('📰 NEWS & SENTIMENT v42h — Ultime news con score sentiment · TradingView Italia', expanded=False):
         _render_news_v41(df_ep)
     st.markdown('---')
-    # ── V45.032: COT REPORT EVOLUTO ───────────────────────────────────────
-    with st.expander("📊 COT Report Evoluto V45.032 — Posizionamento istituzionale", expanded=False):
+    # ── V45.042: COT REPORT EVOLUTO ───────────────────────────────────────
+    with st.expander("📊 COT Report Evoluto V45.042 — Posizionamento istituzionale", expanded=False):
         if _HAS_COT_EVOLVED:
             render_cot_report(key_prefix="home_cot_v45_02")
         else:
@@ -5077,34 +5207,26 @@ with tab_home:
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── V45.03: Suggerimenti e roadmap ─────────────────────────────────
-    with st.expander("💡 Suggerimenti v45.03 — Stato e roadmap", expanded=False):
-        st.markdown("""
-**✅ Implementato fino a V45.03:**
+    # ── V45.04: Suggerimenti e roadmap ─────────────────────────────────
+    with st.expander("💡 Suggerimenti v45.04 — Stato e roadmap", expanded=False):        st.markdown("""
+        **Implementato in v45.04**
 
-- **V45.01** — Fix `xlsxwriter`, versione uniforme, rimozione del COT duplicato, aggiornamento del modello Groq e rimozione del pulsante “Torna su”.
-- **V45.02** — COT Report Evoluto con posizioni nette, delta settimanale, percentile storico, score, segnale e grafico.
-- **V45.03** — Macro Regime Engine con Fed Funds, US 2Y, US 10Y, curva 10Y–2Y, CPI, Core CPI, disoccupazione e classificazione Risk-On/Caution/Risk-Off/Crisis.
-- Moduli separati in `utils/` per COT, Macro Regime e Commodity Scanner.
-- README e `.gitignore` aggiornati.
+        - Export CSV/Excel dei segnali dalla Home.
+        - Earnings Tracker con filtro temporale.
+        - Mini-sparkline nei Top Signals.
+        - Badge Last update.
+        - Pulsante Refresh Home.
 
-**🔜 Prossima feature V45.04: Commodity Scanner**
+        **Roadmap successiva**
 
-- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
-- Setup intraday e multiday.
-- ATR percentile e sizing specifico per volatilità.
-- Conferme tramite DXY, tassi, COT e Macro Regime.
-- Avvisi rollover, contango/backwardation, volatilità estrema e rischio gap.
-
-**⚠️ Checklist operativa:**
-
-- Eseguire `python -m py_compile Dashboard_pro_V_45_03.py` dopo ogni modifica.
-- Testare in ambiente pulito dopo ogni aggiornamento delle dipendenze.
-- Usare COT e macro come filtri di contesto, insieme a prezzo, liquidità, volatilità, stop e position sizing.
-        """)
-
+        - COT Report automatico CFTC.
+        - Storico analisi AI per ticker.
+        - Alert Web Push.
+        - Auto-refresh configurabile.
+        - Dashboard Macro Regime + COT + Trend Strength.
+        """, unsafe_allow_html=True)
     st.markdown("---")
-    st.caption("Trading Scanner PRO · Versione V45.03 · Home aggiornata con stato release e roadmap")
+    st.caption("Trading Scanner PRO · Versione V45.04 · Home aggiornata con stato release e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -5584,7 +5706,7 @@ with tab_fvpro:
     render_scan_tab(df_ep,"FINVIZ_PRO",["FV_Score","Quality_Score","EPS_NY_Gr"],[False,False,False],"🔎 Finviz Pro")
 
 # =========================================================================
-# MACRO REGIME TAB — V45.03
+# MACRO REGIME TAB — V45.04
 # =========================================================================
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
