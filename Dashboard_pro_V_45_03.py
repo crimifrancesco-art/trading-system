@@ -1969,7 +1969,7 @@ except Exception as _cot_import_error:
     render_cot_report = None
 
 
-# ── V45.03: Macro Regime Engine ────────────────────────────────────────────
+# ── V45.04: Macro Regime Engine ────────────────────────────────────────────
 try:
     from utils.macro_regime import render_macro_regime
     _HAS_MACRO_REGIME = True
@@ -4352,7 +4352,7 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-# ── V45.03: tab Macro Regime aggiuntivo ─────────────────────────────────
+# ── V45.04: tab Macro Regime aggiuntivo ─────────────────────────────────
 tabs = st.tabs([
     # ── Riga 1: Panoramica e Segnali ───────────────────────
     "🏠 Home",
@@ -5077,24 +5077,25 @@ with tab_home:
             else:
                 st.caption("Avvia lo scanner")
 
-    # ── V45.03: Suggerimenti e roadmap ─────────────────────────────────
-    with st.expander("💡 Suggerimenti v45.03 — Stato e roadmap", expanded=False):
+    # ── V45.04: Suggerimenti e roadmap ─────────────────────────────────
+    with st.expander("💡 Suggerimenti v45.04 — Stato e roadmap", expanded=False):
         st.markdown("""
-**✅ Implementato fino a V45.03:**
+**✅ Implementato fino a V45.04:**
 
 - **V45.01** — Fix `xlsxwriter`, versione uniforme, rimozione del COT duplicato, aggiornamento del modello Groq e rimozione del pulsante “Torna su”.
 - **V45.02** — COT Report Evoluto con posizioni nette, delta settimanale, percentile storico, score, segnale e grafico.
 - **V45.03** — Macro Regime Engine con Fed Funds, US 2Y, US 10Y, curva 10Y–2Y, CPI, Core CPI, disoccupazione e classificazione Risk-On/Caution/Risk-Off/Crisis.
+- **V45.04** — Quick Wins Home: Export CSV/Excel, Earnings Tracker con filtro temporale, Last update, Refresh Home e mini-sparkline helper.
 - Moduli separati in `utils/` per COT, Macro Regime e Commodity Scanner.
 - README e `.gitignore` aggiornati.
 
-**🔜 Prossima feature V45.04: Commodity Scanner**
+**🔜 Roadmap successiva:**
 
-- Oro, argento, petrolio WTI/Brent, gas naturale e rame.
-- Setup intraday e multiday.
-- ATR percentile e sizing specifico per volatilità.
-- Conferme tramite DXY, tassi, COT e Macro Regime.
-- Avvisi rollover, contango/backwardation, volatilità estrema e rischio gap.
+- COT Report automatico CFTC.
+- Storico analisi AI per ticker.
+- Alert Web Push.
+- Auto-refresh configurabile.
+- Dashboard Macro Regime + COT + Trend Strength.
 
 **⚠️ Checklist operativa:**
 
@@ -5104,7 +5105,7 @@ with tab_home:
         """)
 
     st.markdown("---")
-    st.caption("Trading Scanner PRO · Versione V45.03 · Home aggiornata con stato release e roadmap")
+    st.caption("Trading Scanner PRO · Versione V45.04 · Home aggiornata con stato release e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
@@ -5584,7 +5585,7 @@ with tab_fvpro:
     render_scan_tab(df_ep,"FINVIZ_PRO",["FV_Score","Quality_Score","EPS_NY_Gr"],[False,False,False],"🔎 Finviz Pro")
 
 # =========================================================================
-# MACRO REGIME TAB — V45.03
+# MACRO REGIME TAB — V45.04
 # =========================================================================
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
