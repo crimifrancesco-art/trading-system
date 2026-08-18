@@ -4901,42 +4901,70 @@ with tab_home:
                         f"Nessun earnings entro {_earn_days_filter} giorni."
                     )
                 else:
-                        # Summary metrics
+                    # Summary metrics
                     _ec1, _ec2, _ec3, _ec4 = st.columns(4)
-                _ec1.metric("📅 Con earnings", len(_earn_data))
-                _ec2.metric("⚠️ Oggi/Domani",  sum(1 for x in _earn_data if x["Giorni"] <= 1))
-                _ec3.metric("🔔 Questa sett.", sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7))
-                _ec4.metric("📅 Entro 2 sett.",sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14))
+                    _ec1.metric("📅 Con earnings", len(_earn_data))
+                    _ec2.metric(
+                        "⚠️ Oggi/Domani",
+                        sum(1 for x in _earn_data if x["Giorni"] <= 1),
+                    )
+                    _ec3.metric(
+                        "🔔 Questa sett.",
+                        sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7),
+                    )
+                    _ec4.metric(
+                        "📅 Entro 2 sett.",
+                        sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14),
+                    )
 
                     # Tabella earnings con nome + link TradingView IT
                     for _ed in _earn_data[:25]:
-                    _ea, _eb, _ec_col, _edd = st.columns([2.5, 1.5, 1.2, 2])
-                    _tkr_ed  = _ed['Ticker']
-                    _tv_ed   = _tkr_ed.replace(".MI","").replace(".","")
-                    _nome_ed = ""
-                    if not df_ep.empty and "Ticker" in df_ep.columns and "Nome" in df_ep.columns:
-                        _nm_row = df_ep[df_ep["Ticker"]==_tkr_ed]
-                        if not _nm_row.empty:
-                            _nome_ed = str(_nm_row.iloc[0].get("Nome",""))[:28]
-                    _ea.markdown(
-                        f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' target='_blank' "
-                        f"style='text-decoration:none'>"
-                        f"<b style='font-family:Courier New;color:#00ff88;font-size:0.95rem'>{_tkr_ed}</b>"
-                        f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
-                        f"<br><span style='color:#787b86;font-size:0.72rem'>{_nome_ed}</span>",
-                        unsafe_allow_html=True)
-                    _eb.markdown(
-                        f"<span style='color:#d1d4dc;font-size:0.85rem'>{_ed['Earnings Date']}</span>",
-                        unsafe_allow_html=True)
-                    _ec_col.markdown(
-                        f"<b style='font-size:0.78rem;color:{_ed['_color']}'>{_ed['Giorni']:+d}gg</b>",
-                        unsafe_allow_html=True)
-                    _edd.markdown(
-                        f"<span style='background:{_ed['_color']}22;color:{_ed['_color']};"
-                        f"border:1px solid {_ed['_color']}44;border-radius:4px;"
-                        f"padding:1px 8px;font-size:0.75rem;font-weight:bold'>"
-                        f"{_ed['Badge']}</span>",
-                        unsafe_allow_html=True)
+                        _ea, _eb, _ec_col, _edd = st.columns(
+                            [2.5, 1.5, 1.2, 2]
+                        )
+                        _tkr_ed = _ed["Ticker"]
+                        _tv_ed = _tkr_ed.replace(".MI", "").replace(".", "")
+                        _nome_ed = ""
+                        if (
+                            not df_ep.empty
+                            and "Ticker" in df_ep.columns
+                            and "Nome" in df_ep.columns
+                        ):
+                            _nm_row = df_ep[df_ep["Ticker"] == _tkr_ed]
+                            if not _nm_row.empty:
+                                _nome_ed = str(
+                                    _nm_row.iloc[0].get("Nome", "")
+                                )[:28]
+
+                        _ea.markdown(
+                            f"<a href='https://it.tradingview.com/chart/?symbol={_tv_ed}' "
+                            f"target='_blank' style='text-decoration:none'>"
+                            f"<b style='font-family:Courier New;color:#00ff88;"
+                            f"font-size:0.95rem'>{_tkr_ed}</b>"
+                            f"<span style='color:#2962ff;font-size:0.65rem'> ↗</span></a>"
+                            f"<br><span style='color:#787b86;font-size:0.72rem'>"
+                            f"{_nome_ed}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        _eb.markdown(
+                            f"<span style='color:#d1d4dc;font-size:0.85rem'>"
+                            f"{_ed['Earnings Date']}</span>",
+                            unsafe_allow_html=True,
+                        )
+                        _ec_col.markdown(
+                            f"<b style='font-size:0.78rem;color:{_ed['_color']}'>"
+                            f"{_ed['Giorni']:+d}gg</b>",
+                            unsafe_allow_html=True,
+                        )
+                        _edd.markdown(
+                            f"<span style='background:{_ed['_color']}22;"
+                            f"color:{_ed['_color']};border:1px solid "
+                            f"{_ed['_color']}44;border-radius:4px;padding:1px 8px;"
+                            f"font-size:0.75rem;font-weight:bold'>"
+                            f"{_ed['Badge']}</span>",
+                            unsafe_allow_html=True,
+                        )
+
             else:
                 st.info("📭 Nessun earnings trovato nei prossimi 21 giorni per i ticker in watchlist/scanner.")
         else:
