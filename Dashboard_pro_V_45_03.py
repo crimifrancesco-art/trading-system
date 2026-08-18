@@ -4841,7 +4841,7 @@ with tab_home:
 
     # ── v42i #4 — EARNINGS CALENDAR (Home) ──────────────────────────────────
     st.markdown("---")
-    with st.expander("📅 EARNINGS CALENDAR v42h — Prossimi earnings da Watchlist + Scanner", expanded=False):
+    with st.expander("📅 EARNINGS CALENDAR v45.04 — Prossimi earnings da Watchlist + Scanner", expanded=False):
         _earn_tickers = set()
         # Da watchlist
         try:
@@ -4861,15 +4861,32 @@ with tab_home:
                 _earn_data = _fetch_earnings_calendar(_earn_tickers_sorted)
 
             if _earn_data:
-                # Summary metrics
-                _ec1, _ec2, _ec3, _ec4 = st.columns(4)
+                # ── v45.04 EARNINGS FILTER ───────────────────────────────
+                _earn_days_filter = st.select_slider(
+                    "Mostra earnings entro",
+                    options=[1, 3, 7, 14, 21],
+                    value=21,
+                    format_func=lambda _n: f"{_n} giorni",
+                    key="v4504_earnings_days_filter",
+                )
+                _earn_data = [
+                    _row for _row in _earn_data
+                    if _row.get("Giorni", 999) <= _earn_days_filter
+                ]
+                if not _earn_data:
+                    st.info(
+                        f"Nessun earnings entro {_earn_days_filter} giorni."
+                    )
+                else:
+                        # Summary metrics
+                    _ec1, _ec2, _ec3, _ec4 = st.columns(4)
                 _ec1.metric("📅 Con earnings", len(_earn_data))
                 _ec2.metric("⚠️ Oggi/Domani",  sum(1 for x in _earn_data if x["Giorni"] <= 1))
                 _ec3.metric("🔔 Questa sett.", sum(1 for x in _earn_data if 2 <= x["Giorni"] <= 7))
                 _ec4.metric("📅 Entro 2 sett.",sum(1 for x in _earn_data if 8 <= x["Giorni"] <= 14))
 
-                # Tabella earnings con nome + link TradingView IT
-                for _ed in _earn_data[:25]:
+                    # Tabella earnings con nome + link TradingView IT
+                    for _ed in _earn_data[:25]:
                     _ea, _eb, _ec_col, _edd = st.columns([2.5, 1.5, 1.2, 2])
                     _tkr_ed  = _ed['Ticker']
                     _tv_ed   = _tkr_ed.replace(".MI","").replace(".","")
