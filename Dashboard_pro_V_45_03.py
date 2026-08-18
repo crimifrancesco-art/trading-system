@@ -2159,11 +2159,20 @@ def render_overview_signal_cards(df_ep, df_rea, top_n=5):
             if sp == 'STRONG': badges.append("<span class='sig-badge strong'>STRONG</span>")
             if str(row.get('Weekly_Bull','')) in ['True','true','1','1.0'] or row.get('Weekly_Bull', False) is True:
                 badges.append("<span class='sig-badge conf'>WEEKLY</span>")
+            # ── v45.04 SPARKLINE ───────────────────────────────────────
+            _spark = row.get("Sparkline", row.get("Price_History", []))
+            _spark_html = ""
+            if isinstance(_spark, (list, tuple)) and len(_spark) >= 2:
+                try:
+                    _spark_html = v4504_sparkline_svg(_spark, "#00ff88" if float(css or 0) >= 60 else "#f59e0b")
+                except Exception:
+                    _spark_html = ""
             st.markdown(
                 f"<div class='sig-card'>"
                 f"<div class='sig-ticker'>{ticker}</div>"
                 f"<div class='sig-name'>{nome}</div>"
                 f"<div class='sig-badges'>{''.join(badges)}</div>"
+                f"{_spark_html}"
                 f"<div class='sig-meta'><span>CSS <span class='sig-css-val'>{css}</span></span><span>RSI <span class='sig-rsi-val'>{rsi}</span></span></div>"
                 f"</div>", unsafe_allow_html=True)
     if df_rea is not None and not getattr(df_rea, 'empty', True):
