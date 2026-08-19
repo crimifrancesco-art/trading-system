@@ -2070,7 +2070,7 @@ if not st.session_state.get("_wl_backup_checked"):
 # SESSION STATE
 # =========================================================================
 defaults=dict(
-    mSP500=True,mNasdaq=True,mFTSE=True,mEurostoxx=False,
+    mSP500=False,mNasdaq=True,mFTSE=True,mEurostoxx=False,
     mDow=False,mRussell=False,mStoxxEmerging=False,mUSSmallCap=False,
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34
     min_early_score=2.0,min_quality=3,
@@ -5215,7 +5215,7 @@ with tab_home:
         """)
 
     st.markdown("---")
-    st.caption("Trading Scanner PRO · Versione V45.04 · Home aggiornata con stato release e roadmap")
+    st.caption("Trading Scanner PRO · Versione V45.06 · Opportunity Radar, Macro Regime e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
