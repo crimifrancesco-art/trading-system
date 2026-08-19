@@ -5693,6 +5693,141 @@ with tab_fvpro:
 """)
     render_scan_tab(df_ep,"FINVIZ_PRO",["FV_Score","Quality_Score","EPS_NY_Gr"],[False,False,False],"🔎 Finviz Pro")
 
+
+# =========================================================================
+# OPPORTUNITY RADAR v45.05.1
+# =========================================================================
+st.markdown(
+    "<div class='section-pill'>🎯 OPPORTUNITY RADAR v45.05.1 — "
+    "Large/Mega Cap · VWAP · RSI · Trend · Liquidità</div>",
+    unsafe_allow_html=True,
+)
+st.caption(
+    "Screening quantitativo spiegabile: non è una raccomandazione automatica "
+    "di acquisto. Market cap elevata e liquidità riducono alcuni rischi "
+    "operativi, ma non eliminano il rischio di mercato."
+)
+
+def _opportunity_num(row, *names, default=None):
+    for name in names:
+        if name in row.index:
+            value = row.get(name)
+            try:
+                if value is not None and str(value).strip() not in ("", "nan", "None"):
+                    return float(value)
+            except (TypeError, ValueError):
+                pass
+    return default
+
+_opportunity_source = df_ep.copy() if df_ep is not None and not df_ep.empty else pd.DataFrame()
+
+if _opportunity_source.empty:
+    st.info("Avvia lo scanner per alimentare l'Opportunity Radar.")
+else:
+    _opportunity_rows = []
+
+    for _, _orow in _opportunity_source.iterrows():
+        _ticker = str(_orow.get("Ticker", "")).strip()
+        if not _ticker:
+            continue
+
+        _price = _opportunity_num(_orow, "Prezzo", "Price", "Close", default=None)
+        _market_cap = _opportunity_num(
+            _orow, "MarketCap", "Market_Cap", "Market Cap", default=None
+        )
+        _dollar_vol = _opportunity_num(
+            _orow, "DollarVol", "Dollar_Volume", "Dollar Volume", default=None
+        )
+        _rsi = _opportunity_num(_orow, "RSI", default=None)
+        _ema20 = _opportunity_num(_orow, "EMA20", "EMA_20", default=None)
+        _ema50 = _opportunity_num(_orow, "EMA50", "EMA_50", default=None)
+        _vwap = _opportunity_num(_orow, "VWAP", "Vwap", default=None)
+        _vol_ratio = _opportunity_num(
+            _orow, "VolRatio", "RelVol", "VolumeRatio", default=None
+        )
+
+        _score = 0
+        _reasons = []
+
+        if _market_cap is not None and _market_cap >= 10_000_000_000:
+            _score += 1
+            _reasons.append("large/mega-cap")
+        else:
+            _reasons.append("market cap non verificata o sotto soglia")
+
+        if _dollar_vol is not None and _dollar_vol >= 20:
+            _score += 1
+            _reasons.append("liquidità sufficiente")
+        else:
+            _reasons.append("liquidità da verificare")
+
+        if _price is not None and _vwap is not None:
+            if _price > _vwap:
+                _score += 2
+                _reasons.append("prezzo sopra VWAP")
+            else:
+                _reasons.append("prezzo sotto VWAP")
+        else:
+            _reasons.append("VWAP non disponibile")
+
+        if _rsi is not None:
+            if 30 <= _rsi <= 65:
+                _score += 2
+                _reasons.append(f"RSI {_rsi:.1f} in fascia controllata")
+            elif _rsi < 30:
+                _reasons.append(f"RSI {_rsi:.1f} ipervenduto: possibile rimbalzo, rischio elevato")
+            else:
+                _reasons.append(f"RSI {_rsi:.1f} elevato")
+        else:
+            _reasons.append("RSI non disponibile")
+
+        if _ema20 is not None and _ema50 is not None:
+            if _ema20 > _ema50:
+                _score += 1
+                _reasons.append("trend EMA20 sopra EMA50")
+            else:
+                _reasons.append("trend EMA20 sotto EMA50")
+
+        if _vol_ratio is not None and _vol_ratio >= 1.2:
+            _score += 1
+            _reasons.append(f"volume relativo {_vol_ratio:.2f}x")
+        else:
+            _reasons.append("volume non ancora confermato")
+
+        _state = (
+            "🟢 Opportunity" if _score >= 7
+            else "🟡 Watch" if _score >= 4
+            else "🔴 Avoid"
+        )
+
+        _opportunity_rows.append({
+            "Ticker": _ticker,
+            "Stato": _state,
+            "Score": _score,
+            "Prezzo": _price,
+            "Market Cap": _market_cap,
+            "Dollar Volume": _dollar_vol,
+            "RSI": _rsi,
+            "VWAP": _vwap,
+            "Vol Ratio": _vol_ratio,
+            "Motivazione": "; ".join(_reasons),
+        })
+
+    _opportunity_df = pd.DataFrame(_opportunity_rows)
+
+    if _opportunity_df.empty:
+        st.info("Nessun ticker disponibile per lo screening.")
+    else:
+        _opportunity_df = _opportunity_df.sort_values(
+            ["Score", "Ticker"], ascending=[False, True]
+        )
+
+        st.dataframe(
+            _opportunity_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+
 # =========================================================================
 # MACRO REGIME TAB — V45.04
 # =========================================================================
