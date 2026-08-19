@@ -1984,7 +1984,7 @@ st.set_page_config(page_title=f"Trading Scanner PRO v{APP_VERSION}",layout="wide
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 # ── Back-to-top via st.components (accesso diretto al DOM parent) ────
 st.markdown(f"# 🧠 Trading Scanner PRO v{APP_VERSION}")
-st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">SCANNER V45.06 · OPPORTUNITY RADAR · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -2596,7 +2596,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 45.01",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 45.06",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
