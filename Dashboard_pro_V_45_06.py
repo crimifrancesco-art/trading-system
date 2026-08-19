@@ -27,7 +27,7 @@ import sqlite3
 from datetime import datetime
 
 # Versione globale applicazione — aggiornare qui a ogni release
-APP_VERSION = "45.03"
+APP_VERSION = "45.06"
 
 import numpy as np
 import pandas as pd
@@ -1984,7 +1984,7 @@ st.set_page_config(page_title=f"Trading Scanner PRO v{APP_VERSION}",layout="wide
 st.markdown(DARK_CSS,unsafe_allow_html=True)
 # ── Back-to-top via st.components (accesso diretto al DOM parent) ────
 st.markdown(f"# 🧠 Trading Scanner PRO v{APP_VERSION}")
-st.markdown('<div class="section-pill">SCANNER V40 · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
+st.markdown('<div class="section-pill">SCANNER V45.06 · OPPORTUNITY RADAR · WATCHLIST ALERT · P&L TRACKER · BACKTEST PRO · EXPORT PRO · CHART TV-STYLE · MTF MATRIX · JOURNAL · REGIME</div>',unsafe_allow_html=True)
 init_db()
 
 # ── GitHub pull al boot (ripristina watchlist dopo ogni deploy) ─────────────
@@ -2070,7 +2070,7 @@ if not st.session_state.get("_wl_backup_checked"):
 # SESSION STATE
 # =========================================================================
 defaults=dict(
-    mSP500=True,mNasdaq=True,mFTSE=True,mEurostoxx=False,
+    mSP500=False,mNasdaq=True,mFTSE=True,mEurostoxx=False,
     mDow=False,mRussell=False,mStoxxEmerging=False,mUSSmallCap=False,
     eh=0.02,prmin=40,prmax=70,rpoc=0.02,vol_ratio_hot=2.0,top=15,  # v34
     min_early_score=2.0,min_quality=3,
@@ -2596,7 +2596,7 @@ if st.sidebar.button("↺ Reset layout griglie",key="reset_grid_layout",use_cont
 # SCANNER
 # =========================================================================
 if not only_watchlist:
-    if st.button("🚀 AVVIA SCANNER PRO 45.01",type="primary",use_container_width=True):
+    if st.button("🚀 AVVIA SCANNER PRO 45.06",type="primary",use_container_width=True):
         universe = load_universe(sel)
         if not universe:
             st.warning("Seleziona almeno un mercato!")
@@ -5215,7 +5215,7 @@ with tab_home:
         """)
 
     st.markdown("---")
-    st.caption("Trading Scanner PRO · Versione V45.04 · Home aggiornata con stato release e roadmap")
+    st.caption("Trading Scanner PRO · Versione V45.06 · Opportunity Radar, Macro Regime e roadmap")
 
 with tab_e:
     st.session_state.last_active_tab="EARLY"; show_legend("EARLY")
