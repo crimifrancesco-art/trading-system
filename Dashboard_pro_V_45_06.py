@@ -27,7 +27,7 @@ import sqlite3
 from datetime import datetime
 
 # Versione globale applicazione — aggiornare qui a ogni release
-APP_VERSION = "45.03"
+APP_VERSION = "45.06"
 
 import numpy as np
 import pandas as pd
