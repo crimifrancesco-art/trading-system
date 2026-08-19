@@ -5700,12 +5700,9 @@ with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
     _fred_key_available = False
     try:
-        _fred_key_available = bool(
-            st.secrets.get("FRED_API_KEY")
-            or os.environ.get("FRED_API_KEY")
-        )
+        _fred_key_available = bool(st.secrets.get("FRED_API_KEY", ""))
     except Exception:
-        _fred_key_available = bool(os.environ.get("FRED_API_KEY"))
+        _fred_key_available = False
 
     if _HAS_MACRO_REGIME and _fred_key_available:
         render_macro_regime(key_prefix="macro_v45_05_2")
