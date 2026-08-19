@@ -5698,10 +5698,26 @@ with tab_fvpro:
 # =========================================================================
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
-    if _HAS_MACRO_REGIME:
-        render_macro_regime(key_prefix="macro_v45_03")
+    _fred_key_available = False
+    try:
+        _fred_key_available = bool(
+            st.secrets.get("FRED_API_KEY")
+            or os.environ.get("FRED_API_KEY")
+        )
+    except Exception:
+        _fred_key_available = bool(os.environ.get("FRED_API_KEY"))
+
+    if _HAS_MACRO_REGIME and _fred_key_available:
+        render_macro_regime(key_prefix="macro_v45_05_2")
     else:
-        st.warning("⚠️ Macro Regime Engine automatico non disponibile.")
+        st.warning("⚠️ Dati Macro automatici non disponibili.")
+        st.caption(
+            "Configura FRED_API_KEY oppure inserisci manualmente i valori macro."
+        )
+        st.link_button(
+            "🔑 Richiedi una FRED API key",
+            "https://fredaccount.stlouisfed.org/apikeys",
+        )
         st.caption("Puoi configurare FRED oppure inserire manualmente i valori macro.")
         st.link_button(
             "🔑 Richiedi una FRED API key",
