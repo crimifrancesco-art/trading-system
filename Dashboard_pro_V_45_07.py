@@ -5721,7 +5721,6 @@ with tab_radar:
 
     from modules.opportunity_radar import (
         screen_opportunities_v2,
-        prepare_radar_data_for_demo,
         STRATEGIES,
     )
 
@@ -5734,8 +5733,106 @@ with tab_radar:
     )
     st.caption(f"ℹ️ {STRATEGIES[strategy_choice]}")
 
-    prices, market_caps, dollar_volumes, earnings_days, macro_ok, cfg = prepare_radar_data_for_demo()
-    names = {"AAPL": "Apple Inc.", "MSFT": "Microsoft Corp.", "NVDA": "NVIDIA Corp."}
+    # Opportunity Radar: usa l'universo completo selezionato nello Scanner,
+    # non il dataset statico AAPL/MSFT/NVDA della demo.
+    radar_sel = [
+        code for enabled, code in [
+            (st.session_state.get("mSP500", False), "SP500"),
+            (st.session_state.get("mNasdaq", True), "Nasdaq"),
+            (st.session_state.get("mFTSE", True), "FTSE"),
+            (st.session_state.get("mEurostoxx", False), "Eurostoxx"),
+            (st.session_state.get("mDow", False), "Dow"),
+            (st.session_state.get("mRussell", False), "Russell"),
+            (st.session_state.get("mStoxxEM", False), "StoxxEM"),
+            (st.session_state.get("mUSSmall", False), "USSmall"),
+        ]
+        if enabled
+    ]
+
+    radar_universe = load_universe(radar_sel)
+    radar_universe = list(dict.fromkeys(
+        str(t).strip().upper()
+        for t in radar_universe
+        if isinstance(t, str) and str(t).strip()
+    ))
+
+    @st.cache_data(ttl=900, show_spinner=False)
+    def _radar_load_market_data(tickers_tuple):
+        import pandas as pd
+        import yfinance as _yf
+
+        if not tickers_tuple:
+            return {}, pd.Series(dtype=float), pd.Series(dtype=float), pd.Series(dtype=float), {}
+
+        raw = _yf.download(
+            tickers=list(tickers_tuple),
+            period="9mo",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+        )
+
+        prices, market_caps, dollar_volumes, earnings_days, names = {}, {}, {}, {}, {}
+
+        for ticker in tickers_tuple:
+            try:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if ticker not in raw.columns.get_level_values(0):
+                        continue
+                    df_t = raw[ticker].copy()
+                else:
+                    df_t = raw.copy()
+
+                df_t.columns = [str(c).lower() for c in df_t.columns]
+                required = ["open", "high", "low", "close", "volume"]
+                if df_t.empty or not set(required).issubset(df_t.columns):
+                    continue
+
+                df_t = df_t[required].dropna().sort_index()
+                if len(df_t) < 80:
+                    continue
+
+                prices[ticker] = df_t
+                last_close = float(df_t["close"].iloc[-1])
+                avg_volume = float(df_t["volume"].tail(20).mean())
+                dollar_volumes[ticker] = last_close * avg_volume
+                earnings_days[ticker] = 999
+                names[ticker] = ticker
+
+                try:
+                    info = _yf.Ticker(ticker).fast_info
+                    market_caps[ticker] = float(
+                        info.get("market_cap", info.get("marketCap", 0)) or 0
+                    )
+                except Exception:
+                    market_caps[ticker] = 0.0
+
+            except Exception:
+                continue
+
+        return (
+            prices,
+            pd.Series(market_caps, dtype=float),
+            pd.Series(dollar_volumes, dtype=float),
+            pd.Series(earnings_days, dtype=float),
+            names,
+        )
+
+    with st.spinner(f"Opportunity Radar: analisi di {len(radar_universe)} titoli..."):
+        prices, market_caps, dollar_volumes, earnings_days, names = (
+            _radar_load_market_data(tuple(radar_universe))
+        )
+
+    macro_ok = True
+    cfg = {
+        "min_market_cap": 10_000_000_000,
+        "min_dollar_volume": 50_000_000,
+        "max_earnings_proximity": 5,
+        "rsi_min": 45,
+        "rsi_max": 65,
+    }
 
     df_res = screen_opportunities_v2(
         strategy=strategy_choice,
