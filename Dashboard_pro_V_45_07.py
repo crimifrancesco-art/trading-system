@@ -3981,10 +3981,10 @@ def _render_ai_explainer_v41(df_source, tab_name="PRO"):
         st.secrets.get("ANTHROPIC_API_KEY","")   or st.session_state.get("_anthropic_api_key",""),
     ])
 
-    with st.expander(
-        "🔑 Configura API Keys" + (" ✅" if _any_key else " ⚠️ Nessuna key — configura qui"),
-        expanded=not _any_key
-    ):
+    st.markdown(
+        "### 🔑 Configura API Keys" + (" ✅" if _any_key else " ⚠️ Nessuna key — configura qui")
+    )
+    with st.container():
         st.markdown(
             "<div style='background:#0d1117;border:1px solid #1f2937;border-radius:6px;"
             "padding:10px 14px;margin-bottom:10px;font-size:0.80rem;color:#b2b5be'>"
