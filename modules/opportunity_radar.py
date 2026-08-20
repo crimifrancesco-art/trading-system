@@ -235,3 +235,162 @@ def prepare_radar_data_for_demo() -> tuple:
     }
 
     return prices, market_caps, dollar_volumes, earnings_days, macro_ok, cfg
+# ── Strategie disponibili ────────────────────────────────────────────────
+STRATEGIES = {
+    "RSI+VWAP": "Prezzo vs VWAP e RSI in fascia controllata (trend-following).",
+    "ADX+EMA": "Forza del trend (ADX) confermata da EMA20>EMA50.",
+    "MACD": "Momentum: crossover MACD e signal line.",
+    "Keltner Channel": "Breakout/pullback su bande di volatilità Keltner.",
+    "Donchian Channel": "Breakout su massimi/minimi N periodi (turtle-style).",
+    "RSI+Bollinger": "Mean-reversion su bande di Bollinger con RSI.",
+    "OBV+Hull MA": "Conferma di volume (OBV) con trend Hull MA.",
+    "SAR+Chop": "Parabolic SAR filtrato da Choppiness Index (evita lateralità).",
+    "ADX+Pattern": "Forza del trend + pattern di prezzo (pullback/breakout).",
+}
+
+
+def tradingview_url(ticker: str) -> str:
+    """
+    Costruisce l'URL TradingView (versione italiana) per un ticker.
+    Gestisce suffissi comuni (.MI per Milano, ecc.) in modo basico.
+    """
+    symbol = ticker.replace(".MI", "").replace(".", "-")
+    return f"https://it.tradingview.com/symbols/{symbol}/"
+
+
+def compute_adx(df: pd.DataFrame, window: int = 14) -> pd.Series:
+    high, low, close = df["high"], df["low"], df["close"]
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    plus_dm[plus_dm < 0] = 0.0
+    minus_dm[minus_dm < 0] = 0.0
+
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    atr = tr.ewm(span=window, adjust=False).mean()
+    plus_di = 100 * (plus_dm.ewm(span=window, adjust=False).mean() / atr)
+    minus_di = 100 * (minus_dm.ewm(span=window, adjust=False).mean() / atr)
+
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    adx = dx.ewm(span=window, adjust=False).mean()
+    return adx.fillna(0)
+
+
+def compute_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+    ema_fast = compute_ema(series, fast)
+    ema_slow = compute_ema(series, slow)
+    macd_line = ema_fast - ema_slow
+    signal_line = compute_ema(macd_line, signal)
+    return macd_line, signal_line
+
+
+def compute_bollinger(series: pd.Series, window: int = 20, num_std: float = 2.0):
+    ma = series.rolling(window).mean()
+    std = series.rolling(window).std()
+    upper = ma + num_std * std
+    lower = ma - num_std * std
+    return upper, ma, lower
+
+
+def compute_atr_pct(df: pd.DataFrame, window: int = 14) -> pd.Series:
+    high, low, close = df["high"], df["low"], df["close"]
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(window).mean()
+    return (atr / close) * 100.0
+
+
+def evaluate_strategy(strategy: str, df: pd.DataFrame) -> dict:
+    """
+    Applica la strategia scelta sull'ultimo valore disponibile.
+    Restituisce dict con: passed (bool), reasons (list[str]).
+    """
+    close = df["close"]
+    last_close = float(close.iloc[-1])
+    reasons = []
+    passed = True
+
+    if strategy == "RSI+VWAP":
+        vwap = compute_vwap(df)
+        rsi = compute_rsi(close)
+        price_ok = last_close > vwap.iloc[-1]
+        rsi_ok = 45 <= rsi.iloc[-1] <= 65
+        passed = price_ok and rsi_ok
+        reasons.append("Prezzo sopra VWAP." if price_ok else "Prezzo sotto VWAP.")
+        reasons.append(f"RSI {rsi.iloc[-1]:.1f} ({'fascia controllata' if rsi_ok else 'estremo'}).")
+
+    elif strategy == "ADX+EMA":
+        adx = compute_adx(df)
+        ema20 = compute_ema(close, 20)
+        ema50 = compute_ema(close, 50)
+        adx_ok = adx.iloc[-1] > 20
+        ema_ok = ema20.iloc[-1] > ema50.iloc[-1]
+        passed = adx_ok and ema_ok
+        reasons.append(f"ADX {adx.iloc[-1]:.1f} ({'trend forte' if adx_ok else 'trend debole'}).")
+        reasons.append("EMA20 sopra EMA50." if ema_ok else "EMA20 sotto EMA50.")
+
+    elif strategy == "MACD":
+        macd_line, signal_line = compute_macd(close)
+        bullish = macd_line.iloc[-1] > signal_line.iloc[-1]
+        rising = macd_line.iloc[-1] > macd_line.iloc[-2]
+        passed = bullish and rising
+        reasons.append("MACD sopra signal line." if bullish else "MACD sotto signal line.")
+        reasons.append("Momentum in accelerazione." if rising else "Momentum in decelerazione.")
+
+    elif strategy == "Keltner Channel":
+        ema20 = compute_ema(close, 20)
+        atr_pct = compute_atr_pct(df)
+        atr_abs = (atr_pct / 100.0) * close
+        upper = ema20 + 1.5 * atr_abs
+        near_upper = last_close >= upper.iloc[-1] * 0.98
+        passed = near_upper
+        reasons.append("Prezzo vicino/oltre banda superiore Keltner." if near_upper else "Prezzo sotto banda superiore Keltner.")
+
+    elif strategy == "Donchian Channel":
+        window = 20
+        highest = df["high"].rolling(window).max()
+        breakout = last_close >= highest.iloc[-2]
+        passed = breakout
+        reasons.append("Breakout su massimo Donchian 20 periodi." if breakout else "Nessun breakout Donchian.")
+
+    elif strategy == "RSI+Bollinger":
+        upper, ma, lower = compute_bollinger(close)
+        rsi = compute_rsi(close)
+        near_lower = last_close <= lower.iloc[-1] * 1.02
+        rsi_oversold = rsi.iloc[-1] < 40
+        passed = near_lower and rsi_oversold
+        reasons.append("Prezzo vicino banda inferiore Bollinger." if near_lower else "Prezzo lontano da banda inferiore.")
+        reasons.append(f"RSI {rsi.iloc[-1]:.1f} ({'ipervenduto' if rsi_oversold else 'neutro'}).")
+
+    elif strategy == "OBV+Hull MA":
+        obv = (np.sign(close.diff()) * df["volume"]).fillna(0).cumsum()
+        obv_rising = obv.iloc[-1] > obv.iloc[-5]
+        hull = close.rolling(9).mean()  # approssimazione semplificata
+        price_above_hull = last_close > hull.iloc[-1]
+        passed = obv_rising and price_above_hull
+        reasons.append("OBV in aumento (accumulo)." if obv_rising else "OBV in calo (distribuzione).")
+        reasons.append("Prezzo sopra media Hull." if price_above_hull else "Prezzo sotto media Hull.")
+
+    elif strategy == "SAR+Chop":
+        adx = compute_adx(df)
+        choppy = adx.iloc[-1] < 20
+        passed = not choppy
+        reasons.append("Mercato direzionale (ADX>20)." if not choppy else "Mercato laterale (choppy).")
+
+    elif strategy == "ADX+Pattern":
+        adx = compute_adx(df)
+        pullback = close.iloc[-1] > close.iloc[-3] and close.iloc[-2] < close.iloc[-3]
+        passed = adx.iloc[-1] > 20 and pullback
+        reasons.append(f"ADX {adx.iloc[-1]:.1f}.")
+        reasons.append("Pattern di pullback rilevato." if pullback else "Nessun pattern di pullback.")
+
+    else:
+        passed = False
+        reasons.append("Strategia non riconosciuta.")
+
+    return {"passed": passed, "reasons": reasons}
