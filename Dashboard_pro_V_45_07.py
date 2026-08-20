@@ -5220,7 +5220,7 @@ with tab_home:
 
 **⚠️ Checklist operativa:**
 
-- Eseguire `python -m py_compile Dashboard_pro_V_45_04.py` dopo ogni modifica.
+- Eseguire `python -m py_compile Dashboard_pro_V_45_07.py` dopo ogni modifica.
 - Testare in ambiente pulito dopo ogni aggiornamento delle dipendenze.
 - Usare COT e macro come filtri di contesto, insieme a prezzo, liquidità, volatilità, stop e position sizing.
         """)
