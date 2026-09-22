@@ -6056,6 +6056,200 @@ with tab_insider:
                             st.warning("Seleziona almeno un ticker.")
 
 
+with tab_radar:
+    st.session_state["last_active_tab"] = "OPPORTUNITY_RADAR"
+    st.title("🎯 Opportunity Radar")
+
+    st.caption(
+        "RSI, VWAP e gli altri indicatori sono usati come segnali di screening, non come garanzia di acquisto: "
+        "la capitalizzazione elevata favorisce la liquidità, ma non elimina il rischio specifico del titolo. "
+        "Il Radar evidenzia contesti favorevoli; la decisione di ingresso, sizing e gestione del rischio resta a carico del trader."
+    )
+
+    from modules.opportunity_radar import (
+        screen_opportunities_v2,
+        STRATEGIES,
+    )
+
+    strategy_choice = st.selectbox(
+        "Strategia di screening",
+        options=list(STRATEGIES.keys()),
+        index=0,
+        key="radar_strategy_choice",
+        help="Seleziona la logica tecnica usata per classificare i ticker.",
+    )
+    st.caption(f"ℹ️ {STRATEGIES[strategy_choice]}")
+
+    # Opportunity Radar: usa l'universo completo selezionato nello Scanner,
+    # non il dataset statico AAPL/MSFT/NVDA della demo.
+    radar_sel = [
+        code for enabled, code in [
+            (st.session_state.get("mSP500", False), "SP500"),
+            (st.session_state.get("mNasdaq", True), "Nasdaq"),
+            (st.session_state.get("mFTSE", True), "FTSE"),
+            (st.session_state.get("mEurostoxx", False), "Eurostoxx"),
+            (st.session_state.get("mDow", False), "Dow"),
+            (st.session_state.get("mRussell", False), "Russell"),
+            (st.session_state.get("mStoxxEM", False), "StoxxEM"),
+            (st.session_state.get("mUSSmall", False), "USSmall"),
+        ]
+        if enabled
+    ]
+
+    radar_universe = load_universe(radar_sel)
+    radar_universe = list(dict.fromkeys(
+        str(t).strip().upper()
+        for t in radar_universe
+        if isinstance(t, str) and str(t).strip()
+    ))
+
+    @st.cache_data(ttl=900, show_spinner=False)
+    def _radar_load_market_data(tickers_tuple):
+        import pandas as pd
+        import yfinance as _yf
+
+        if not tickers_tuple:
+            return {}, pd.Series(dtype=float), pd.Series(dtype=float), pd.Series(dtype=float), {}
+
+        raw = _yf.download(
+            tickers=list(tickers_tuple),
+            period="9mo",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            progress=False,
+            threads=True,
+        )
+
+        prices, market_caps, dollar_volumes, earnings_days, names = {}, {}, {}, {}, {}
+
+        for ticker in tickers_tuple:
+            try:
+                if isinstance(raw.columns, pd.MultiIndex):
+                    if ticker not in raw.columns.get_level_values(0):
+                        continue
+                    df_t = raw[ticker].copy()
+                else:
+                    df_t = raw.copy()
+
+                df_t.columns = [str(c).lower() for c in df_t.columns]
+                required = ["open", "high", "low", "close", "volume"]
+                if df_t.empty or not set(required).issubset(df_t.columns):
+                    continue
+
+                df_t = df_t[required].dropna().sort_index()
+                if len(df_t) < 80:
+                    continue
+
+                prices[ticker] = df_t
+                last_close = float(df_t["close"].iloc[-1])
+                avg_volume = float(df_t["volume"].tail(20).mean())
+                dollar_volumes[ticker] = last_close * avg_volume
+                earnings_days[ticker] = 999
+                names[ticker] = ticker
+
+                try:
+                    info = _yf.Ticker(ticker).fast_info
+                    market_caps[ticker] = float(
+                        info.get("market_cap", info.get("marketCap", 0)) or 0
+                    )
+                except Exception:
+                    market_caps[ticker] = 0.0
+
+            except Exception:
+                continue
+
+        return (
+            prices,
+            pd.Series(market_caps, dtype=float),
+            pd.Series(dollar_volumes, dtype=float),
+            pd.Series(earnings_days, dtype=float),
+            names,
+        )
+
+    with st.spinner(f"Opportunity Radar: analisi di {len(radar_universe)} titoli..."):
+        prices, market_caps, dollar_volumes, earnings_days, names = (
+            _radar_load_market_data(tuple(radar_universe))
+        )
+
+    macro_ok = True
+    cfg = {
+        "min_market_cap": 10_000_000_000,
+        "min_dollar_volume": 50_000_000,
+        "max_earnings_proximity": 5,
+        "rsi_min": 45,
+        "rsi_max": 65,
+    }
+
+    df_res = screen_opportunities_v2(
+        strategy=strategy_choice,
+        prices=prices,
+        market_caps=market_caps,
+        dollar_volumes=dollar_volumes,
+        earnings_days=earnings_days,
+        macro_ok=macro_ok,
+        names=names,
+        cfg=cfg,
+    )
+
+    level_filter = st.multiselect(
+        "Filtra per livello",
+        options=["🟢 Opportunity", "🟡 Watch", "🔴 Avoid"],
+        default=["🟢 Opportunity", "🟡 Watch"],
+        key="radar_level_filter",
+    )
+
+    df_view = df_res[df_res["Livello"].isin(level_filter)].reset_index(drop=True)
+
+    st.dataframe(
+        df_view[
+            [
+                "Ticker", "TradingView", "Nome", "Livello", "RSI", "Prezzo",
+                "Dollar_Vol_M", "Quality_Score", "Liq_Grade", "ATR_pct",
+                "Vol_Ratio", "Days_to_Earnings", "Motivazione",
+            ]
+        ],
+        column_config={
+            "TradingView": st.column_config.LinkColumn(
+                "Chart",
+                display_text="📈 Apri",
+            ),
+            "Dollar_Vol_M": st.column_config.NumberColumn("Dollar Vol ($M)"),
+            "ATR_pct": st.column_config.NumberColumn("ATR %", format="%.2f%%"),
+            "Vol_Ratio": st.column_config.NumberColumn("Vol Ratio", format="%.2fx"),
+        },
+        hide_index=True,
+        use_container_width=True,
+        key="radar_table_v2",
+    )
+
+    _radar_strategy_tag = (
+        str(strategy_choice).strip().upper().replace(" ", "_").replace("/", "_")
+    )
+    _radar_ts = datetime.now().strftime("%Y%m%d_%H%M")
+    st.download_button(
+        "📺 TradingView TXT",
+        data=make_tv_txt(df_view, section=f"OPPORTUNITY_RADAR_{_radar_strategy_tag}"),
+        file_name=f"OpportunityRadar_{_radar_strategy_tag}_{_radar_ts}.txt",
+        mime="text/plain",
+        key=f"radar_exp_tv_{_radar_strategy_tag}",
+        disabled=df_view.empty or "Ticker" not in df_view.columns,
+        help="Formato TradingView: ###OPPORTUNITY_RADAR_<STRATEGIA>,ticker separati da virgole,",
+    )
+
+    if not df_view.empty:
+        selected = st.selectbox(
+            "Dettaglio ticker",
+            options=df_view["Ticker"].tolist(),
+            key="radar_ticker_detail",
+        )
+        row = df_view[df_view["Ticker"] == selected].iloc[0]
+        st.markdown(f"### {selected} – {row['Livello']}")
+        st.markdown(f"[📈 Apri su TradingView]({row['TradingView']})")
+        st.write("**Motivazione:**")
+        for r in row["Motivazione"].split(" | "):
+            st.write(f"- {r}")
+
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
     if _HAS_MACRO_REGIME:
