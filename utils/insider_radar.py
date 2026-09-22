@@ -4,10 +4,15 @@ Modulo Insider Radar: scarica, analizza e classifica le transazioni
 insider (Form 4 SEC) per individuare segnali di acquisto significativi
 da parte di CEO, CFO, director e azionisti con oltre il 10% delle quote.
 
-Fonte dati: SEC EDGAR (https://www.sec.gov)
-- Feed "latest filings" (Form 4) per il flusso quasi in tempo reale
-- XML del singolo filing per i dettagli della transazione
+Due modalità di raccolta dati:
+1. Feed rapido — 'getcurrent' atom feed: ultimi ~100 filing Form 4 in
+   assoluto su tutto EDGAR (istantaneo, ma con mercati attivi copre
+   solo poche ore).
+2. Storico estesa — 'daily-index': indice giornaliero completo di ogni
+   filing SEC. Permette di analizzare più giorni consecutivi (es. 7 o
+   14 giorni) e quindi un campione realmente esteso, non ridotto.
 
+Fonte dati: SEC EDGAR (https://www.sec.gov)
 Nessun database esterno richiesto: caching tramite st.cache_data(ttl=...),
 in linea con il resto del progetto (macro_regime.py, scanner.py).
 
@@ -21,6 +26,7 @@ Limite di accesso SEC: massimo 10 richieste/secondo (qui throttled a ~6-7/s).
 import re
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from urllib.parse import urljoin
 
 import pandas as pd
@@ -58,8 +64,7 @@ def _throttled_get(url, **kwargs):
 
 
 def _extract_accession(index_url: str) -> str:
-    """Estrae il numero di accession (identificativo univoco del filing)
-    dall'URL della index page, indipendentemente dal CIK usato nel path."""
+    """Estrae il numero di accession dall'URL della index page, indipendentemente dal CIK usato nel path."""
     m = re.search(r"(\d{10}-\d{2}-\d{6})", index_url)
     if m:
         return m.group(1)
@@ -67,13 +72,12 @@ def _extract_accession(index_url: str) -> str:
     return m.group(1) if m else index_url
 
 
-# ── Step 1: feed degli ultimi filing Form 4 ─────────────────────────────
+# ── Modalità 1: feed rapido (ultimi filing in assoluto) ─────────────────
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_latest_form4_feed(count: int = 100) -> pd.DataFrame:
     """
     Recupera l'elenco degli ultimi filing Form 4 pubblicati su EDGAR
-    (feed 'getcurrent', quasi in tempo reale), deduplicato per accession
-    number (lo stesso filing compare più volte se coinvolge più CIK).
+    (feed 'getcurrent', quasi in tempo reale, max ~100 risultati totali).
     Colonne: company_raw, company, filing_date, index_url, accession.
     """
     url = (
@@ -115,6 +119,94 @@ def fetch_latest_form4_feed(count: int = 100) -> pd.DataFrame:
     return df.drop_duplicates(subset="accession", keep="first").reset_index(drop=True)
 
 
+# ── Modalità 2: storico estesa (daily-index, più giorni) ────────────────
+def _quarter_of(dt: datetime) -> int:
+    return (dt.month - 1) // 3 + 1
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_form4_daily_index(date_str: str) -> pd.DataFrame:
+    """
+    Scarica e analizza l'indice giornaliero SEC (form.YYYYMMDD.idx) per una
+    singola data, filtrando solo i filing di tipo Form 4.
+    date_str: formato 'YYYYMMDD'.
+    Colonne: company, cik, filing_date, index_url, accession.
+    """
+    dt = datetime.strptime(date_str, "%Y%m%d")
+    url = f"{SEC_BASE}/Archives/edgar/daily-index/{dt.year}/QTR{_quarter_of(dt)}/form.{date_str}.idx"
+    try:
+        resp = _throttled_get(url)
+        if resp.status_code != 200:
+            return pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
+
+    lines = resp.text.splitlines()
+    start_idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith("---"):
+            start_idx = i + 1
+            break
+    if start_idx is None:
+        return pd.DataFrame()
+
+    rows = []
+    for line in lines[start_idx:]:
+        if not line.strip():
+            continue
+        parts = re.split(r"\s{2,}", line.strip())
+        if len(parts) < 5:
+            continue
+        form_type, company, cik, date_filed, file_name = parts[:5]
+        if form_type.strip() != "4":
+            continue
+        m = re.search(r"(\d{10}-\d{2}-\d{6})", file_name)
+        accession = m.group(1) if m else None
+        if not accession:
+            continue
+        index_url = f"{SEC_BASE}/Archives/edgar/data/{cik.strip()}/{accession}-index.htm"
+        rows.append({
+            "company": company.strip(),
+            "cik": cik.strip(),
+            "filing_date": date_filed.strip(),
+            "index_url": index_url,
+            "accession": accession,
+        })
+    return pd.DataFrame(rows)
+
+
+def _business_days_back(n_days: int, end_date=None):
+    """Restituisce le date (stringhe YYYYMMDD) degli ultimi n_days giorni lavorativi (lun-ven)."""
+    if end_date is None:
+        end_date = datetime.now()
+    dates = []
+    cursor = end_date
+    while len(dates) < n_days:
+        if cursor.weekday() < 5:  # 0=lunedì ... 4=venerdì
+            dates.append(cursor.strftime("%Y%m%d"))
+        cursor -= timedelta(days=1)
+    return dates
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_form4_extended_feed(days_back: int = 7) -> pd.DataFrame:
+    """
+    Aggrega l'indice giornaliero SEC su più giorni lavorativi per ottenere
+    un elenco esteso di filing Form 4 (non limitato ai soli ultimi ~100).
+    Colonne: company, cik, filing_date, index_url, accession.
+    """
+    dates = _business_days_back(days_back)
+    frames = []
+    for d in dates:
+        df_day = fetch_form4_daily_index(d)
+        if not df_day.empty:
+            frames.append(df_day)
+    if not frames:
+        return pd.DataFrame()
+    df = pd.concat(frames, ignore_index=True)
+    return df.drop_duplicates(subset="accession", keep="first").reset_index(drop=True)
+
+
 def _find_xml_doc(index_url: str):
     """Trova l'URL del documento XML primario del Form 4 dalla index page."""
     try:
@@ -141,7 +233,7 @@ def _text(el, path, default=""):
     return found.text.strip() if found is not None and found.text else default
 
 
-# ── Step 2: parsing del singolo Form 4 XML ──────────────────────────────
+# ── Parsing del singolo Form 4 XML ──────────────────────────────────────
 def parse_form4_xml(xml_bytes: bytes):
     """
     Effettua il parsing dello Form 4 XML e restituisce una lista di
@@ -209,15 +301,9 @@ def parse_form4_xml(xml_bytes: bytes):
     return rows
 
 
-# ── Step 3: pipeline completa ────────────────────────────────────────────
-@st.cache_data(ttl=600, show_spinner=False)
-def fetch_recent_insider_transactions(max_filings: int = 60) -> pd.DataFrame:
-    """
-    Pipeline completa: recupera gli ultimi filing Form 4 (deduplicati per
-    accession number), scarica e analizza ciascun XML, restituisce un
-    DataFrame aggregato di transazioni insider normalizzate.
-    """
-    feed = fetch_latest_form4_feed(count=max_filings)
+def _process_filing_list(feed: pd.DataFrame) -> pd.DataFrame:
+    """Scarica e analizza l'XML di ciascun filing in 'feed', restituendo
+    un DataFrame aggregato di transazioni normalizzate e deduplicate."""
     if feed.empty:
         return pd.DataFrame()
 
@@ -250,7 +336,34 @@ def fetch_recent_insider_transactions(max_filings: int = 60) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-# ── Step 4: Insider Score e classificazione ──────────────────────────────
+@st.cache_data(ttl=600, show_spinner=False)
+def fetch_recent_insider_transactions(max_filings: int = 60) -> pd.DataFrame:
+    """
+    Pipeline rapida: usa il feed 'getcurrent' (ultimi filing in assoluto),
+    utile per un aggiornamento veloce ma limitato nel tempo.
+    """
+    feed = fetch_latest_form4_feed(count=max_filings)
+    return _process_filing_list(feed)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_insider_transactions_extended(days_back: int = 7, max_filings: int = 500) -> pd.DataFrame:
+    """
+    Pipeline estesa: usa l'indice giornaliero SEC per analizzare più
+    giorni consecutivi. Restituisce un campione realmente esteso di
+    transazioni insider, non limitato agli ultimi ~100 filing assoluti.
+    max_filings limita il numero di filing scaricati (per contenere i
+    tempi di esecuzione: ogni filing richiede 2 richieste HTTP).
+    """
+    feed = fetch_form4_extended_feed(days_back=days_back)
+    if feed.empty:
+        return pd.DataFrame()
+    if len(feed) > max_filings:
+        feed = feed.sample(n=max_filings, random_state=42).reset_index(drop=True)
+    return _process_filing_list(feed)
+
+
+# ── Insider Score e classificazione ──────────────────────────────────────
 def compute_insider_score(df: pd.DataFrame) -> pd.DataFrame:
     """
     Calcola un Insider Score (0-100) aggregato per ticker basandosi su:

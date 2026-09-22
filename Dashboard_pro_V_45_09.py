@@ -2070,7 +2070,7 @@ except Exception as _macro_import_error:
 
 # ── V45.09: Insider Radar (Form 4 SEC) ──────────────────────────────────────
 try:
-    from utils.insider_radar import fetch_recent_insider_transactions, compute_insider_score
+    from utils.insider_radar import fetch_recent_insider_transactions, fetch_insider_transactions_extended, compute_insider_score
     _HAS_INSIDER_RADAR = True
 except Exception as _insider_import_error:
     _HAS_INSIDER_RADAR = False
@@ -5841,63 +5841,126 @@ with tab_fvpro:
 # =========================================================================
 # ── V45.08: tab Opportunity Radar (strategie selezionabili) ────────────
 # ── V45.09: tab Insider Radar (Form 4 SEC, insider score, cluster) ─────\n# =========================================================================
-# INSIDER RADAR TAB (V45.09)
+# INSIDER RADAR TAB (V45.09) — Feed Rapido + Storico Esteso
 # =========================================================================
 with tab_insider:
     st.markdown('<div class="section-pill">🕵️ INSIDER RADAR — Acquisti CEO, Manager e Insider (Form 4 SEC)</div>',
                 unsafe_allow_html=True)
     st.markdown("""
 > **Come usare questo tab**: la SEC richiede agli insider (CEO, CFO, director, azionisti >10%)
-> di dichiarare ogni transazione entro 2 giorni lavorativi (Form 4). Qui trovi il feed delle
-> transazioni più recenti e un **Insider Score** che privilegia acquisti sul mercato, ruoli chiave
-> (CEO/CFO) e cluster di più insider che comprano nello stesso periodo.
+> di dichiarare ogni transazione entro 2 giorni lavorativi (Form 4).
+> **Feed Rapido** = ultimi filing in assoluto su tutto EDGAR, istantaneo ma copre solo poche ore
+> se il mercato è molto attivo. **Storico Esteso** = analizza N giorni completi tramite l'indice
+> giornaliero SEC — più lento (alcuni minuti) ma esaustivo, con cache salvata su disco.
 """)
 
     if not _HAS_INSIDER_RADAR:
         st.error("Modulo Insider Radar non disponibile.")
         st.caption("Errore import: " + str(_insider_import_error))
     else:
-        _ir_c1, _ir_c2, _ir_c3, _ir_c4 = st.columns([2, 2, 2, 2])
-        with _ir_c1:
-            _ir_max_filings = st.select_slider(
-                "Filing da analizzare",
-                options=[20, 40, 60, 100, 150],
-                value=60,
-                key="insider_max_filings",
-                help="Numero di filing Form 4 più recenti da scaricare e analizzare"
-            )
-        with _ir_c2:
-            _ir_min_value = st.number_input(
-                "Valore minimo transazione ($)",
-                min_value=0, value=10000, step=5000,
-                key="insider_min_value"
-            )
-        with _ir_c3:
-            _ir_role_filter = st.multiselect(
-                "Ruolo",
-                options=["CEO/CFO", "Director", "10% Owner", "Altro"],
-                default=["CEO/CFO", "Director", "10% Owner", "Altro"],
-                key="insider_role_filter"
-            )
-        with _ir_c4:
-            _ir_only_buys = st.checkbox("Solo acquisti (P)", value=True, key="insider_only_buys")
+        import os as _ir_os
+        _IR_CACHE_FILE = "data/insider_radar_extended_cache.csv"
 
-        _ir_run = st.button("🔍 Aggiorna dati Insider", key="insider_scan_btn", type="primary")
+        _ir_mode = st.radio(
+            "Modalità di raccolta dati",
+            ["⚡ Feed Rapido", "📊 Storico Esteso"],
+            key="insider_mode",
+            horizontal=True,
+        )
 
-        _ir_cache_key = "_insider_df_cache"
-        if _ir_run or _ir_cache_key not in st.session_state:
-            with st.spinner("Scaricamento Form 4 da SEC EDGAR..."):
-                _df_insider_raw = fetch_recent_insider_transactions(max_filings=_ir_max_filings)
-            st.session_state[_ir_cache_key] = _df_insider_raw
-            st.session_state["_insider_scan_time"] = datetime.now().strftime("%H:%M")
+        _df_insider_raw = pd.DataFrame()
 
-        _df_insider_raw = st.session_state.get(_ir_cache_key, pd.DataFrame())
-        _ir_ts = st.session_state.get("_insider_scan_time", "")
+        if _ir_mode == "⚡ Feed Rapido":
+            _ir_c1, _ir_c2 = st.columns(2)
+            with _ir_c1:
+                _ir_max_filings = st.select_slider(
+                    "Filing da analizzare (ultimi in assoluto)",
+                    options=[20, 40, 60, 100, 150],
+                    value=60,
+                    key="insider_max_filings",
+                    help="Numero di filing Form 4 più recenti da scaricare e analizzare (istantaneo)."
+                )
+            with _ir_c2:
+                _ir_run = st.button("🔍 Aggiorna Feed Rapido", key="insider_scan_btn", type="primary")
+
+            _ir_cache_key = "_insider_df_cache"
+            if _ir_run or _ir_cache_key not in st.session_state:
+                with st.spinner("Scaricamento Form 4 da SEC EDGAR (feed rapido)..."):
+                    _df_insider_raw = fetch_recent_insider_transactions(max_filings=_ir_max_filings)
+                st.session_state[_ir_cache_key] = _df_insider_raw
+                st.session_state["_insider_scan_time"] = datetime.now().strftime("%H:%M")
+
+            _df_insider_raw = st.session_state.get(_ir_cache_key, pd.DataFrame())
+            _ir_ts = st.session_state.get("_insider_scan_time", "")
+            if not _df_insider_raw.empty:
+                st.caption(f"✅ {len(_df_insider_raw)} transazioni (feed rapido)" + (f" · aggiornato alle {_ir_ts}" if _ir_ts else ""))
+
+        else:
+            _ir_e1, _ir_e2, _ir_e3 = st.columns([1.5, 1.5, 1])
+            with _ir_e1:
+                _ir_days = st.slider("Giorni lavorativi da analizzare", 1, 10, 3, key="insider_days_back")
+            with _ir_e2:
+                _ir_max_ext = st.number_input(
+                    "Limite massimo filing da scaricare",
+                    min_value=50, max_value=1500, value=300, step=50,
+                    key="insider_max_ext"
+                )
+            with _ir_e3:
+                _ir_est_min = _ir_max_ext * 0.6 / 60
+                st.metric("Tempo stimato", f"~{_ir_est_min:.1f} min")
+
+            _ir_run_ext = st.button("🔍 Avvia Analisi Storica", key="insider_ext_scan_btn", type="primary",
+                                      help="Scarica e analizza i filing Form 4 dell'intervallo scelto. Può richiedere alcuni minuti.")
+
+            _ir_ext_cache_key = "_insider_df_cache_extended"
+
+            if _ir_run_ext:
+                with st.spinner(f"Analisi di {_ir_max_ext} filing su {_ir_days} giorni lavorativi (~{_ir_est_min:.1f} min)..."):
+                    _df_ext = fetch_insider_transactions_extended(days_back=_ir_days, max_filings=_ir_max_ext)
+                st.session_state[_ir_ext_cache_key] = _df_ext
+                st.session_state["_insider_ext_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                try:
+                    _ir_os.makedirs("data", exist_ok=True)
+                    _df_ext.to_csv(_IR_CACHE_FILE, index=False)
+                except Exception:
+                    pass
+
+            _df_insider_raw = st.session_state.get(_ir_ext_cache_key)
+            _ir_loaded_from_disk = False
+            if _df_insider_raw is None:
+                if _ir_os.path.exists(_IR_CACHE_FILE):
+                    try:
+                        _df_insider_raw = pd.read_csv(_IR_CACHE_FILE)
+                        _ir_loaded_from_disk = True
+                    except Exception:
+                        _df_insider_raw = pd.DataFrame()
+                else:
+                    _df_insider_raw = pd.DataFrame()
+
+            _ir_ext_ts = st.session_state.get("_insider_ext_scan_time", "")
+            if not _df_insider_raw.empty:
+                _src_note = "📁 caricato da cache su disco" if _ir_loaded_from_disk else f"aggiornato il {_ir_ext_ts}"
+                st.caption(f"✅ {len(_df_insider_raw)} transazioni (storico esteso) · {_src_note}")
 
         if _df_insider_raw is None or _df_insider_raw.empty:
-            st.warning("Nessuna transazione trovata. Premi 'Aggiorna dati Insider' per scaricare i filing più recenti.")
+            st.warning("Nessuna transazione disponibile. Avvia una raccolta dati con i pulsanti sopra.")
         else:
-            st.caption(f"✅ {len(_df_insider_raw)} transazioni analizzate" + (f" · aggiornato alle {_ir_ts}" if _ir_ts else ""))
+            _ir_c1f, _ir_c2f, _ir_c3f = st.columns(3)
+            with _ir_c1f:
+                _ir_min_value = st.number_input(
+                    "Valore minimo transazione ($)",
+                    min_value=0, value=10000, step=5000,
+                    key="insider_min_value"
+                )
+            with _ir_c2f:
+                _ir_role_filter = st.multiselect(
+                    "Ruolo",
+                    options=["CEO/CFO", "Director", "10% Owner", "Altro"],
+                    default=["CEO/CFO", "Director", "10% Owner", "Altro"],
+                    key="insider_role_filter"
+                )
+            with _ir_c3f:
+                _ir_only_buys = st.checkbox("Solo acquisti (P)", value=True, key="insider_only_buys")
 
             _df_view_insider = _df_insider_raw.copy()
             if _ir_only_buys:
@@ -5919,7 +5982,7 @@ with tab_insider:
                 _df_view_insider["RuoloGruppo"] = _df_view_insider["Ruolo"].apply(_ir_role_bucket)
                 _df_view_insider = _df_view_insider[_df_view_insider["RuoloGruppo"].isin(_ir_role_filter)]
 
-            st.markdown("### 📋 Transazioni recenti")
+            st.markdown("### 📋 Transazioni")
             if _df_view_insider.empty:
                 st.info("Nessuna transazione corrisponde ai filtri selezionati.")
             else:
@@ -5992,201 +6055,6 @@ with tab_insider:
                         else:
                             st.warning("Seleziona almeno un ticker.")
 
-
-
-with tab_radar:
-    st.session_state["last_active_tab"] = "OPPORTUNITY_RADAR"
-    st.title("🎯 Opportunity Radar")
-
-    st.caption(
-        "RSI, VWAP e gli altri indicatori sono usati come segnali di screening, non come garanzia di acquisto: "
-        "la capitalizzazione elevata favorisce la liquidità, ma non elimina il rischio specifico del titolo. "
-        "Il Radar evidenzia contesti favorevoli; la decisione di ingresso, sizing e gestione del rischio resta a carico del trader."
-    )
-
-    from modules.opportunity_radar import (
-        screen_opportunities_v2,
-        STRATEGIES,
-    )
-
-    strategy_choice = st.selectbox(
-        "Strategia di screening",
-        options=list(STRATEGIES.keys()),
-        index=0,
-        key="radar_strategy_choice",
-        help="Seleziona la logica tecnica usata per classificare i ticker.",
-    )
-    st.caption(f"ℹ️ {STRATEGIES[strategy_choice]}")
-
-    # Opportunity Radar: usa l'universo completo selezionato nello Scanner,
-    # non il dataset statico AAPL/MSFT/NVDA della demo.
-    radar_sel = [
-        code for enabled, code in [
-            (st.session_state.get("mSP500", False), "SP500"),
-            (st.session_state.get("mNasdaq", True), "Nasdaq"),
-            (st.session_state.get("mFTSE", True), "FTSE"),
-            (st.session_state.get("mEurostoxx", False), "Eurostoxx"),
-            (st.session_state.get("mDow", False), "Dow"),
-            (st.session_state.get("mRussell", False), "Russell"),
-            (st.session_state.get("mStoxxEM", False), "StoxxEM"),
-            (st.session_state.get("mUSSmall", False), "USSmall"),
-        ]
-        if enabled
-    ]
-
-    radar_universe = load_universe(radar_sel)
-    radar_universe = list(dict.fromkeys(
-        str(t).strip().upper()
-        for t in radar_universe
-        if isinstance(t, str) and str(t).strip()
-    ))
-
-    @st.cache_data(ttl=900, show_spinner=False)
-    def _radar_load_market_data(tickers_tuple):
-        import pandas as pd
-        import yfinance as _yf
-
-        if not tickers_tuple:
-            return {}, pd.Series(dtype=float), pd.Series(dtype=float), pd.Series(dtype=float), {}
-
-        raw = _yf.download(
-            tickers=list(tickers_tuple),
-            period="9mo",
-            interval="1d",
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-            threads=True,
-        )
-
-        prices, market_caps, dollar_volumes, earnings_days, names = {}, {}, {}, {}, {}
-
-        for ticker in tickers_tuple:
-            try:
-                if isinstance(raw.columns, pd.MultiIndex):
-                    if ticker not in raw.columns.get_level_values(0):
-                        continue
-                    df_t = raw[ticker].copy()
-                else:
-                    df_t = raw.copy()
-
-                df_t.columns = [str(c).lower() for c in df_t.columns]
-                required = ["open", "high", "low", "close", "volume"]
-                if df_t.empty or not set(required).issubset(df_t.columns):
-                    continue
-
-                df_t = df_t[required].dropna().sort_index()
-                if len(df_t) < 80:
-                    continue
-
-                prices[ticker] = df_t
-                last_close = float(df_t["close"].iloc[-1])
-                avg_volume = float(df_t["volume"].tail(20).mean())
-                dollar_volumes[ticker] = last_close * avg_volume
-                earnings_days[ticker] = 999
-                names[ticker] = ticker
-
-                try:
-                    info = _yf.Ticker(ticker).fast_info
-                    market_caps[ticker] = float(
-                        info.get("market_cap", info.get("marketCap", 0)) or 0
-                    )
-                except Exception:
-                    market_caps[ticker] = 0.0
-
-            except Exception:
-                continue
-
-        return (
-            prices,
-            pd.Series(market_caps, dtype=float),
-            pd.Series(dollar_volumes, dtype=float),
-            pd.Series(earnings_days, dtype=float),
-            names,
-        )
-
-    with st.spinner(f"Opportunity Radar: analisi di {len(radar_universe)} titoli..."):
-        prices, market_caps, dollar_volumes, earnings_days, names = (
-            _radar_load_market_data(tuple(radar_universe))
-        )
-
-    macro_ok = True
-    cfg = {
-        "min_market_cap": 10_000_000_000,
-        "min_dollar_volume": 50_000_000,
-        "max_earnings_proximity": 5,
-        "rsi_min": 45,
-        "rsi_max": 65,
-    }
-
-    df_res = screen_opportunities_v2(
-        strategy=strategy_choice,
-        prices=prices,
-        market_caps=market_caps,
-        dollar_volumes=dollar_volumes,
-        earnings_days=earnings_days,
-        macro_ok=macro_ok,
-        names=names,
-        cfg=cfg,
-    )
-
-    level_filter = st.multiselect(
-        "Filtra per livello",
-        options=["🟢 Opportunity", "🟡 Watch", "🔴 Avoid"],
-        default=["🟢 Opportunity", "🟡 Watch"],
-        key="radar_level_filter",
-    )
-
-    df_view = df_res[df_res["Livello"].isin(level_filter)].reset_index(drop=True)
-
-    st.dataframe(
-        df_view[
-            [
-                "Ticker", "TradingView", "Nome", "Livello", "RSI", "Prezzo",
-                "Dollar_Vol_M", "Quality_Score", "Liq_Grade", "ATR_pct",
-                "Vol_Ratio", "Days_to_Earnings", "Motivazione",
-            ]
-        ],
-        column_config={
-            "TradingView": st.column_config.LinkColumn(
-                "Chart",
-                display_text="📈 Apri",
-            ),
-            "Dollar_Vol_M": st.column_config.NumberColumn("Dollar Vol ($M)"),
-            "ATR_pct": st.column_config.NumberColumn("ATR %", format="%.2f%%"),
-            "Vol_Ratio": st.column_config.NumberColumn("Vol Ratio", format="%.2fx"),
-        },
-        hide_index=True,
-        use_container_width=True,
-        key="radar_table_v2",
-    )
-
-    _radar_strategy_tag = (
-        str(strategy_choice).strip().upper().replace(" ", "_").replace("/", "_")
-    )
-    _radar_ts = datetime.now().strftime("%Y%m%d_%H%M")
-    st.download_button(
-        "📺 TradingView TXT",
-        data=make_tv_txt(df_view, section=f"OPPORTUNITY_RADAR_{_radar_strategy_tag}"),
-        file_name=f"OpportunityRadar_{_radar_strategy_tag}_{_radar_ts}.txt",
-        mime="text/plain",
-        key=f"radar_exp_tv_{_radar_strategy_tag}",
-        disabled=df_view.empty or "Ticker" not in df_view.columns,
-        help="Formato TradingView: ###OPPORTUNITY_RADAR_<STRATEGIA>,ticker separati da virgole,",
-    )
-
-    if not df_view.empty:
-        selected = st.selectbox(
-            "Dettaglio ticker",
-            options=df_view["Ticker"].tolist(),
-            key="radar_ticker_detail",
-        )
-        row = df_view[df_view["Ticker"] == selected].iloc[0]
-        st.markdown(f"### {selected} – {row['Livello']}")
-        st.markdown(f"[📈 Apri su TradingView]({row['TradingView']})")
-        st.write("**Motivazione:**")
-        for r in row["Motivazione"].split(" | "):
-            st.write(f"- {r}")
 
 with tab_macro:
     st.session_state["last_active_tab"] = "MACRO_REGIME"
