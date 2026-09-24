@@ -1,8 +1,18 @@
 """
-utils/insider_radar.py — V45.09
+utils/insider_radar.py — V45.10 (Insider Radar Pro)
 Modulo Insider Radar: scarica, analizza e classifica le transazioni
 insider (Form 4 SEC) per individuare segnali di acquisto significativi
 da parte di CEO, CFO, director e azionisti con oltre il 10% delle quote.
+
+Novità V45.10:
+- Mappatura ruoli più precisa (CEO, CFO, President, COO, Chairman, Director,
+  10% Owner, Other), con normalizzazione dei titoli ufficiali.
+- Insider Score a soglie fisse: il punteggio di un acquisto non dipende più
+  dal campione analizzato (60, 150 o 300 filing), quindi è confrontabile
+  tra Feed Rapido e Storico Esteso e nel tempo.
+- Cluster buying con finestra temporale reale: richiede almeno 2 insider
+  distinti che comprano entro N giorni (default 5), non semplicemente
+  "più di un insider nel campione", indipendentemente da quando.
 
 Due modalità di raccolta dati:
 1. Feed rapido — 'getcurrent' atom feed: ultimi ~100 filing Form 4 in
@@ -233,6 +243,64 @@ def _text(el, path, default=""):
     return found.text.strip() if found is not None and found.text else default
 
 
+# ── V45.10: mappatura ruoli normalizzata ─────────────────────────────────
+_ROLE_PATTERNS = [
+    (re.compile(r"CHIEF\s+EXECUTIVE|^CEO$|\bCEO\b", re.I), "CEO"),
+    (re.compile(r"CHIEF\s+FINANCIAL|^CFO$|\bCFO\b", re.I), "CFO"),
+    (re.compile(r"CHIEF\s+OPERATING|^COO$|\bCOO\b", re.I), "COO"),
+    (re.compile(r"PRESIDENT", re.I), "President"),
+    (re.compile(r"CHAIRMAN|CHAIR\b", re.I), "Chairman"),
+    (re.compile(r"CHIEF\s+\w+\s+OFFICER|^C[A-Z]O$", re.I), "Other Officer"),
+]
+
+
+def _normalize_role(is_director, is_officer, is_ten_pct, officer_title):
+    """
+    Normalizza il ruolo dell'insider in una categoria stabile:
+    CEO, CFO, COO, President, Chairman, Other Officer, Director,
+    10% Owner, Other. Un insider può avere più ruoli (es. CEO e Director);
+    la priorità di visualizzazione va al ruolo più operativo/rilevante.
+    """
+    tags = []
+    title_upper = str(officer_title or "").upper()
+
+    if is_officer and officer_title:
+        matched = False
+        for pattern, label in _ROLE_PATTERNS:
+            if pattern.search(title_upper):
+                tags.append(label)
+                matched = True
+                break
+        if not matched:
+            tags.append("Other Officer")
+    elif is_officer:
+        tags.append("Other Officer")
+
+    if is_director:
+        tags.append("Director")
+    if is_ten_pct:
+        tags.append("10% Owner")
+
+    if not tags:
+        return "Other"
+
+    priority = ["CEO", "CFO", "COO", "President", "Chairman", "Other Officer", "Director", "10% Owner"]
+    tags_sorted = sorted(set(tags), key=lambda t: priority.index(t) if t in priority else 99)
+    return " / ".join(tags_sorted)
+
+
+def role_bucket(role_str: str) -> str:
+    """Raggruppa il ruolo normalizzato in una macro-categoria per i filtri UI."""
+    r = str(role_str).upper()
+    if "CEO" in r or "CFO" in r:
+        return "CEO/CFO"
+    if "10% OWNER" in r:
+        return "10% Owner"
+    if "DIRECTOR" in r or "PRESIDENT" in r or "CHAIRMAN" in r or "COO" in r or "OFFICER" in r:
+        return "Director/Officer"
+    return "Altro"
+
+
 # ── Parsing del singolo Form 4 XML ──────────────────────────────────────
 def parse_form4_xml(xml_bytes: bytes):
     """
@@ -256,12 +324,7 @@ def parse_form4_xml(xml_bytes: bytes):
     is_ten_pct = _text(rel, "isTenPercentOwner") == "1"
     officer_title = _text(rel, "officerTitle")
 
-    role = "Director" if is_director else ""
-    if is_officer:
-        role = officer_title or "Officer"
-    if is_ten_pct:
-        role = (role + " / 10% Owner") if role else "10% Owner"
-    role = role or "Other"
+    role = _normalize_role(is_director, is_officer, is_ten_pct, officer_title)
 
     has_footnote = root.find(".//footnoteId") is not None
 
@@ -363,15 +426,80 @@ def fetch_insider_transactions_extended(days_back: int = 7, max_filings: int = 5
     return _process_filing_list(feed)
 
 
-# ── Insider Score e classificazione ──────────────────────────────────────
-def compute_insider_score(df: pd.DataFrame) -> pd.DataFrame:
+# ── V45.10: Insider Score a soglie fisse ─────────────────────────────────
+def _score_valore_fisso(valore: float) -> float:
+    """Punteggio (0-40) basato su soglie fisse di valore, non relative al
+    campione. Così lo score è confrontabile tra Feed Rapido e Storico Esteso
+    e nel tempo (lo stesso acquisto ottiene sempre lo stesso punteggio)."""
+    if valore >= 1_000_000:
+        return 40.0
+    if valore >= 500_000:
+        return 32.0
+    if valore >= 250_000:
+        return 26.0
+    if valore >= 100_000:
+        return 20.0
+    if valore >= 25_000:
+        return 10.0
+    return 4.0
+
+
+def _score_ruolo_fisso(role_bucket_val: str) -> float:
+    if role_bucket_val == "CEO/CFO":
+        return 20.0
+    if role_bucket_val == "Director/Officer":
+        return 12.0
+    if role_bucket_val == "10% Owner":
+        return 10.0
+    return 4.0
+
+
+def _detect_cluster(buys: pd.DataFrame, window_days: int = 5):
+    """
+    Individua per ciascun ticker se esiste un cluster di acquisti:
+    almeno 2 insider distinti che comprano entro 'window_days' giorni
+    l'uno dall'altro (non semplicemente "più di un insider nel campione
+    complessivo", indipendentemente da quando hanno comprato).
+    Restituisce un dict {ticker: (is_cluster: bool, n_insider_in_window: int)}.
+    """
+    result = {}
+    buys = buys.copy()
+    buys["_data_dt"] = pd.to_datetime(buys["DataTransazione"], errors="coerce")
+
+    for tkr, grp in buys.groupby("Ticker"):
+        grp = grp.dropna(subset=["_data_dt"]).sort_values("_data_dt")
+        if grp.empty:
+            result[tkr] = (False, grp["Insider"].nunique())
+            continue
+
+        best_n = 1
+        dates = grp["_data_dt"].tolist()
+        insiders = grp["Insider"].tolist()
+        for i in range(len(dates)):
+            window_end = dates[i] + timedelta(days=window_days)
+            in_window = {
+                insiders[j] for j in range(len(dates))
+                if dates[i] <= dates[j] <= window_end
+            }
+            best_n = max(best_n, len(in_window))
+
+        result[tkr] = (best_n >= 2, best_n)
+
+    return result
+
+
+def compute_insider_score(df: pd.DataFrame, cluster_window_days: int = 5) -> pd.DataFrame:
     """
     Calcola un Insider Score (0-100) aggregato per ticker basandosi su:
-    - valore netto degli acquisti sul mercato (40%)
-    - numero di insider distinti coinvolti / cluster (25%)
-    - presenza di ruoli chiave CEO/CFO (20%)
-    - numero di transazioni ravvicinate (10%)
+    - valore netto degli acquisti sul mercato, a soglie fisse (40%)
+    - ruolo chiave CEO/CFO > Director/Officer > 10% Owner > Other (20%)
+    - cluster buying con finestra temporale reale (25%)
+    - numero di transazioni (10%)
     - assenza di segnali automatici / footnote 10b5-1 (5%)
+
+    A differenza delle versioni precedenti, il punteggio NON dipende dal
+    numero di filing analizzati nel campione: lo stesso acquisto riceve
+    sempre lo stesso punteggio, sia nel Feed Rapido che nello Storico Esteso.
     """
     if df.empty:
         return pd.DataFrame()
@@ -380,32 +508,40 @@ def compute_insider_score(df: pd.DataFrame) -> pd.DataFrame:
     if buys.empty:
         return pd.DataFrame()
 
+    buys["RuoloGruppo"] = buys["Ruolo"].apply(role_bucket)
+    cluster_info = _detect_cluster(buys, window_days=cluster_window_days)
+
     agg = buys.groupby("Ticker").agg(
         Issuer=("Issuer", "first"),
         Valore_Netto=("Valore", "sum"),
+        Valore_Massimo=("Valore", "max"),
         N_Insider=("Insider", "nunique"),
         N_Transazioni=("Insider", "count"),
         Is10b5_1_pct=("Is10b5_1", "mean"),
     ).reset_index()
 
-    def _has_key_role(tkr):
-        sub = buys.loc[buys["Ticker"] == tkr, "Ruolo"].str.upper()
-        return sub.str.contains("CEO|CFO|CHIEF EXECUTIVE|CHIEF FINANCIAL", regex=True).any()
+    def _top_role(tkr):
+        sub = buys.loc[buys["Ticker"] == tkr, "RuoloGruppo"]
+        priority = ["CEO/CFO", "Director/Officer", "10% Owner", "Altro"]
+        present = [r for r in priority if r in sub.values]
+        return present[0] if present else "Altro"
 
-    agg["CEO_CFO_Coinvolto"] = agg["Ticker"].apply(_has_key_role)
+    agg["RuoloTop"] = agg["Ticker"].apply(_top_role)
+    agg["CEO_CFO_Coinvolto"] = agg["RuoloTop"] == "CEO/CFO"
+    agg["Cluster"] = agg["Ticker"].map(lambda t: cluster_info.get(t, (False, 1))[0])
+    agg["N_Insider_Cluster"] = agg["Ticker"].map(lambda t: cluster_info.get(t, (False, 1))[1])
 
-    v_max = agg["Valore_Netto"].max() or 1
-    n_max = agg["N_Insider"].max() or 1
-
-    agg["Score_Valore"] = (agg["Valore_Netto"] / v_max * 40).clip(0, 40)
-    agg["Score_Insider"] = (agg["N_Insider"] / n_max * 25).clip(0, 25)
-    agg["Score_Ruolo"] = agg["CEO_CFO_Coinvolto"].map({True: 20, False: 5})
-    agg["Score_Cluster"] = (agg["N_Transazioni"].clip(upper=5) / 5 * 10).clip(0, 10)
+    agg["Score_Valore"] = agg["Valore_Massimo"].apply(_score_valore_fisso)
+    agg["Score_Ruolo"] = agg["RuoloTop"].apply(_score_ruolo_fisso)
+    agg["Score_Cluster"] = agg["N_Insider_Cluster"].apply(
+        lambda n: 25.0 if n >= 3 else (15.0 if n >= 2 else 5.0)
+    )
+    agg["Score_Transazioni"] = (agg["N_Transazioni"].clip(upper=5) / 5 * 10).clip(0, 10)
     agg["Score_Automatico"] = ((1 - agg["Is10b5_1_pct"]) * 5).clip(0, 5)
 
     agg["Insider_Score"] = (
-        agg["Score_Valore"] + agg["Score_Insider"] + agg["Score_Ruolo"]
-        + agg["Score_Cluster"] + agg["Score_Automatico"]
+        agg["Score_Valore"] + agg["Score_Ruolo"] + agg["Score_Cluster"]
+        + agg["Score_Transazioni"] + agg["Score_Automatico"]
     ).round(1)
 
     def _classify(s):
@@ -418,10 +554,10 @@ def compute_insider_score(df: pd.DataFrame) -> pd.DataFrame:
         return "⚫ NEUTRAL"
 
     agg["Livello"] = agg["Insider_Score"].apply(_classify)
-    agg["Cluster"] = agg["N_Insider"] >= 2
 
     cols = [
         "Ticker", "Issuer", "Livello", "Insider_Score", "Valore_Netto",
-        "N_Insider", "N_Transazioni", "CEO_CFO_Coinvolto", "Cluster",
+        "RuoloTop", "N_Insider", "N_Insider_Cluster", "N_Transazioni",
+        "CEO_CFO_Coinvolto", "Cluster",
     ]
     return agg[cols].sort_values("Insider_Score", ascending=False).reset_index(drop=True)
