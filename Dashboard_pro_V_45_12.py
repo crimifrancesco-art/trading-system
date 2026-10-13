@@ -8181,19 +8181,33 @@ with tab_tactical:
         _candidate_row = _frame[_frame["Asset"].eq(_candidate)].iloc[0]
         st.info(f"{_candidate_row['Asset']} — {_candidate_row['Segnali']}")
 
-        if st.button(
-            "🎫 Carica nel Trade Ticket",
-            key=f"tactical_load_{category}_v4512",
-        ):
-            st.session_state["tactical_asset_v4512"] = _candidate_row["Asset"]
-            st.session_state["tactical_direction_v4512"] = _candidate_row["Direzione"]
-            st.session_state["tactical_entry_v4512"] = float(_candidate_row["Prezzo"])
-            st.session_state["tactical_stop_v4512"] = float(_candidate_row["Stop_stimato"])
-            st.session_state["tactical_target_v4512"] = float(_candidate_row["Target_stimato"])
-            st.success(
-                f"✅ {_candidate_row['Asset']} caricato nel Trade Ticket. "
+        def _load_candidate_to_ticket(asset, direction, entry, stop, target):
+            st.session_state["tactical_asset_v4512"] = asset
+            st.session_state["tactical_direction_v4512"] = direction
+            st.session_state["tactical_entry_v4512"] = entry
+            st.session_state["tactical_stop_v4512"] = stop
+            st.session_state["tactical_target_v4512"] = target
+            st.session_state["_tactical_loaded_msg_v4512"] = (
+                f"✅ {asset} caricato nel Trade Ticket. "
                 "Controlla sempre entry, stop e target prima di usare il piano."
             )
+
+        st.button(
+            "🎫 Carica nel Trade Ticket",
+            key=f"tactical_load_{category}_v4512",
+            on_click=_load_candidate_to_ticket,
+            args=(
+                str(_candidate_row["Asset"]),
+                str(_candidate_row["Direzione"]),
+                float(_candidate_row["Prezzo"]),
+                float(_candidate_row["Stop_stimato"]),
+                float(_candidate_row["Target_stimato"]),
+            ),
+        )
+
+        _loaded_msg = st.session_state.pop("_tactical_loaded_msg_v4512", None)
+        if _loaded_msg:
+            st.success(_loaded_msg)
 
     _grid_category, _grid_label = _grid_markets[_grid_choice]
     _render_tactical_grid(_grid_category, _grid_label)
