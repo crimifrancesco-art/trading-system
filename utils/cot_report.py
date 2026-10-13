@@ -43,7 +43,7 @@ def _to_number(series: pd.Series) -> pd.Series:
 
 def _download_cftc(url: str) -> bytes:
     import requests
-    response = requests.get(url, timeout=30, headers={"User-Agent": "TradingScannerPRO/45.02"})
+    response = requests.get(url, timeout=30, headers={"User-Agent": "TradingScannerPRO/45.12"})
     response.raise_for_status()
     return response.content
 
@@ -129,7 +129,7 @@ def cot_export(df: pd.DataFrame) -> bytes:
 
 
 def render_cot_report(key_prefix: str = "cot_v45_02") -> None:
-    st.markdown("### 📊 COT Report Evoluto V45.02")
+    st.markdown("### 📊 COT Report Evoluto V45.12")
     st.caption("Posizionamento CFTC dei grandi operatori · dati settimanali · aggiornamento automatico ogni 6 ore")
     labels = list(COT_CONTRACTS)
     selected = st.selectbox("Contratto futures", labels, key=f"{key_prefix}_contract")
@@ -170,5 +170,5 @@ def render_cot_report(key_prefix: str = "cot_v45_02") -> None:
 
     display_cols = [c for c in ("Report_Date", "Commercial_Net", "Commercial_Delta", "Non-Commercial_Net", "Non-Commercial_Delta", "Non-Commercial_Percentile", "COT_Score", "COT_Signal") if c in data]
     st.dataframe(data[display_cols].tail(52).sort_values("Report_Date", ascending=False), use_container_width=True, hide_index=True)
-    st.download_button("📥 Export COT CSV", cot_export(data), f"COT_{cfg['symbol']}_V45_02.csv", "text/csv", key=f"{key_prefix}_export")
+    st.download_button("📥 Export COT CSV", cot_export(data), f"COT_{cfg['symbol']}_V45_12.csv", "text/csv", key=f"{key_prefix}_export")
     st.caption("Il COT è un indicatore di posizionamento con ritardo temporale: usarlo insieme a prezzo, regime e gestione del rischio.")

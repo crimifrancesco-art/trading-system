@@ -135,7 +135,7 @@ def scan_commodities(
 def render_commodity_scanner(
     key_prefix: str = "commodity_v45_04",
 ) -> None:
-    st.markdown("### 🛢️ Commodity Scanner V45.04")
+    st.markdown("### 🛢️ Commodity Scanner V45.12")
     st.caption(
         "Oro, petrolio, gas, argento e rame · "
         "ATR percentile · setup multiday."
@@ -182,7 +182,7 @@ def render_commodity_scanner(
     st.download_button(
         "📥 Export Commodity CSV",
         data.to_csv(index=False).encode(),
-        "commodity_scanner_v45_04.csv",
+        "commodity_scanner_v45_12.csv",
         "text/csv",
         key=f"{key_prefix}_export",
     )

@@ -118,7 +118,7 @@ def compute_macro_regime(data: Dict[str, pd.Series]) -> dict:
 
 
 def render_macro_regime(key_prefix: str = "macro_v45_03") -> None:
-    st.markdown("### 🌡️ Macro Regime Engine V45.03")
+    st.markdown("### 🌡️ Macro Regime Engine V45.12")
     st.caption("Tassi, inflazione, curva dei rendimenti e indicatori macro USA.")
 
     if not _fred_key():
@@ -188,7 +188,7 @@ def render_macro_regime(key_prefix: str = "macro_v45_03") -> None:
         st.download_button(
             "📥 Export Macro CSV",
             frame.to_csv(index=False).encode(),
-            "macro_regime_v45_03.csv",
+            "macro_regime_v45_12.csv",
             "text/csv",
             key=f"{key_prefix}_export",
         )
