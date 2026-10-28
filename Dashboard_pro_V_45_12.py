@@ -1896,7 +1896,7 @@ def to_excel_bytes(d):
                 df.to_excel(w,sheet_name=nm[:31],index=False)
     return buf.getvalue()
 
-def _tv_symbol(raw_ticker):
+def _normalize_tv_export_symbol(raw_ticker):
     """Normalizza un ticker nel formato EXCHANGE:SYMBOL."""
     ticker = str(raw_ticker or "").strip().upper()
     if not ticker:
@@ -1933,7 +1933,7 @@ def _tv_tickers_from_df(df, ticker_col="Ticker"):
     seen = set()
 
     for raw_ticker in df[ticker_col].dropna().tolist():
-        symbol = _tv_symbol(raw_ticker)
+        symbol = _normalize_tv_export_symbol(raw_ticker)
         if symbol and symbol not in seen:
             result.append(symbol)
             seen.add(symbol)
